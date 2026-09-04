@@ -1,0 +1,18 @@
+/* Compass block.
+ *
+ * Tokens are declared on every root the plugin paints, including the ones
+ * core relocates (a core/modal dialogue is appended to body, outside the
+ * block). Read the theme's tokens with a fallback chain; never hardcode a
+ * palette and never declare --mds-* names.
+ */
+.block_compass,
+.compass-dialogue {
+    --block_compass-brand: var(--bs-primary, #0f6cbf);
+    --block_compass-line: var(--bs-border-color, #dee2e6);
+    --block_compass-muted: var(--bs-secondary-color, #6a737b);
+}
+
+.block_compass .compass-skeleton {
+    color: var(--block_compass-muted);
+    font-variant-numeric: tabular-nums;
+}

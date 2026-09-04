@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wireframe — Meus cursos em três andares</title>
+<style>
+  :root{
+    --ink:#2b2b2b; --mid:#6b6b6b; --line:#b9b9b9; --soft:#e9e9e9; --paper:#fafafa;
+    --accent:#2b2b2b; --note:#fff7cc;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#dcdcdc;font-family:"Segoe UI",Roboto,system-ui,sans-serif;color:var(--ink);font-size:14px;line-height:1.35}
+  .page{max-width:1120px;margin:32px auto;background:var(--paper);border:2px solid var(--ink);padding:28px 32px}
+  .breadcrumb{color:var(--mid);font-size:12px;margin-bottom:12px}
+  h1{font-size:22px;margin:0 0 20px;font-weight:600}
+
+  /* annotation callouts */
+  .tier{position:relative;border:1px dashed var(--line);padding:18px 18px 18px 64px;margin-bottom:22px}
+  .tier > .num{position:absolute;left:14px;top:14px;width:34px;height:34px;border:2px solid var(--ink);border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:16px;background:#fff}
+  .tier-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .tier-head h2{font-size:16px;margin:0;font-weight:600}
+  .tier-head .why{color:var(--mid);font-size:12px}
+  .note{background:var(--note);border:1px solid #e4d88f;padding:6px 10px;font-size:12px;color:#5a4d00;display:inline-block;margin-top:10px}
+
+  /* cards */
+  .row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .card{border:1.5px solid var(--ink);background:#fff;min-height:150px;display:flex;flex-direction:column;position:relative}
+  .card .img{height:64px;background:repeating-linear-gradient(135deg,#eee 0 8px,#f8f8f8 8px 16px);border-bottom:1.5px solid var(--ink);position:relative}
+  .card .img::after{content:"";position:absolute;inset:0;background:linear-gradient(to top right,transparent 49.5%,#c8c8c8 49.5%,#c8c8c8 50.5%,transparent 50.5%),linear-gradient(to top left,transparent 49.5%,#c8c8c8 49.5%,#c8c8c8 50.5%,transparent 50.5%)}
+  .card .cat{position:absolute;left:6px;top:6px;font-size:10px;padding:1px 6px;border:1px solid var(--ink);background:#fff;border-radius:2px}
+  .card .star{position:absolute;right:6px;top:6px;font-size:14px;line-height:1;background:#fff;border:1px solid var(--ink);width:20px;height:20px;display:grid;place-items:center;border-radius:2px}
+  .card .body{padding:8px 10px;flex:1;display:flex;flex-direction:column;gap:6px}
+  .card .title{font-weight:600;font-size:13px}
+  .card .meta{font-size:11px;color:var(--mid)}
+  .bar{height:6px;border:1px solid var(--ink);background:#fff}
+  .bar i{display:block;height:100%;background:var(--ink)}
+  .card .btn{margin-top:auto;border:1.5px solid var(--ink);padding:4px 8px;font-size:12px;text-align:center;background:#fff}
+
+  .card.new{border-width:2.5px}
+  .card.new .badge{position:absolute;right:6px;top:6px;font-size:10px;font-weight:700;padding:2px 7px;background:var(--ink);color:#fff;border-radius:2px;letter-spacing:.02em}
+  .card .btn.strong{background:var(--ink);color:#fff}
+  .card.ghost{border-style:dashed;justify-content:center;align-items:center;text-align:center;background:transparent;cursor:pointer;gap:6px;padding:10px}
+  .card.ghost b{font-size:26px}
+  .card.ghost span{font-size:12px;color:var(--mid)}
+  .card.ghost:hover{background:#f1f1f1}
+
+  /* pills */
+  .pills{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{border:1.5px solid var(--ink);border-radius:999px;padding:3px 12px;font-size:12px;background:#fff}
+  .pill.on{background:var(--ink);color:#fff}
+
+  /* tier 3 */
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+  .search{flex:1;min-width:220px;border:1.5px solid var(--ink);padding:6px 10px;color:var(--mid);background:#fff;display:flex;justify-content:space-between}
+  .seg{display:flex;border:1.5px solid var(--ink)}
+  .seg span{padding:5px 10px;font-size:12px}
+  .seg span+span{border-left:1.5px solid var(--ink)}
+  .seg span.on{background:var(--ink);color:#fff}
+  .explore{display:grid;grid-template-columns:150px 1fr;gap:16px}
+  .index{border-right:1.5px solid var(--line);padding-right:12px;font-size:12px}
+  .index div{padding:4px 6px;display:flex;justify-content:space-between}
+  .index div.on{background:var(--soft);font-weight:600}
+  .index small{color:var(--mid)}
+  .group{border:1.5px solid var(--ink);margin-bottom:8px;background:#fff}
+  .group summary{list-style:none;cursor:pointer;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-weight:600}
+  .group summary::-webkit-details-marker{display:none}
+  .group summary .count{font-weight:400;color:var(--mid);font-size:12px}
+  .group summary::before{content:"▸";margin-right:8px;color:var(--mid)}
+  .group[open] summary::before{content:"▾"}
+  .list{border-top:1.5px solid var(--ink)}
+  .item{display:grid;grid-template-columns:36px 1fr 120px 80px 20px;gap:10px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--soft);font-size:13px}
+  .item:last-child{border-bottom:0}
+  .item .thumb{width:36px;height:26px;border:1px solid var(--ink);background:repeating-linear-gradient(135deg,#eee 0 5px,#f8f8f8 5px 10px)}
+  .item .t{font-weight:500}
+  .item .m{color:var(--mid);font-size:11px}
+  .item .s{font-size:11px;color:var(--mid)}
+  .item.sk .t,.item.sk .m,.item.sk .s{color:transparent;background:var(--soft);border-radius:2px;height:12px}
+  .item.sk .thumb{background:var(--soft);border-color:var(--soft)}
+  .virt{padding:8px 12px;text-align:center;font-size:12px;color:var(--mid);border-top:1px dashed var(--line)}
+
+  .dormant{border:1.5px dashed var(--line);padding:10px 12px;display:flex;justify-content:space-between;align-items:center;color:var(--mid);margin-top:12px;background:#fff}
+  .dormant .act{border:1.5px solid var(--ink);color:var(--ink);padding:3px 10px;font-size:12px}
+
+  .legend{margin-top:26px;border-top:2px solid var(--ink);padding-top:14px;font-size:12px;color:var(--mid);display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .legend b{color:var(--ink);display:block;margin-bottom:4px}
+  .hidden{display:none}
+  @media (max-width:760px){.explore{grid-template-columns:1fr}.index{display:none}.item{grid-template-columns:36px 1fr 20px}.item .m,.item .s{display:none}.tier{padding-left:18px;padding-top:56px}.legend{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:no-preference){.card.ghost{transition:background .15s}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="breadcrumb">Painel › Meus cursos — wireframe de baixa fidelidade (não é o visual final)</div>
+  <h1>Meus cursos</h1>
+
+  <!-- ANDAR 1 -->
+  <section class="tier">
+    <div class="num">1</div>
+    <div class="tier-head">
+      <h2>Continuar de onde parei</h2>
+      <span class="why">último acesso · carrega no primeiro paint · máx. 5 cards</span>
+    </div>
+    <div class="row">
+      <div class="card"><div class="img"><span class="cat">PM</span><span class="star">★</span></div><div class="body"><div class="title">Uso diferenciado da força</div><div class="meta">acessado hoje · 62%</div><div class="bar"><i style="width:62%"></i></div><div class="btn">Continuar</div></div></div>
+      <div class="card"><div class="img"><span class="cat">CBM</span><span class="star">☆</span></div><div class="body"><div class="title">Primeiros socorros — módulo 2</div><div class="meta">ontem · 30%</div><div class="bar"><i style="width:30%"></i></div><div class="btn">Continuar</div></div></div>
+      <div class="card"><div class="img"><span class="cat">PC</span><span class="star">☆</span></div><div class="body"><div class="title">Inquérito digital</div><div class="meta">há 3 dias · sem conclusão configurada</div><div class="btn">Acessar</div></div></div>
+    </div>
+
+    <div class="tier-head" style="margin-top:18px">
+      <h2>Novas inscrições</h2>
+      <span class="why">inscrito nos últimos N dias e nunca acessado · sai da faixa no 1º acesso (vira "Continuar") ou após N dias · máx. 5</span>
+    </div>
+    <div class="row">
+      <div class="card new"><div class="img"><span class="cat">PM</span><span class="badge">Novo</span></div><div class="body"><div class="title">Policiamento comunitário</div><div class="meta">inscrito há 2 dias · pela coordenação</div><div class="meta">prazo: 30/09</div><div class="btn strong">Começar</div></div></div>
+      <div class="card new"><div class="img"><span class="cat">Transv.</span><span class="badge">Novo</span></div><div class="body"><div class="title">Integridade e ética no serviço público</div><div class="meta">inscrito hoje · por coorte</div><div class="meta">sem prazo</div><div class="btn strong">Começar</div></div></div>
+      <div class="card new"><div class="img"><span class="cat">CBM</span><span class="badge">Novo</span></div><div class="body"><div class="title">NR-23 — combate a incêndio</div><div class="meta">inscrito há 6 dias · autoinscrição</div><div class="meta">inscrição encerra em 24 dias</div><div class="btn strong">Começar</div></div></div>
+    </div>
+    <div class="note">Cobre inscrição manual, coorte, fluxo de aprovação (enrol_apply), CSV etc. Fonte: <code>user_enrolments.timecreated</code> com <code>user_lastaccess</code> ausente. Se houver mais de 5, fantasma "+N novos" próprio; o total também conta no andar 2.</div>
+
+    <div class="tier-head" style="margin-top:18px">
+      <h2>Meus favoritos</h2>
+      <div class="pills"><span class="pill on">Favoritos (4)</span><span class="pill">Pendências (2)</span></div>
+    </div>
+    <div class="row">
+      <div class="card"><div class="img"><span class="cat">PM</span><span class="star">★</span></div><div class="body"><div class="title">Uso diferenciado da força</div><div class="meta">62%</div><div class="bar"><i style="width:62%"></i></div><div class="btn">Continuar</div></div></div>
+      <div class="card"><div class="img"><span class="cat">PP</span><span class="star">★</span></div><div class="body"><div class="title">Gestão prisional</div><div class="meta">100% · concluído</div><div class="bar"><i style="width:100%"></i></div><div class="btn">Rever</div></div></div>
+      <div class="card"><div class="img"><span class="cat">PCi</span><span class="star">★</span></div><div class="body"><div class="title">Cadeia de custódia</div><div class="meta">não iniciado</div><div class="btn">Acessar</div></div></div>
+      <div class="card"><div class="img"><span class="cat">PM</span><span class="star">★</span></div><div class="body"><div class="title">Direitos humanos</div><div class="meta">15%</div><div class="bar"><i style="width:15%"></i></div><div class="btn">Continuar</div></div></div>
+
+      <!-- ANDAR 2 -->
+      <div class="card ghost" id="ghost" onclick="openExplore()">
+        <b>+87</b>
+        <span>outros cursos</span>
+        <span style="text-decoration:underline">Explorar todos</span>
+      </div>
+    </div>
+    <div class="note">Andar 2 — o card fantasma torna o restante visível como <em>quantidade</em>, não como carga. O andar 3 só é buscado ao clicar (ou ao digitar na busca).</div>
+  </section>
+
+  <!-- ANDAR 3 -->
+  <section class="tier" id="explore">
+    <div class="num">3</div>
+    <div class="tier-head">
+      <h2>Todos os cursos <span style="font-weight:400;color:var(--mid)">(91)</span></h2>
+      <span class="why">endpoint leve: id · nome · categoria · último acesso · favorito — sem imagem, sem progresso</span>
+    </div>
+
+    <div class="toolbar">
+      <div class="search"><span>Filtrar por nome…</span><span>⌕</span></div>
+      <div class="seg"><span class="on">Lista</span><span>Cards</span></div>
+      <div class="seg"><span class="on">Por categoria</span><span>A–Z</span><span>Recentes</span></div>
+    </div>
+
+    <div class="explore">
+      <aside class="index">
+        <div class="on"><span>Polícia Militar</span><small>41</small></div>
+        <div><span>Polícia Civil</span><small>18</small></div>
+        <div><span>Polícia Científica</span><small>7</small></div>
+        <div><span>Polícia Penal</span><small>12</small></div>
+        <div><span>Corpo de Bombeiros</span><small>9</small></div>
+        <div><span>Transversais</span><small>4</small></div>
+      </aside>
+
+      <div>
+        <details class="group" open>
+          <summary><span>Polícia Militar</span><span class="count">41 cursos</span></summary>
+          <div class="list">
+            <div class="item"><div class="thumb"></div><div><div class="t">Abordagem policial</div><div class="m">Técnica policial</div></div><div class="s">último acesso: mai/2026</div><div class="s">concluído</div><div>☆</div></div>
+            <div class="item"><div class="thumb"></div><div><div class="t">Atendimento à ocorrência</div><div class="m">Técnica policial</div></div><div class="s">último acesso: fev/2026</div><div class="s">40%</div><div>☆</div></div>
+            <div class="item"><div class="thumb"></div><div><div class="t">Direitos humanos</div><div class="m">Formação continuada</div></div><div class="s">último acesso: hoje</div><div class="s">15%</div><div>★</div></div>
+            <div class="item"><div class="thumb"></div><div><div class="t">Legislação de trânsito</div><div class="m">Legislação</div></div><div class="s">último acesso: 2024</div><div class="s">—</div><div>☆</div></div>
+            <div class="item"><div class="thumb"></div><div><div class="t">Policiamento comunitário <span style="font-size:10px;font-weight:700;background:var(--ink);color:#fff;padding:1px 5px;border-radius:2px;margin-left:4px">Novo</span></div><div class="m">Formação continuada</div></div><div class="s">inscrito há 2 dias · nunca acessado</div><div class="s">—</div><div>☆</div></div>
+            <div class="item sk"><div class="thumb"></div><div><div class="t">xxxxxxxxxxxxxxxxxxxx</div><div class="m">xxxxxxxx</div></div><div class="s">xxxxxxxx</div><div class="s">xxx</div><div></div></div>
+            <div class="item sk"><div class="thumb"></div><div><div class="t">xxxxxxxxxxxxxxx</div><div class="m">xxxxxxxxxxxx</div></div><div class="s">xxxxxxxx</div><div class="s">xxx</div><div></div></div>
+            <div class="virt">⋯ 35 linhas fora da viewport — virtualizadas, só renderizam ao rolar; miniatura e progresso carregam quando a linha aparece (IntersectionObserver)</div>
+          </div>
+        </details>
+        <details class="group"><summary><span>Polícia Civil</span><span class="count">18 cursos</span></summary><div class="list"><div class="virt">grupo fechado: só o cabeçalho e a contagem foram enviados</div></div></details>
+        <details class="group"><summary><span>Polícia Científica</span><span class="count">7 cursos</span></summary><div class="list"><div class="virt">idem</div></div></details>
+        <details class="group"><summary><span>Polícia Penal</span><span class="count">12 cursos</span></summary><div class="list"><div class="virt">idem</div></div></details>
+        <details class="group"><summary><span>Corpo de Bombeiros</span><span class="count">9 cursos</span></summary><div class="list"><div class="virt">idem</div></div></details>
+        <details class="group"><summary><span>Transversais</span><span class="count">4 cursos</span></summary><div class="list"><div class="virt">idem</div></div></details>
+
+        <div class="dormant">
+          <span>Dormentes — 23 cursos sem acesso há mais de 12 meses (recolhidos)</span>
+          <span style="display:flex;gap:8px"><span class="act">Mostrar</span><span class="act">Arquivar todos…</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="legend">
+    <div><b>Andar 1 — atenção</b>Cards completos (imagem, progresso, botão). Último acesso + novas inscrições + favoritos + pendências. Um curso aparece em uma faixa só: prioridade Continuar › Novo › Favorito. Um único web service, favoritos primeiro, como no block_dimensions.</div>
+    <div><b>Andar 2 — fronteira</b>Card fantasma "+N". Contagem é barata; o clique dispara a busca do inventário. Sem paginação exposta ao usuário.</div>
+    <div><b>Andar 3 — exploração</b>Lista compacta agrupada por categoria, índice lateral, filtro instantâneo sobre o DOM, virtualização. Dormentes recolhidos com ação em lote de arquivamento.</div>
+  </div>
+</div>
+<script>
+  function openExplore(){document.getElementById('explore').scrollIntoView({behavior:'smooth'})}
+</script>
+</body>
+</html>
