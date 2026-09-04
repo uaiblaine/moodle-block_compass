@@ -25,6 +25,36 @@
 defined('MOODLE_INTERNAL') || die();
 
 if ($ADMIN->fulltree) {
+    $settings->add(new admin_setting_configtext(
+        'block_compass/attention_max',
+        get_string('attention_max', 'block_compass'),
+        get_string('attention_max_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_ATTENTION_MAX,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'block_compass/new_days',
+        get_string('new_days', 'block_compass'),
+        get_string('new_days_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_NEW_DAYS,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/enable_favourites',
+        get_string('enable_favourites', 'block_compass'),
+        get_string('enable_favourites_desc', 'block_compass'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/hide_block_title',
+        get_string('hide_block_title', 'block_compass'),
+        get_string('hide_block_title_desc', 'block_compass'),
+        0
+    ));
+
     // The plugin cannot choose a cache store; it can only tell the admin what it needs.
     $settings->add(new admin_setting_heading(
         'block_compass/cachestores',

@@ -16,16 +16,23 @@
 /**
  * Entry point of the Compass block.
  *
- * Phase 0 replaces the loading skeleton with the placeholder label. Later
- * phases mount the tiers here: attention, ghost count, exploration.
+ * One request on first paint (get_attention), then the strips render
+ * client-side; pending progress is fetched afterwards in batches.
  *
  * @module     block_compass/main
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {getAttention} from 'block_compass/repository';
+import {render} from 'block_compass/attention';
+import {init as initFavourites} from 'block_compass/favourites';
+
 const SELECTORS = {
-    skeleton: '[data-region="skeleton"]',
+    status: '[data-region="status"]',
+    error: '[data-region="error"]',
+    errorText: '[data-region="error-text"]',
+    retry: '[data-action="retry"]',
 };
 
 /**
@@ -43,6 +50,29 @@ const readConfig = (root) => {
 };
 
 /**
+ * Fetch tier 1 and render it, or show the error state with a retry button.
+ *
+ * @param {HTMLElement} root The block root.
+ * @param {Object} config Block configuration.
+ * @returns {Promise}
+ */
+const load = async(root, config) => {
+    const status = root.querySelector(SELECTORS.status);
+    const error = root.querySelector(SELECTORS.error);
+    status.hidden = false;
+    error.hidden = true;
+    try {
+        const data = await getAttention();
+        status.hidden = true;
+        await render(root, data, config);
+    } catch (e) {
+        status.hidden = true;
+        root.querySelector(SELECTORS.errorText).textContent = (config.labels || {}).loaderror || '';
+        error.hidden = false;
+    }
+};
+
+/**
  * Initialise one block instance.
  *
  * @param {string} rootId Id of the block root element.
@@ -53,9 +83,8 @@ export const init = (rootId) => {
         return;
     }
     const config = readConfig(root);
-    const labels = config.labels || {};
-    const skeleton = root.querySelector(SELECTORS.skeleton);
-    if (skeleton) {
-        skeleton.textContent = labels.placeholder || '';
-    }
+    config.labels = config.labels || {};
+    initFavourites(root, config.labels);
+    root.querySelector(SELECTORS.retry).addEventListener('click', () => load(root, config));
+    load(root, config);
 };

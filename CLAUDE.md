@@ -113,15 +113,15 @@ Tier 1 is four bounded, indexed queries plus one count. Indexes verified in
 
 | Strip | Query shape | Bound |
 |---|---|---|
-| Continue | `{user_lastaccess}` of the user, `ORDER BY timeaccess DESC`, joined to an active enrolment and a visible course, completed courses excluded through `{course_completions}.timecompleted` (unique index `userid, course`) | `LIMIT attention_max + margin` (margin absorbs hidden courses) |
-| New enrolments | `{user_enrolments}` of the user with `timecreated > now − new_days`, anti-join `{user_lastaccess}` | `ORDER BY timecreated DESC LIMIT attention_max` |
+| Continue | `{user_lastaccess}` of the user, `ORDER BY timeaccess DESC`, joined to an active enrolment and a visible course, completed courses excluded through `{course_completions}.timecompleted` (unique index `userid, course`), hidden courses excluded in SQL (`NOT IN` over the preference ids; past 500 hidden, a PHP margin for the strips and a chunked subtraction for the counts) | `LIMIT attention_max` |
+| New enrolments | grouped derived table of the user's active enrolments (one row per course, `MIN(ue.timecreated)`, the same row the counts measure), `timecreated > now − new_days`, anti-join `{user_lastaccess}` | `ORDER BY timecreated DESC LIMIT attention_max` |
 | Favourites | ids from `core_favourites` (component `core_course`, itemtype `courses`, already indexed by user) → courses by id | `attention_max`, the rest behind a "+N" ghost |
-| Ghost count | `COUNT(*)` of the user's active enrolments | index on `userid` |
+| Counts | one statement over the same derived table: `COUNT(*)`, `SUM(CASE …)` new-and-never-accessed, `SUM(CASE …)` favourited | index on `userid` |
 
 **Budget: at most 6 database reads, every one bounded by `LIMIT` or an indexed
 aggregate.** `attention_max` defaults to 3, so tier 1 is at most 9 cards plus
-ghosts. Progress and image come from the `details` and `coursemeta` caches
-only: `get_attention` returns the progress of cards whose `details` entry is
+ghosts. Progress comes from the `details` cache and the image from core's own
+`course_image` cache: `get_attention` returns the progress of cards whose `details` entry is
 cached and marks the others `pending`, and the client fetches those through
 `get_card_details` — first paint stays one request inside the budget with the
 plugin caches cold (ADR-000, decision 10). Exclusivity: a course appears in
@@ -136,15 +136,22 @@ entries. Hence two layers with different keys and different invalidation.
 
 | Definition | Mode | Key | Content | Invalidation |
 |---|---|---|---|---|
-| `coursemeta` | application | `courseid` | fullname, category, visibility, image URL, `enablecompletion` | events `\core\event\course_updated`, `course_category_updated`, `course_deleted`; shared by every user |
+| `coursemeta` | application | `courseid` | raw `fullname`/`shortname`, category **id**, `visible`, `enablecompletion`, the six context preload columns — no image (core's `course_image` cache), no category name (core's `coursecatrecords` cache), nothing formatted | per-key `delete()` in observers of `\core\event\course_updated` and `course_deleted`; shared by every user; no TTL |
 | `inventory` | application | `userid` | array of `[courseid, timecreated, timeaccess, enrolmethod, timeend]` — **no course data** | stamp validation (§6.3); safety TTL 24 h |
-| `details` | application | `userid` + `courseid` (no `:` in MUC keys) | progress percentage | the user's own `course_completion_updated` / `course_module_completion_updated`; TTL 1 h |
+| `details` | application | `<userid>_<courseid>` (no `:` in MUC keys) | progress percentage as int, or `null` = "no completion" (a cached value; a miss is `false`) | per-key `delete()` in observers of the user's `course_module_completion_updated` and `course_completed`; TTL 1 h bounds criteria changes and deletions |
 
 Store: **Redis recommended for all three** (documented in the README with the
 MUC mapping; `mdl redis m502` maps the local stack). One user with 2 000
 enrolments is about 60 KB of serialised `inventory`, which is acceptable.
 **Never invalidate `inventory` or `details` from course events** — the rule
-that makes the design hold.
+that makes the design hold. Names are formatted at **response time**: the
+course context is rebuilt from the stored columns and the filters of every
+course shown (and their ancestors) are preloaded in **one query** by
+`classes/local/filters.php`, which fills `$FILTERLIB_PRIVATE->active` the way
+core's `filter_preload_activities()` does but with the exact
+`MAX(active × depth) > −MIN(active × depth)` rule of
+`filter_get_active_in_context()`. Full rationale, alternatives and evidence:
+[`docs/adr/001-two-layer-cache.md`](docs/adr/001-two-layer-cache.md).
 
 ### Stamp validation instead of event invalidation (§6.3, *ADR-002*)
 
@@ -196,7 +203,7 @@ with a 300 ms debounce. The response carries
 | `get_attention` | ≤ 6 | 150 ms | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 | 300 ms | ≤ 40 KB |
 | `get_inventory` (degraded, headers) | ≤ 2 | 150 ms | ≤ 5 KB |
-| `get_card_details` (24 ids) | ≤ 1 + completion | 200 ms | ≤ 10 KB |
+| `get_card_details` (24 ids) | 1 (the active-enrolment check that stops id enumeration) when every answer is cached or untracked; + 1 + completion for the courses that must be computed | 200 ms | ≤ 10 KB |
 
 - `classes/local/budget.php` wraps `$DB->perf_get_reads()`
   (`lib/dml/moodle_database.php`, verified on 5.2): take a reading, run the
@@ -300,21 +307,28 @@ classes/
     get_card_details.php     image + progress for ≤ 24 visible ids (Phase 4)
   local/                     THE ONLY place $DB is allowed
     budget.php               perf_get_reads() delta helper used by every budget test (Phase 0)
-    attention.php            the four bounded queries of §6.1
-    inventory.php            user layer: stamp validation + inventory cache wrapper
-    course_meta.php          course layer: coursemeta cache wrapper + event-driven refresh
-    details.php              per user+course progress cache wrapper
+    config.php               settings with defaults; the one reader of get_config() (Phase 1)
+    hidden_courses.php       the Course overview block's hidden ids, from preferences (Phase 1)
+    attention.php            the four bounded queries of §6.1, one row per course (Phase 1)
+    cards.php                rows → card arrays: formatting, images, progress, action label (Phase 1)
+    filters.php              one-query bulk preload of string filters for many contexts (Phase 1)
+    course_meta.php          course layer: coursemeta cache wrapper, miss fill, context rebuild (Phase 1)
+    details.php              per user+course progress cache wrapper; null = no completion (Phase 1)
+    inventory.php            user layer: stamp validation + inventory cache wrapper (Phase 2)
     dormancy.php             dormant classification (Phase 5)
+  observer.php               per-key cache deletes on the four events of db/events.php (Phase 1)
   task/warm_active_users.php optional scheduled task (Phase 3)
   output/                    renderable+templatable shells only (block.php)
   privacy/provider.php       Phase 0: null_provider. Becomes a user_preference_provider in the phase
                              that introduces block_compass_view (favourites and hidden-course
                              preferences are core's and are exported/deleted by core)
-  event observers            coursemeta refresh; details invalidation for the acting user
-amd/src/                     ES modules: main, attention, explore, filter, favourites, repository
-                             (repository.js is the only module that calls core/ajax)
+amd/src/                     ES modules: main, repository (the only module that calls core/ajax),
+                             attention (renders tier 1, fills pending progress), favourites (the core
+                             star); later: explore, filter
 amd/build/                   tracked minified output — rebuilt by mdl grunt, committed with src
-templates/                   block (shell), card, card_new, ghost, group, row, skeleton, index
+templates/                   block (shell, strips rendered empty), cards + card (one template; isnew
+                             switches the new-enrolment presentation), progress, ghost; later: group,
+                             row, skeleton, index
 db/                          access.php, services.php, caches.php (three definitions), events.php,
                              tasks.php (Phase 3). NO install.xml, NO upgrade.php with schema steps,
                              and no uninstall.php purge: the plugin owns no rows outside MUC
@@ -515,9 +529,13 @@ set per key (`format_mtube-502`).
   relocates (`core/modal` dialogues appended to `body`). Custom properties use
   the frankenstyle prefix `--block_compass-*` with the `--bs-*` fallback chain;
   inner classes use `compass-*`. Never declare `--mds-*`.
-- Reduced motion honoured; result counts announced through a polite live
-  region, favourite toggles through an assertive one; icon-only buttons carry
-  `aria-label`; the ghost card is a `<button>`.
+- Reduced motion honoured; favourite toggles announced through an assertive
+  live region (`data-region="announce"`), and — from Phase 2, when tier 3
+  exists — result counts through a polite one; icon-only buttons carry
+  `aria-label`. The ghost card is an `<a>` while it navigates (Phase 1: to the
+  My courses page) and becomes a `<button>` in the phase that makes it open
+  tier 3 in place, because an element that navigates is a link and one that
+  acts is a button.
 
 ## Moodle 5.2-only: where this plugin departs from the fleet default
 

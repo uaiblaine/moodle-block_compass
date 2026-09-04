@@ -29,8 +29,10 @@ shell and the browser renders**, and **scale is a requirement**: every endpoint
 has a query budget enforced by an automated test. The plan is in `PLAN.md` and
 the architecture decisions in `docs/adr/`.
 
-**Status: Phase 0 (scaffold).** The block installs, appears on the Dashboard and
-renders a placeholder; course data arrives in the next phases.
+**Status: Phase 1 (tier 1).** The block shows Continue, New enrolments and
+Favourites with full cards, the ghost card with the count of everything else,
+and the star. Tier 3 (the explorable inventory) arrives in Phase 2; until then
+the ghost card leads to the My courses page.
 
 
 Requirements
@@ -62,7 +64,7 @@ Compass keeps three MUC application caches, declared in `db/caches.php`:
 
 | Definition   | Key            | Content                                            |
 |--------------|----------------|----------------------------------------------------|
-| `coursemeta` | course id      | name, category, visibility, image, completion flag |
+| `coursemeta` | course id      | raw name, category id, visibility, completion flag, context columns (no image: core caches it) |
 | `inventory`  | user id        | the user's enrolments, without course data         |
 | `details`    | user + course  | progress percentage                                |
 
@@ -81,12 +83,17 @@ Usage
 -----
 
 **Administrators** find the settings under *Site administration > Plugins >
-Blocks > Compass*. In Phase 0 the page carries only the cache-store notice; the
-sizing settings (cards per strip, "new" window, dormancy, grouping depth,
-degraded-mode threshold) arrive with the phases that use them.
+Blocks > Compass*: cards per strip (default 3), days an enrolment stays new
+(default 30), whether favourites are shown, whether the block title is hidden,
+and the cache-store notice. Dormancy, grouping depth and the degraded-mode
+threshold arrive with the phases that use them.
 
-**Learners** see the block on their Dashboard. In Phase 0 it renders a
-placeholder; the three tiers arrive in the next phases.
+**Learners** see the block on their Dashboard. *Continue where you left off*
+lists the most recently opened courses (completed ones leave the strip), *New
+enrolments* the courses they were enrolled in recently and never opened, with
+the enrolment method and any deadline, and *My favourites* the starred courses.
+Each strip shows up to three cards; whatever does not fit is counted on a ghost
+card. Courses hidden in the Course overview block are hidden here too.
 
 
 Capabilities

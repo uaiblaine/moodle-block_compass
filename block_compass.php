@@ -53,6 +53,17 @@ class block_compass extends block_base {
     }
 
     /**
+     * Runs after init() with the configuration available: hide the title bar when asked to.
+     *
+     * @return void
+     */
+    public function specialization(): void {
+        if (\block_compass\local\config::hide_block_title()) {
+            $this->title = '';
+        }
+    }
+
+    /**
      * The block has a global settings page.
      *
      * @return bool

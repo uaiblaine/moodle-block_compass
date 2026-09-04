@@ -34,9 +34,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $definitions = [
-    // Course layer. Key: courseid. Value: fullname, category, visibility, image URL,
-    // enablecompletion. Refreshed by the course_updated, course_category_updated and
-    // course_deleted observers; shared by every user, so it stays hot on its own.
+    // Course layer (ADR-001). Key: courseid. Value: raw fullname and shortname, category id,
+    // visible, enablecompletion, and the six context columns that rebuild the course context
+    // without a query. No image (core's course_image cache owns it), no category name (core's
+    // coursecatrecords cache owns it), nothing formatted. Deleted per key by the course_updated
+    // and course_deleted observers; shared by every user, so it stays hot on its own.
     'coursemeta' => [
         'mode' => \core_cache\store::MODE_APPLICATION,
         'simplekeys' => true,

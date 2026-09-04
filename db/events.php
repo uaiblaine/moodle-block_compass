@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Compass block version file.
+ * Event observers (ADR-001).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -24,9 +24,21 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'block_compass';
-$plugin->version = 2026090401;
-$plugin->release = 'v5.2-r1';
-$plugin->requires = 2026042000;
-$plugin->supported = [502, 502];
-$plugin->maturity = MATURITY_ALPHA;
+$observers = [
+    [
+        'eventname' => '\core\event\course_updated',
+        'callback' => '\block_compass\observer::course_updated',
+    ],
+    [
+        'eventname' => '\core\event\course_deleted',
+        'callback' => '\block_compass\observer::course_deleted',
+    ],
+    [
+        'eventname' => '\core\event\course_module_completion_updated',
+        'callback' => '\block_compass\observer::completion_updated',
+    ],
+    [
+        'eventname' => '\core\event\course_completed',
+        'callback' => '\block_compass\observer::completion_updated',
+    ],
+];

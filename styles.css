@@ -10,9 +10,109 @@
     --block_compass-brand: var(--bs-primary, #0f6cbf);
     --block_compass-line: var(--bs-border-color, #dee2e6);
     --block_compass-muted: var(--bs-secondary-color, #6a737b);
+    --block_compass-surface: var(--bs-body-bg, #fff);
 }
 
-.block_compass .compass-skeleton {
+.block_compass .compass-status,
+.block_compass .compass-empty {
     color: var(--block_compass-muted);
     font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-strip {
+    margin-bottom: 1.25rem;
+}
+
+.block_compass .compass-strip-title {
+    letter-spacing: 0.04em;
+}
+
+/* Cards: as many columns as fit, none narrower than 13rem, the ghost among them. */
+.block_compass .compass-cards-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.75rem;
+}
+
+.block_compass .compass-card {
+    position: relative;
+    border-color: var(--block_compass-line);
+    background: var(--block_compass-surface);
+}
+
+.block_compass .compass-card-new {
+    border-width: 2px;
+    border-color: var(--block_compass-brand);
+}
+
+.block_compass .compass-card-img {
+    height: 5.5rem;
+    object-fit: cover;
+}
+
+.block_compass .compass-card-img-empty {
+    background: repeating-linear-gradient(
+        135deg,
+        var(--block_compass-line) 0,
+        var(--block_compass-line) 6px,
+        var(--block_compass-surface) 6px,
+        var(--block_compass-surface) 14px
+    );
+    opacity: 0.6;
+}
+
+.block_compass .compass-badge-new {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+}
+
+.block_compass .compass-card-title {
+    line-height: 1.3;
+}
+
+/* The star sits above the stretched link, or the link would swallow its clicks. */
+.block_compass .compass-star {
+    position: relative;
+    z-index: 2;
+    line-height: 1;
+}
+
+.block_compass .compass-star:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+.block_compass .compass-progress-bar {
+    height: 0.4rem;
+    margin-bottom: 0.25rem;
+}
+
+.block_compass .compass-ghost {
+    border-style: dashed;
+    border-color: var(--block_compass-line);
+    color: inherit;
+    transition: background-color 150ms ease;
+}
+
+.block_compass .compass-ghost:hover,
+.block_compass .compass-ghost:focus-visible {
+    background: var(--bs-secondary-bg, #f8f9fa);
+}
+
+.block_compass .compass-ghost-count {
+    font-size: 1.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-ghost-cta {
+    color: var(--block_compass-brand);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-ghost {
+        transition: none;
+    }
 }

@@ -18,30 +18,60 @@
     @template block_compass/block
 
     Shell of the Compass block. The server ships labels and configuration; the
-    browser fetches course data and renders cards client-side (PLAN.md §3.2).
-    Phase 0 renders the loading skeleton and lets the JS replace it with the
-    placeholder label carried in the configuration.
+    browser fetches tier 1 through block_compass_get_attention and renders the
+    cards with core/templates (PLAN.md §3.2). The three strips are rendered here
+    empty and hidden, so headings, landmarks and order are stable before any data
+    arrives.
 
     Classes required for JS:
     * none
 
     Data attributes required for JS:
     * data-region="block_compass" on the root, carrying data-config, a JSON
-      string with the client configuration and labels.
-    * data-region="skeleton" on the status element the JS replaces.
+      string with labels and settings.
+    * data-region="status" for the loading message.
+    * data-region="error" with data-region="error-text" and data-action="retry".
+    * data-region="tier1" wrapping one section per strip, each with data-strip
+      (continue, new, favourites) and a data-region="cards" list.
+    * data-region="ghost" for the tier 2 ghost card.
+    * data-region="empty" for the empty-state message.
+    * data-region="announce" for favourite announcements.
 
     Context variables required for this template:
-    * configjson - JSON string with the client configuration and labels.
+    * strips - list of objects with name and title.
+    * configjson - JSON string with labels and settings.
 
     Example context (json):
     {
+        "strips": [
+            {"name": "continue", "title": "Continue where you left off"},
+            {"name": "new", "title": "New enrolments"},
+            {"name": "favourites", "title": "My favourites"}
+        ],
         "configjson": "{}"
     }
 }}
 <div id="block_compass-{{uniqid}}" class="compass-root" data-region="block_compass" data-config="{{configjson}}">
-    <div class="compass-skeleton" data-region="skeleton" role="status" aria-live="polite">
+    <div class="compass-status text-muted small" data-region="status" role="status" aria-live="polite">
         {{#str}}loading, core{{/str}}
     </div>
+    <div class="alert alert-warning d-flex align-items-center" data-region="error" role="alert" hidden>
+        <span data-region="error-text"></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-action="retry">
+            {{#str}}retry, block_compass{{/str}}
+        </button>
+    </div>
+    <div data-region="tier1" hidden>
+        {{#strips}}
+        <section class="compass-strip" data-strip="{{name}}" aria-labelledby="compass-strip-{{name}}-{{uniqid}}" hidden>
+            <h3 class="compass-strip-title h6 text-uppercase text-muted" id="compass-strip-{{name}}-{{uniqid}}">{{title}}</h3>
+            <div class="compass-cards" data-region="cards"></div>
+        </section>
+        {{/strips}}
+    </div>
+    <div class="compass-ghost-wrap" data-region="ghost" hidden></div>
+    <p class="compass-empty text-muted" data-region="empty" hidden></p>
+    <span class="visually-hidden" data-region="announce" role="alert" aria-live="assertive"></span>
     <noscript>
         <p class="compass-noscript">{{#str}}javascriptrequired, block_compass{{/str}}</p>
     </noscript>

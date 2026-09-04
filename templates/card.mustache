@@ -1,0 +1,97 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template block_compass/card
+
+    One course card of tier 1. Rendered client-side from the payload of
+    block_compass_get_attention; the isnew flag switches the "new enrolment"
+    presentation (badge, enrolment date and method, deadline, Start button).
+    Names arrive as plain text and are escaped here.
+
+    Classes required for JS:
+    * none
+
+    Data attributes required for JS:
+    * data-course-id on the root.
+    * data-region="progress" with data-course-id, replaced when progress arrives.
+    * data-action="toggle-favourite" on the star, with data-course-id and
+      data-fullname; data-region="star-on" and data-region="star-off" inside it.
+
+    Context variables required for this template:
+    * id, fullname, shortname, url, imageurl, hasimage, category, hascompletion,
+      progress, pending, nodata, iscomplete, isfavourite, isnew, lastaccesstext,
+      enrolledtext, deadlinetext, actiontext, favouritesenabled.
+
+    Example context (json):
+    {
+        "id": 3, "fullname": "Community policing", "shortname": "CP-101",
+        "url": "https://example.com/course/view.php?id=3", "imageurl": "", "hasimage": false,
+        "category": "Police", "hascompletion": true, "progress": 62, "pending": false, "nodata": false,
+        "iscomplete": false, "isfavourite": true, "isnew": true,
+        "lastaccesstext": "", "enrolledtext": "Enrolled 2 days ago · Manual enrolments",
+        "deadlinetext": "Deadline: 30/09/26", "actiontext": "Start", "favouritesenabled": true
+    }
+}}
+<div class="compass-card card h-100{{#isnew}} compass-card-new{{/isnew}}" data-course-id="{{id}}">
+    {{#hasimage}}
+    <img class="compass-card-img card-img-top" src="{{imageurl}}" alt="" loading="lazy">
+    {{/hasimage}}
+    {{^hasimage}}
+    <div class="compass-card-img compass-card-img-empty card-img-top" aria-hidden="true"></div>
+    {{/hasimage}}
+    {{#isnew}}
+    <span class="compass-badge-new badge bg-primary text-white">{{#str}}badge_new, block_compass{{/str}}</span>
+    {{/isnew}}
+    <div class="card-body d-flex flex-column">
+        {{#category}}
+        <span class="compass-card-category small text-muted">{{category}}</span>
+        {{/category}}
+        <h4 class="compass-card-title h6 mb-1">
+            <a href="{{url}}" class="compass-card-link stretched-link text-reset text-decoration-none">{{fullname}}</a>
+        </h4>
+        <p class="compass-card-meta small text-muted mb-2">{{#isnew}}{{enrolledtext}}{{#deadlinetext}} · {{deadlinetext}}{{/deadlinetext}}{{/isnew}}{{^isnew}}{{lastaccesstext}}{{/isnew}}</p>
+        {{#hascompletion}}
+        <div class="compass-progress mb-2" data-region="progress" data-course-id="{{id}}">
+            {{#pending}}
+            <span class="small text-muted">{{#str}}progressloading, block_compass{{/str}}</span>
+            {{/pending}}
+            {{#nodata}}
+            <span class="small text-muted">{{#str}}nocompletion, block_compass{{/str}}</span>
+            {{/nodata}}
+            {{^nodata}}
+            {{^pending}}
+            {{> block_compass/progress }}
+            {{/pending}}
+            {{/nodata}}
+        </div>
+        {{/hascompletion}}
+        {{^hascompletion}}
+        <p class="compass-card-nocompletion small text-muted mb-2">{{#str}}nocompletion, block_compass{{/str}}</p>
+        {{/hascompletion}}
+        <div class="compass-card-actions mt-auto d-flex align-items-center justify-content-between">
+            <a href="{{url}}" class="btn btn-sm {{#isnew}}btn-primary{{/isnew}}{{^isnew}}btn-outline-primary{{/isnew}}" tabindex="-1" aria-hidden="true">{{actiontext}}</a>
+            {{#favouritesenabled}}
+            <button type="button" class="compass-star btn btn-link p-1" data-action="toggle-favourite" data-course-id="{{id}}" data-fullname="{{fullname}}"
+                    {{#isfavourite}}aria-pressed="true" aria-label="{{#str}}removefromfavourites, block_compass{{/str}}"{{/isfavourite}}
+                    {{^isfavourite}}aria-pressed="false" aria-label="{{#str}}addtofavourites, block_compass{{/str}}"{{/isfavourite}}>
+                <span data-region="star-on" {{^isfavourite}}hidden{{/isfavourite}}>{{#pix}}i/star, core{{/pix}}</span>
+                <span data-region="star-off" {{#isfavourite}}hidden{{/isfavourite}}>{{#pix}}i/star-o, core{{/pix}}</span>
+            </button>
+            {{/favouritesenabled}}
+        </div>
+    </div>
+</div>

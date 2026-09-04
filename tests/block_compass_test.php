@@ -110,8 +110,19 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('data-region="block_compass"', $content->text);
         // The configuration travels as escaped JSON in a data attribute; the JS itself is
         // queued on the page requirements by the Mustache js helper, not returned in the text.
-        $expectedconfig = json_encode(['labels' => ['placeholder' => get_string('placeholder', 'block_compass')]]);
-        $this->assertStringContainsString('data-config="' . s($expectedconfig) . '"', $content->text);
+        $this->assertStringContainsString(s('"favouritesenabled":true'), $content->text);
+        $ghostlabel = json_encode(get_string('ghost_more', 'block_compass'));
+        $this->assertStringContainsString(s('"ghost_more":' . $ghostlabel), $content->text);
+        // The three strips are rendered empty and hidden, so their order and headings are stable.
+        $headings = [
+            'continue' => get_string('strip_continue', 'block_compass'),
+            'new' => get_string('strip_new', 'block_compass'),
+            'favourites' => get_string('strip_favourites', 'block_compass'),
+        ];
+        foreach ($headings as $strip => $heading) {
+            $this->assertStringContainsString('data-strip="' . $strip . '"', $content->text);
+            $this->assertStringContainsString($heading, $content->text);
+        }
         $this->assertStringContainsString(get_string('javascriptrequired', 'block_compass'), $content->text);
         $this->assertSame('', $content->footer);
     }

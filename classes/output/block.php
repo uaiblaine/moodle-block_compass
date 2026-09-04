@@ -24,16 +24,18 @@
 
 namespace block_compass\output;
 
+use block_compass\local\config;
 use core\output\renderable;
 use core\output\renderer_base;
 use core\output\templatable;
+use moodle_url;
 
 /**
  * What the server ships: labels and configuration, never data (PLAN.md §3.2).
  *
- * The browser fetches courses over AJAX and renders them with core/templates.
- * Rendered through renderer_base::render(), which resolves this class to the
- * block_compass/block template by name — no renderer class is needed.
+ * The browser fetches tier 1 through block_compass_get_attention and renders
+ * the cards with core/templates. Rendered through renderer_base::render(), which
+ * resolves this class to the block_compass/block template by name.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -44,16 +46,30 @@ class block implements renderable, templatable {
      * Export the shell context.
      *
      * @param renderer_base $output The renderer.
-     * @return array Template context: configjson.
+     * @return array Template context: strips and configjson.
      */
     public function export_for_template(renderer_base $output): array {
+        $keys = [
+            'ghost_more', 'ghost_more_new', 'ghost_more_favourites', 'ghost_explore',
+            'addtofavourites', 'removefromfavourites', 'favouriteadded', 'favouriteremoved',
+            'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
+        ];
+        $labels = [];
+        foreach ($keys as $key) {
+            $labels[$key] = get_string($key, 'block_compass');
+        }
         $config = [
-            'labels' => [
-                'placeholder' => get_string('placeholder', 'block_compass'),
-            ],
+            'labels' => $labels,
+            'favouritesenabled' => config::favourites_enabled(),
+            'mycoursesurl' => (new moodle_url('/my/courses.php'))->out(false),
         ];
 
         return [
+            'strips' => [
+                ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
+                ['name' => 'new', 'title' => get_string('strip_new', 'block_compass')],
+                ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
+            ],
             'configjson' => json_encode($config),
         ];
     }

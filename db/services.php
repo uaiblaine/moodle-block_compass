@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Compass block version file.
+ * External functions.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -24,9 +24,19 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'block_compass';
-$plugin->version = 2026090401;
-$plugin->release = 'v5.2-r1';
-$plugin->requires = 2026042000;
-$plugin->supported = [502, 502];
-$plugin->maturity = MATURITY_ALPHA;
+$functions = [
+    'block_compass_get_attention' => [
+        'classname' => 'block_compass\external\get_attention',
+        'methodname' => 'execute',
+        'description' => 'Tier 1 of the Compass block for the current user: Continue, New and Favourites, plus the ghost counts.',
+        'type' => 'read',
+        'ajax' => true,
+    ],
+    'block_compass_get_card_details' => [
+        'classname' => 'block_compass\external\get_card_details',
+        'methodname' => 'execute',
+        'description' => 'Progress for a batch of the current user\'s courses.',
+        'type' => 'read',
+        'ajax' => true,
+    ],
+];
