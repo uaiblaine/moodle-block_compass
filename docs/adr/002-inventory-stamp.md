@@ -342,7 +342,7 @@ the plan's 40 KB even uncompressed.
 - Bench, 2026-09-04 (`docs/perf/2026-09-04-bench-postgres17.md`,
   reproducible from `docs/perf/bench.sql`): PostgreSQL 17, 1 075 000
   enrolments, 100 000 courses; stamp 15 ms / fill 28 ms for a 3 000-enrolment
-  user, under 10 ms / 1 ms for a 50-enrolment user; every statement
+  user, 9.4 ms / 3.6 ms for a 50-enrolment user; every statement
   index-driven for ordinary users; `InitPlan` hoisting of the scalar
   subqueries confirmed; entry sizes measured as quoted.
 - ADR-001 (accepted): the per-course derived-table rule shared with New and

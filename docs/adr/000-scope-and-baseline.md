@@ -211,3 +211,19 @@ continues the decisions above so that later records can cite them.
     Revisit triggers: Phase 3 pre-warming (ADR-003), which touches the
     `coursemeta` fills, or any report of a stale course name after a category
     move.
+23. **ADR-003 and ADR-004 accepted; decision 18 superseded.** The maintainer
+    accepted both records on 2026-09-04 with their defaults — pre-warming
+    scheduled at 04:00 (random minute), `prewarm_days` 7,
+    `prewarm_budget_seconds` 600, gated by `enable_prewarm` off; paged mode
+    above `inventory_max` 250 with 100 rows a page and 50 search hits — and
+    the two readings they ask for: PLAN.md §6.6's "≤ 2 reads" for the
+    degraded headers is restated as 3 with the shared layers warm (plus the
+    web-service read) under the per-request accounting adopted in Phase 2,
+    and the pages' ordering on the raw course name is a known limit. Decision
+    18 (server-side search as `$DB->sql_like()` over the user's enrolments) is
+    **superseded by ADR-004**: the search runs in PHP over the validated
+    inventory entry with the same normalisation rule as the client
+    (`filter.js`), because `sql_like()` cannot be accent-insensitive on
+    PostgreSQL at all and is collation-dependent on MariaDB, so a SQL search
+    would behave differently from full mode and between the two CI databases.
+    The rejected prefix-only search stays rejected.

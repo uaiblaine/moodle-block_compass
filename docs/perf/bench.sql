@@ -154,3 +154,71 @@ SELECT COUNT(*) AS total,
       GROUP BY ex.courseid) x
   LEFT JOIN mdl_user_lastaccess la ON la.userid = :U AND la.courseid = x.courseid
   LEFT JOIN mdl_favourite ffa ON ffa.userid = :U AND ffa.component = 'core_course' AND ffa.itemtype = 'courses' AND ffa.itemid = x.courseid;
+
+-- ===== phase 3 (ADR-003, ADR-004): measured 2026-09-04, the SQL alternatives paged mode REJECTS and the
+-- pre-warming selection it keeps. Same variables U and N. =====
+\echo === HEADERS: active visible enrolments grouped by category (user :U) ===
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY)
+SELECT c.category, COUNT(*) AS n
+  FROM mdl_user_enrolments ue
+  JOIN mdl_enrol e ON e.id = ue.enrolid
+  JOIN mdl_course c ON c.id = e.courseid
+ WHERE ue.userid = :U AND e.courseid <> 1
+   AND ue.status = 0 AND e.status = 0 AND ue.timestart <= :N AND (ue.timeend = 0 OR ue.timeend > :N)
+   AND c.visible = 1
+ GROUP BY c.category;
+\echo === PAGE: one group, keyset on (fullname, id), LIMIT 100 (user :U) ===
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY)
+SELECT DISTINCT c.id, c.fullname
+  FROM mdl_user_enrolments ue
+  JOIN mdl_enrol e ON e.id = ue.enrolid
+  JOIN mdl_course c ON c.id = e.courseid
+ WHERE ue.userid = :U AND e.courseid <> 1
+   AND ue.status = 0 AND e.status = 0 AND ue.timestart <= :N AND (ue.timeend = 0 OR ue.timeend > :N)
+   AND c.visible = 1 AND c.category IN (3)
+   AND (c.fullname > 'Course 5000' OR (c.fullname = 'Course 5000' AND c.id > 5000))
+ ORDER BY c.fullname, c.id
+ LIMIT 100;
+\echo === SEARCH: substring LIKE over the user's active enrolments, LIMIT 50 (user :U) ===
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY)
+SELECT DISTINCT c.id, c.fullname, c.category
+  FROM mdl_user_enrolments ue
+  JOIN mdl_enrol e ON e.id = ue.enrolid
+  JOIN mdl_course c ON c.id = e.courseid
+ WHERE ue.userid = :U AND e.courseid <> 1
+   AND ue.status = 0 AND e.status = 0 AND ue.timestart <= :N AND (ue.timeend = 0 OR ue.timeend > :N)
+   AND c.visible = 1
+   AND (c.fullname ILIKE '%se 12%' OR c.shortname ILIKE '%se 12%')
+ ORDER BY c.fullname, c.id
+ LIMIT 50;
+\echo === ACTIVE USERS: batch of users by lastaccess window, keyset on id (prewarm) ===
+\echo (no mdl_user copy in the bench: shape only, run on the site copy below)
+
+-- Pre-warming: a {user} copy with 1 000 000 synthetic rows (seed + plans).
+DROP TABLE IF EXISTS mdl_user CASCADE;
+CREATE TABLE mdl_user (LIKE public.m_user INCLUDING ALL);
+-- 1 000 000 users; lastaccess: 18 % within 7 days, 12 % within 30, 30 % older, 40 % never (0); 1 % deleted, 2 % suspended.
+INSERT INTO mdl_user (id, auth, confirmed, deleted, suspended, username, email, lastaccess, timecreated, timemodified, mnethostid)
+SELECT g, 'manual', 1, CASE WHEN g % 100 = 0 THEN 1 ELSE 0 END, CASE WHEN g % 50 = 0 THEN 1 ELSE 0 END,
+       'u' || g, 'u' || g || '@example.invalid',
+       CASE WHEN g % 100 < 18 THEN 1725100000 - (g % 7) * 86400 - (g % 3600)
+            WHEN g % 100 < 30 THEN 1725100000 - (7 + g % 23) * 86400
+            WHEN g % 100 < 60 THEN 1725100000 - (30 + g % 700) * 86400
+            ELSE 0 END,
+       1700000000, 1700000000, 1
+  FROM generate_series(1, 1000000) g;
+ANALYZE mdl_user;
+SELECT count(*) AS active7 FROM mdl_user WHERE lastaccess >= 1725100000 - 7*86400 AND deleted = 0 AND suspended = 0;
+\echo === PREWARM BATCH: users active in the window, keyset on id, LIMIT 200 (cursor mid-way) ===
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY)
+SELECT id FROM mdl_user
+ WHERE lastaccess >= 1725100000 - 7*86400 AND deleted = 0 AND suspended = 0 AND id > 500000
+ ORDER BY id LIMIT 200;
+\echo === PREWARM BATCH: first batch (cursor 0) ===
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY)
+SELECT id FROM mdl_user
+ WHERE lastaccess >= 1725100000 - 7*86400 AND deleted = 0 AND suspended = 0 AND id > 0
+ ORDER BY id LIMIT 200;
+\echo === PREWARM COUNT: how many remain (progress line for mtrace) ===
+EXPLAIN (ANALYZE, BUFFERS, SUMMARY)
+SELECT count(*) FROM mdl_user WHERE lastaccess >= 1725100000 - 7*86400 AND deleted = 0 AND suspended = 0 AND id > 500000;

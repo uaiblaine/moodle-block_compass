@@ -73,6 +73,33 @@ with it. So the 2 000-enrolment entry PLAN.md §6.2 estimated at 60 KB is
 272 KB on a default store and 122 KB with igbinary selected — worth a line in
 the README's cache-store section (Phase 7).
 
+## Phase 3 candidates (measured 2026-09-04, same schema)
+
+Two records were drafted from these numbers: ADR-004 (paged mode) and ADR-003
+(pre-warming). The paged-mode statements below are the **SQL alternatives**
+the record rejects in favour of deriving headers, pages and search from the
+inventory entry ADR-002 already validates; they are measured so that the
+rejection rests on numbers. The pre-warming statement is the one ADR-003 keeps.
+
+| Statement | User with 50 enrolments | User with 3 000 enrolments | Sequential scans (3 000-user plan) |
+|---|---|---|---|
+| paged headers: `GROUP BY c.category` over the user's active visible enrolments | 1.5 ms | 101.4 ms | mdl_enrol (parallel) |
+| paged page: one group, keyset `(fullname, id)`, `LIMIT 100` | 0.2 ms | 241.6 ms | mdl_enrol (parallel) |
+| paged search: `ILIKE` on fullname/shortname, `LIMIT 50` | 0.2 ms | 34.0 ms | mdl_course (parallel) |
+
+Pre-warming selection over a `{user}` copy of **1 000 000** rows (18 % active
+inside 7 days, 12 % inside 30, 30 % older, 40 % never; 1 % deleted, 2 %
+suspended — **175 219** users qualify for a 7-day window):
+
+| Statement | Execution time | Plan |
+|---|---|---|
+| batch of 200 by keyset on `id`, cursor 0 | 0.27 ms | Index Scan on the primary key, window as filter |
+| batch of 200, cursor 500 000 | 0.53 ms | same |
+| remaining count (progress line) | 82.7 ms | Parallel Index Only Scan on the primary key |
+
+The `lastaccess` index (`m_user_las2_ix`) exists but the ordered keyset makes
+the primary key the cheaper access path for the resumable scan.
+
 ## Appendix: plans
 
 <details><summary>User with 3 000 enrolments</summary>
@@ -863,3 +890,322 @@ SET
 ```
 
 </details>
+
+### Phase 3 plans (2026-09-04)
+
+```
+SET
+=== HEADERS: active visible enrolments grouped by category (user 20203) ===
+                                                                                       QUERY PLAN                                                                                       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=12904.23..12919.05 rows=6 width=16) (actual time=96.154..101.329 rows=6 loops=1)
+   Group Key: c.category
+   Buffers: shared hit=10281 read=336
+   ->  Gather Merge  (cost=12904.23..12918.96 rows=6 width=16) (actual time=96.099..101.317 rows=12 loops=1)
+         Workers Planned: 1
+         Workers Launched: 1
+         Buffers: shared hit=10281 read=336
+         ->  Partial GroupAggregate  (cost=11904.22..11918.27 rows=6 width=16) (actual time=93.506..93.632 rows=6 loops=2)
+               Group Key: c.category
+               Buffers: shared hit=10281 read=336
+               ->  Sort  (cost=11904.22..11908.89 rows=1865 width=8) (actual time=93.482..93.537 rows=1394 loops=2)
+                     Sort Key: c.category
+                     Sort Method: quicksort  Memory: 49kB
+                     Buffers: shared hit=10281 read=336
+                     Worker 0:  Sort Method: quicksort  Memory: 49kB
+                     ->  Nested Loop  (cost=7866.42..11802.91 rows=1865 width=8) (actual time=0.611..92.998 rows=1394 loops=2)
+                           Buffers: shared hit=10273 read=336
+                           ->  Parallel Hash Join  (cost=7866.12..11006.56 rows=1904 width=8) (actual time=0.571..43.867 rows=1425 loops=2)
+                                 Hash Cond: (e.id = ue.enrolid)
+                                 Buffers: shared hit=2058
+                                 ->  Parallel Seq Scan on mdl_enrol e  (cost=0.00..2970.58 rows=64705 width=16) (actual time=0.020..34.065 rows=55000 loops=2)
+                                       Filter: ((courseid <> 1) AND (status = 0))
+                                       Buffers: shared hit=2000
+                                 ->  Parallel Hash  (cost=7842.32..7842.32 rows=1904 width=8) (actual time=0.460..0.462 rows=1425 loops=2)
+                                       Buckets: 4096  Batches: 1  Memory Usage: 160kB
+                                       Buffers: shared hit=46
+                                       ->  Parallel Bitmap Heap Scan on mdl_user_enrolments ue  (cost=42.77..7842.32 rows=1904 width=8) (actual time=0.177..0.673 rows=2850 loops=1)
+                                             Recheck Cond: (userid = 20203)
+                                             Filter: ((timestart <= 1725100000) AND (status = 0) AND ((timeend = 0) OR (timeend > 1725100000)))
+                                             Rows Removed by Filter: 150
+                                             Heap Blocks: exact=38
+                                             Buffers: shared hit=46
+                                             ->  Bitmap Index Scan on mdl_user_enrolments_userid_idx  (cost=0.00..41.96 rows=3404 width=0) (actual time=0.117..0.117 rows=3000 loops=1)
+                                                   Index Cond: (userid = 20203)
+                                                   Buffers: shared hit=8
+                           ->  Index Scan using mdl_course_pkey on mdl_course c  (cost=0.29..0.42 rows=1 width=16) (actual time=0.033..0.033 rows=1 loops=2850)
+                                 Index Cond: (id = e.courseid)
+                                 Filter: (visible = 1)
+                                 Rows Removed by Filter: 0
+                                 Buffers: shared hit=8215 read=336
+ Planning:
+   Buffers: shared hit=367
+ Planning Time: 1.663 ms
+ Execution Time: 101.441 ms
+(44 rows)
+
+=== PAGE: one group, keyset on (fullname, id), LIMIT 100 (user 20203) ===
+                                                                                     QUERY PLAN                                                                                     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=7613.70..11776.59 rows=100 width=20) (actual time=58.690..241.460 rows=100 loops=1)
+   Buffers: shared hit=15520 read=1410
+   ->  Unique  (cost=7613.70..19769.35 rows=292 width=20) (actual time=58.689..241.422 rows=100 loops=1)
+         Buffers: shared hit=15520 read=1410
+         ->  Nested Loop  (cost=7613.70..19767.89 rows=292 width=20) (actual time=58.687..241.337 rows=100 loops=1)
+               Buffers: shared hit=15520 read=1410
+               ->  Gather Merge  (cost=7613.27..8743.86 rows=9920 width=28) (actual time=53.079..57.427 rows=4037 loops=1)
+                     Workers Planned: 1
+                     Workers Launched: 1
+                     Buffers: shared hit=4304 read=410
+                     ->  Sort  (cost=6613.26..6627.85 rows=5835 width=28) (actual time=51.100..51.332 rows=2542 loops=2)
+                           Sort Key: c.fullname, c.id
+                           Sort Method: quicksort  Memory: 445kB
+                           Buffers: shared hit=4304 read=410
+                           Worker 0:  Sort Method: quicksort  Memory: 426kB
+                           ->  Parallel Hash Join  (cost=3107.82..6248.26 rows=5835 width=28) (actual time=31.150..42.159 rows=5184 loops=2)
+                                 Hash Cond: (e.courseid = c.id)
+                                 Buffers: shared hit=4288 read=410
+                                 ->  Parallel Seq Scan on mdl_enrol e  (cost=0.00..2970.58 rows=64705 width=16) (actual time=0.011..4.782 rows=55000 loops=2)
+                                       Filter: ((courseid <> 1) AND (status = 0))
+                                       Buffers: shared hit=2000
+                                 ->  Parallel Hash  (cost=3041.51..3041.51 rows=5305 width=20) (actual time=30.873..30.874 rows=4444 loops=2)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 640kB
+                                       Buffers: shared hit=2237 read=410
+                                       ->  Parallel Bitmap Heap Scan on mdl_course c  (cost=188.04..3041.51 rows=5305 width=20) (actual time=4.434..29.174 rows=4444 loops=2)
+                                             Recheck Cond: (category = 3)
+                                             Filter: ((visible = 1) AND (((fullname)::text > 'Course 5000'::text) OR (((fullname)::text = 'Course 5000'::text) AND (id > 5000))))
+                                             Rows Removed by Filter: 3889
+                                             Heap Blocks: exact=1386
+                                             Buffers: shared hit=2237 read=410
+                                             ->  Bitmap Index Scan on mdl_course_category_idx  (cost=0.00..185.79 rows=16733 width=0) (actual time=5.662..5.663 rows=16667 loops=1)
+                                                   Index Cond: (category = 3)
+                                                   Buffers: shared read=15
+               ->  Index Scan using mdl_user_enrolments_enrolid_userid_idx on mdl_user_enrolments ue  (cost=0.43..1.11 rows=1 width=8) (actual time=0.045..0.045 rows=0 loops=4037)
+                     Index Cond: ((enrolid = e.id) AND (userid = 20203))
+                     Filter: ((timestart <= 1725100000) AND (status = 0) AND ((timeend = 0) OR (timeend > 1725100000)))
+                     Rows Removed by Filter: 0
+                     Buffers: shared hit=11216 read=1000
+ Planning:
+   Buffers: shared hit=37
+ Planning Time: 0.646 ms
+ Execution Time: 241.616 ms
+(42 rows)
+
+=== SEARCH: substring LIKE over the
+psql:/tmp/paged.sql:24: error: unterminated quoted string
+                                                                                              QUERY PLAN                                                                                              
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8104.11..8106.58 rows=19 width=28) (actual time=32.190..34.030 rows=32 loops=1)
+   Buffers: shared hit=9508 read=68
+   ->  Unique  (cost=8104.11..8106.58 rows=19 width=28) (actual time=32.189..34.028 rows=32 loops=1)
+         Buffers: shared hit=9508 read=68
+         ->  Gather Merge  (cost=8104.11..8106.43 rows=19 width=28) (actual time=32.188..34.023 rows=32 loops=1)
+               Workers Planned: 1
+               Workers Launched: 1
+               Buffers: shared hit=9508 read=68
+               ->  Unique  (cost=7104.10..7104.29 rows=19 width=28) (actual time=30.116..30.120 rows=16 loops=2)
+                     Buffers: shared hit=9508 read=68
+                     ->  Sort  (cost=7104.10..7104.14 rows=19 width=28) (actual time=30.115..30.117 rows=16 loops=2)
+                           Sort Key: c.fullname, c.id, c.category
+                           Sort Method: quicksort  Memory: 25kB
+                           Buffers: shared hit=9508 read=68
+                           Worker 0:  Sort Method: quicksort  Memory: 25kB
+                           ->  Nested Loop  (cost=0.72..7103.69 rows=19 width=28) (actual time=3.046..30.082 rows=16 loops=2)
+                                 Buffers: shared hit=9492 read=68
+                                 ->  Nested Loop  (cost=0.29..6385.80 rows=646 width=36) (actual time=1.364..24.251 rows=589 loops=2)
+                                       Buffers: shared hit=5983 read=6
+                                       ->  Parallel Seq Scan on mdl_course c  (cost=0.00..3661.41 rows=588 width=28) (actual time=1.159..22.767 rows=544 loops=2)
+                                             Filter: ((visible = 1) AND (((fullname)::text ~~* '%se 12%'::text) OR ((shortname)::text ~~* '%se 12%'::text)))
+                                             Rows Removed by Filter: 49456
+                                             Buffers: shared hit=2632
+                                       ->  Index Scan using mdl_enrol_courseid_idx on mdl_enrol e  (cost=0.29..4.62 rows=1 width=16) (actual time=0.002..0.002 rows=1 loops=1089)
+                                             Index Cond: (courseid = c.id)
+                                             Filter: ((courseid <> 1) AND (status = 0))
+                                             Buffers: shared hit=3351 read=6
+                                 ->  Index Scan using mdl_user_enrolments_enrolid_userid_idx on mdl_user_enrolments ue  (cost=0.43..1.11 rows=1 width=8) (actual time=0.010..0.010 rows=0 loops=1178)
+                                       Index Cond: ((enrolid = e.id) AND (userid = 20203))
+                                       Filter: ((timestart <= 1725100000) AND (status = 0) AND ((timeend = 0) OR (timeend > 1725100000)))
+                                       Rows Removed by Filter: 0
+                                       Buffers: shared hit=3509 read=62
+ Planning:
+   Buffers: shared hit=26
+ Planning Time: 1.372 ms
+ Execution Time: 34.056 ms
+(36 rows)
+
+=== ACTIVE USERS: batch of users by lastaccess window, keyset on id (prewarm) ===
+(no mdl_user copy in the bench: shape only, run on the site copy below)
+
+SET
+=== HEADERS: active visible enrolments grouped by category (user 42) ===
+                                                                                    QUERY PLAN                                                                                     
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate  (cost=622.31..622.73 rows=6 width=16) (actual time=1.446..1.450 rows=6 loops=1)
+   Group Key: c.category
+   Buffers: shared hit=347
+   ->  Sort  (cost=622.31..622.43 rows=48 width=8) (actual time=1.442..1.444 rows=48 loops=1)
+         Sort Key: c.category
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=347
+         ->  Nested Loop  (cost=1.01..620.97 rows=48 width=8) (actual time=0.065..1.423 rows=48 loops=1)
+               Buffers: shared hit=344
+               ->  Nested Loop  (cost=0.72..600.48 rows=49 width=8) (actual time=0.052..1.127 rows=48 loops=1)
+                     Buffers: shared hit=200
+                     ->  Index Scan using mdl_user_enrolments_userid_idx on mdl_user_enrolments ue  (cost=0.43..205.04 rows=49 width=8) (actual time=0.040..0.280 rows=48 loops=1)
+                           Index Cond: (userid = 42)
+                           Filter: ((timestart <= 1725100000) AND (status = 0) AND ((timeend = 0) OR (timeend > 1725100000)))
+                           Rows Removed by Filter: 2
+                           Buffers: shared hit=56
+                     ->  Index Scan using mdl_enrol_pkey on mdl_enrol e  (cost=0.29..8.07 rows=1 width=16) (actual time=0.017..0.017 rows=1 loops=48)
+                           Index Cond: (id = ue.enrolid)
+                           Filter: ((courseid <> 1) AND (status = 0))
+                           Buffers: shared hit=144
+               ->  Index Scan using mdl_course_pkey on mdl_course c  (cost=0.29..0.42 rows=1 width=16) (actual time=0.006..0.006 rows=1 loops=48)
+                     Index Cond: (id = e.courseid)
+                     Filter: (visible = 1)
+                     Buffers: shared hit=144
+ Planning:
+   Buffers: shared hit=362 read=5
+ Planning Time: 2.189 ms
+ Execution Time: 1.518 ms
+(28 rows)
+
+=== PAGE: one group, keyset on (fullname, id), LIMIT 100 (user 42) ===
+psql:/tmp/paged.sql:24: error: unterminated quoted string
+                                                                                       QUERY PLAN                                                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=621.50..621.53 rows=4 width=20) (actual time=0.195..0.197 rows=3 loops=1)
+   Buffers: shared hit=344
+   ->  Unique  (cost=621.50..621.53 rows=4 width=20) (actual time=0.194..0.196 rows=3 loops=1)
+         Buffers: shared hit=344
+         ->  Sort  (cost=621.50..621.51 rows=4 width=20) (actual time=0.194..0.194 rows=3 loops=1)
+               Sort Key: c.fullname, c.id
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=344
+               ->  Nested Loop  (cost=1.01..621.46 rows=4 width=20) (actual time=0.111..0.184 rows=3 loops=1)
+                     Buffers: shared hit=341
+                     ->  Nested Loop  (cost=0.72..600.48 rows=49 width=8) (actual time=0.008..0.106 rows=48 loops=1)
+                           Buffers: shared hit=197
+                           ->  Index Scan using mdl_user_enrolments_userid_idx on mdl_user_enrolments ue  (cost=0.43..205.04 rows=49 width=8) (actual time=0.004..0.033 rows=48 loops=1)
+                                 Index Cond: (userid = 42)
+                                 Filter: ((timestart <= 1725100000) AND (status = 0) AND ((timeend = 0) OR (timeend > 1725100000)))
+                                 Rows Removed by Filter: 2
+                                 Buffers: shared hit=53
+                           ->  Index Scan using mdl_enrol_pkey on mdl_enrol e  (cost=0.29..8.07 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=48)
+                                 Index Cond: (id = ue.enrolid)
+                                 Filter: ((courseid <> 1) AND (status = 0))
+                                 Buffers: shared hit=144
+                     ->  Index Scan using mdl_course_pkey on mdl_course c  (cost=0.29..0.43 rows=1 width=20) (actual time=0.002..0.002 rows=0 loops=48)
+                           Index Cond: (id = e.courseid)
+                           Filter: ((visible = 1) AND (category = 3) AND (((fullname)::text > 'Course 5000'::text) OR (((fullname)::text = 'Course 5000'::text) AND (id > 5000))))
+                           Rows Removed by Filter: 1
+                           Buffers: shared hit=144
+ Planning:
+   Buffers: shared hit=37
+ Planning Time: 0.206 ms
+ Execution Time: 0.210 ms
+(30 rows)
+
+=== SEARCH: substring LIKE over the
+                                                                                       QUERY PLAN                                                                                        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=621.23..621.24 rows=1 width=28) (actual time=0.177..0.178 rows=0 loops=1)
+   Buffers: shared hit=341
+   ->  Unique  (cost=621.23..621.24 rows=1 width=28) (actual time=0.177..0.177 rows=0 loops=1)
+         Buffers: shared hit=341
+         ->  Sort  (cost=621.23..621.23 rows=1 width=28) (actual time=0.177..0.177 rows=0 loops=1)
+               Sort Key: c.fullname, c.id, c.category
+               Sort Method: quicksort  Memory: 25kB
+               Buffers: shared hit=341
+               ->  Nested Loop  (cost=1.01..621.22 rows=1 width=28) (actual time=0.175..0.175 rows=0 loops=1)
+                     Buffers: shared hit=341
+                     ->  Nested Loop  (cost=0.72..600.48 rows=49 width=8) (actual time=0.007..0.088 rows=48 loops=1)
+                           Buffers: shared hit=197
+                           ->  Index Scan using mdl_user_enrolments_userid_idx on mdl_user_enrolments ue  (cost=0.43..205.04 rows=49 width=8) (actual time=0.003..0.020 rows=48 loops=1)
+                                 Index Cond: (userid = 42)
+                                 Filter: ((timestart <= 1725100000) AND (status = 0) AND ((timeend = 0) OR (timeend > 1725100000)))
+                                 Rows Removed by Filter: 2
+                                 Buffers: shared hit=53
+                           ->  Index Scan using mdl_enrol_pkey on mdl_enrol e  (cost=0.29..8.07 rows=1 width=16) (actual time=0.001..0.001 rows=1 loops=48)
+                                 Index Cond: (id = ue.enrolid)
+                                 Filter: ((courseid <> 1) AND (status = 0))
+                                 Buffers: shared hit=144
+                     ->  Index Scan using mdl_course_pkey on mdl_course c  (cost=0.29..0.42 rows=1 width=28) (actual time=0.002..0.002 rows=0 loops=48)
+                           Index Cond: (id = e.courseid)
+                           Filter: ((visible = 1) AND (((fullname)::text ~~* '%se 12%'::text) OR ((shortname)::text ~~* '%se 12%'::text)))
+                           Rows Removed by Filter: 1
+                           Buffers: shared hit=144
+ Planning:
+   Buffers: shared hit=26
+ Planning Time: 0.256 ms
+ Execution Time: 0.193 ms
+(30 rows)
+
+=== ACTIVE USERS: batch of users by lastaccess window, keyset on id (prewarm) ===
+(no mdl_user copy in the bench: shape only, run on the site copy below)
+
+Timing is on.
+SET
+DROP TABLE
+psql:/tmp/users.sql:3: NOTICE:  table "mdl_user" does not exist, skipping
+CREATE TABLE
+INSERT 0 1000000
+ANALYZE
+ active7 
+---------
+  175219
+(1 row)
+
+=== PREWARM BATCH: users active in the window, keyset on id, LIMIT 200 (cursor mid-way) ===
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..72.32 rows=200 width=8) (actual time=0.189..0.517 rows=200 loops=1)
+   Buffers: shared hit=20 read=17
+   ->  Index Scan using mdl_user_pkey on mdl_user  (cost=0.42..31462.98 rows=87522 width=8) (actual time=0.188..0.508 rows=200 loops=1)
+         Index Cond: (id > 500000)
+         Filter: ((lastaccess >= 1724495200) AND (deleted = 0) AND (suspended = 0))
+         Rows Removed by Filter: 907
+         Buffers: shared hit=20 read=17
+ Planning:
+   Buffers: shared hit=23 read=2
+ Planning Time: 0.414 ms
+ Execution Time: 0.531 ms
+(11 rows)
+
+=== PREWARM BATCH: first batch (cursor 0) ===
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..72.31 rows=200 width=8) (actual time=0.006..0.260 rows=200 loops=1)
+   Buffers: shared hit=4 read=32
+   ->  Index Scan using mdl_user_pkey on mdl_user  (cost=0.42..63010.43 rows=175303 width=8) (actual time=0.006..0.252 rows=200 loops=1)
+         Index Cond: (id > 0)
+         Filter: ((lastaccess >= 1724495200) AND (deleted = 0) AND (suspended = 0))
+         Rows Removed by Filter: 907
+         Buffers: shared hit=4 read=32
+ Planning:
+   Buffers: shared hit=1 read=3
+ Planning Time: 0.115 ms
+ Execution Time: 0.270 ms
+(11 rows)
+
+=== PREWARM COUNT: how many remain (progress line for mtrace) ===
+                                                                           QUERY PLAN                                                                           
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate  (cost=27457.73..27457.74 rows=1 width=8) (actual time=78.266..82.638 rows=1 loops=1)
+   Buffers: shared hit=9540 read=6489 written=2286
+   ->  Gather  (cost=27457.51..27457.72 rows=2 width=8) (actual time=78.175..82.633 rows=3 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=9540 read=6489 written=2286
+         ->  Partial Aggregate  (cost=26457.51..26457.52 rows=1 width=8) (actual time=67.866..67.866 rows=1 loops=3)
+               Buffers: shared hit=9540 read=6489 written=2286
+               ->  Parallel Index Scan using mdl_user_pkey on mdl_user  (cost=0.42..26366.34 rows=36468 width=0) (actual time=0.027..66.597 rows=29203 loops=3)
+                     Index Cond: (id > 500000)
+                     Filter: ((lastaccess >= 1724495200) AND (deleted = 0) AND (suspended = 0))
+                     Rows Removed by Filter: 137463
+                     Buffers: shared hit=9540 read=6489 written=2286
+ Planning Time: 0.055 ms
+ Execution Time: 82.659 ms
+(15 rows)
+
+```
