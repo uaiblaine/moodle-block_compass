@@ -21,3 +21,5 @@ the status flips to `Accepted` in the commit that lands it.
 | [002](002-inventory-stamp.md) | The inventory: per-enrolment rows, validated by a stamp | Accepted | 2 |
 | [003](003-prewarming.md) | Pre-warming: optional, selective, budgeted | Accepted | before 3 |
 | [004](004-paged-mode.md) | Degraded `paged` mode above `inventory_max` (supersedes ADR-000 decision 18) | Accepted | before 3 |
+| [005](005-lazy-details-and-views.md) | Lazy details for tier 3, the list/cards view, and virtualisation deferred (supersedes PLAN.md §7 on virtualisation while its bounds hold) | Proposed | before 4 |
+| [006](006-react-client.md) | The client is React, and what that costs (supersedes nothing; proposes revising ADR-005 in place) | Proposed | before R1 |
