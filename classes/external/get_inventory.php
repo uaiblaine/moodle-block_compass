@@ -35,16 +35,20 @@ use core_external\external_value;
 /**
  * The light list behind tier 3 (PLAN.md §2): one row per active course, grouped.
  *
- * Full mode only in Phase 2; the paged mode of ADR-004 adds parameters later
- * without changing this shape. Rows carry short keys — id, name, opened, new,
- * fav — because each repeats once per course in a payload the client holds
- * whole: measured below 40 KB raw at the 250-enrolment threshold above which
- * Phase 3 degrades to that paged mode. Read-only, current user only; three database
- * reads per request with the user's inventory cold and the shared layers warm
- * (fill, preferences, filters), three on a valid hit (the stamp instead of the
- * fill), one more per cold shared layer — at most six fully cold (ADR-002) —
- * plus the one read validate_context() costs here, the user context, since the
- * context cache starts empty every request.
+ * Two modes, decided server-side from the number of courses full mode would
+ * ship (ADR-004): up to inventory_max the response is 'full' and every group
+ * carries its rows; above it the response is 'paged', every group carries an
+ * empty courses list — the key stays, execute_returns() requires it — and the
+ * client fetches rows through get_inventory_rows and searches through
+ * search_inventory. Rows carry short keys — id, name, opened, new, fav —
+ * because each repeats once per course in a payload the client holds whole:
+ * measured below 40 KB raw at the 250-course threshold. Read-only, current user
+ * only; three database reads per request in either mode with the user's
+ * inventory cold and the shared layers warm (fill, preferences, filters), three
+ * on a valid hit (the stamp instead of the fill), one more per cold shared
+ * layer — at most six fully cold (ADR-002) — plus the one read
+ * validate_context() costs here, the user context, since the context cache
+ * starts empty every request.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -52,7 +56,7 @@ use core_external\external_value;
  */
 class get_inventory extends external_api {
     /**
-     * No parameters yet: the viewer is the current user, the mode is full.
+     * No parameters: the viewer is the current user, and the mode is decided server-side.
      *
      * @return external_function_parameters
      */
@@ -89,7 +93,7 @@ class get_inventory extends external_api {
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'mode' => new external_value(PARAM_ALPHA, 'full, or paged from Phase 3'),
+            'mode' => new external_value(PARAM_ALPHA, 'full, or paged above inventory_max (groups then carry no courses)'),
             'total' => new external_value(PARAM_INT, 'Active, visible, not hidden courses'),
             'groups' => new external_multiple_structure(new external_single_structure([
                 'id' => new external_value(PARAM_INT, 'Category id of the group'),
@@ -101,7 +105,7 @@ class get_inventory extends external_api {
                     'opened' => new external_value(PARAM_INT, 'Last access timestamp', VALUE_OPTIONAL, null, NULL_ALLOWED),
                     'new' => new external_value(PARAM_BOOL, 'Enrolled recently and never opened'),
                     'fav' => new external_value(PARAM_BOOL, 'Whether the core course star is set'),
-                ]), 'Courses of the group, by name'),
+                ]), 'Courses of the group, by name; empty in paged mode'),
             ]), 'Groups by name'),
         ]);
     }

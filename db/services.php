@@ -39,6 +39,20 @@ $functions = [
         'type' => 'read',
         'ajax' => true,
     ],
+    'block_compass_get_inventory_rows' => [
+        'classname' => 'block_compass\external\get_inventory_rows',
+        'methodname' => 'execute',
+        'description' => 'One page of one tier 3 group for the current user, in paged mode.',
+        'type' => 'read',
+        'ajax' => true,
+    ],
+    'block_compass_search_inventory' => [
+        'classname' => 'block_compass\external\search_inventory',
+        'methodname' => 'execute',
+        'description' => 'Server-side search over the current user\'s courses by name, in paged mode.',
+        'type' => 'read',
+        'ajax' => true,
+    ],
     'block_compass_get_card_details' => [
         'classname' => 'block_compass\external\get_card_details',
         'methodname' => 'execute',

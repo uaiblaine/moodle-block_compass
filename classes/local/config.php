@@ -29,7 +29,7 @@ namespace block_compass\local;
  *
  * get_config() is served by the core/config MUC cache, so reading here costs no
  * database read once core is warm. Default-on checkboxes treat only an explicit
- * stored '0' as off.
+ * stored '0' as off; default-off ones (enable_prewarm) are on only when '1' is stored.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -84,6 +84,20 @@ final class config {
         return $value < 1 ? self::DEFAULT_GROUP_DEPTH : $value;
     }
 
+    /** @var int Default number of courses above which tier 3 degrades to paged mode (ADR-000, decision 21; ADR-004). */
+    public const DEFAULT_INVENTORY_MAX = 250;
+
+    /**
+     * Courses full mode ships at most; one more and get_inventory answers with headers only.
+     *
+     * @return int At least 1.
+     */
+    public static function inventory_max(): int {
+        $value = (int) get_config('block_compass', 'inventory_max');
+
+        return $value < 1 ? self::DEFAULT_INVENTORY_MAX : $value;
+    }
+
     /**
      * Whether the tier 3 search box is shown. Never set means enabled.
      *
@@ -124,5 +138,46 @@ final class config {
      */
     public static function hide_block_title(): bool {
         return (int) get_config('block_compass', 'hide_block_title') === 1;
+    }
+
+    /**
+     * Whether the warm_active_users task does anything. Never set means OFF (ADR-003): the task
+     * is always scheduled and this single switch gates it.
+     *
+     * @return bool
+     */
+    public static function prewarm_enabled(): bool {
+        return (int) get_config('block_compass', 'enable_prewarm') === 1;
+    }
+
+    /** @var int Default window, in days of {user}.lastaccess, that selects the users to pre-warm. */
+    public const DEFAULT_PREWARM_DAYS = 7;
+
+    /**
+     * Days of last access inside which a user is pre-warmed.
+     *
+     * @return int At least 1.
+     */
+    public static function prewarm_days(): int {
+        $value = (int) get_config('block_compass', 'prewarm_days');
+
+        return $value < 1 ? self::DEFAULT_PREWARM_DAYS : $value;
+    }
+
+    /** @var int Default time budget, in seconds, of one run of the pre-warming task. */
+    public const DEFAULT_PREWARM_BUDGET_SECONDS = 600;
+
+    /** @var int Floor of the time budget: below it the stored value is treated as unset. */
+    public const MIN_PREWARM_BUDGET_SECONDS = 60;
+
+    /**
+     * Seconds one run of the pre-warming task may spend before it stops between users.
+     *
+     * @return int At least MIN_PREWARM_BUDGET_SECONDS.
+     */
+    public static function prewarm_budget_seconds(): int {
+        $value = (int) get_config('block_compass', 'prewarm_budget_seconds');
+
+        return $value < self::MIN_PREWARM_BUDGET_SECONDS ? self::DEFAULT_PREWARM_BUDGET_SECONDS : $value;
     }
 }

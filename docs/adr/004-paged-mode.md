@@ -246,9 +246,13 @@ PHP and a handful of formatted group names — well inside 400 ms; the fill
   case-insensitive; the shortname alone does not match — capped at 50,
   restricted to the user's active visible courses (control: a matching
   course the user is not enrolled in is absent), a one-character query
-  rejected. One test feeds the same query and names to `explore::search()`
-  and to `filter.js`'s rule (a PHPUnit fixture of expected pairs) so the two
-  cannot drift apart unnoticed.
+  rejected. A fixture of query/name pairs (the generator's `search_pairs()`)
+  states the rule once and both `matcher_test` and `explore_test` run against
+  it — on the PHP side only: the fleet has no JavaScript test runner, so a
+  regression in `filter.js`'s own `normalise()` would still ship green. What
+  guards the JavaScript half is review against that fixture plus the Behat
+  scenario's substring assertion. Closing it properly means a JS runner in
+  `moodle-dev`, which is a fleet change, not a plugin one.
 - Archived courses: a course hidden through `block_myoverview_hidden_course_*`
   is absent from its group's page and from a search hit (control: unarchiving
   it brings it back to both).
@@ -287,8 +291,19 @@ PHP and a handful of formatted group names — well inside 400 ms; the fill
   for the "Show more" control and the search states, and the setting
   `inventory_max` with its description.
 - Known limits: raw-name ordering of pages (above); header counts are not
-  narrowed by chips until a group's rows arrive; a user crossing the threshold
-  sees the mode switch between visits.
+  narrowed by chips until a group's rows arrive (the client says so through the
+  live region rather than showing a number that would be wrong); a user
+  crossing the threshold sees the mode switch between visits; two courses whose
+  names the collator calls equal without being byte-identical (a case- or
+  accent-only difference) are not separated by the cursor's tie-break, so such a
+  pair can still swap between two pages of one group — the tie-break covers
+  byte-identical names, which is the case a shared name actually produces; and
+  the client detects a restarted page by the ids it already holds, so a bulk
+  change that removes every rendered row while later rows survive appends the
+  fresh page under stale ones until the group is closed and reopened. An
+  explicit `restarted` field in the response would close that last one, and it
+  would change the four-field wire shape this record fixes, so it waits for an
+  amendment rather than being smuggled in.
 
 ## Evidence
 

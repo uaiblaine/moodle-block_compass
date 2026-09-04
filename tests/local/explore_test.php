@@ -618,4 +618,636 @@ final class explore_test extends advanced_testcase {
         $this->assertSame(0, $payload['total']);
         $this->assertSame([], $payload['groups']);
     }
+
+    /**
+     * One page of one group for the fixture user at the fixed instant, at depth 1 and a 30-day window.
+     *
+     * @param int $groupid The group.
+     * @param int $after Cursor: id of the last row held, 0 for the first page.
+     * @param string $chip all, new or favourites.
+     * @param string $sort name or recent.
+     * @param int|null $pagesize Rows per page; null for the default.
+     * @return array explore::rows()'s answer.
+     */
+    private function rows(int $groupid, int $after = 0, string $chip = 'all', string $sort = 'name', ?int $pagesize = null): array {
+        return explore::rows($this->userid, self::NOW, $groupid, $after, $chip, $sort, $pagesize, 1, 30);
+    }
+
+    /**
+     * A search for the fixture user at the fixed instant, at depth 1 and a 30-day window.
+     *
+     * @param string $query The raw query.
+     * @param int|null $limit Most rows; null for the default.
+     * @return array explore::search()'s answer.
+     */
+    private function search(string $query, ?int $limit = null): array {
+        return explore::search($this->userid, self::NOW, $query, $limit, 1, 30);
+    }
+
+    /**
+     * The course names of a page or a search, in the order returned.
+     *
+     * @param array $answer From rows() or search().
+     * @return string[]
+     */
+    private function row_names(array $answer): array {
+        return array_column($answer['rows'], 'name');
+    }
+
+    /**
+     * The course ids of a page or a search, in the order returned.
+     *
+     * @param array $answer From rows() or search().
+     * @return int[]
+     */
+    private function row_ids(array $answer): array {
+        return array_map('intval', array_column($answer['rows'], 'id'));
+    }
+
+    /**
+     * Five courses in one category whose names run against their ids, enrolled long ago.
+     *
+     * Creation order Echo, Bravo, Delta, Alfa, Charlie: a page cut in id order and one cut in
+     * name order share no boundary, so the paging tests cannot pass by accident.
+     *
+     * @param int $categoryid The category.
+     * @return array Course id => full name, in creation order.
+     */
+    private function five_courses(int $categoryid): array {
+        $names = [];
+        foreach (['Echo course', 'Bravo course', 'Delta course', 'Alfa course', 'Charlie course'] as $name) {
+            $course = $this->course_in($categoryid, $name);
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+            $names[(int) $course->id] = $name;
+        }
+
+        return $names;
+    }
+
+    /**
+     * The controls the paged budget cases share: the measured call shipped the whole nested fixture.
+     *
+     * @param array $answer From rows() or search().
+     * @param int $zetaid The top-level ancestor the fixture rolls up to.
+     * @return void
+     */
+    private function assert_answer_is_the_budget_fixture(array $answer, int $zetaid): void {
+        $this->assertSame(['Alfa budget course', 'Bravo budget course', 'Charlie budget course'], $this->row_names($answer));
+        if (isset($answer['groupid'])) {
+            $this->assertSame($zetaid, $answer['groupid']);
+            $this->assertFalse($answer['hasmore']);
+        } else {
+            $this->assertSame([$zetaid, $zetaid, $zetaid], array_column($answer['rows'], 'groupid'));
+            $this->assertFalse($answer['truncated']);
+        }
+    }
+
+    /**
+     * ADR-004: the mode is paged one course above inventory_max, full at it.
+     *
+     * The size is injected, so the threshold is exercised on five courses rather than 250. The
+     * paged payload keeps the courses key on every group, empty: get_inventory's return
+     * structure requires it.
+     *
+     * @return void
+     */
+    public function test_the_mode_is_paged_above_inventory_max_and_full_at_it(): void {
+        $tree = $this->tree();
+        $this->five_courses((int) $tree['alpha']->id);
+
+        $full = explore::build($this->userid, self::NOW, 1, 30, 5);
+        $paged = explore::build($this->userid, self::NOW, 1, 30, 4);
+
+        $this->assertSame('full', $full['mode']);
+        $this->assertSame(5, $full['total']);
+        $this->assertCount(5, $full['groups'][0]['courses']);
+        $this->assertSame('paged', $paged['mode']);
+        $this->assertSame(5, $paged['total']);
+        $this->assertSame(5, $paged['groups'][0]['count']);
+        $this->assertSame([], $paged['groups'][0]['courses']);
+        $this->assertSame(['id', 'name', 'count', 'courses'], array_keys($paged['groups'][0]));
+    }
+
+    /**
+     * Archived and invisible courses do not count towards the threshold: the total is what counts.
+     *
+     * Three enrolments, one invisible to this user: with a maximum of two the mode is full,
+     * which it could not be if the invisible course counted. Then one of the two visible courses
+     * is archived and a maximum of one flips from paged to full.
+     *
+     * @return void
+     */
+    public function test_hidden_and_invisible_courses_do_not_count_towards_the_threshold(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $shown = $this->course_in($alpha, 'Shown course');
+        $archived = $this->course_in($alpha, 'Archived course');
+        $invisible = $this->course_in($alpha, 'Invisible course', ['visible' => 0]);
+        foreach ([$shown, $archived, $invisible] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+        }
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', context_system::instance(), $this->userid));
+
+        $attwo = explore::build($this->userid, self::NOW, 1, 30, 2);
+        $this->assertSame(2, $attwo['total']);
+        $this->assertSame('full', $attwo['mode'], 'an invisible course counted towards the threshold');
+
+        $before = explore::build($this->userid, self::NOW, 1, 30, 1);
+        $this->plugingen->hide($this->userid, (int) $archived->id);
+        $after = explore::build($this->userid, self::NOW, 1, 30, 1);
+
+        $this->assertSame('paged', $before['mode']);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame('full', $after['mode'], 'an archived course counted towards the threshold');
+        $this->assertSame(['Shown course'], $this->course_names($after['groups'][0]));
+    }
+
+    /**
+     * Paged headers are full mode's groups — same ids, names, counts and order — with no rows.
+     *
+     * @return void
+     */
+    public function test_paged_headers_equal_full_modes_groups_with_empty_course_lists(): void {
+        $tree = $this->tree();
+        $delta = $this->course_in((int) $tree['zeta']->id, 'Delta course');
+        $charlie = $this->course_in((int) $tree['beta']->id, 'Charlie course');
+        $alfa = $this->course_in((int) $tree['betadept']->id, 'Alfa course');
+        $bravo = $this->course_in((int) $tree['alpha']->id, 'Bravo course');
+        foreach ([$delta, $charlie, $alfa, $bravo] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 200 * DAYSECS);
+        }
+
+        $full = explore::build($this->userid, self::NOW, 1, 30, 100);
+        $paged = explore::build($this->userid, self::NOW, 1, 30, 1);
+
+        $this->assertSame('full', $full['mode']);
+        $this->assertSame('paged', $paged['mode']);
+        $this->assertSame($full['total'], $paged['total']);
+        $this->assertSame(array_column($full['groups'], 'id'), array_column($paged['groups'], 'id'));
+        $this->assertSame(array_column($full['groups'], 'name'), array_column($paged['groups'], 'name'));
+        $this->assertSame(array_column($full['groups'], 'count'), array_column($paged['groups'], 'count'));
+        foreach ($paged['groups'] as $group) {
+            $this->assertSame([], $group['courses']);
+        }
+        // Control: the headers really summarise rows, and full mode really carries them.
+        $this->assertSame(['Alpha faculty', 'Zeta faculty'], $this->group_names($paged));
+        $this->assertSame([1, 3], array_column($paged['groups'], 'count'));
+        $this->assertCount(3, $full['groups'][1]['courses']);
+    }
+
+    /**
+     * Pages of a group follow collator order on the name, with no row repeated or missing.
+     *
+     * Five courses at two per page: two, two, one, hasmore true, true, false, each cursor the
+     * id of the last row shipped. The three pages concatenated are full mode's rows for the
+     * group, byte for byte, so the client can render either through the same template.
+     *
+     * @return void
+     */
+    public function test_rows_pages_a_group_in_collator_order_without_repeats_or_gaps(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $names = $this->five_courses($alpha);
+        $idof = array_flip($names);
+
+        $first = $this->rows($alpha, 0, 'all', 'name', 2);
+        $second = $this->rows($alpha, $first['after'], 'all', 'name', 2);
+        $third = $this->rows($alpha, $second['after'], 'all', 'name', 2);
+
+        $this->assertSame(['groupid', 'rows', 'hasmore', 'after'], array_keys($first));
+        $this->assertSame($alpha, $first['groupid']);
+        $this->assertSame(['Alfa course', 'Bravo course'], $this->row_names($first));
+        $this->assertTrue($first['hasmore']);
+        $this->assertSame($idof['Bravo course'], $first['after']);
+        $this->assertSame(['Charlie course', 'Delta course'], $this->row_names($second));
+        $this->assertTrue($second['hasmore']);
+        $this->assertSame($idof['Delta course'], $second['after']);
+        $this->assertSame(['Echo course'], $this->row_names($third));
+        $this->assertFalse($third['hasmore']);
+        $this->assertSame($idof['Echo course'], $third['after']);
+
+        $fullrows = $this->build(1)['groups'][0]['courses'];
+        $this->assertCount(5, $fullrows);
+        $this->assertSame($fullrows, array_merge($first['rows'], $second['rows'], $third['rows']));
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav'], array_keys($first['rows'][0]));
+
+        // The default page size holds all five; the constant is the ADR's hundred.
+        $whole = $this->rows($alpha);
+        $this->assertCount(5, $whole['rows']);
+        $this->assertFalse($whole['hasmore']);
+        $this->assertSame($idof['Echo course'], $whole['after']);
+        $this->assertSame(100, explore::PAGE_SIZE);
+    }
+
+    /**
+     * The recent sort orders by last access, newest first, then by name for the never-opened.
+     *
+     * @return void
+     */
+    public function test_rows_recent_sort_orders_by_last_access_then_by_name(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $idof = array_flip($this->five_courses($alpha));
+        $this->plugingen->access_at($this->userid, $idof['Delta course'], self::NOW - HOURSECS);
+        $this->plugingen->access_at($this->userid, $idof['Bravo course'], self::NOW - DAYSECS);
+
+        $whole = $this->rows($alpha, 0, 'all', 'recent', 5);
+
+        $this->assertSame(
+            ['Delta course', 'Bravo course', 'Alfa course', 'Charlie course', 'Echo course'],
+            $this->row_names($whole)
+        );
+        $this->assertSame(self::NOW - HOURSECS, $whole['rows'][0]['opened']);
+        $this->assertSame(self::NOW - DAYSECS, $whole['rows'][1]['opened']);
+        $this->assertNull($whole['rows'][2]['opened']);
+
+        // The cursor follows the same order.
+        $first = $this->rows($alpha, 0, 'all', 'recent', 2);
+        $second = $this->rows($alpha, $first['after'], 'all', 'recent', 2);
+        $third = $this->rows($alpha, $second['after'], 'all', 'recent', 2);
+        $this->assertSame(['Delta course', 'Bravo course'], $this->row_names($first));
+        $this->assertSame(['Alfa course', 'Charlie course'], $this->row_names($second));
+        $this->assertSame(['Echo course'], $this->row_names($third));
+        $this->assertFalse($third['hasmore']);
+    }
+
+    /**
+     * A cursor naming no row of the group restarts from the beginning, and leaks nothing.
+     *
+     * Three foreign cursors: a course in the same category that another user is enrolled in
+     * (the enumeration attempt an unvalidated cursor would be), one of the viewer's own courses
+     * in another group, and an id that exists nowhere. Each answer is the first page, byte for
+     * byte, and the foreign course appears on no page at all.
+     *
+     * @return void
+     */
+    public function test_a_cursor_that_names_no_row_of_the_group_restarts_from_the_beginning(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $this->five_courses($alpha);
+        $other = (int) $this->getDataGenerator()->create_user()->id;
+        $foreign = (int) $this->course_in($alpha, 'Foreign course')->id;
+        $this->plugingen->enrol_at($other, $foreign, self::NOW - 100 * DAYSECS);
+        $elsewhere = (int) $this->course_in((int) $tree['zeta']->id, 'Elsewhere course')->id;
+        $this->plugingen->enrol_at($this->userid, $elsewhere, self::NOW - 100 * DAYSECS);
+
+        $first = $this->rows($alpha, 0, 'all', 'name', 2);
+        $this->assertSame(['Alfa course', 'Bravo course'], $this->row_names($first));
+        $this->assertTrue($first['hasmore']);
+
+        $this->assertSame($first, $this->rows($alpha, $foreign, 'all', 'name', 2));
+        $this->assertSame($first, $this->rows($alpha, $elsewhere, 'all', 'name', 2));
+        $this->assertSame($first, $this->rows($alpha, 999999999, 'all', 'name', 2));
+
+        $all = $this->row_ids($this->rows($alpha));
+        $this->assertCount(5, $all);
+        $this->assertNotContains($foreign, $all);
+        $this->assertNotContains($elsewhere, $all);
+    }
+
+    /**
+     * The new and favourites chips keep exactly the rows full mode marks new or starred.
+     *
+     * The expectation is computed from full mode's own rows — the passesChip() rule the client
+     * applies — so the two modes cannot disagree about a chip without this failing. Two courses
+     * are new and two are starred, one of them both, so neither set is trivial.
+     *
+     * @return void
+     */
+    public function test_rows_chips_keep_exactly_the_rows_full_mode_marks(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $fresh = $this->course_in($alpha, 'Alfa fresh course');
+        $opened = $this->course_in($alpha, 'Bravo opened course');
+        $old = $this->course_in($alpha, 'Charlie old course');
+        $starred = $this->course_in($alpha, 'Delta starred course');
+        $freshstarred = $this->course_in($alpha, 'Echo fresh starred course');
+        $this->plugingen->enrol_at($this->userid, (int) $fresh->id, self::NOW - 2 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, (int) $opened->id, self::NOW - 2 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, (int) $old->id, self::NOW - 200 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, (int) $starred->id, self::NOW - 200 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, (int) $freshstarred->id, self::NOW - DAYSECS);
+        $this->plugingen->access_at($this->userid, (int) $opened->id, self::NOW - HOURSECS);
+        $this->plugingen->favourite($this->userid, (int) $starred->id);
+        $this->plugingen->favourite($this->userid, (int) $freshstarred->id);
+
+        $fullrows = $this->rows_by_id($this->build(1, 30));
+        $expectednew = array_keys(array_filter($fullrows, static fn(array $row): bool => $row['new']));
+        $expectedfav = array_keys(array_filter($fullrows, static fn(array $row): bool => $row['fav']));
+        sort($expectednew);
+        sort($expectedfav);
+        // Preconditions: neither set is empty, and they overlap on exactly one course.
+        $this->assertCount(2, $expectednew);
+        $this->assertCount(2, $expectedfav);
+        $this->assertSame([(int) $freshstarred->id], array_values(array_intersect($expectednew, $expectedfav)));
+
+        $new = $this->row_ids($this->rows($alpha, 0, 'new'));
+        $fav = $this->row_ids($this->rows($alpha, 0, 'favourites'));
+        sort($new);
+        sort($fav);
+
+        $this->assertSame($expectednew, $new);
+        $this->assertSame($expectedfav, $fav);
+        $this->assertCount(5, $this->rows($alpha, 0, 'all')['rows']);
+        // The chip and the cursor compose: one row per page through the new set.
+        $firstnew = $this->rows($alpha, 0, 'new', 'name', 1);
+        $secondnew = $this->rows($alpha, $firstnew['after'], 'new', 'name', 1);
+        $this->assertSame(['Alfa fresh course'], $this->row_names($firstnew));
+        $this->assertTrue($firstnew['hasmore']);
+        $this->assertSame(['Echo fresh starred course'], $this->row_names($secondnew));
+        $this->assertFalse($secondnew['hasmore']);
+    }
+
+    /**
+     * A group the user has no course in yields an empty page and no error — and so does an id that is no group.
+     *
+     * @return void
+     */
+    public function test_a_group_the_user_has_no_course_in_yields_an_empty_page(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $zeta = (int) $tree['zeta']->id;
+        $this->five_courses($alpha);
+
+        $empty = ['groupid' => $zeta, 'rows' => [], 'hasmore' => false, 'after' => 0];
+        $this->assertSame($empty, $this->rows($zeta));
+        $this->assertSame($empty, $this->rows($zeta, 12345, 'new', 'recent', 2));
+        $this->assertSame(['groupid' => 999999999, 'rows' => [], 'hasmore' => false, 'after' => 0], $this->rows(999999999));
+        // Control: the group that does hold the courses answers.
+        $this->assertCount(5, $this->rows($alpha)['rows']);
+    }
+
+    /**
+     * An archived course leaves its group's page and the search, and returns when unarchived.
+     *
+     * @return void
+     */
+    public function test_an_archived_course_leaves_its_groups_page_and_the_search_until_unarchived(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $kept = (int) $this->course_in($alpha, 'Kept course')->id;
+        $archived = (int) $this->course_in($alpha, 'Archived course')->id;
+        foreach ([$kept, $archived] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 100 * DAYSECS);
+        }
+
+        $this->plugingen->hide($this->userid, $archived);
+
+        $this->assertSame(['Kept course'], $this->row_names($this->rows($alpha)));
+        $this->assertSame([$kept], $this->row_ids($this->search('course')));
+
+        // Control: the two courses differ by the preference and by nothing else.
+        unset_user_preference(hidden_courses::PREFIX . $archived, $this->userid);
+
+        $this->assertSame(['Archived course', 'Kept course'], $this->row_names($this->rows($alpha)));
+        $this->assertSame([$archived, $kept], $this->row_ids($this->search('course')));
+    }
+
+    /**
+     * search() answers the shared query/name fixture the way filter.js does, over real courses.
+     *
+     * One course per name of block_compass_generator::search_pairs(), then every pair asked of
+     * explore::search(): a course whose pair says "matches" is in the rows, one whose pair says
+     * "does not" is absent. matcher_test feeds the same pairs to the PHP rule alone; together
+     * the two pin that the server and the browser cannot drift apart unnoticed.
+     *
+     * @return void
+     */
+    public function test_search_agrees_with_the_matching_rule_the_browser_applies(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $pairs = \block_compass_generator::search_pairs();
+        $courses = [];
+        foreach ($pairs as [, $name]) {
+            if (!isset($courses[$name])) {
+                $courses[$name] = (int) $this->course_in($alpha, $name)->id;
+                $this->plugingen->enrol_at($this->userid, $courses[$name], self::NOW - 100 * DAYSECS);
+            }
+        }
+        $this->assertGreaterThanOrEqual(5, count($courses));
+
+        foreach ($pairs as $case => [$query, $name, $expected]) {
+            $ids = $this->row_ids($this->search($query));
+            $this->assertSame(
+                $expected,
+                in_array($courses[$name], $ids, true),
+                "{$case}: the query '{$query}' against the course '{$name}'"
+            );
+        }
+
+        // Every hit carries the full-mode row plus the group it rolls up to.
+        $hits = $this->search('tactics');
+        $this->assertCount(1, $hits['rows']);
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'groupid'], array_keys($hits['rows'][0]));
+        $this->assertSame($alpha, $hits['rows'][0]['groupid']);
+        $this->assertSame('Approach tactics', $hits['rows'][0]['name']);
+        $this->assertFalse($hits['truncated']);
+    }
+
+    /**
+     * The search reads the course name only, never the short name.
+     *
+     * Full mode indexes the rendered name (explore.js's data-search); a server that also read
+     * the short name would find courses the browser does not, and the two modes would disagree.
+     *
+     * @return void
+     */
+    public function test_search_matches_the_name_only_never_the_shortname(): void {
+        $tree = $this->tree();
+        $course = $this->getDataGenerator()->create_course([
+            'category' => $tree['alpha']->id,
+            'fullname' => 'Plain course',
+            'shortname' => 'zebrastripes',
+        ]);
+        $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+
+        $this->assertSame(['rows' => [], 'truncated' => false], $this->search('zebra'));
+        $this->assertSame(['rows' => [], 'truncated' => false], $this->search('zebrastripes'));
+        // Control: the same course is found by its name.
+        $this->assertSame([(int) $course->id], $this->row_ids($this->search('plain')));
+    }
+
+    /**
+     * Results are ordered by name, capped at the limit, and the cut is reported.
+     *
+     * @return void
+     */
+    public function test_search_is_capped_at_the_limit_and_says_so(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        foreach (['Charlie shared', 'Alfa shared', 'Bravo shared', 'Unrelated'] as $name) {
+            $course = $this->course_in($alpha, $name);
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+        }
+
+        $cut = $this->search('shared', 2);
+        $exact = $this->search('shared', 3);
+        $default = $this->search('shared');
+
+        $this->assertSame(['Alfa shared', 'Bravo shared'], $this->row_names($cut));
+        $this->assertTrue($cut['truncated']);
+        $this->assertSame(['Alfa shared', 'Bravo shared', 'Charlie shared'], $this->row_names($exact));
+        $this->assertFalse($exact['truncated']);
+        $this->assertSame($exact, $default);
+        $this->assertSame(50, explore::SEARCH_LIMIT);
+    }
+
+    /**
+     * The search covers the user's active, visible, not archived courses and nothing else.
+     *
+     * Four matching courses the user must not see: one somebody else is enrolled in, one with
+     * visible = 0, one with a suspended enrolment, one whose enrolment has ended. The user's
+     * own live course is the control that the query does match.
+     *
+     * @return void
+     */
+    public function test_search_covers_only_the_users_active_visible_courses(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $other = (int) $this->getDataGenerator()->create_user()->id;
+        $mine = (int) $this->course_in($alpha, 'Shared topic mine')->id;
+        $theirs = (int) $this->course_in($alpha, 'Shared topic theirs')->id;
+        $invisible = (int) $this->course_in($alpha, 'Shared topic invisible', ['visible' => 0])->id;
+        $suspended = (int) $this->course_in($alpha, 'Shared topic suspended')->id;
+        $ended = (int) $this->course_in($alpha, 'Shared topic ended')->id;
+        $this->plugingen->enrol_at($this->userid, $mine, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($other, $theirs, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $invisible, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - 100 * DAYSECS, 'manual', ENROL_USER_SUSPENDED);
+        $this->plugingen->enrol_at(
+            $this->userid,
+            $ended,
+            self::NOW - 100 * DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            0,
+            self::NOW - DAYSECS
+        );
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', context_system::instance(), $this->userid));
+
+        $found = $this->search('shared topic');
+
+        $this->assertSame([$mine], $this->row_ids($found));
+        $this->assertFalse($found['truncated']);
+    }
+
+    /**
+     * A query shorter than two characters once normalised is answered empty and not truncated.
+     *
+     * Accents do not count: "á" is one character after normalisation. The control is the same
+     * fixture with a two-character query.
+     *
+     * @return void
+     */
+    public function test_a_query_shorter_than_two_characters_is_answered_empty_and_not_truncated(): void {
+        $tree = $this->tree();
+        $course = $this->course_in((int) $tree['alpha']->id, 'Alfa course');
+        $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+
+        foreach (['a', 'á', ' a ', '', '   ', "\t"] as $short) {
+            $this->assertSame(['rows' => [], 'truncated' => false], $this->search($short), "query '{$short}'");
+        }
+        $this->assertSame([(int) $course->id], $this->row_ids($this->search('al')));
+        $this->assertSame([(int) $course->id], $this->row_ids($this->search('ál')));
+        $this->assertSame(2, explore::SEARCH_MIN_LENGTH);
+    }
+
+    /**
+     * ADR-004: a page costs at most three reads with the user layers cold and the shared layers warm.
+     *
+     * Protocol as for build(): one call to warm core, purge inventory and details, reset the
+     * per-request memos, measure the second call. Accounting: the inventory fill, the preference
+     * load, the filter preload of the page's contexts — three; every cold shared layer adds one.
+     *
+     * @return void
+     */
+    public function test_rows_costs_at_most_three_reads_with_the_user_layers_cold(): void {
+        $tree = $this->nested_budget_fixture();
+        $zeta = (int) $tree['zeta']->id;
+        $this->setUser($this->user);
+        $this->rows($zeta);
+        $this->purge_user_caches();
+        $this->plugingen->simulate_new_request();
+
+        $meter = budget::start();
+        $page = $this->rows($zeta);
+        $reads = $meter->reads();
+
+        $this->assert_answer_is_the_budget_fixture($page, $zeta);
+        $this->assertLessThanOrEqual(3, $reads, "a page with the user layers cold cost {$reads} reads; the budget is 3");
+    }
+
+    /**
+     * A page costs at most three reads on a valid hit in a new request, the hit proved first.
+     *
+     * @return void
+     */
+    public function test_rows_costs_at_most_three_reads_on_a_valid_hit_in_a_new_request(): void {
+        $tree = $this->nested_budget_fixture();
+        $zeta = (int) $tree['zeta']->id;
+        $this->setUser($this->user);
+        $warm = $this->rows($zeta);
+        $this->plugingen->simulate_new_request();
+
+        $meter = budget::start();
+        $hit = $this->rows($zeta);
+        $reads = $meter->reads();
+
+        $entry = cache::make('block_compass', 'inventory')->get($this->userid);
+        $this->assertNotFalse($entry);
+        $this->assertSame(inventory::stamp($this->userid), $entry['stamp']);
+        $this->assertCount(3, $entry['rows']);
+        $this->assertSame($warm, $hit);
+        $this->assert_answer_is_the_budget_fixture($hit, $zeta);
+        $this->assertLessThanOrEqual(3, $reads, "a page on a valid hit in a new request cost {$reads} reads; the budget is 3");
+    }
+
+    /**
+     * ADR-004: a search costs at most three reads with the user layers cold and the shared layers warm.
+     *
+     * Same protocol and accounting as the page: fill, preferences, the filter preload of the
+     * matched contexts. Every hit's group id comes from the warm category layer for free.
+     *
+     * @return void
+     */
+    public function test_search_costs_at_most_three_reads_with_the_user_layers_cold(): void {
+        $tree = $this->nested_budget_fixture();
+        $zeta = (int) $tree['zeta']->id;
+        $this->setUser($this->user);
+        $this->search('budget');
+        $this->purge_user_caches();
+        $this->plugingen->simulate_new_request();
+
+        $meter = budget::start();
+        $found = $this->search('budget');
+        $reads = $meter->reads();
+
+        $this->assert_answer_is_the_budget_fixture($found, $zeta);
+        $this->assertLessThanOrEqual(3, $reads, "a search with the user layers cold cost {$reads} reads; the budget is 3");
+    }
+
+    /**
+     * A search costs at most three reads on a valid hit in a new request, the hit proved first.
+     *
+     * @return void
+     */
+    public function test_search_costs_at_most_three_reads_on_a_valid_hit_in_a_new_request(): void {
+        $tree = $this->nested_budget_fixture();
+        $zeta = (int) $tree['zeta']->id;
+        $this->setUser($this->user);
+        $warm = $this->search('budget');
+        $this->plugingen->simulate_new_request();
+
+        $meter = budget::start();
+        $hit = $this->search('budget');
+        $reads = $meter->reads();
+
+        $entry = cache::make('block_compass', 'inventory')->get($this->userid);
+        $this->assertNotFalse($entry);
+        $this->assertSame(inventory::stamp($this->userid), $entry['stamp']);
+        $this->assertCount(3, $entry['rows']);
+        $this->assertSame($warm, $hit);
+        $this->assert_answer_is_the_budget_fixture($hit, $zeta);
+        $this->assertLessThanOrEqual(3, $reads, "a search on a valid hit in a new request cost {$reads} reads; the budget is 3");
+    }
 }

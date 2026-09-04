@@ -203,4 +203,37 @@ class block_compass_generator extends testing_block_generator {
         \core\context\system::instance();
         \core\context\course::instance(SITEID);
     }
+
+    /**
+     * Query/name pairs pinning the search rule shared by amd/src/filter.js and classes/local/matcher.php.
+     *
+     * One fixture, two consumers (ADR-004, fact 5): matcher_test feeds each pair to the PHP rule
+     * and explore_test creates a course per name and asks explore::search() the same questions,
+     * so the rule the browser applies in full mode and the one the server applies in paged mode
+     * cannot drift apart unnoticed. The pairs are plain [query, name, matches] so a JavaScript
+     * test can read them as data. "Strøm" and "Straße" are the two that separate NFD from a
+     * transliterator: neither ø nor ß has a canonical decomposition, so the browser does not
+     * fold them and the server must not either. Every course name here is unique, and no query
+     * word occurs in the generated short names (compass1, compass2, ...), so a hit can only come
+     * from the full name.
+     *
+     * @return array Case name => [query, course full name, whether the course matches].
+     */
+    public static function search_pairs(): array {
+        return [
+            'accent-insensitive' => ['sensivel', 'Curso Sensível', true],
+            'accent in the query, none in the name' => ['ação', 'Acao e reacao', true],
+            'case-insensitive both ways' => ['SENSÍVEL', 'curso sensivel', true],
+            'words in another order than the name' => ['tactics approach', 'Approach tactics', true],
+            'a word missing from the name' => ['approach missing', 'Approach tactics', false],
+            'a substring, not a whole word' => ['proach', 'Approach tactics', true],
+            'runs of whitespace around and between words' => ["  approach \t tactics  ", 'Approach tactics', true],
+            'o-slash is not folded (NFD, not a transliterator)' => ['strom', 'Strøm', false],
+            'o-slash typed as such' => ['strøm', 'Strøm', true],
+            'sharp s is not folded' => ['strasse', 'Straße', false],
+            'sharp s typed as such' => ['straße', 'Straße', true],
+            'an empty query matches nothing' => ['', 'Approach tactics', false],
+            'a whitespace-only query matches nothing' => ['   ', 'Approach tactics', false],
+        ];
+    }
 }

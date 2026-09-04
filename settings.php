@@ -56,6 +56,15 @@ if ($ADMIN->fulltree) {
         PARAM_INT
     ));
 
+    // Above this many courses tier 3 switches to the paged mode of ADR-004.
+    $settings->add(new admin_setting_configtext(
+        'block_compass/inventory_max',
+        get_string('inventory_max', 'block_compass'),
+        get_string('inventory_max_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_INVENTORY_MAX,
+        PARAM_INT
+    ));
+
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/enable_search',
         get_string('enable_search', 'block_compass'),
@@ -76,6 +85,42 @@ if ($ADMIN->fulltree) {
         get_string('hide_block_title_desc', 'block_compass'),
         0
     ));
+
+    // Pre-warming (ADR-003): the scheduled task is always registered and gated by this switch.
+    $settings->add(new admin_setting_heading(
+        'block_compass/prewarm',
+        get_string('prewarm', 'block_compass'),
+        get_string('prewarm_desc', 'block_compass')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/enable_prewarm',
+        get_string('enable_prewarm', 'block_compass'),
+        get_string('enable_prewarm_desc', 'block_compass'),
+        0
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'block_compass/prewarm_days',
+        get_string('prewarm_days', 'block_compass'),
+        get_string('prewarm_days_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_PREWARM_DAYS,
+        PARAM_INT
+    ));
+
+    // The configduration setting takes (name, visiblename, description, defaultsetting, defaultunit),
+    // stores seconds and lets the admin pick the unit (lib/adminlib.php:3963); the default unit is
+    // minutes so the 600 s default reads as 10 minutes. set_min_duration() returns void
+    // (lib/adminlib.php:3982), so it is called on a variable rather than chained.
+    $prewarmbudget = new admin_setting_configduration(
+        'block_compass/prewarm_budget_seconds',
+        get_string('prewarm_budget_seconds', 'block_compass'),
+        get_string('prewarm_budget_seconds_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_PREWARM_BUDGET_SECONDS,
+        MINSECS
+    );
+    $prewarmbudget->set_min_duration(\block_compass\local\config::MIN_PREWARM_BUDGET_SECONDS);
+    $settings->add($prewarmbudget);
 
     // The plugin cannot choose a cache store; it can only tell the admin what it needs.
     $settings->add(new admin_setting_heading(

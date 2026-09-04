@@ -169,12 +169,22 @@
     border-top: 1px solid var(--block_compass-line);
 }
 
+/* Paged mode (ADR-004): the "Show more" control closes a group like one more row,
+   full width, separated from the rows above it by the same rule they use. */
+.block_compass .compass-showmore {
+    display: block;
+    width: 100%;
+    text-align: center;
+    border-top: 1px solid var(--block_compass-line);
+    border-radius: 0;
+}
+
 .block_compass .compass-row {
     padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--block_compass-line);
 }
 
-.block_compass .compass-row:last-child {
+.block_compass .compass-rows-item:last-child .compass-row {
     border-bottom: 0;
 }
 

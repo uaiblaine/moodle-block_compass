@@ -8,6 +8,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase 3, scale — the `paged` mode of tier 3 (ADR-004), version 2026090404.
+  Above `inventory_max` (default 250) `block_compass_get_inventory` answers
+  `mode: paged` with every group's `id`, `name` and `count` and its `courses`
+  empty; the mode is derived at response time from the same validated
+  inventory entry full mode reads — `total > inventory_max` — so paged mode
+  adds no SQL to `classes/local/` and its per-request budget is full mode's.
+  Two read-only services page and search that entry:
+  `block_compass_get_inventory_rows` (one group, 100 rows a page by cursor,
+  `chip` and `sort` as parameters, the whole group ordered on the raw course
+  name with `core_collator` so that only the shipped names are formatted, a
+  vanished cursor restarting the group) and `block_compass_search_inventory`
+  (up to 50 hits by course name, never the shortname, each with its `groupid`;
+  a query under two characters is not searched). The search runs in PHP with
+  exactly the client's rule: `classes/local/matcher.php` mirrors `filter.js`'s
+  `normalise()` and `matches()` step for step — NFD through `Normalizer`, strip
+  the combining marks, lower-case, trim; every word of the query a substring of
+  the name — pinned by a parity fixture shared with the JavaScript rule. This
+  **supersedes ADR-000 decision 18** (a `$DB->sql_like()` search over the
+  user's enrolments), recorded there as decision 23: `sql_like()` cannot be
+  accent-insensitive on PostgreSQL and is collation-dependent on MariaDB, and
+  the bench showed the planner scanning `{course}` anyway. The client renders
+  paged groups closed with their counts, fetches a page on the first open,
+  appends rows through the new `rows` template, shows a *Show more* button
+  while there are more, refetches loaded groups on a chip or sort change (sort
+  never flattens in paged mode), and sends the search to the server after a
+  300 ms debounce, hiding the groups and the index while a query is active.
+  Setting `inventory_max`; strings `showmore`, `searchtooshort`,
+  `searchtruncated`, `loadingrows`, `pagednote`.
+- Phase 3, scale — optional pre-warming (ADR-003). The scheduled task
+  `\block_compass\task\warm_active_users` is registered in `db/tasks.php`
+  (daily at 04:00 site time, random minute), always scheduled and gated by
+  `enable_prewarm` (off by default): with the setting off it says so and
+  returns. `classes/local/prewarm.php::run()` selects the users active within
+  `prewarm_days` (default 7) by keyset on the primary key in batches of 200,
+  calls `inventory::fill()` for each — not `get()`: a valid hit does not renew
+  the TTL — and warms `coursemeta` and `categorymeta` for their courses and
+  group ancestors, never `details`, under `prewarm_budget_seconds` (default
+  600, floor 60) checked between users. Its position persists in plugin config
+  (`prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep`), so a sweep spans as
+  many nights as it needs and keeps one window from start to end. Without a
+  shared in-memory store it warms only the cron node's file cache, which the
+  README and the setting's description say. Settings `enable_prewarm`,
+  `prewarm_days`, `prewarm_budget_seconds`; string `task_warm_active_users`.
+- `docs/adr/003-prewarming.md` and `docs/adr/004-paged-mode.md`, accepted,
+  with the Phase 3 section of the PostgreSQL 17 bench behind them.
 - Phase 2, tier 3 in full mode: `block_compass_get_inventory` (every active
   course grouped by category at the configured depth; three reads per request
   with the user's inventory cold or on a valid hit, see the budget entry
@@ -66,5 +111,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   settled with the maintainer before Phase 0.
 
 ### Changed
+
+- `block_compass_get_inventory` may now answer `mode: paged`; its return
+  structure is unchanged (`courses` stays a required key and paged groups carry
+  an empty array), so a Phase 2 client keeps working and simply sees empty
+  groups. PLAN.md §6.6's "≤ 2 reads" for the degraded headers reads "≤ 3 with
+  the shared layers warm, plus the web-service read" in `CLAUDE.md` under the
+  per-request accounting adopted in Phase 2 — the figure is restated, not the
+  design (ADR-004; ADR-000 decision 23).
 
 ### Fixed

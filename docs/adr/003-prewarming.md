@@ -1,6 +1,9 @@
 # ADR-003 — Pre-warming: optional, selective, budgeted
 
-- **Status:** Accepted (2026-09-04, maintainer; implementation in Phase 3)
+- **Status:** Accepted (2026-09-04, maintainer; implementation in Phase 3);
+  amended 2026-09-04 during that implementation — fact 3 (`get_fieldset_sql()`
+  takes no limit) and the per-sweep read overhead of `set_config()`, both found
+  against the source while writing the code
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent against the
   5.2 source and the bench of `docs/perf/2026-09-04-bench-postgres17.md`
@@ -45,23 +48,32 @@ Facts from the 5.2 source and from the fleet's own measurements that shaped it:
    task that merely *validates* warms nothing for a user who comes back at
    the same hour every day. Warming has to **write** the entry.
 
-3. **`{user}.lastaccess` is indexed** (`lib/db/install.xml`, index
+3. **`get_fieldset_sql()` cannot be bounded on 5.2.** Its signature is
+   `get_fieldset_sql($sql, ?array $params = null)`
+   (`lib/dml/moodle_database.php:1797`) — no `$limitfrom`/`$limitnum`, unlike
+   `get_records_sql()` (`:1523`). PHP accepts the extra arguments silently, so
+   a batched selection written through it would fetch the **whole** user table
+   without an error. The selection below therefore uses `get_records_sql()`
+   with `$limitnum` and takes `array_keys()` of the result, which is keyed on
+   the first selected column.
+
+4. **`{user}.lastaccess` is indexed** (`lib/db/install.xml`, index
    `lastaccess` on `{user}`; confirmed on m502b as `m_user_las2_ix`). A
    window on it with a keyset on `id` is what the selection query rides.
 
-4. **Cron already serialises scheduled tasks.** `\core\task\manager` takes a
+5. **Cron already serialises scheduled tasks.** `\core\task\manager` takes a
    lock named after the task class before running it
    (`lib/classes/task/manager.php:1067`), so two cron workers cannot run
    `warm_active_users` at once; the task needs no lock of its own.
 
-5. **Core's own precedent for a time-budgeted, resumable task** is the search
+6. **Core's own precedent for a time-budgeted, resumable task** is the search
    indexer: `\core_search\manager::index($fullindex, $timelimit, $progress)`
    (`search/classes/manager.php:1201`) computes `$stopat` once and checks it
    between units of work, reporting through a `progress_trace`. The shape
    below copies it: a budget in seconds, a check between users, a persisted
    cursor.
 
-6. **A throwing scheduled task is retried by cron with back-off and logged as
+7. **A throwing scheduled task is retried by cron with back-off and logged as
    failed** (`\core\task\manager::scheduled_task_failed()`); a permanent
    condition (setting off, nothing to do) must `mtrace()` and return. Fleet
    rule, restated for this task.
@@ -109,7 +121,8 @@ One query per batch, keyset on the primary key:
 ```sql
 -- Index: {user} primary key drives the keyset; the lastaccess window is the filter
 -- (index lastaccess exists but the ordered keyset makes the primary key cheaper).
--- Bound: 200 rows, the batch constant, passed as get_records_sql()'s $limitnum.
+-- Bound: 200 rows, the batch constant, passed as get_records_sql()'s $limitnum
+-- (get_fieldset_sql() takes no limit on 5.2, fact 3).
 SELECT u.id
   FROM {user} u
  WHERE u.lastaccess >= :since AND u.deleted = 0 AND u.suspended = 0 AND u.id > :cursor
@@ -176,8 +189,10 @@ start of each run — not per batch — it counts the users still to warm
 suspended = 0 AND id > :cursor`, 82.7 ms on the bench) for the opening
 `mtrace()` line; the per-batch progress lines — users warmed so far, elapsed
 seconds, cursor — report in-memory counters and cost no query, and the last
-line says either "sweep complete: N users" or "budget reached after N users;
-resuming at id X tomorrow".
+line says either "sweep complete, N users warmed." or "budget reached after N
+users; resuming at id X." — emitted by `run()` itself, which owns the trace, so
+a CLI caller and a test see the same summary the cron log does and the task
+never prints it twice.
 
 Batch size 200 is a constant, not a setting: it bounds the id list held in
 memory and the interval between cursor writes, and the selection query costs
@@ -204,8 +219,18 @@ writes the same cache entries a Dashboard visit writes.
 - **Cost per user warmed: 1 read** (the fill) in the steady state, up to 4
   when the shared layers are cold (fill, `coursemeta`, `categorymeta` for the
   courses' own categories, and a second `categorymeta` fill for the group
-  ancestors on a nested site — ADR-001's accounting); plus one selection read
-  per 200 users and one count read per run for the opening line. For the
+  ancestors on a nested site — ADR-001's accounting); plus a fixed overhead
+  per run that the drafting of this record missed: one selection read per 200
+  users, one count read for the opening line, and **one read per plugin-config
+  write**, because `set_config()` reads the existing row before writing it
+  (`lib/moodlelib.php:969`) — the window when a sweep starts, the cursor after
+  every batch, and the cursor reset plus the completion time when a sweep ends,
+  with one more when the next `get_config()` reloads the plugin's config. A
+  sweep that completes in one batch therefore pays about eight reads of
+  overhead whatever its size. Bypassing `set_config()` would skip the config
+  cache invalidation and leave the next run resuming from a stale cursor, so
+  the overhead is kept and the budget test pins the **per-user** cost by
+  differencing two sweeps rather than asserting an absolute total. For the
   synthetic million (175 219 users active within 7 days, table below) that is
   about 176 000 reads. Execution time, taking the bench's enrolment tiers as
   the population's (20 000 users at 50 enrolments, 200 at 300, 5 at 3 000 —
@@ -233,6 +258,14 @@ writes the same cache entries a Dashboard visit writes.
   multi-node site without Redis, pre-warming warms nothing for anyone. ADR-000
   decision 7's warning gains this sentence in the README and in
   `enable_prewarm_desc`.
+- **A failure inside one user is reported and skipped, not fatal.** The cursor
+  advances past a user whose warm threw, because cron retries a throwing task
+  for ever and the selection is `id > cursor`: an escaping exception would
+  re-select the same user every night. Nothing in the warm path throws on a
+  data state a fixture can reach (every step guards its own emptiness), so the
+  guard is insurance against the layers underneath and deliberately has neither
+  a test nor a mutation gate — recorded here so that a later reader does not
+  take an untested branch for dead code.
 - **A long sweep is visible and interruptible:** the cursor, the sweep's window
   and the last completion time are plain plugin config an administrator can
   read; disabling the setting stops the task at its next run and leaves the
@@ -243,7 +276,9 @@ writes the same cache entries a Dashboard visit writes.
 - The task does nothing and says so when `enable_prewarm` is off (control: the
   same fixture warms with the setting on).
 - One run over two users with the shared layers warm costs **≤ 1 read per
-  user plus 1 per batch plus 1 for the count line**, measured with
+  user over the fixed per-sweep overhead above — asserted as the difference
+  between a sweep over one user and a sweep over three, so the overhead
+  cancels**, measured with
   `classes/local/budget.php` after `simulate_new_request()`; the entries exist
   afterwards with a fresh stamp equal to `inventory::stamp()`.
 - The cursor is persisted after a batch and a second run continues after it.

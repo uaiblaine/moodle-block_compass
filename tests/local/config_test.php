@@ -55,6 +55,7 @@ final class config_test extends advanced_testcase {
         $names = [
             'attention_max', 'new_days', 'group_depth',
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
+            'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -80,6 +81,13 @@ final class config_test extends advanced_testcase {
         $this->assertTrue(config::search_enabled());
         $this->assertTrue(config::index_shown());
         $this->assertFalse(config::hide_block_title());
+        $this->assertSame(config::DEFAULT_INVENTORY_MAX, config::inventory_max());
+        $this->assertSame(250, config::inventory_max());
+        $this->assertFalse(config::prewarm_enabled());
+        $this->assertSame(config::DEFAULT_PREWARM_DAYS, config::prewarm_days());
+        $this->assertSame(7, config::prewarm_days());
+        $this->assertSame(config::DEFAULT_PREWARM_BUDGET_SECONDS, config::prewarm_budget_seconds());
+        $this->assertSame(600, config::prewarm_budget_seconds());
     }
 
     /**
@@ -265,5 +273,135 @@ final class config_test extends advanced_testcase {
 
         set_config('hide_block_title', 0, 'block_compass');
         $this->assertFalse(config::hide_block_title());
+    }
+
+    /**
+     * Stored values for inventory_max and what the accessor makes of them.
+     *
+     * @return array Case name => [stored value, expected result].
+     */
+    public static function inventory_max_provider(): array {
+        return [
+            'zero falls back to the default' => [0, 250],
+            'a negative falls back to the default' => [-1, 250],
+            'an empty string falls back to the default' => ['', 250],
+            'one is honoured' => [1, 1],
+            'the default typed by hand is honoured' => [250, 250],
+            'a large site is not clamped' => [5000, 5000],
+        ];
+    }
+
+    /**
+     * inventory_max is at least one, and has no upper bound.
+     *
+     * Zero would make every user paged, including one with a single course, so a stored zero
+     * means "unset" and the default applies.
+     *
+     * @param mixed $stored What the administrator's setting holds.
+     * @param int $expected What the accessor must return.
+     * @return void
+     */
+    #[DataProvider('inventory_max_provider')]
+    public function test_inventory_max_falls_back_below_one(mixed $stored, int $expected): void {
+        $this->resetAfterTest();
+        set_config('inventory_max', $stored, 'block_compass');
+
+        $this->assertSame($expected, config::inventory_max());
+        $this->assertGreaterThanOrEqual(1, config::inventory_max());
+    }
+
+    /**
+     * Stored values for prewarm_days and what the accessor makes of them.
+     *
+     * @return array Case name => [stored value, expected result].
+     */
+    public static function prewarm_days_provider(): array {
+        return [
+            'zero falls back to the default' => [0, 7],
+            'a negative falls back to the default' => [-3, 7],
+            'an empty string falls back to the default' => ['', 7],
+            'one day is honoured' => [1, 1],
+            'a month is honoured' => [30, 30],
+        ];
+    }
+
+    /**
+     * prewarm_days is at least one day, and has no upper bound.
+     *
+     * @param mixed $stored What the administrator's setting holds.
+     * @param int $expected What the accessor must return.
+     * @return void
+     */
+    #[DataProvider('prewarm_days_provider')]
+    public function test_prewarm_days_falls_back_below_one_day(mixed $stored, int $expected): void {
+        $this->resetAfterTest();
+        set_config('prewarm_days', $stored, 'block_compass');
+
+        $this->assertSame($expected, config::prewarm_days());
+        $this->assertGreaterThanOrEqual(1, config::prewarm_days());
+    }
+
+    /**
+     * Stored values for prewarm_budget_seconds and what the accessor makes of them.
+     *
+     * @return array Case name => [stored value, expected result].
+     */
+    public static function prewarm_budget_seconds_provider(): array {
+        return [
+            'zero falls back to the default' => [0, 600],
+            'a negative falls back to the default' => [-1, 600],
+            'an empty string falls back to the default' => ['', 600],
+            'one below the floor falls back to the default' => [59, 600],
+            'the floor is honoured' => [60, 60],
+            'one above the floor is honoured' => [61, 61],
+            'an hour is not clamped' => [3600, 3600],
+        ];
+    }
+
+    /**
+     * prewarm_budget_seconds is at least the floor, and has no upper bound.
+     *
+     * The settings page enforces the floor through set_min_duration(); the accessor enforces it
+     * again because a value can reach {config_plugins} by other roads, and a budget of a few
+     * seconds would stop every run after its first user.
+     *
+     * @param mixed $stored What the administrator's setting holds.
+     * @param int $expected What the accessor must return.
+     * @return void
+     */
+    #[DataProvider('prewarm_budget_seconds_provider')]
+    public function test_prewarm_budget_seconds_falls_back_below_the_floor(mixed $stored, int $expected): void {
+        $this->resetAfterTest();
+        set_config('prewarm_budget_seconds', $stored, 'block_compass');
+
+        $this->assertSame($expected, config::prewarm_budget_seconds());
+        $this->assertGreaterThanOrEqual(config::MIN_PREWARM_BUDGET_SECONDS, config::prewarm_budget_seconds());
+        $this->assertSame(60, config::MIN_PREWARM_BUDGET_SECONDS);
+    }
+
+    /**
+     * Pre-warming is on only when an explicit one is stored.
+     *
+     * The mirror image of the default-on rule: this task costs database time on a schedule, so a
+     * site that never opened the settings page must not start it. Never set, an explicit zero
+     * and an empty string are all off; only the stored one is on.
+     *
+     * @return void
+     */
+    public function test_pre_warming_is_on_only_when_an_explicit_one_is_stored(): void {
+        $this->resetAfterTest();
+
+        unset_config('enable_prewarm', 'block_compass');
+        $this->assertFalse(config::prewarm_enabled());
+
+        set_config('enable_prewarm', 0, 'block_compass');
+        $this->assertSame('0', get_config('block_compass', 'enable_prewarm'));
+        $this->assertFalse(config::prewarm_enabled());
+
+        set_config('enable_prewarm', '', 'block_compass');
+        $this->assertFalse(config::prewarm_enabled());
+
+        set_config('enable_prewarm', 1, 'block_compass');
+        $this->assertTrue(config::prewarm_enabled());
     }
 }

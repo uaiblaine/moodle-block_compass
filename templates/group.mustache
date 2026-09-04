@@ -25,11 +25,14 @@
     * data-region="rows" wrapping the rows, each inside a data-region="row-item" listitem wrapper (see
       block_compass/row); the JS stamps data-group-id on the wrapper and moves it between this group
       and the flat list of block_compass/explore when the sort changes.
+    * data-action="showmore" on the "Show more" button under the rows. It ships hidden: in paged mode
+      (ADR-004) the JS reveals it while the group has more rows on the server than it holds, and reads
+      "Loading…" while a page is in flight; in full mode it stays hidden.
 
     Context variables required for this template:
     * id, name, count - the group.
     * open - whether the disclosure starts open.
-    * courses - list of rows, see block_compass/row.
+    * courses - list of rows, see block_compass/row (empty in paged mode: rows are fetched on first open).
     * uniqid - a unique id (the js helper provides it).
 
     Example context (json):
@@ -53,4 +56,5 @@
         </div>
         {{/courses}}
     </div>
+    <button type="button" class="btn btn-link btn-sm compass-showmore" data-action="showmore" hidden>{{#str}}showmore, block_compass{{/str}}</button>
 </details>

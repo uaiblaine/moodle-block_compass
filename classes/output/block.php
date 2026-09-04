@@ -53,6 +53,7 @@ class block implements renderable, templatable {
             'addtofavourites', 'removefromfavourites', 'favouriteadded', 'favouriteremoved',
             'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
             'lastopened', 'resultsshown', 'noresults', 'coursesingroup',
+            'searchtooshort', 'searchtruncated', 'loadingrows', 'pagednote', 'filterupdated',
         ];
         $labels = [];
         foreach ($keys as $key) {

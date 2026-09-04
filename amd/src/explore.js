@@ -16,13 +16,20 @@
 /**
  * Tier 3: fetch the inventory once, render it, then filter and reorder in place.
  *
+ * Two modes, decided by the server (ADR-004). In full mode every row is in the
+ * DOM after one request and search, chips and sort only toggle hidden or move
+ * nodes. In paged mode the groups arrive with counts only: a group fetches its
+ * rows on first open and page by page, chips and sort are parameters of those
+ * fetches, and the search box asks the server, showing the hits in the flat list.
+ *
  * @module     block_compass/explore
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import Templates from 'core/templates';
-import {getInventory} from 'block_compass/repository';
+import Notification from 'core/notification';
+import {getInventory, getInventoryRows, searchInventory} from 'block_compass/repository';
 import {normalise, matches, relativeTime, passesChip} from 'block_compass/filter';
 
 const SELECTORS = {
@@ -36,6 +43,7 @@ const SELECTORS = {
     rowsWrap: '[data-region="rows"]',
     items: '[data-region="row-item"]',
     rows: '[data-region="row"]',
+    rowLink: '[data-region="row-link"]',
     flat: '[data-region="flat"]',
     indexNav: '[data-region="index-nav"]',
     groupCount: '[data-region="group-count"]',
@@ -44,9 +52,15 @@ const SELECTORS = {
     lastOpened: '[data-region="lastopened"]',
     results: '[data-region="results"]',
     noResults: '[data-region="noresults"]',
+    showMore: '[data-action="showmore"]',
 };
 
 const DEBOUNCE_MS = 150;
+
+// Paged mode (ADR-004, PLAN.md §6.5): the search box waits longer before asking the server, and
+// a query the server would refuse anyway (fewer than two characters once normalised) is not sent.
+const PAGE_DEBOUNCE_MS = 300;
+const SEARCH_MIN_LENGTH = 2;
 
 // Below this width of the section itself (not the viewport: the block may sit in a drawer
 // or a narrow column) the category index is hidden and the groups take the whole width.
@@ -59,10 +73,26 @@ const NARROW_PX = 640;
  * @property {HTMLElement} root The rendered section.
  * @property {Object} labels Block labels.
  * @property {boolean} showindex Whether the category index was rendered.
- * @property {string} query Current search text.
+ * @property {string} mode full or paged (ADR-004): whether every row is in the DOM or rows are fetched per group.
+ * @property {string} query Current search text (full mode).
  * @property {string} chip Current chip.
  * @property {string} sort Current sort: category, name or recent.
- * @property {Map|null} openbeforesearch Open state of every group when the current search began.
+ * @property {Map|null} openbeforesearch Open state of every group when the current search began (full mode).
+ * @property {Map} pages Paged mode: group id to its paging state, see PageState.
+ * @property {boolean} searching Paged mode: whether the flat list is showing server search hits.
+ * @property {number} searchseq Paged mode: sequence number of the last search sent, so a late answer is dropped.
+ * @property {string} showmorelabel The "Show more" label, put back on a button after it read "Loading…".
+ */
+
+/**
+ * Paging state of one group in paged mode.
+ *
+ * @typedef {Object} PageState
+ * @property {number} after Id of the last row held, the cursor of the next page; 0 before the first page.
+ * @property {boolean} hasmore Whether the server holds rows beyond the last page.
+ * @property {boolean} loaded Whether at least the first page arrived.
+ * @property {boolean} loading Whether a page is in flight.
+ * @property {number} seq Sequence number of the current fetch; a reset bumps it so a late answer is dropped.
  */
 
 /**
@@ -106,10 +136,23 @@ const itemFacts = (item) => rowFacts(item.querySelector(SELECTORS.rows));
 const withCount = (label, value) => (label || '{$a}').replace('{$a}', () => String(value));
 
 /**
+ * Add the course URL to rows as the server sent them.
+ *
+ * A row arrives as {id, name, opened, new, fav}; the URL is built here so the payload carries none.
+ *
+ * @param {Object[]} rows The rows.
+ * @returns {Object[]} The rows, each with courseurl.
+ */
+const withUrls = (rows) => {
+    const wwwroot = M.cfg.wwwroot;
+    return rows.map((row) => ({...row, courseurl: `${wwwroot}/course/view.php?id=${row.id}`}));
+};
+
+/**
  * Apply the query and the chip to every row, hide empty groups, announce the count.
  *
- * Rows are decided one by one whatever container holds them; groups and the
- * index only matter while the list is grouped.
+ * Full mode only: rows are decided one by one whatever container holds them;
+ * groups and the index only matter while the list is grouped.
  *
  * @param {ExploreState} state The region state.
  */
@@ -205,8 +248,8 @@ const byRecent = (a, b) => {
 /**
  * Reorder the rows in place: grouped by category with names in order, or one flat list by name or by last opened.
  *
- * Nothing is re-rendered: every list item carries the id of the group it was
- * rendered in, and moves between that group and the flat list.
+ * Full mode only. Nothing is re-rendered: every list item carries the id of the
+ * group it was rendered in, and moves between that group and the flat list.
  *
  * @param {ExploreState} state The region state.
  */
@@ -235,22 +278,319 @@ const applySort = (state) => {
 };
 
 /**
- * Fill the "opened … ago" text of every row from its timestamp.
+ * Fill one row's "opened … ago" text from its timestamp.
  *
- * @param {HTMLElement} root The rendered section.
+ * @param {HTMLElement} row The row.
  * @param {Object} labels Block labels.
+ * @param {number} now Unix time in seconds.
+ * @param {string} lang BCP 47 language tag.
  */
-const fillRelativeTimes = (root, labels) => {
+const fillRowTime = (row, labels, now, lang) => {
+    const opened = Number(row.dataset.lastaccess || 0);
+    const target = row.querySelector(SELECTORS.lastOpened);
+    if (!target || opened <= 0) {
+        return;
+    }
+    target.textContent = (labels.lastopened || '{$a}').replace('{$a}', () => relativeTime(opened, now, lang));
+};
+
+/**
+ * Stamp rendered list items the way the first render does: the group id on the item, the
+ * normalised name on the row (its data-search) and the relative time of the last access.
+ *
+ * @param {HTMLElement[]} items The list items.
+ * @param {Object} labels Block labels.
+ * @param {Function} groupOf Given a row element, returns the id of the group it belongs to.
+ */
+const decorateItems = (items, labels, groupOf) => {
     const now = Math.floor(Date.now() / 1000);
     const lang = document.documentElement.lang || 'en';
-    root.querySelectorAll(SELECTORS.rows).forEach((row) => {
-        const opened = Number(row.dataset.lastaccess || 0);
-        const target = row.querySelector(SELECTORS.lastOpened);
-        if (!target || opened <= 0) {
+    items.forEach((item) => {
+        const row = item.querySelector(SELECTORS.rows);
+        if (!row) {
             return;
         }
-        target.textContent = (labels.lastopened || '{$a}').replace('{$a}', () => relativeTime(opened, now, lang));
+        item.dataset.groupId = groupOf(row);
+        const name = row.querySelector('.compass-row-name');
+        row.dataset.search = normalise(name ? name.textContent : '');
+        fillRowTime(row, labels, now, lang);
     });
+};
+
+/**
+ * Render rows through the rows template.
+ *
+ * @param {Object[]} rows Rows as the server sent them.
+ * @returns {Promise<Object|null>} The rendered html and js, or null when there is nothing to render.
+ */
+const renderRows = async(rows) => {
+    if (!rows.length) {
+        return null;
+    }
+    return Templates.renderForPromise('block_compass/rows', {courses: withUrls(rows)});
+};
+
+/**
+ * Append rendered rows to a list wrapper.
+ *
+ * @param {HTMLElement} wrap The wrapper carrying the list role (a group's rows or the flat list).
+ * @param {Object|null} rendered What renderRows() returned.
+ * @returns {HTMLElement[]} The appended list items.
+ */
+const appendRendered = (wrap, rendered) => {
+    if (!rendered) {
+        return [];
+    }
+    // The template wraps its items in a role="group" element, so the appended top-level node
+    // is that wrapper: collect the items from inside it, and from a bare item if it is ever
+    // rendered without one.
+    return Templates.appendNodeContents(wrap, rendered.html, rendered.js)
+        .filter((node) => node.nodeType === Node.ELEMENT_NODE)
+        .flatMap((node) => (node.matches(SELECTORS.items)
+            ? [node]
+            : Array.from(node.querySelectorAll(SELECTORS.items))));
+};
+
+/**
+ * The paging state of a group, created on first use.
+ *
+ * @param {ExploreState} state The region state.
+ * @param {string} key The group id, as the data attribute holds it.
+ * @returns {PageState}
+ */
+const pageState = (state, key) => {
+    if (!state.pages.has(key)) {
+        state.pages.set(key, {after: 0, hasmore: false, loaded: false, loading: false, seq: 0});
+    }
+    return state.pages.get(key);
+};
+
+/**
+ * The sort the server understands for the current toolbar state.
+ *
+ * Paged mode never flattens the list: "by category" and "A–Z" both order a group's rows by name.
+ *
+ * @param {ExploreState} state The region state.
+ * @returns {string} name or recent.
+ */
+const serverSort = (state) => (state.sort === 'recent' ? 'recent' : 'name');
+
+/**
+ * Put a group's "Show more" button into or out of its loading state.
+ *
+ * While a page is in flight the button is shown, disabled and reads "Loading…", so a
+ * group opening for the first time shows something under its empty rows.
+ *
+ * @param {HTMLElement|null} button The button, if the group has one.
+ * @param {ExploreState} state The region state.
+ * @param {boolean} loading Whether a page is in flight.
+ */
+const setButtonLoading = (button, state, loading) => {
+    if (!button) {
+        return;
+    }
+    button.disabled = loading;
+    button.textContent = loading ? (state.labels.loadingrows || '') : state.showmorelabel;
+    if (loading) {
+        button.hidden = false;
+    }
+};
+
+/**
+ * Paged mode: fetch the next page of a group and append it; the first call fetches page one.
+ *
+ * A call while a page is in flight is ignored. A page whose rows the group already holds means
+ * the server restarted the group — the cursor no longer existed in its order (ADR-004) — and the
+ * group is re-rendered rather than appended to.
+ *
+ * @param {ExploreState} state The region state.
+ * @param {HTMLElement} group The group's details element.
+ * @param {boolean} focusfirst Whether to move focus to the first new row when the button hides.
+ * @returns {Promise<void>}
+ */
+const loadPage = async(state, group, focusfirst = false) => {
+    const key = group.dataset.groupId;
+    const page = pageState(state, key);
+    if (page.loading) {
+        return;
+    }
+    page.loading = true;
+    const seq = ++page.seq;
+    const button = group.querySelector(SELECTORS.showMore);
+    const wrap = group.querySelector(SELECTORS.rowsWrap);
+    wrap.setAttribute('aria-busy', 'true');
+    setButtonLoading(button, state, true);
+    try {
+        const data = await getInventoryRows(Number(key), page.after, state.chip, serverSort(state));
+        const rendered = await renderRows(data.rows);
+        if (seq !== page.seq) {
+            // The group was reset while the page travelled: this answer belongs to an older request.
+            return;
+        }
+        const restarted = page.after !== 0 && data.rows.some(
+            (row) => wrap.querySelector(`${SELECTORS.rows}[data-course-id="${row.id}"]`) !== null
+        );
+        if (restarted) {
+            wrap.replaceChildren();
+        }
+        const items = appendRendered(wrap, rendered);
+        decorateItems(items, state.labels, () => key);
+        page.after = data.after;
+        page.hasmore = data.hasmore;
+        page.loaded = true;
+        // The group's count follows the rows it actually holds under the active chip, the way
+        // full mode's applyFilters() rewrites it; group.mustache documents the node as such.
+        const count = group.querySelector(SELECTORS.groupCount);
+        if (count) {
+            count.textContent = withCount(
+                state.labels.coursesingroup,
+                wrap.querySelectorAll(SELECTORS.items).length
+            );
+        }
+        if (focusfirst && !data.hasmore && items.length) {
+            // The button that had focus is about to hide; keep the keyboard on the rows it added.
+            const link = items[0].querySelector(SELECTORS.rowLink);
+            if (link) {
+                link.focus();
+            }
+        }
+    } catch (e) {
+        if (seq === page.seq) {
+            Notification.addNotification({message: state.labels.loaderror || '', type: 'error'});
+        }
+    } finally {
+        if (seq === page.seq) {
+            page.loading = false;
+            wrap.removeAttribute('aria-busy');
+            setButtonLoading(button, state, false);
+            if (button) {
+                button.hidden = !page.hasmore;
+                if (focusfirst && page.hasmore) {
+                    // The click that asked for this page blurred the button when it disabled;
+                    // it is still the right target, so the keyboard goes back to it. When it
+                    // hides instead, the branch above has already moved focus into the rows.
+                    button.focus();
+                }
+            }
+        }
+    }
+};
+
+/**
+ * Paged mode, after a chip or sort change: drop every loaded group's rows and fetch page one
+ * again for the groups that are open; a closed group fetches on its next open.
+ *
+ * @param {ExploreState} state The region state.
+ */
+const resetGroups = (state) => {
+    state.root.querySelectorAll(SELECTORS.groups).forEach((group) => {
+        const page = state.pages.get(group.dataset.groupId);
+        if (!page || (!page.loaded && !page.loading)) {
+            return;
+        }
+        page.seq++;
+        page.after = 0;
+        page.hasmore = false;
+        page.loaded = false;
+        page.loading = false;
+        group.querySelector(SELECTORS.rowsWrap).replaceChildren();
+        const button = group.querySelector(SELECTORS.showMore);
+        setButtonLoading(button, state, false);
+        if (button) {
+            button.hidden = true;
+        }
+        if (group.open) {
+            loadPage(state, group);
+        }
+    });
+    // Paged mode has no total to announce: the pages arrive one group at a time, and a group's
+    // header count stays its unfiltered total until its rows do. Say that, rather than a number
+    // that would be wrong until the last group is open.
+    const results = state.root.querySelector(SELECTORS.results);
+    if (results) {
+        results.textContent = state.labels.filterupdated || '';
+    }
+};
+
+/**
+ * Paged mode: leave the search hits and show the groups and the index again.
+ *
+ * @param {ExploreState} state The region state.
+ */
+const leaveSearch = (state) => {
+    const flat = state.root.querySelector(SELECTORS.flat);
+    const groupswrap = state.root.querySelector(SELECTORS.groupsWrap);
+    const indexnav = state.root.querySelector(SELECTORS.indexNav);
+    const noresults = state.root.querySelector(SELECTORS.noResults);
+    flat.replaceChildren();
+    flat.hidden = true;
+    groupswrap.hidden = false;
+    if (indexnav) {
+        indexnav.hidden = !state.showindex;
+    }
+    if (noresults) {
+        noresults.hidden = true;
+    }
+    state.searching = false;
+};
+
+/**
+ * Paged mode: ask the server for the courses matching the query and show them in the flat list.
+ *
+ * A query too short to send clears any hits on show and says so when it is not empty; an
+ * answer arriving after a newer query was sent is dropped.
+ *
+ * @param {ExploreState} state The region state.
+ * @param {string} query The raw query.
+ * @returns {Promise<void>}
+ */
+const serverSearch = async(state, query) => {
+    const results = state.root.querySelector(SELECTORS.results);
+    const normalised = normalise(query);
+    const seq = ++state.searchseq;
+    if (normalised.length < SEARCH_MIN_LENGTH) {
+        if (state.searching) {
+            leaveSearch(state);
+        }
+        if (results) {
+            results.textContent = normalised === '' ? '' : withCount(state.labels.searchtooshort, SEARCH_MIN_LENGTH);
+        }
+        return;
+    }
+    try {
+        const data = await searchInventory(query);
+        const rendered = await renderRows(data.rows);
+        if (seq !== state.searchseq) {
+            return;
+        }
+        const flat = state.root.querySelector(SELECTORS.flat);
+        const groupswrap = state.root.querySelector(SELECTORS.groupsWrap);
+        const indexnav = state.root.querySelector(SELECTORS.indexNav);
+        const noresults = state.root.querySelector(SELECTORS.noResults);
+        const groupbyid = new Map(data.rows.map((row) => [String(row.id), String(row.groupid)]));
+        flat.replaceChildren();
+        const items = appendRendered(flat, rendered);
+        decorateItems(items, state.labels, (row) => groupbyid.get(row.dataset.courseId) || '');
+        groupswrap.hidden = true;
+        if (indexnav) {
+            indexnav.hidden = true;
+        }
+        flat.hidden = false;
+        if (noresults) {
+            noresults.hidden = data.rows.length > 0;
+        }
+        state.searching = true;
+        if (results) {
+            const shown = withCount(state.labels.resultsshown, data.rows.length);
+            results.textContent = data.truncated
+                ? `${shown} ${withCount(state.labels.searchtruncated, data.rows.length)}`
+                : shown;
+        }
+    } catch (e) {
+        if (seq === state.searchseq) {
+            Notification.addNotification({message: state.labels.loaderror || '', type: 'error'});
+        }
+    }
 };
 
 /**
@@ -270,20 +610,56 @@ const observeWidth = (state) => {
 };
 
 /**
+ * Paged mode: fetch a group's first page when it opens, and the next one on "Show more".
+ *
+ * @param {ExploreState} state The region state.
+ */
+const wirePaged = (state) => {
+    state.root.querySelectorAll(SELECTORS.groups).forEach((group) => {
+        // The toggle event of a details element does not bubble: one listener per group.
+        group.addEventListener('toggle', () => {
+            const page = pageState(state, group.dataset.groupId);
+            if (group.open && !page.loaded && !page.loading) {
+                loadPage(state, group);
+            }
+        });
+    });
+    state.root.addEventListener('click', (event) => {
+        const button = event.target.closest(SELECTORS.showMore);
+        if (!button || !state.root.contains(button)) {
+            return;
+        }
+        const group = button.closest(SELECTORS.groups);
+        if (group) {
+            loadPage(state, group, true);
+        }
+    });
+};
+
+/**
  * Wire the toolbar of a rendered region.
  *
  * The sort and chip groups are sets of toggle buttons: exactly one is pressed
- * at a time, and pressing one releases the others.
+ * at a time, and pressing one releases the others. In full mode they act on the
+ * DOM; in paged mode they are parameters of the next fetch of every group.
  *
  * @param {ExploreState} state The region state.
  */
 const wire = (state) => {
+    const paged = state.mode === 'paged';
     const search = state.root.querySelector(SELECTORS.search);
     if (search) {
         let timer = null;
+        const delay = paged ? PAGE_DEBOUNCE_MS : DEBOUNCE_MS;
         search.addEventListener('input', () => {
             window.clearTimeout(timer);
-            timer = window.setTimeout(() => setQuery(state, search.value), DEBOUNCE_MS);
+            timer = window.setTimeout(() => {
+                if (paged) {
+                    serverSearch(state, search.value);
+                } else {
+                    setQuery(state, search.value);
+                }
+            }, delay);
         });
     }
     const toggles = (selector, attr, onChange) => {
@@ -298,13 +674,32 @@ const wire = (state) => {
         }));
     };
     toggles(SELECTORS.sort, 'sort', (value) => {
+        if (!paged) {
+            state.sort = value;
+            applySort(state);
+            return;
+        }
+        // Category and A–Z are the same server order; only a real change refetches.
+        const before = serverSort(state);
         state.sort = value;
-        applySort(state);
+        if (serverSort(state) !== before) {
+            resetGroups(state);
+        }
     });
     toggles(SELECTORS.chips, 'chip', (value) => {
+        if (value === state.chip) {
+            return;
+        }
         state.chip = value;
-        applyFilters(state);
+        if (paged) {
+            resetGroups(state);
+        } else {
+            applyFilters(state);
+        }
     });
+    if (paged) {
+        wirePaged(state);
+    }
 };
 
 /**
@@ -336,15 +731,14 @@ export const open = async(blockroot, config, chip = 'all') => {
     if (!region.dataset.state) {
         region.dataset.state = 'loading';
         const data = await getInventory();
-        const wwwroot = M.cfg.wwwroot;
-        // A row arrives as {id, name, opened, new, fav}; the URL is built here so the payload carries none.
+        const mode = data.mode === 'paged' ? 'paged' : 'full';
+        const paged = mode === 'paged';
+        // In paged mode every group arrives with an empty courses list and starts closed: its rows
+        // are fetched on first open (ADR-004). In full mode the first group starts open.
         const groups = data.groups.map((group, index) => ({
             ...group,
-            open: index === 0,
-            courses: group.courses.map((course) => ({
-                ...course,
-                courseurl: `${wwwroot}/course/view.php?id=${course.id}`,
-            })),
+            open: !paged && index === 0,
+            courses: withUrls(group.courses),
         }));
         const rendered = await Templates.renderForPromise('block_compass/explore', {
             total: data.total,
@@ -354,29 +748,39 @@ export const open = async(blockroot, config, chip = 'all') => {
         });
         Templates.replaceNodeContents(region, rendered.html, rendered.js);
         const root = region.querySelector(SELECTORS.root);
-        root.querySelectorAll(SELECTORS.groups).forEach((group) => {
-            group.querySelectorAll(SELECTORS.items).forEach((item) => {
-                item.dataset.groupId = group.dataset.groupId;
-            });
-        });
-        root.querySelectorAll(SELECTORS.rows).forEach((row) => {
-            const name = row.querySelector('.compass-row-name');
-            row.dataset.search = normalise(name ? name.textContent : '');
-        });
-        fillRelativeTimes(root, config.labels || {});
+        const labels = config.labels || {};
+        decorateItems(
+            Array.from(root.querySelectorAll(SELECTORS.items)),
+            labels,
+            (row) => row.closest(SELECTORS.groups).dataset.groupId
+        );
+        const showmore = root.querySelector(SELECTORS.showMore);
         const state = {
             root,
-            labels: config.labels || {},
+            labels,
             showindex: !!config.showindex,
+            mode,
             query: '',
             chip: 'all',
             sort: 'category',
             openbeforesearch: null,
+            pages: new Map(),
+            searching: false,
+            searchseq: 0,
+            showmorelabel: showmore ? showmore.textContent.trim() : '',
         };
         region.compassState = state;
         wire(state);
         observeWidth(state);
-        applyFilters(state);
+        if (paged) {
+            const results = root.querySelector(SELECTORS.results);
+            if (results) {
+                // Said once, politely: rows arrive as groups open, and the search reaches every course.
+                results.textContent = labels.pagednote || '';
+            }
+        } else {
+            applyFilters(state);
+        }
         region.dataset.state = 'ready';
     }
     region.hidden = false;

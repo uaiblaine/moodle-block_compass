@@ -15,7 +15,12 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Compass block version file.
+ * Scheduled tasks of the Compass block (ADR-003).
+ *
+ * One task, off-peak by default — 04:00 site time at a random minute, so many sites
+ * on one cron host do not start together — and gated by the enable_prewarm setting
+ * inside execute(), never disabled here: an administrator who turns the setting on
+ * needs no second visit to the task list.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -24,9 +29,14 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'block_compass';
-$plugin->version = 2026090404;
-$plugin->release = 'v5.2-r1';
-$plugin->requires = 2026042000;
-$plugin->supported = [502, 502];
-$plugin->maturity = MATURITY_ALPHA;
+$tasks = [
+    [
+        'classname' => '\block_compass\task\warm_active_users',
+        'blocking' => 0,
+        'minute' => 'R',
+        'hour' => '4',
+        'day' => '*',
+        'month' => '*',
+        'dayofweek' => '*',
+    ],
+];

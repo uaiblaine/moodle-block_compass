@@ -9,7 +9,10 @@ true only for this plugin; where being **Moodle 5.2-only** changes the fleet
 default; and the plan's principles, scale rules and definition of done, restated
 as operating rules for the agent. **Read `PLAN.md` before any edit** — it is the
 specification this file operationalises, and when the two disagree, PLAN.md wins
-and this file gets fixed in the same commit.
+and this file gets fixed in the same commit — unless an **accepted ADR** has
+superseded the plan's wording (ADR-004 did, for §6.5's `GROUP BY` headers and
+`LIKE` search), in which case the record wins and this file says so where it
+restates the section.
 
 Plugin context: a Moodle **block** plugin ("Compass") that replaces the
 time-based "My courses" listing with a **relevance-based one in three tiers**:
@@ -22,8 +25,10 @@ Supports **Moodle 5.2 only** (`$plugin->requires = 2026042000`,
 `$plugin->supported = [502, 502]`). No dependency on `local_dimensions` or any
 sibling plugin: data comes from core (`core_course`, `core_completion`,
 `core_favourites`, `core_user` preferences, `core_cache`; `core_calendar` in v2).
-It owns **no database tables** and persists only two things of its own: MUC
-cache entries and the user preference `block_compass_view`. Favourites are the
+It owns **no database tables** and persists only three things of its own: MUC
+cache entries, the user preference `block_compass_view`, and the three
+plugin-config rows the pre-warming task keeps as its resume state
+(`prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep`; ADR-003). Favourites are the
 core course star (component `core_course`, itemtype `courses`, course context,
 shared with the Course overview block) and archiving writes the Course overview
 block's `block_myoverview_hidden_course_*` preferences — both through core's own
@@ -52,6 +57,8 @@ mdl grunt m502 blocks/compass                  # rebuild amd/build — commit wi
 mdl purge m502                                 # after PHP changes that affect rendered output
 mdl mutate moodle-block_compass <spec> --stack m502b   # break one guard, prove exactly one test reddens
 psql -h localhost -p 5502 -U moodle moodle     # EXPLAIN ANALYZE the queries in classes/local/ (password in ~/dev/CLAUDE.md §1)
+mdl sh m502                                    # then, from /var/www/html (the repo root on the 5.x split layout):
+php admin/cli/scheduled_task.php --execute='\block_compass\task\warm_active_users'   # one pre-warming run by hand; says "off" until enable_prewarm is set
 ```
 
 Coverage caveat, measured fleet-wide on 2026-08-23: the default include list
@@ -172,29 +179,137 @@ limit: `enrol_ldap` writes `status` with no timestamp and is seen only at the
 TTL. Full rationale, the bench and the alternatives:
 [`docs/adr/002-inventory-stamp.md`](docs/adr/002-inventory-stamp.md).
 
-### Pre-warming: optional, selective, budgeted (§6.4, *ADR-003*)
+### Pre-warming: optional, selective, budgeted (§6.4, *ADR-003*, built in Phase 3)
 
 Default is **lazy**: the first Dashboard hit of the day pays, the rest read
-cache. The optional scheduled task `warm_active_users` (`enable_prewarm`, off by
-default) runs off-peak, only for users with `{user}.lastaccess` within
-`prewarm_days` (default 7), in batches under a time budget
-(`prewarm_budget_seconds`), resuming where it stopped. It warms `coursemeta` for
-those users' courses and their `inventory`; it **never** warms `details`.
-Warming `coursemeta` is always cheap and worth it — the `course_updated` observer
-keeps that layer hot on its own. A throwing scheduled or adhoc task is retried
-forever: permanent failures `mtrace()` and return, never throw.
+cache. The scheduled task `\block_compass\task\warm_active_users`
+(`db/tasks.php`: daily at 04:00 site time, `minute => 'R'`) is **always
+scheduled and gated by the setting**: `execute()` starts with
+`if (!config::prewarm_enabled()) { mtrace('block_compass: pre-warming is off
+(enable_prewarm); nothing to do.'); return; }`, so `enable_prewarm` (off by
+default; **never set means off**) is the one switch and an administrator who
+turns it on needs no second visit to the task list. The work lives in
+`classes/local/prewarm.php::run()`; the task is a thin caller that prints one
+summary line — "sweep complete: N users" or "budget reached after N users;
+resuming at id X". As built:
 
-### Degraded mode above `inventory_max` (§6.5, *ADR-004*)
+- **Selection**: users with `{user}.lastaccess >= :since`, `deleted = 0`,
+  `suspended = 0`, `id > :cursor`, `ORDER BY id`, in batches of
+  `prewarm::BATCH_SIZE` = 200 (a constant, not a setting) through
+  `$DB->get_fieldset_sql()` with a limit — the primary key drives the keyset,
+  the `lastaccess` window is the filter. Once per run, before the loop, one
+  `COUNT(*)` of the remaining users feeds the opening trace line; per-batch
+  lines report in-memory counters and cost no query.
+- **Resume state**, three plugin-config rows: `prewarm_cursor` (the last id
+  done, persisted after **every** batch and on a budget stop), `prewarm_since`
+  (the window's lower bound, fixed when a sweep starts at cursor 0 as `now −
+  prewarm_days × DAYSECS` and reused by every batch of that sweep, so a sweep
+  spanning several nights keeps one window and a change of `prewarm_days`
+  takes effect at the next sweep; recomputed and stored if missing) and
+  `prewarm_lastsweep` (set to `$now` when a batch shorter than 200 ends the
+  sweep and the cursor goes back to 0).
+- **Warm one user** = `inventory::fill($userid)` — **`fill()`, not `get()`**: a
+  valid hit does not rewrite the entry, so only the fill renews the TTL (ADR-003
+  fact 2) — then `inventory::courses($entry, $now)` with **no hidden set**
+  (archived courses still need their `coursemeta`; the preference read would
+  cost a query the task has no reason to pay), `course_meta::get_many()` over
+  those ids, `category_meta::get_many()` over their categories and then over
+  the group ancestors (`category_meta::group_id()` at `config::group_depth()`)
+  still missing — the same shape as `explore::build()`. **Never `details`.**
+- **Budget**: `prewarm_budget_seconds` (default 600, floor 60) checked
+  **between users** against a `$stopat` computed once, the way
+  `core_search\manager::index()` does; on reaching it the cursor is persisted
+  and the run returns `completed => false`. `core_php_time_limit::raise($budget
+  + 60)` is called at the start knowing it is a no-op under CLI; the `$stopat`
+  check is the real protection. A user is never left half warmed.
+- **No lock of its own**: cron takes one per task class before running it
+  (`lib/classes/task/manager.php:1067`).
 
-Above `inventory_max` enrolments (default 250) tier 3 does **not** ship the
-whole inventory to the browser: `get_inventory` returns group headers with
-counts only (one `GROUP BY category` query); each opened group fetches its rows
-by cursor (`LIMIT 100`, `after=courseid`); search becomes server-side — a
-substring `$DB->sql_like()` on `fullname` / `shortname` over the user's own
-enrolments, joined first, so the cost follows that user's enrolment count and
-not `{course}` (a leading wildcard cannot use an index; ADR-000, decision 18) —
-with a 300 ms debounce. The response carries
-`mode: full|paged` and the client picks the behaviour; the UI is identical.
+`run(?int $batchsize = null, ?int $budgetseconds = null, ?int $now = null,
+?callable $trace = null)` returns `warmed`, `batches`, `completed`, `cursor`,
+`remaining` (the count at the start) and `elapsed`; `$trace` defaults to a
+closure calling `mtrace()`, and tests pass their own to capture the lines. Cost
+per user: 1 read in the steady state (the fill), up to 4 with the shared layers
+cold; plus one selection read per batch and one count per run. Without a shared
+in-memory store the task writes to the cron node's own file cache, which the web
+nodes never read — on a multi-node site without Redis it warms nothing for
+anyone (the README and `enable_prewarm_desc` say so). Warming `coursemeta` is
+always cheap and worth it — the `course_updated` observer keeps that layer hot on
+its own. A throwing scheduled or adhoc task is retried forever: permanent
+failures `mtrace()` and return, never throw.
+
+### Degraded mode above `inventory_max` (§6.5, *ADR-004*, built in Phase 3)
+
+The mode is **derived from the entry at response time**, not from a new query.
+`explore::build()` computes the groups exactly as in full mode and, when the
+response's `total` (active, visible, not archived courses) exceeds
+`$inventorymax ?? config::inventory_max()` (default 250, floor 1), answers
+`mode: 'paged'` with every group carrying `'courses' => []` — the key **stays**:
+`execute_returns()` declares it required and an empty array satisfies it, so the
+return structure is unchanged — and `mode: 'full'` otherwise. The entry is
+built, validated and stored the same way for every user (ADR-002 unchanged),
+and paged mode adds **no SQL** to `classes/local/`: headers, pages and search
+are functions of the entry plus the two shared layers. PLAN.md §6.5's `GROUP BY
+category` headers and indexed `LIKE` search are the superseded wording (ADR-000
+decision 23; the bench in ADR-004 measured 101 ms and a scan of `{enrol}` for
+the headers, and `sql_like()` cannot be accent-insensitive on PostgreSQL).
+
+Two new read services, both routed through `explore`, which factors the shared
+population into one private static helper so `build()`, `rows()` and `search()`
+cannot drift (`inventory::get` → `inventory::courses` with
+`hidden_courses::ids` → `course_meta::get_many` with the `viewhiddencourses`
+visibility filter → `category_meta` for the categories and their group
+ancestors → group id per course):
+
+- `block_compass_get_inventory_rows` → `explore::rows($userid, $now, $groupid,
+  $after, $chip, $sort)`: one page of one group. Keeps the courses whose group
+  id equals `$groupid`, applies the **chip** (`all`; `new` = never opened and
+  `timecreated > now − new_days`; `favourites` = starred), orders on the **raw**
+  `coursemeta.fullname` with `core_collator` (`name`) or by `timeaccess`
+  descending then raw name (`recent`), finds `$after` (0 = start; an id no
+  longer in the order = start again), takes the next `explore::PAGE_SIZE` = 100
+  ids, and **only then** runs `filters::preload` over those contexts and
+  formats those names. Returns `groupid`, `rows` (exactly the full-mode row:
+  `id`, `name`, `opened` int|null, `new`, `fav`), `hasmore` and `after` (the
+  last id shipped, 0 when none). A group the user has no course in returns an
+  empty page, no error. Chips and sort are **parameters** here and of nothing
+  else: header counts stay the group's total.
+- `block_compass_search_inventory` → `explore::search($userid, $now, $query)`:
+  server-side search **in PHP, with `filter.js`'s rule**.
+  `classes/local/matcher.php` reproduces `normalise()` step for step —
+  `Normalizer::normalize($text, Normalizer::FORM_D)`, strip U+0300–U+036F,
+  `core_text::strtolower()`, `trim()` — and `matches()`: split the normalised
+  query on whitespace, drop empty words, every word a substring of the
+  normalised name; a query with no words matches nothing.
+  `core_text::specialtoascii()` is **not** that rule (it folds ø→o, ß→ss). Over
+  the **course name only**, never the shortname; a query shorter than
+  `explore::SEARCH_MIN_LENGTH` = 2 after normalisation returns `rows: []`;
+  matches ordered by raw name with the collator, capped at
+  `explore::SEARCH_LIMIT` = 50 with `truncated => true` when cut; only the
+  shipped names are formatted, after one `filters::preload`; each row is the
+  full-mode row plus `groupid`. The service truncates the raw `PARAM_RAW` query
+  to 200 characters (`core_text::substr`) before handing it over. `intl` is
+  required by 5.2 (`admin/environment.xml:5402`), so `Normalizer` is always
+  there.
+
+The client (`explore.js`) reads `mode` once. In `paged`: every group renders
+**closed** with its count (full mode opens the first); the first `toggle` that
+opens a group fetches page 1 and appends its rows through
+`templates/rows.mustache` inside the group's existing `data-region="rows"`
+list; a "Show more" button (`data-action="showmore"`, hidden while `hasmore` is
+false) fetches the next page with the stored `after`, and a click while a
+fetch is in flight is ignored; a chip or sort change clears every loaded group
+and refetches page 1 of the open ones — **sort never flattens in paged mode**,
+the flat list serves only the search; search debounces `PAGE_DEBOUNCE_MS` =
+300, hides the groups wrapper and the index nav while a query is active,
+renders the hits into `data-region="flat"` with each item stamped with its
+`groupid`, and announces the count plus `searchtruncated` when cut; clearing
+the query restores the groups. The `pagednote` label is announced once through
+the polite live region after the first render. Full mode keeps every Phase 2
+behaviour untouched; the UI is the same in both. Known limits, recorded in
+ADR-004: raw-name ordering of pages, header counts not narrowed by chips until
+a group's rows arrive, a user crossing the threshold sees the mode change
+between visits.
 
 ### Budgets and how they are tested (§6.6)
 
@@ -202,8 +317,11 @@ with a 300 ms debounce. The response carries
 |---|---|---|---|
 | `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer (the user-context lookup) | 300 ms | ≤ 40 KB |
-| `get_inventory` (degraded, headers) | ≤ 2 | 150 ms | ≤ 5 KB |
+| `get_inventory` (degraded, headers) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the group contexts) — plus 1 at the web-service layer (the user-context lookup) | 150 ms | ≤ 5 KB (a group is ~60 bytes) |
+| `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the page's contexts) — plus 1 at the web-service layer | 200 ms | ≤ 12 KB (≈ 115 bytes per row, ADR-002) |
+| `search_inventory` (50 hits) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the matched contexts) — plus 1 at the web-service layer | 300 ms | ≤ 7 KB (≈ 115 bytes per row plus ≈ 18 for `groupid`) |
 | `get_card_details` (24 ids) | 1 (the active-enrolment check that stops id enumeration) when every answer is cached or untracked; + 1 + completion for the courses that must be computed | 200 ms | ≤ 10 KB |
+| `prewarm::run()` (task, per user) | 1 (the fill) with the shared layers warm, up to 4 cold — plus 1 selection read per batch of 200 and 1 count per run | n/a: bounded by `prewarm_budget_seconds` | n/a |
 
 - `classes/local/budget.php` wraps `$DB->perf_get_reads()`
   (`lib/dml/moodle_database.php`, verified on 5.2): take a reading, run the
@@ -222,6 +340,13 @@ with a 300 ms debounce. The response carries
   the figure. A warm-up and a measurement in one PHP process without the reset
   under-count by exactly that per-request state, which is what makes a
   request-scoped core cache look free.
+- PLAN.md §6.6 wrote "≤ 2" for the degraded headers under the plan's original
+  accounting (the plugin's own statements: stamp and one more). Under the
+  per-request accounting above the same path is 3, for the same reasons as
+  full mode's 3 — the figure is restated, not the design (ADR-004; ADR-000
+  decision 23). PLAN.md keeps its figure as the baseline it is. The three
+  paged services share one budget because they share one source: the entry and
+  the shared layers, no SQL of their own.
 - Time budgets are measured, not unit-tested: `EXPLAIN ANALYZE` on PostgreSQL
   (`psql` against port 5502) for every query in §6.1 and §6.3, attached to the
   ADR; concurrency (k6 or `ab`, 200 users on `get_attention`) on the GCP staging
@@ -278,12 +403,12 @@ stops for the maintainer's review.** Implementation starts only against an
 accepted record; the status flips to `Accepted` in the commit that lands the
 implementation. The plan mandates four:
 
-| ADR | Decision | Written before |
-|---|---|---|
-| ADR-001 | two-layer cache (`coursemeta` / `categorymeta` / `inventory` / `details`), keys, invalidation, store; amended in Phase 2 with the category layer | Phase 1 |
-| ADR-002 | stamp validation of `inventory` (seven aggregates over enrolments, methods, last access and favourites, one statement) instead of observers | Phase 2 |
-| ADR-003 | optional, selective, budgeted pre-warming | Phase 3 |
-| ADR-004 | degraded `paged` mode above `inventory_max` | Phase 3 |
+| ADR | Decision | Written before | Status |
+|---|---|---|---|
+| ADR-001 | two-layer cache (`coursemeta` / `categorymeta` / `inventory` / `details`), keys, invalidation, store; amended in Phase 2 with the category layer | Phase 1 | Accepted |
+| ADR-002 | stamp validation of `inventory` (seven aggregates over enrolments, methods, last access and favourites, one statement) instead of observers | Phase 2 | Accepted |
+| ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
+| ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -313,11 +438,15 @@ classes/
                              core_course_set_favourite_courses (the star) and
                              core_user_update_user_preferences (archiving) — ADR-000, decisions 8 and 16
     get_attention.php        tier 1 + ghost count (Phase 1)
-    get_inventory.php        tier 3, mode full (Phase 2); paged in Phase 3
+    get_inventory.php        tier 3: mode full (Phase 2), or paged headers with courses => [] above
+                             inventory_max (Phase 3) — same return structure in both
+    get_inventory_rows.php   paged mode: one page of one group (groupid, after, chip, sort) (Phase 3)
+    search_inventory.php     paged mode: server-side search by course name (query) (Phase 3)
     get_card_details.php     image + progress for ≤ 24 visible ids (Phase 4)
   local/                     THE ONLY place $DB is allowed
     budget.php               perf_get_reads() delta helper used by every budget test (Phase 0)
-    config.php               settings with defaults; the one reader of get_config() (Phase 1)
+    config.php               settings with defaults; the one reader of get_config() (Phase 1; inventory_max,
+                             prewarm_enabled, prewarm_days, prewarm_budget_seconds in Phase 3)
     hidden_courses.php       the Course overview block's hidden ids, from preferences (Phase 1)
     attention.php            the four bounded queries of §6.1, one row per course (Phase 1)
     cards.php                rows → card arrays: formatting, images, progress, action label (Phase 1)
@@ -326,11 +455,17 @@ classes/
     category_meta.php        category layer: categorymeta cache wrapper, miss fill, context rebuild, group id (Phase 2)
     details.php              per user+course progress cache wrapper; null = no completion (Phase 1)
     inventory.php            user layer: fill, seven-field stamp, active rows at read time (Phase 2)
-    explore.php              inventory → groups by category depth, names formatted (Phase 2)
+    explore.php              inventory → groups by category depth, names formatted (Phase 2); the mode
+                             decision, rows() and search() over one shared population helper (Phase 3)
+    matcher.php              filter.js's normalise() and matches() in PHP — the server-side search's
+                             rule, pinned to the client's by a parity fixture (Phase 3)
+    prewarm.php              the pre-warming sweep: keyset selection, cursor/since/lastsweep in plugin
+                             config, budget between users, warm one user = fill + shared layers (Phase 3)
     dormancy.php             dormant classification (Phase 5)
   observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
                              category events in Phase 2)
-  task/warm_active_users.php optional scheduled task (Phase 3)
+  task/warm_active_users.php scheduled task, always registered, gated by enable_prewarm; a thin caller
+                             of local\prewarm::run() that mtraces one summary line (Phase 3)
   output/                    renderable+templatable shells only (block.php)
   privacy/provider.php       Phase 0: null_provider. Becomes a user_preference_provider in the phase
                              that introduces block_compass_view (favourites and hidden-course
@@ -342,10 +477,15 @@ amd/src/                     ES modules: main, repository (the only module that 
 amd/build/                   tracked minified output — rebuilt by mdl grunt, committed with src
 templates/                   block (shell, strips rendered empty), cards + card (one template; isnew
                              switches the new-enrolment presentation), progress, ghost (a button that
-                             opens tier 3), explore (toolbar, index, groups), group, row
-db/                          access.php, services.php, caches.php (four definitions), events.php,
-                             tasks.php (Phase 3). NO install.xml, NO upgrade.php with schema steps,
-                             and no uninstall.php purge: the plugin owns no rows outside MUC
+                             opens tier 3), explore (toolbar, index, groups), group (with the hidden
+                             "Show more" button of paged mode), row, rows (a fragment of row items
+                             appended into a group's list or the flat list in paged mode; no list
+                             role of its own)
+db/                          access.php, services.php (five read functions), caches.php (four
+                             definitions), events.php, tasks.php (warm_active_users, 04:00, random
+                             minute; Phase 3). NO install.xml, NO upgrade.php with schema steps, and
+                             no uninstall.php purge: the plugin owns no rows outside MUC and the
+                             three prewarm_* plugin-config rows, which core's uninstall removes
 lang/en, lang/pt_br          lockstep, alphabetical, no section comments
 docs/adr/                    decision records (see above); docs/ is export-ignored from the zip
 mutations/gates.conf         one line per guard + the test it must redden, for mdl mutate (export-ignored)
@@ -372,13 +512,20 @@ Three round trips at most, each with a purpose: `get_attention` on first paint
 clicked (Phase 2), and when the search box receives input or the user scrolls
 past tier 1 (both Phase 4);
 `get_card_details` in batches of ≤ 24 for rows entering the viewport
-(IntersectionObserver, Phase 4). Tier 3 is rendered **once** from the
-`get_inventory` payload; search, chips and sort then only toggle `hidden` or
-reorder nodes. The only other calls are to core's own services: the
-star (`core_course_set_favourite_courses`) and preferences
-(`core_user_update_user_preferences`). Filtering, grouping and
-the side index work on the inventory already in the browser (except in `paged`
-mode, where the group and search calls are explicit).
+(IntersectionObserver, Phase 4). In `full` mode tier 3 is rendered **once** from
+the `get_inventory` payload; search, chips and sort then only toggle `hidden` or
+reorder nodes. In `paged` mode (Phase 3) `get_inventory` ships the group
+headers with `courses` empty, and two further calls are explicit and
+data-bearing: `get_inventory_rows` once per opened group and once per "Show
+more" (100 rows a page, cursor `after`, the current chip and sort as
+parameters), and `search_inventory` once per settled query (300 ms debounce,
+≥ 2 characters after normalisation, ≤ 50 hits rendered into the flat list in
+place of the groups). Neither is a filter the browser could apply itself — the
+rows are not in the browser — so non-negotiable 5 holds. The only other calls
+are to core's own services: the star (`core_course_set_favourite_courses`) and
+preferences (`core_user_update_user_preferences`). Filtering, grouping and the
+side index work on the inventory already in the browser in `full` mode; in
+`paged` mode the index counts stay the headers' totals.
 
 ### Favourites are the core star
 
@@ -471,11 +618,21 @@ Four rules the fleet paid for elsewhere and this plugin inherits:
   `FETCH`, `CLOSE`) against one on MariaDB, so a budget written over recordsets
   passes on one CI database and fails on the other (measured on 5.2).
 - `$DB->get_records_sql()` keys the result on the **first selected column**, so
-  the degraded-mode `GROUP BY category` must select the category id first or
-  rows silently overwrite each other (`local_mail`).
-- Cross-DB: CI runs PostgreSQL and MariaDB; `LIKE` for server-side search goes
-  through `$DB->sql_like()` with the escaped parameter, and `MAX()` on an int
-  column is portable while `NULLS FIRST` is not.
+  any `GROUP BY` written here must select the grouping column first or rows
+  silently overwrite each other (`local_mail`). Paged mode issues no such
+  statement — its headers are derived from the entry (ADR-004) — but the rule
+  holds for any aggregate that does get written.
+- The server-side search does **not** go through `$DB->sql_like()`, and must not:
+  it cannot be accent-insensitive on PostgreSQL
+  (`lib/dml/pgsql_native_moodle_database.php:1480`) and is collation-dependent
+  on MariaDB, so a SQL search would find "Curso Sensível" for "sensivel" on one
+  CI database and not the other, and never the way full mode does. Matching
+  lives in PHP (`matcher`, ADR-004). Any other `LIKE` written here goes through
+  `$DB->sql_like()` with the escaped parameter.
+- Cross-DB: CI runs PostgreSQL and MariaDB; `MAX()` on an int column is
+  portable while `NULLS FIRST` is not. The pre-warming selection binds `:since`
+  and `:cursor` once each and passes the batch size as `get_fieldset_sql()`'s
+  limit rather than as a `LIMIT` literal.
 
 ### Core APIs this plugin builds on (verified on the 5.2 checkout)
 
@@ -516,18 +673,27 @@ first and quote the file in the code comment. Do not write a call from memory.
 The fleet checklist applies in full (validate parameters → `require_login()` +
 guest rejection → `validate_context()` → capability → event on writes →
 `db/services.php` with `ajax => true` + version bump → allowlisted returns).
-Compass-specific: all three functions are **reads** (writes go to core's
-services, decisions 8 and 16); every function validates
+Compass-specific: all **five** functions are **reads** — `get_attention`,
+`get_inventory`, `get_inventory_rows`, `search_inventory`, `get_card_details`
+(writes go to core's services, decisions 8 and 16); every function validates
 `\core\context\user::instance($USER->id)` and **none accepts a `userid`**;
 course names go through
 `format_string(..., ['escape' => false])` before entering a `PARAM_TEXT` return
 field (a bare `<` in a name otherwise fails the whole response); `PARAM_URL` for
 image URLs; the `mode` field of `get_inventory` is `PARAM_ALPHA` with a literal
-check against `full` / `paged`. Each verb has **one** domain method in
+check against `full` / `paged`. The two Phase 3 functions check their
+vocabularies **before any work**: `get_inventory_rows` throws
+`invalid_parameter_exception` for a `chip` outside `all` / `new` / `favourites`
+or a `sort` outside `name` / `recent` (both `PARAM_ALPHA`, defaults `all` and
+`name`; `groupid` `PARAM_INT` required; `after` `PARAM_INT` default 0), and
+`search_inventory` takes `query` as `PARAM_RAW` — the domain normalises it —
+truncated to 200 characters with `core_text::substr` before the call. Their
+class docblocks state the honest per-request budget: 3 reads with the shared
+layers warm plus the user-context read. Each verb has **one** domain method in
 `classes/local/` that every caller routes through (web service, future CLI,
 tests), and a request that can be answered without work — an empty id list, a
-cursor past the last row — returns before any check that could throw
-(`local_unlistedcourses`).
+cursor past the last row, a group the user has no course in, a one-character
+query — returns before any check that could throw (`local_unlistedcourses`).
 
 Lang strings this plugin must not forget, beyond the fleet list: one
 `cachedef_<name>` per definition in `db/caches.php` — on 5.x a missing one is
@@ -548,7 +714,26 @@ set per key (`format_mtube-502`).
   executes plugin JavaScript (`enrol_apply`).
 - Filtering toggles `hidden`; virtualisation renders viewport rows plus a
   buffer; lazy details through IntersectionObserver; debounce 150 ms client
-  search, 300 ms server search.
+  search (`DEBOUNCE_MS`), 300 ms server search (`PAGE_DEBOUNCE_MS`).
+- Paged mode in `explore.js` keeps per-group state in a `Map` (`groupid` →
+  `{after, hasmore, loaded, loading, seq}`): `loading` swallows a second click
+  while a page is in flight (the "Show more" button reads `loadingrows`
+  meanwhile), and a reset bumps `seq` so a late answer to a superseded fetch is
+  dropped — the search keeps its own sequence number for the same reason. Rows
+  arrive through `block_compass/rows`, a
+  fragment of `row-item` elements appended into the group's existing
+  `role="list"` wrapper (the fragment declares no list role of its own), each
+  item stamped with `dataset.groupId` and each row with `dataset.search` from
+  its rendered name, then `fillRelativeTimes`. No `innerHTML`: `textContent`
+  only. Object literals that carry the `new` key quote it (`'new'`), as
+  `rowFacts` does, for `quote-props` consistency. The five Phase 3 labels the
+  shell exports are `searchtooshort`, `searchtruncated`, `loadingrows`,
+  `pagednote` and `filterupdated` — the last one is what a chip or sort change
+  announces in paged mode, where no total exists to announce until every group
+  is open, so the live region says the counts are unfiltered totals instead of
+  showing a number that would be wrong. The "Show more" control is `.compass-showmore`, a full-width
+  `btn-link` with a top border in `--block_compass-line` and no radius — no
+  `!important`.
 - Root class `.block_compass` is what core already puts on the block wrapper (`html_attributes()` in `blocks/moodleblock.class.php`), so
   scope styles and tokens there and repeat the token block on any element core
   relocates (`core/modal` dialogues appended to `body`). Custom properties use
@@ -631,6 +816,32 @@ the following defaults flip, deliberately:
   name; assert on ids.
 - `set_config()` writes the DB but memoised readers keep old values; read
   settings through one helper and reset it in tests.
+- **Matcher parity fixture.** The server-side search is correct only while
+  `matcher::normalise()` / `matches()` equal `filter.js`'s `normalise()` /
+  `matches()`. One PHPUnit fixture of query/name pairs pins it — "Strøm" (NFD
+  leaves ø alone, so "strom" must **not** match), "straße", "Ação" against
+  "acao", a two-word query in the other order than the name's, a word absent
+  from the name, the shortname alone — and the same pairs describe the
+  JavaScript rule. Change either side and the fixture must fail; a candidate
+  "simplification" to `core_text::specialtoascii()` is the case the fixture
+  exists to catch.
+- **Sizes and clocks are injectable, never fixtures.** `explore::build(...,
+  ?int $inventorymax)`, `explore::rows(..., ?int $pagesize)`,
+  `explore::search(..., ?int $limit)` and `prewarm::run(?int $batchsize, ?int
+  $budgetseconds, ?int $now, ?callable $trace)` take nullable overrides in the
+  house style of `$groupdepth` / `$newdays`, so the threshold, a three-page
+  group and a two-batch sweep run on a handful of rows, a budget below the
+  settings floor, a fixed instant and a `$trace` closure that collects lines
+  into an array — no setter, no reflection, no 250-course fixture.
+- **A "did nothing" assertion on the task needs a control.** "Pre-warming off
+  → no entry written" passes when `fill()` is broken too; the same fixture with
+  the setting on must produce the entry (the vacuity rule of `~/dev/CLAUDE.md`
+  §2). Likewise "`details` untouched after a run" pairs with a Dashboard visit
+  that does create one.
+- Budget tests of the Phase 3 services measure with `simulate_new_request()`
+  between the warm-up and the measured call: headers ≤ 3, rows ≤ 3, search ≤ 3
+  (+ 1 each through the web service); the task ≤ 1 read per user + 1 per batch
+  + 1 for the count line with the shared layers warm.
 - Behat: three smoke scenarios at most — the block appears on the Dashboard, a
   recently accessed course shows in Continue, the ghost card opens tier 3. Logic
   stays in PHPUnit. Read the lang string before writing a step's label.
