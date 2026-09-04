@@ -17,11 +17,11 @@
 /**
  * Compass block cache definitions (PLAN.md §6.2, ADR-001).
  *
- * Two layers with different keys and different invalidation. The course layer
- * is shared by every user and refreshed from course events; the user layers
- * are keyed by user and validated by a stamp (§6.3), never invalidated from
- * course events — one course_updated on a course with 100 000 enrolments must
- * not touch 100 000 entries.
+ * Two layers with different keys and different invalidation. The shared layer
+ * (courses and categories) is refreshed from course and category events; the
+ * user layers are keyed by user and validated by a stamp (§6.3), never
+ * invalidated from course events — one course_updated on a course with
+ * 100 000 enrolments must not touch 100 000 entries.
  *
  * Every definition needs a lang string named cachedef_<name>: on 5.x a
  * missing one is fatal on the cache administration page, not cosmetic.
@@ -36,9 +36,10 @@ defined('MOODLE_INTERNAL') || die();
 $definitions = [
     // Course layer (ADR-001). Key: courseid. Value: raw fullname and shortname, category id,
     // visible, enablecompletion, and the six context columns that rebuild the course context
-    // without a query. No image (core's course_image cache owns it), no category name (core's
-    // coursecatrecords cache owns it), nothing formatted. Deleted per key by the course_updated
-    // and course_deleted observers; shared by every user, so it stays hot on its own.
+    // without a query. No image (core's course_image cache owns it), no category name (that is
+    // categorymeta's, below: core's coursecatrecords cache is request-scoped), nothing
+    // formatted. Deleted per key by the course_updated and course_deleted observers; shared by
+    // every user, so it stays hot on its own.
     'coursemeta' => [
         'mode' => \core_cache\store::MODE_APPLICATION,
         'simplekeys' => true,
@@ -47,10 +48,27 @@ $definitions = [
         'staticaccelerationsize' => 50,
     ],
 
-    // User layer. Key: userid. Value: the stamp plus one row per enrolment
-    // [courseid, timecreated, timeaccess, enrolmethod, timeend] — no course data.
-    // Validity is decided by the stamp (COUNT and MAX(timemodified) of the user's
-    // enrolments, MAX(timeaccess) of their last accesses); the TTL is a safety net.
+    // Category layer (ADR-001, amendment of 2026-09-04). Key: category id. Value: raw name,
+    // path, depth and the six context columns that rebuild the category context without a
+    // query. Core's own coursecatrecords definition is MODE_REQUEST (lib/db/caches.php), so
+    // without this layer every request pays a read for names the last one had already
+    // fetched. Deleted per key by the course_category_updated and course_category_deleted
+    // observers — an update also drops the descendants, because a move rewrites their paths
+    // and the event cannot tell a move from a rename; shared by every user; no TTL. Static
+    // acceleration holds the distinct categories of one response.
+    'categorymeta' => [
+        'mode' => \core_cache\store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 20,
+    ],
+
+    // User layer (ADR-002). Key: userid. Value: the seven-field stamp plus one row per
+    // ENROLMENT keyed by user_enrolments id — [courseid, timecreated, timestart, timeend,
+    // uestatus, estatus, uemodified, emodified, timeaccess, isfavourite], ten integers, no
+    // course data; "active" is decided at read time. Validity is decided by the stamp, one
+    // statement of seven userid-indexed aggregates; the TTL is a safety net, never the rule.
     'inventory' => [
         'mode' => \core_cache\store::MODE_APPLICATION,
         'simplekeys' => true,

@@ -34,6 +34,16 @@ export const getAttention = () => Ajax.call([{
 }])[0];
 
 /**
+ * Tier 3 for the current user: every active course, grouped by category.
+ *
+ * @returns {Promise<Object>}
+ */
+export const getInventory = () => Ajax.call([{
+    methodname: 'block_compass_get_inventory',
+    args: {},
+}])[0];
+
+/**
  * Progress for a batch of courses whose cards were marked pending.
  *
  * @param {number[]} courseids At most 24 ids.

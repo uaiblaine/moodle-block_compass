@@ -34,6 +34,14 @@ $observers = [
         'callback' => '\block_compass\observer::course_deleted',
     ],
     [
+        'eventname' => '\core\event\course_category_updated',
+        'callback' => '\block_compass\observer::course_category_updated',
+    ],
+    [
+        'eventname' => '\core\event\course_category_deleted',
+        'callback' => '\block_compass\observer::course_category_deleted',
+    ],
+    [
         'eventname' => '\core\event\course_module_completion_updated',
         'callback' => '\block_compass\observer::completion_updated',
     ],

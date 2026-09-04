@@ -32,6 +32,13 @@ $functions = [
         'type' => 'read',
         'ajax' => true,
     ],
+    'block_compass_get_inventory' => [
+        'classname' => 'block_compass\external\get_inventory',
+        'methodname' => 'execute',
+        'description' => 'Tier 3 of the Compass block for the current user: every active course, grouped by category.',
+        'type' => 'read',
+        'ajax' => true,
+    ],
     'block_compass_get_card_details' => [
         'classname' => 'block_compass\external\get_card_details',
         'methodname' => 'execute',

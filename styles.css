@@ -89,12 +89,6 @@
     margin-bottom: 0.25rem;
 }
 
-.block_compass .compass-ghost {
-    border-style: dashed;
-    border-color: var(--block_compass-line);
-    color: inherit;
-    transition: background-color 150ms ease;
-}
 
 .block_compass .compass-ghost:hover,
 .block_compass .compass-ghost:focus-visible {
@@ -115,4 +109,106 @@
     .block_compass .compass-ghost {
         transition: none;
     }
+}
+
+/* Tier 3: the explorable inventory. Index beside the groups on wide blocks only;
+ * governed by the block's own width through flex, not by the viewport. */
+.block_compass .compass-explore-body {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.block_compass .compass-index {
+    flex: 0 0 11rem;
+    border-right: 1px solid var(--block_compass-line);
+    padding-right: 0.75rem;
+    position: sticky;
+    top: 0.5rem;
+}
+
+.block_compass .compass-index a {
+    padding: 0.25rem 0.25rem;
+    color: inherit;
+    border-radius: 0.25rem;
+}
+
+.block_compass .compass-index a:hover,
+.block_compass .compass-index a:focus-visible {
+    background: var(--bs-secondary-bg, #f8f9fa);
+}
+
+.block_compass .compass-group {
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    background: var(--block_compass-surface);
+}
+
+.block_compass .compass-group-summary {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.block_compass .compass-group-summary::-webkit-details-marker {
+    display: none;
+}
+
+.block_compass .compass-group-summary::before {
+    content: "\25B8";
+    margin-right: 0.5rem;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-group[open] > .compass-group-summary::before {
+    content: "\25BE";
+}
+
+.block_compass .compass-rows {
+    border-top: 1px solid var(--block_compass-line);
+}
+
+.block_compass .compass-row {
+    padding: 0.4rem 0.75rem;
+    border-bottom: 1px solid var(--block_compass-line);
+}
+
+.block_compass .compass-row:last-child {
+    border-bottom: 0;
+}
+
+.block_compass .compass-row-link:hover .compass-row-name,
+.block_compass .compass-row-link:focus-visible .compass-row-name {
+    text-decoration: underline;
+}
+
+.block_compass .compass-row-star {
+    color: var(--block_compass-brand);
+}
+
+.block_compass .compass-ghost {
+    border-style: dashed;
+    border-color: var(--block_compass-line);
+    color: inherit;
+    background: transparent;
+    transition: background-color 150ms ease;
+}
+
+.block_compass .compass-ghost:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+/* The index hides when the section itself is narrow: the JS toggles the class from a
+   ResizeObserver on the section, because the block may sit in a drawer or a side column
+   and a viewport query would fire at the wrong moments. */
+.block_compass .compass-explore.compass-narrow .compass-index {
+    display: none;
+}
+
+.block_compass .compass-flat {
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.375rem;
+    background: var(--block_compass-surface);
 }

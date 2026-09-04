@@ -1,6 +1,8 @@
-# ADR-001 — Two-layer cache: `coursemeta`, `inventory`, `details`
+# ADR-001 — Two-layer cache: `coursemeta`, `categorymeta`, `inventory`, `details`
 
-- **Status:** Accepted (2026-09-04, maintainer)
+- **Status:** Accepted (2026-09-04, maintainer); amended 2026-09-04 with the
+  category layer (the amendment at the end of this record; in-place notes mark
+  what it supersedes)
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent, then verified claim by
   claim against the 5.2 source by an adversarial pass (38 claims, 9 corrected before this
@@ -53,10 +55,10 @@ Three facts from the 5.2 source and the m502 stack shaped the decision.
 |---|---|
 | Key | `courseid` |
 | Value | `fullname` and `shortname` **raw** (unformatted), `category` (id only), `visible`, `enablecompletion`, and `ctx`: the six context columns named by `context_helper::get_preload_record_columns()` (`ctxid`, `ctxpath`, `ctxdepth`, `ctxlevel`, `ctxinstance`, `ctxlocked`), so the course context can be rebuilt without a query |
-| Not stored | the image URL (read from `core/course_image`, fact 3), the category name (read from `core_course_category::get_many()`, served by core's `coursecatrecords` cache), anything formatted or language-dependent |
+| Not stored | the image URL (read from `core/course_image`, fact 3), the category name (the category layer below, `categorymeta` — *amended 2026-09-04: the first version read it through `core_course_category::get_many()`, whose `coursecatrecords` cache is request-scoped*), anything formatted or language-dependent |
 | Fill | one bounded query for the missing ids: `{course}` joined to `{context}` on `instanceid = c.id AND contextlevel = CONTEXT_COURSE`, `c.id IN (...)`, then `set_many()` |
 | Invalidation | observers on `\core\event\course_updated` and `\core\event\course_deleted`, each a single `delete($courseid)`. `update_course()`, `move_courses()` and `course_change_visibility()` (which delegates to `update_course()`) all raise `course_updated`, so a rename, a category move, a visibility flip and a change of `enablecompletion` are covered by one observer. The `course_deleted` observer is the **only** invalidation deletion gets: `delete_course()` fires no cache event at all. No TTL |
-| Static acceleration | 50 entries — enough for tier 1's ≤ 9 courses to be reused within a request; tier 3's `get_many()` of up to 1 500 keys streams past it, which is harmless |
+| Static acceleration | 50 entries — enough for tier 1's ≤ 9 courses to be reused within a request; tier 3's `get_many()` of up to 250 keys (`inventory_max`, default lowered from 1 500 at the Phase 2 review — ADR-000 decision 21) streams past it, which is harmless |
 
 **Names are formatted at response time, never at fill time.** The response
 path collects the `ctx` records of every course it will show, calls
@@ -99,6 +101,24 @@ filter preload at fill time anyway. Why not skip filters (`'filter' => false`)?
 Multilang course names would render with their markup stripped into a
 concatenation of languages.
 
+### Layer 1b — `categorymeta` (application, shared by every user) — amendment of 2026-09-04
+
+| | |
+|---|---|
+| Key | `categoryid` |
+| Value | `name` **raw**, `path` (`course_categories.path`, e.g. `/1/5`), `depth`, and `ctx`: the six preload columns of the **category** context (`CONTEXT_COURSECAT`), so the category context can be rebuilt without a query |
+| Not stored | anything formatted or language-dependent; visibility (the plugin never filters by category visibility) |
+| Fill | one bounded query for the missing ids: `{course_categories} cc` joined to `{context}` on `instanceid = cc.id AND contextlevel = CONTEXT_COURSECAT`, `cc.id IN (...)`, then `set_many()` — the primary key and the unique `(contextlevel, instanceid)` index. Ids with no record are absent from the result |
+| Invalidation | observers on `\core\event\course_category_updated` and `\core\event\course_category_deleted`, each a `delete($categoryid)`; the update observer also deletes the **descendants'** entries, with one `LIKE` over the category table from the observer (the amendment explains why). No TTL |
+| Static acceleration | 20 entries — the distinct categories of one response |
+| Read | `explore.php` and `cards.php` format `name` with `format_string($name, true, ['context' => context_of($entry), 'escape' => false])`, the body of `core_course_category::get_formatted_name()` (`course/classes/category.php:2539-2546`); `explore.php` derives a course's group from `path` through `category_meta::group_id()` |
+
+Why a layer of its own rather than core's: core's `coursecatrecords`
+definition is `MODE_REQUEST` (`lib/db/caches.php:203-209`), so
+`core_course_category::get_many()` reads `{course_categories}` on every
+request for ids it fetched on the previous one. The full rationale, the move
+rule and the accounting are in the amendment at the end of this record.
+
 ### Layer 2a — `inventory` (application, per user)
 
 | | |
@@ -110,11 +130,15 @@ concatenation of languages.
 | Invalidation from course events | **none** — the rule that makes the design hold |
 
 Tier 3 renders it as: `inventory` → `coursemeta::get_many(courseids)` (misses
-filled in one query) → `core_course_category::get_many(categoryids)` → filter
-preload (one query) → `format_string()` per row. Cold plugin caches:
-`get_inventory` = 1 (inventory) + 1 (coursemeta misses) + 1 (filters) = 3
-reads, the PLAN.md §6.6 budget; category records come from core's own cache
-and cost a read only when core's cache is cold too.
+filled in one query) → filter preload (one query) →
+`categorymeta::get_many(categoryids)`, then once more for the missing
+ancestors that form the groups (one query each when cold) → `format_string()`
+per row. Per request, with the user's inventory cold and the shared layers
+warm: `get_inventory` = 1 (inventory fill) + 1 (preferences) + 1 (filters) = 3
+reads, the PLAN.md §6.6 budget; each cold shared layer adds one read, so fully
+cold is at most 6. *(Amended 2026-09-04: the first version read categories
+through `core_course_category::get_many()` and counted them as free, and left
+the preferences read outside the count; see the amendment and ADR-002.)*
 
 ### Layer 2b — `details` (application, per user and course)
 
@@ -172,8 +196,11 @@ ghost stays exact. *(Amended during Phase 1, 2026-09-04: the first draft said
   **purged whole** (`cache/classes/helper.php` `purge_by_event()`): 100 000
   `coursemeta` entries gone on one course rename. And deletion fires no such
   event at all. Per-key deletes in observers instead.
-- An observer on `\core\event\course_category_updated`. Category names are
-  not cached here, so a rename needs nothing from this plugin.
+- *(Superseded by the amendment of 2026-09-04.)* An observer on
+  `\core\event\course_category_updated`: the first version cached no category
+  name, so a rename needed nothing from this plugin. `categorymeta` holds the
+  name now, and the observer exists — one key plus the descendants' keys, never
+  a purge.
 - Observers on `user_enrolment_created` / `_updated` / `_deleted` for the
   inventory. Bulk enrolment paths bypass events (fleet note: `tool_dynamic_cohorts`
   writes `{cohort_members}` directly), which is the empirical case for the
@@ -189,18 +216,23 @@ ghost stays exact. *(Amended during Phase 1, 2026-09-04: the first draft said
 | 4 | Counts, one statement over the same grouped derived table: `COUNT(*)` of active courses, `SUM(CASE …)` of those new and never accessed (`LEFT JOIN {user_lastaccess}`), `SUM(CASE …)` of those favourited (`LEFT JOIN {favourite}`; at most one row can match thanks to the unique index and the single course-context write path in `course/externallib.php`) | aggregate | `user_enrolments (userid)` |
 | 5 | Filters: one `get_records_sql` over `{filter_active}` ⋈ `{context}` `LEFT JOIN {filter_config}` for the union of the context ids on the paths of the ≤ 9 courses | `IN (...)` over ≤ ~30 ids | the FK-generated index on `filter_active.contextid`, or the leading column of the unique `(contextid, filter)` index |
 | 6 | `get_user_preferences()`: `check_user_preferences_loaded()` caches only in a function-static array that starts empty in every PHP process, so the first call of **every** request reloads `{user_preferences}` in one query — browser, AJAX and web service alike | one row set | unique `user_preferences (userid, name)` |
-| — | `coursemeta::set_many()` from rows 1–3, `details::get_many()` for the ≤ 9 keys, `core_course_category::get_many()` for their categories | MUC | — |
+| — | `coursemeta::set_many()` from rows 1–3, `details::get_many()` for the ≤ 9 keys, `categorymeta::get_many()` for their categories (one read when that layer is cold — the seventh; amendment of 2026-09-04) | MUC | — |
 
 **Six reads, no slack.** The bound holds only because row 5 is a single
 statement (the two-query shape of `filter_preload_activities()` would make it
 seven) and because rows 1–3 carry the course columns themselves, so
 `coursemeta` is filled from them rather than by a fill query. The budget test
-asserts ≤ 6 with the plugin caches purged and core warm, per the protocol in
-`classes/local/budget.php`; note that within one PHPUnit process the
-preferences static cache survives between calls, so the test measures five where
-a real request costs six — the assertion is on the bound, not the exact count.
-`core_course_category::get_many()` costs a read only when core's own cache is
-cold, which the protocol excludes. One more cost sits outside the table on
+asserts ≤ 6 per request with the user's layers purged and the shared layers
+warm, per the protocol in `classes/local/budget.php`, which resets the state
+core keeps only for one request (the preference bundle, the filter array)
+between the warm-up call and the measured call — so the test measures the six
+a real request costs, not the five of a second call in the same process.
+`categorymeta::get_many()` costs one read when that layer is cold, the seventh,
+and the test states that bound beside the figure; `coursemeta` is filled from
+rows 1–3 and costs nothing here. *(Amended 2026-09-04: the first version
+counted category records as free because core's `coursecatrecords` cache
+"owned" them — a request-scoped cache, cold on every fresh request.)* One more
+cost sits outside the table on
 purpose: `has_capability('moodle/course:viewhiddencourses', system)` reads
 `{role_assignments}` and friends only when `$USER->access` is cold, and it never
 is on this endpoint — it is `ajax => true`, reachable only from JavaScript that a
@@ -212,12 +244,14 @@ simulate a state the endpoint cannot reach.
 
 - `db/caches.php` keeps its three definitions; the `coursemeta` comment
   changes (no image URL; raw names plus context columns). No new definition.
+  *(Amended 2026-09-04: a fourth definition, `categorymeta`, and two more
+  observers — see the amendment.)*
 - New in Phase 1: `db/events.php` with four observers (`course_updated`,
   `course_deleted`, `course_module_completion_updated`, `course_completed`) —
   a `version.php` bump, since observers register only on upgrade — and
   `classes/local/filters.php`, the bulk filter preload described above.
-- The wrapper classes (`course_meta`, `inventory`, `details`) are the only
-  callers of `\core_cache\cache::make()`; their tests purge first and assert
+- The wrapper classes (`course_meta`, `category_meta`, `inventory`, `details`)
+  are the only callers of `\core_cache\cache::make()`; their tests purge first and assert
   the "empty result is a value" rule (`null` in `details`, an empty `rows` list
   in `inventory`).
 - TTLs are enforced on every store `get()` — by `filemtime` on the file store
@@ -247,7 +281,7 @@ simulate a state the endpoint cannot reach.
 | Store the formatted name per language (`courseid_lang`) | Same filter preload needed at fill time; one entry per course per language; invalidation over every installed language. Gains only the per-row `format_string()` call, which costs no reads |
 | Store the image URL in `coursemeta` | Duplicates a core cache that has its own datasource and invalidation; saves 0.075 ms per 24 courses (measured); adds a field to refresh |
 | `invalidationevents => ['changesincourse']` | Purges the whole definition on any course create, update or reorder site-wide, and still misses deletion, which fires no such event |
-| Cache the category name in `coursemeta` | Needs a `course_category_updated` observer that fans out to every course in the category; core's `coursecatrecords` cache already does the job |
+| Cache the category name in `coursemeta` | Needs a `course_category_updated` observer that fans out to every course in the category. *(The first version added "core's `coursecatrecords` cache already does the job" — wrong, that cache is request-scoped; the amendment of 2026-09-04 caches the name per category in `categorymeta` instead.)* |
 | One `details` entry per user holding all courses | Invalidating one course's progress would rewrite the whole entry; per-course keys make the observer a single `delete()` |
 | Progress computed inline on first paint | Unbounded reads with `details` cold (`completion_info` loads `course_modinfo`); breaks the six-read budget on exactly the request that matters most |
 | A `-1` sentinel for "no completion" in `details` | Unnecessary: MUC distinguishes a stored `null` from a miss; `null` keeps the wrapper honest and the value the same type the completion API returns |
@@ -288,7 +322,9 @@ simulate a state the endpoint cannot reach.
 - `lib/enrollib.php` (5.2): the duplicate-rows warning on the enrolment join and
   the `DISTINCT` in `get_enrolled_sql()`.
 - `course/classes/category.php` (5.2): `get_many()` reads
-  `core/coursecatrecords` and loads misses in one query.
+  `core/coursecatrecords` and loads misses in one query — and
+  `lib/db/caches.php:203-209` declares that definition `MODE_REQUEST`, so the
+  misses recur on every request (the amendment below).
 - `cache/classes/cache.php`, `cache/classes/helper.php`,
   `cache/stores/file/lib.php`, `cache/stores/redis/lib.php` (5.2): `get_many()`,
   `set_many()`, `delete()`, `delete_many()`; a miss is `false` and
@@ -305,3 +341,154 @@ simulate a state the endpoint cannot reach.
   `moodle_page` costs one `filter_get_active_in_context()` (3 reads on pgsql);
   `perf_get_reads()` counts statements, so a recordset is 3 reads on pgsql
   and 1 on MariaDB.
+
+## Amendment (2026-09-04): the category layer
+
+### Context
+
+Layer 1 deliberately left the category name out of `coursemeta` and read it
+through `core_course_category::get_many()`, on the premise that core's
+`coursecatrecords` cache owns it. That cache is declared in
+`lib/db/caches.php:203-209` with `'mode' => cache_store::MODE_REQUEST`: it
+lives for one request. So `get_many()` reads `{course_categories}` on **every**
+request for every id it is given — one read in `cards.php` for the tier 1
+cards, and one or two in `explore.php` (the courses' categories, then the
+ancestors that form the groups on a nested site) — and the "free" category
+lookup in the accounting above was one to three reads per request on the
+plugin's two hot endpoints. A warm-up call and a measured call in one PHP
+process cannot see it, because a request-scoped cache survives between them;
+the protocol now resets that state (ADR-002, "When the stamp is not run").
+
+The same reading sharpens every budget figure: reads are counted **per
+request**, and core keeps some state only for the request, in PHP globals —
+`$FILTERLIB_PRIVATE`, the user's preference bundle
+(`check_user_preferences_loaded()` in `lib/moodlelib.php` reloads it whenever
+`$USER->preference` is unset), and its `MODE_REQUEST` caches. A protocol that
+warms core once and measures the second call in the same process counts none
+of that; a real second request pays all of it.
+
+### Decision
+
+A third shared definition, `categorymeta`, exactly the shape of `coursemeta`
+(layer 1b above): key `categoryid`; value the raw `name`, `path`, `depth` and
+the six preload columns of the category context; filled for the missing ids
+in one query (`{course_categories}` ⋈ `{context}` on `instanceid` and
+`contextlevel = CONTEXT_COURSECAT`, the primary key and the unique
+`(contextlevel, instanceid)` index); no TTL; wrapper
+`classes/local/category_meta.php`, the only caller of `cache::make()` for it,
+which also owns the group rule (`group_id()`: the id at the group depth on
+the entry's path, root first — the entry itself when it is that shallow).
+
+Names are formatted at response time, as for courses:
+`format_string($name, true, ['context' => category_meta::context_of($entry),
+'escape' => false])` — the body of `core_course_category::get_formatted_name()`
+(`course/classes/category.php:2539-2546`) with the context rebuilt from the
+entry. The group category's context needs no addition to the filter preload:
+it is an ancestor-or-self of the course's category, so it is on the course
+context's path, and `filters.php` resolves every context on every path it is
+given. A category id the layer cannot resolve (deleted under a course that
+still points at it) is absent from `get_many()`, and the course groups under
+its own category id with the `uncategorised` string as the label — never the
+empty string, because a group needs a label to be reachable. Groups and the
+courses inside them are ordered with
+`core_collator::asort_array_of_arrays_by_key(..., core_collator::SORT_NATURAL)`
+(`lib/classes/collator.php:317`), locale-aware and case-insensitive, and
+re-indexed with `array_values()` because `asort` keeps keys and a
+non-contiguous integer-keyed list serialises as a JSON object.
+
+**Invalidation: per key, from two observers.** `course_category_deleted` →
+`delete($objectid)`. `course_category_updated` → `delete($objectid)` **and
+the descendants' entries**. The second rule is forced by two facts from
+`course/classes/category.php`: the event is created with `objectid` and
+`context` only, at every site (`update()`, `change_parent()`, `hide()`,
+`show()`, `change_sortorder_by_one()`, `delete_move()`), so a move cannot be
+told from a rename; and a move rewrites the whole subtree —
+`course_categories.path` and `depth` through `fix_course_sortorder()`
+(`lib/datalib.php`, `_fix_course_cats()`), the context paths through
+`context::update_moved()` (`lib/classes/context.php`) — so every descendant's
+entry is stale after it. The descendants are found with one statement in the
+wrapper, `{course_categories} WHERE path LIKE '%/<id>/%'` through
+`$DB->sql_like()`: a descendant's path holds the ancestor's id delimited on
+both sides and no other category's does, so the predicate is right whether the
+paths are the old ones or the rebuilt ones (`delete_move()` fires the event
+for each child before its own `fix_course_sortorder()`), and it needs no read
+of the category's own path first — a prefix predicate would need one, and a
+prefix taken from the cached entry would be the pre-move path and match
+nothing. `course_categories` has no index on `path` (`lib/db/install.xml`: the
+primary key and the `parent` foreign key only), so either form scans the
+category table; that table holds categories, not courses, and the statement
+runs from an observer, never on a request that renders. Both observers are
+per-key deletes over a bounded set, not a purge: the rule of this record
+stands.
+
+Deletion paths are covered by construction: `delete_full()` recurses into the
+children first and fires one `course_category_deleted` per category;
+`delete_move()` fires one `course_category_updated` per child moved to the
+new parent (each drops that child and its subtree), one `course_updated` per
+course moved (the `coursemeta` observer), then the deletion event.
+
+### Consequences
+
+- `db/caches.php` gains `categorymeta` (application, `simplekeys`,
+  `simpledata`, static acceleration 20, no TTL); `db/events.php` gains the two
+  observers; `version.php` is bumped for both; `lang` gains
+  `cachedef_categorymeta` and `uncategorised`.
+- `explore.php` and `cards.php` no longer call `core_course_category`; the
+  plugin reads none of core's `MODE_REQUEST` caches on its hot path.
+- The accounting, per request, with the shared layers warm — the PLAN.md §6.6
+  figures: `get_attention` 6 (four strip and count statements, preferences,
+  filters); `get_inventory` 3 on a miss (fill, preferences, filters) and 3 on a
+  valid hit (stamp, preferences, filters). Each cold shared layer adds one
+  read: `get_attention` 7 (`categorymeta`; `coursemeta` is filled from the
+  strip rows), `get_inventory` at most 6 (`coursemeta`, `categorymeta`, and a
+  second `categorymeta` fill for the ancestors on a nested site). The budget
+  tests assert the shared-warm figure and state the fully-cold bound beside it.
+- A known limit, recorded so it is not rediscovered: `coursemeta` stores the
+  **course** context's path, which a category move also rewrites, and nothing
+  invalidates those entries until the course itself is updated. The effect is
+  confined to which ancestors `filters.php` consults when formatting that
+  course's name — a category-level filter override, rare in practice — and the
+  entries refresh on the next `course_updated`. Fanning a category move out to
+  every course under it is the per-course fan-out this record rejects; the
+  limit is accepted. Kept at the Phase 2 review (2026-09-04, ADR-000 decision
+  22) on the maintainer's instruction that it stay noted so that an alternative
+  is evaluated if one appears in a later phase; the revisit triggers are Phase 3
+  pre-warming (ADR-003), which touches the `coursemeta` fills, and any report of
+  a stale course name after a category move.
+
+
+### Evidence
+
+- `lib/db/caches.php` (5.2), lines 203–209: `'coursecatrecords' => ['mode' =>
+  cache_store::MODE_REQUEST, 'simplekeys' => true, 'invalidationevents' =>
+  ['changesincoursecat']]`.
+- `course/classes/category.php` (5.2): `get_many()` (340) reads that cache and
+  loads misses in one query; `get_formatted_name()` (2539–2546);
+  `course_category_updated::create()` with `objectid` and `context` only at
+  648, 2212, 2396, 2467, 2525 and 3088; `course_category_deleted::create()` at
+  2081 (`delete_full()`) and 2260 (`delete_move()`); `change_parent_raw()`
+  (2325) calls `$context->update_moved()`; `delete_move()` triggers the child
+  events before `fix_course_sortorder()`.
+- `lib/classes/event/course_category_updated.php` and
+  `course_category_deleted.php` (5.2): `objecttable = 'course_categories'`,
+  `objectid` is the category id; the deleted event carries `other['name']`
+  and, from `delete_move()`, `other['contentmovedcategoryid']`.
+- `lib/datalib.php` (5.2): `_fix_course_cats()` rewrites `path` as
+  `$path.'/'.$cat->id` and `depth`; `lib/classes/context.php`:
+  `update_moved()` rewrites the subtree's context paths with
+  `WHERE path LIKE '<frompath>/%'`.
+- `lib/classes/context/coursecat.php` (5.2): `instance()` returns from
+  `context::cache_get()` before reading `{context}`; `LEVEL = 40`
+  (`CONTEXT_COURSECAT`, `lib/accesslib.php:126`).
+- `lib/db/install.xml` (5.2): `course_categories` keys `primary` and `parent`
+  only — no index on `path`; `context` has an index on `path`
+  (`varchar_pattern_ops`), which core's own `update_moved()` prefix `LIKE` rides.
+- `lib/dml/moodle_database.php` (5.2): `sql_like()` (2290) emits
+  `<field> LIKE <param> ESCAPE '\'` and `sql_like_escape()` (2305) escapes `_`
+  and `%`; `get_fieldset_select()` (1782).
+- `lib/classes/collator.php` (5.2): `asort_array_of_arrays_by_key()` (317)
+  sorts by one key through `asort()`, which sets `Collator::CASE_FIRST` to
+  `OFF` unless `CASE_SENSITIVE` is OR-ed into the flag, and keeps keys.
+- `lib/moodlelib.php` (5.2): `check_user_preferences_loaded()` reloads
+  `{user_preferences}` when `$user->preference` is unset or older than its
+  lifetime.

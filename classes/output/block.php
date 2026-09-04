@@ -28,7 +28,6 @@ use block_compass\local\config;
 use core\output\renderable;
 use core\output\renderer_base;
 use core\output\templatable;
-use moodle_url;
 
 /**
  * What the server ships: labels and configuration, never data (PLAN.md §3.2).
@@ -53,6 +52,7 @@ class block implements renderable, templatable {
             'ghost_more', 'ghost_more_new', 'ghost_more_favourites', 'ghost_explore',
             'addtofavourites', 'removefromfavourites', 'favouriteadded', 'favouriteremoved',
             'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
+            'lastopened', 'resultsshown', 'noresults', 'coursesingroup',
         ];
         $labels = [];
         foreach ($keys as $key) {
@@ -61,7 +61,8 @@ class block implements renderable, templatable {
         $config = [
             'labels' => $labels,
             'favouritesenabled' => config::favourites_enabled(),
-            'mycoursesurl' => (new moodle_url('/my/courses.php'))->out(false),
+            'showsearch' => config::search_enabled(),
+            'showindex' => config::index_shown(),
         ];
 
         return [

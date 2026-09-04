@@ -26,6 +26,7 @@
 namespace block_compass;
 
 use advanced_testcase;
+use block_compass\local\category_meta;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use completion_completion;
@@ -33,20 +34,23 @@ use completion_info;
 use core\context\course as context_course;
 use core\event\course_viewed;
 use core_cache\cache;
+use core_course_category;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * ADR-001: one delete per event, never a purge, and never across layers.
  *
  * Every case here triggers the REAL core path that raises the event
- * (update_course, delete_course, completion_info::update_state,
+ * (update_course, delete_course, core_course_category::update(), change_parent(),
+ * delete_full(), delete_move(), completion_info::update_state,
  * completion_completion::mark_complete) rather than calling the observer, so
  * the test also proves db/events.php is registered — an observer registered
  * without a version bump silently never fires, and a direct call would not
  * notice. Each case carries a control that must survive: an entry the delete
  * had no business touching. Without it the test would still pass against an
  * observer that purged the whole definition, which is the exact mistake
- * ADR-001 exists to prevent.
+ * ADR-001 exists to prevent. Absence is read from the raw definition, never
+ * through a wrapper's get_many(), which would refill the miss and hide it.
  *
  * @package    block_compass
  * @category   test
@@ -78,8 +82,10 @@ final class observer_test extends advanced_testcase {
 
         $this->resetAfterTest();
         course_meta::reset();
+        category_meta::reset();
         details::reset();
         cache::make('block_compass', 'coursemeta')->purge();
+        cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
     }
 
@@ -93,6 +99,31 @@ final class observer_test extends advanced_testcase {
      */
     private function coursemeta(): cache {
         return cache::make('block_compass', 'coursemeta');
+    }
+
+    /**
+     * The raw category layer, for the same reason.
+     *
+     * @return cache
+     */
+    private function categorymeta(): cache {
+        return cache::make('block_compass', 'categorymeta');
+    }
+
+    /**
+     * Fill the category layer for the given ids and prove every one of them is there.
+     *
+     * The precondition is load-bearing: an observer that deletes nothing passes an
+     * absence check against an entry that was never stored.
+     *
+     * @param int[] $ids Category ids.
+     * @return void
+     */
+    private function seed_categories(array $ids): void {
+        category_meta::get_many($ids);
+        foreach ($ids as $id) {
+            $this->assertNotFalse($this->categorymeta()->get($id), "category {$id} was not seeded");
+        }
     }
 
     /**
@@ -182,6 +213,137 @@ final class observer_test extends advanced_testcase {
 
         $this->assertFalse($this->coursemeta()->get($doomedid));
         $this->assertNotFalse($this->coursemeta()->get($untouchedid));
+    }
+
+    /**
+     * Renaming a category drops its entry from the category layer, and nothing else.
+     *
+     * The real path: core_course_category::update() writes the row and raises
+     * course_category_updated with the category as objectid
+     * (course/classes/category.php:567-655), so the case proves the db/events.php
+     * registration as much as the observer. Two controls: the sibling's entry stays — a
+     * rename is one delete, never a purge — and the course layer entry of a course in the
+     * renamed category stays, because that layer stores the category's id and not its name
+     * (ADR-001 keeps the layers apart).
+     *
+     * @return void
+     */
+    public function test_course_category_updated_drops_only_that_category_from_the_category_layer(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $renamed = (int) $gen->create_category()->id;
+        $sibling = (int) $gen->create_category()->id;
+        $courseid = (int) $gen->create_course(['category' => $renamed])->id;
+        $this->seed_categories([$renamed, $sibling]);
+        course_meta::get_many([$courseid]);
+        $this->assertNotFalse($this->coursemeta()->get($courseid));
+
+        core_course_category::get($renamed, MUST_EXIST, true)->update(['name' => 'A different name']);
+
+        // Control: the rename really happened, so the event really fired.
+        $this->assertSame('A different name', $DB->get_field('course_categories', 'name', ['id' => $renamed]));
+        $this->assertFalse($this->categorymeta()->get($renamed));
+        $this->assertNotFalse($this->categorymeta()->get($sibling));
+        $this->assertNotFalse($this->coursemeta()->get($courseid));
+    }
+
+    /**
+     * Moving a category drops its entry and its descendants', and leaves the rest of the tree alone.
+     *
+     * The real path: change_parent() rewrites the subtree — fix_course_sortorder() renumbers
+     * the descendants' course_categories.path and depth (lib/datalib.php:1051-1080,
+     * _fix_course_cats()) — and then raises course_category_updated for the MOVED category
+     * only (course/classes/category.php:2383-2403). Nothing fires for a descendant, whose
+     * stored path is nonetheless wrong from that moment, which is why the observer has to
+     * reach the subtree itself. The control proves the mechanism ran: the grandchild's row
+     * now sits under the new parent. The old parent, the new parent and an unrelated
+     * category are the purge controls — their paths did not change and their entries stay.
+     *
+     * @return void
+     */
+    public function test_moving_a_category_drops_it_and_its_descendants_from_the_category_layer(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $top = (int) $gen->create_category()->id;
+        $mid = (int) $gen->create_category(['parent' => $top])->id;
+        $leaf = (int) $gen->create_category(['parent' => $mid])->id;
+        $newparent = (int) $gen->create_category()->id;
+        $unrelated = (int) $gen->create_category()->id;
+        $this->seed_categories([$top, $mid, $leaf, $newparent, $unrelated]);
+        $this->assertSame("/{$top}/{$mid}/{$leaf}", $DB->get_field('course_categories', 'path', ['id' => $leaf]));
+
+        core_course_category::get($mid, MUST_EXIST, true)->change_parent($newparent);
+
+        // Control: the descendant's row was rewritten, which is why its entry cannot stay.
+        $this->assertSame("/{$newparent}/{$mid}/{$leaf}", $DB->get_field('course_categories', 'path', ['id' => $leaf]));
+        $this->assertFalse($this->categorymeta()->get($mid));
+        $this->assertFalse($this->categorymeta()->get($leaf));
+        $this->assertNotFalse($this->categorymeta()->get($top));
+        $this->assertNotFalse($this->categorymeta()->get($newparent));
+        $this->assertNotFalse($this->categorymeta()->get($unrelated));
+    }
+
+    /**
+     * Deleting a category drops its entry, and leaves its sibling's alone.
+     *
+     * delete_full() deletes the row and the context, then raises course_category_deleted
+     * (course/classes/category.php:2020-2092) — the only invalidation a deleted category
+     * gets, since nothing will ever update it again.
+     *
+     * @return void
+     */
+    public function test_course_category_deleted_drops_only_that_category_from_the_category_layer(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $doomed = (int) $gen->create_category()->id;
+        $sibling = (int) $gen->create_category()->id;
+        $this->seed_categories([$doomed, $sibling]);
+
+        core_course_category::get($doomed, MUST_EXIST, true)->delete_full(false);
+
+        // Control: the row is gone, so the event fired.
+        $this->assertFalse($DB->record_exists('course_categories', ['id' => $doomed]));
+        $this->assertFalse($this->categorymeta()->get($doomed));
+        $this->assertNotFalse($this->categorymeta()->get($sibling));
+    }
+
+    /**
+     * delete_move() drops the deleted category and the children it moved out, through two events.
+     *
+     * Each child is re-parented with change_parent_raw() and gets its own
+     * course_category_updated (course/classes/category.php:2208-2217) before the category's
+     * course_category_deleted fires (:2259-2267): the child goes through the update observer,
+     * the parent through the delete observer, and a child left cached would be served with
+     * its old path. Controls: the child's row now sits under the target, and an unrelated
+     * category's entry stays.
+     *
+     * @return void
+     */
+    public function test_delete_move_drops_the_deleted_category_and_the_children_it_moved(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $doomed = (int) $gen->create_category()->id;
+        $child = (int) $gen->create_category(['parent' => $doomed])->id;
+        $target = (int) $gen->create_category()->id;
+        $unrelated = (int) $gen->create_category()->id;
+        $this->seed_categories([$doomed, $child, $target, $unrelated]);
+
+        core_course_category::get($doomed, MUST_EXIST, true)->delete_move($target, false);
+
+        // Controls: the row is gone and the child was re-parented, so both events fired.
+        $this->assertFalse($DB->record_exists('course_categories', ['id' => $doomed]));
+        $this->assertSame($target, (int) $DB->get_field('course_categories', 'parent', ['id' => $child]));
+        $this->assertFalse($this->categorymeta()->get($doomed));
+        $this->assertFalse($this->categorymeta()->get($child));
+        $this->assertNotFalse($this->categorymeta()->get($unrelated));
     }
 
     /**

@@ -144,7 +144,7 @@ Não pré-aquecer 1 milhão de usuários — a maioria nunca abrirá o Painel no
 
 ### 6.5 Modo degradado para usuários com muitas inscrições (*ADR-004*)
 
-Acima de `inventory_max` inscrições (padrão 1 500), o andar 3 **não** carrega o inventário
+Acima de `inventory_max` inscrições (padrão 250), o andar 3 **não** carrega o inventário
 completo no navegador:
 
 - `get_inventory` responde apenas os cabeçalhos de grupo com contagens (`GROUP BY category`,

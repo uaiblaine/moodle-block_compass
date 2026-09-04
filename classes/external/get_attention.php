@@ -37,8 +37,11 @@ use core_external\external_value;
 /**
  * The one call behind the first paint (PLAN.md §6.1): three strips and the counts.
  *
- * Read-only, current user only, six database reads at most with the plugin's
- * caches cold — asserted by its budget test.
+ * Read-only, current user only, six database reads per request with the shared
+ * layers warm (four strip and count statements, preferences, filters), seven
+ * fully cold (one categorymeta fill; coursemeta is filled from the strip rows)
+ * — plus the one read validate_context() costs here, the user context, since
+ * the context cache starts empty every request. Asserted by its budget tests.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

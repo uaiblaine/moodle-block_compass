@@ -52,7 +52,11 @@ final class config_test extends advanced_testcase {
      * @return void
      */
     private function forget_every_setting(): void {
-        foreach (['attention_max', 'new_days', 'enable_favourites', 'hide_block_title'] as $name) {
+        $names = [
+            'attention_max', 'new_days', 'group_depth',
+            'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
+        ];
+        foreach ($names as $name) {
             unset_config($name, 'block_compass');
         }
     }
@@ -70,7 +74,11 @@ final class config_test extends advanced_testcase {
         $this->assertSame(3, config::attention_max());
         $this->assertSame(config::DEFAULT_NEW_DAYS, config::new_days());
         $this->assertSame(30, config::new_days());
+        $this->assertSame(config::DEFAULT_GROUP_DEPTH, config::group_depth());
+        $this->assertSame(1, config::group_depth());
         $this->assertTrue(config::favourites_enabled());
+        $this->assertTrue(config::search_enabled());
+        $this->assertTrue(config::index_shown());
         $this->assertFalse(config::hide_block_title());
     }
 
@@ -139,6 +147,42 @@ final class config_test extends advanced_testcase {
     }
 
     /**
+     * Stored values for group_depth and what the accessor makes of them.
+     *
+     * @return array Case name => [stored value, expected result].
+     */
+    public static function group_depth_provider(): array {
+        return [
+            'zero falls back to the top level' => [0, 1],
+            'a negative falls back to the top level' => [-2, 1],
+            'an empty string falls back to the top level' => ['', 1],
+            'the top level is honoured' => [1, 1],
+            'a subcategory depth is honoured' => [2, 2],
+            'a deep tree is not clamped' => [5, 5],
+        ];
+    }
+
+    /**
+     * group_depth is at least one, and has no upper bound.
+     *
+     * Depth 0 does not exist in {course_categories} — the top level is depth 1
+     * — so a stored zero must not reach explore::group_id(), where it would
+     * index the path array at -1 and roll every course up to nothing.
+     *
+     * @param mixed $stored What the administrator's setting holds.
+     * @param int $expected What the accessor must return.
+     * @return void
+     */
+    #[DataProvider('group_depth_provider')]
+    public function test_group_depth_is_at_least_the_top_level($stored, int $expected): void {
+        $this->resetAfterTest();
+        set_config('group_depth', $stored, 'block_compass');
+
+        $this->assertSame($expected, config::group_depth());
+        $this->assertGreaterThanOrEqual(1, config::group_depth());
+    }
+
+    /**
      * Favourites are on unless an explicit zero says otherwise.
      *
      * The three states are the whole rule, and the middle one is the only
@@ -158,6 +202,48 @@ final class config_test extends advanced_testcase {
 
         set_config('enable_favourites', 1, 'block_compass');
         $this->assertTrue(config::favourites_enabled());
+    }
+
+    /**
+     * The tier 3 search box is on unless an explicit zero says otherwise.
+     *
+     * Same three states as the favourites rule, and the same trap: a site that
+     * never opened the settings page has nothing stored, and a plain cast of
+     * that "nothing" would hide the search box on every such site.
+     *
+     * @return void
+     */
+    public function test_search_is_off_only_when_an_explicit_zero_is_stored(): void {
+        $this->resetAfterTest();
+
+        unset_config('enable_search', 'block_compass');
+        $this->assertTrue(config::search_enabled());
+
+        set_config('enable_search', 0, 'block_compass');
+        $this->assertSame('0', get_config('block_compass', 'enable_search'));
+        $this->assertFalse(config::search_enabled());
+
+        set_config('enable_search', 1, 'block_compass');
+        $this->assertTrue(config::search_enabled());
+    }
+
+    /**
+     * The tier 3 category index is on unless an explicit zero says otherwise.
+     *
+     * @return void
+     */
+    public function test_the_index_is_off_only_when_an_explicit_zero_is_stored(): void {
+        $this->resetAfterTest();
+
+        unset_config('show_index', 'block_compass');
+        $this->assertTrue(config::index_shown());
+
+        set_config('show_index', 0, 'block_compass');
+        $this->assertSame('0', get_config('block_compass', 'show_index'));
+        $this->assertFalse(config::index_shown());
+
+        set_config('show_index', 1, 'block_compass');
+        $this->assertTrue(config::index_shown());
     }
 
     /**

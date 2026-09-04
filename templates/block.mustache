@@ -34,6 +34,7 @@
     * data-region="tier1" wrapping one section per strip, each with data-strip
       (continue, new, favourites) and a data-region="cards" list.
     * data-region="ghost" for the tier 2 ghost card.
+    * data-region="explore" where tier 3 renders (see block_compass/explore).
     * data-region="empty" for the empty-state message.
     * data-region="announce" for favourite announcements.
 
@@ -70,6 +71,7 @@
         {{/strips}}
     </div>
     <div class="compass-ghost-wrap" data-region="ghost" hidden></div>
+    <div class="compass-explore-wrap mt-3" data-region="explore" hidden></div>
     <p class="compass-empty text-muted" data-region="empty" hidden></p>
     <span class="visually-hidden" data-region="announce" role="alert" aria-live="assertive"></span>
     <noscript>

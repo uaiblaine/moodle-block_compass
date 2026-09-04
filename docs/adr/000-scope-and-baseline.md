@@ -1,6 +1,7 @@
 # ADR-000 — Scope and baseline
 
-- **Status:** Accepted
+- **Status:** Accepted; amended 2026-09-04 after the Phase 2 review (decisions
+  20–22, the section at the end of this record)
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); options and recommendations drafted by the agent
 
@@ -164,3 +165,49 @@ when completion is disabled or the user is not tracked.
 - `lib/enrollib.php` (5.2) lines 742–743: the active-enrolment predicate.
 - `completion/classes/progress.php` (5.2): `get_course_progress_percentage()`.
 - Chat with the maintainer, 2026-09-04: answers 1–19 as recorded.
+
+## Amendments (2026-09-04, after the Phase 2 review)
+
+Settled by the maintainer on the review of the Phase 2 code. The numbering
+continues the decisions above so that later records can cite them.
+
+20. **The web services keep the user-context `validate_context()` and its one
+    read.** `get_inventory` and `get_attention` each cost one read more than
+    the domain method they route through: `\core\context\user::instance($USER->id)`
+    reads `{context}` once per request, because the context cache starts empty
+    on every request — the same read core's own per-user services pay
+    (`core_course_get_recent_courses` validates the same context). Accepted as
+    already documented (ADR-002, "When the stamp is not run"; CLAUDE.md §6.6);
+    the budget tests keep asserting both levels, the domain bound and the
+    web-service bound one higher. Nothing changes in code.
+21. **`inventory_max` defaults to 250, and the tier 3 row carries shorter
+    keys.** A `get_inventory` row is `id` (int, unchanged), `name` (the course
+    full name, formatted; was `fullname`), `opened` (last access timestamp or
+    null; was `lastaccess`), `new` (bool; was `isnew`) and `fav` (bool; was
+    `isfavourite`). The group keys `id`, `name`, `count`, `courses` and the top
+    level `mode`, `total`, `groups` are unchanged; the `courseurl` the client
+    adds in `explore.js` stays client-side; the DOM hooks of
+    `templates/row.mustache` (`data-lastaccess`, `data-new`, `data-favourite`,
+    the `data-region` names and the CSS classes) do not change — only the
+    Mustache variables read from the payload do. This decision covers
+    `get_inventory` only. Reason: with the old keys the 500-enrolment payload
+    measured **66.4 KB raw / 5.8 KB gzip** (synthetic 45-character names,
+    compact JSON, gzip level 6) against the plan's ≤ 40 KB (PLAN.md §6.6);
+    250 rows fit. Measured after the rename:
+    With the new keys the same generator measures 57.3 KB raw / 5.6 KB gzip
+    for 500 rows and 29.5 KB raw / 3.2 KB gzip for 250 rows (500 rows with the
+    old keys: 66.3 KB / 5.8 KB), so at the 250 threshold the full payload
+    stays under the plan's 40 KB even uncompressed.
+    Supersedes the "padrão 1 500" of PLAN.md §6.5 (that one number is changed
+    in place there, nothing else in that file) and CLAUDE.md §6.5; ADR-004
+    (Phase 3) implements the setting with this default.
+22. **The category-move limit of the category layer is kept.** A category
+    move rewrites the course contexts' paths, but the `coursemeta` entries of
+    the courses under it keep the old path until each course's next
+    `course_updated` (ADR-001, amendment, known limit); the effect is confined
+    to which ancestors `filters.php` consults when formatting that course's
+    name. Kept for now, on the maintainer's instruction that it stay noted so
+    that an alternative is evaluated if one appears during a later phase.
+    Revisit triggers: Phase 3 pre-warming (ADR-003), which touches the
+    `coursemeta` fills, or any report of a stale course name after a category
+    move.

@@ -32,9 +32,18 @@ use core\exception\coding_exception;
  * Wraps $DB->perf_get_reads(), which counts every SELECT the connection has
  * issued since it opened — core's own included. Take a reading, run the code,
  * assert the delta. Because core's reads are counted too, the measurement
- * protocol is fixed: warm core by running the code once, purge only this
- * plugin's caches, then measure the second run. "Cold" in the budget table
- * means the plugin's caches, not core's.
+ * protocol is fixed, and it counts reads per REQUEST. Warm what core keeps
+ * across requests (config, strings, contexts, capabilities — MUC and the
+ * session) by running the code once. Then reset what core keeps for one request
+ * only, in PHP globals, and would reload on a real second request: the filter
+ * array $FILTERLIB_PRIVATE and the user's preference bundle ($USER->preference,
+ * reloaded by check_user_preferences_loaded() in lib/moodlelib.php whenever it
+ * is unset) — core's MODE_REQUEST caches are the same kind of state, which is why
+ * this plugin reads none of them on its hot path. Purge the user's own layers
+ * (inventory, details), keep the shared layers (coursemeta, categorymeta) warm,
+ * and measure the second run. The budget table's figures are that state; every
+ * cold shared layer adds one read, and the fully-cold bound stands beside each
+ * figure.
  *
  * The counter is per statement, not per logical query. On PostgreSQL a
  * recordset ($DB->get_recordset*) is executed as DECLARE, FETCH and CLOSE and

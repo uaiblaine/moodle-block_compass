@@ -48,6 +48,28 @@ if ($ADMIN->fulltree) {
         1
     ));
 
+    $settings->add(new admin_setting_configtext(
+        'block_compass/group_depth',
+        get_string('group_depth', 'block_compass'),
+        get_string('group_depth_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_GROUP_DEPTH,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/enable_search',
+        get_string('enable_search', 'block_compass'),
+        get_string('enable_search_desc', 'block_compass'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/show_index',
+        get_string('show_index', 'block_compass'),
+        get_string('show_index_desc', 'block_compass'),
+        1
+    ));
+
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/hide_block_title',
         get_string('hide_block_title', 'block_compass'),

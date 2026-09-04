@@ -146,4 +146,61 @@ class block_compass_generator extends testing_block_generator {
     public function hide(int $userid, int $courseid): void {
         set_user_preference(\block_compass\local\hidden_courses::PREFIX . $courseid, 1, $userid);
     }
+
+    /**
+     * Make the next call in this process pay what a fresh HTTP request pays for the state
+     * core keeps in PHP globals.
+     *
+     * A budget test warms core with one call and measures a second, and inside one process
+     * three per-request memos survive between the two that never survive between two
+     * requests — so a bound measured without this step is lower than what any real request
+     * pays. Each memo is reset here by the mechanism that makes it a memo:
+     *
+     * - The filter preload. filter_get_active_in_context() (lib/filterlib.php:518-529) answers
+     *   from $FILTERLIB_PRIVATE->active when the context id is there, and the plugin's
+     *   filters::preload() fills that array and skips contexts already in it, so a second call
+     *   would pay no filter read. The global is set to null: an unset() through a `global`
+     *   import only drops the local reference, and every reader tests the variable with
+     *   isset() and recreates it (lib/filterlib.php:521-523 and :590-592). filter_manager keeps
+     *   a per-context copy of the same answer (filter/classes/filter_manager.php:101-116,
+     *   $this->stringfilters[$contextid]), so filter_manager::reset_caches() (:80-85) drops
+     *   that too; a new manager reads $CFG->stringfilters in its constructor
+     *   (filter_get_string_filters(), lib/filterlib.php:345-353) and queries nothing.
+     * - Core's category records. The coursecatrecords definition is MODE_REQUEST
+     *   (lib/db/caches.php:203-209): a real request starts with it empty, so it is purged.
+     * - The preference bundle. get_user_preferences() resolves the current user's id to $USER
+     *   itself (lib/moodlelib.php, "if ($USER->id == $user) { $user = $USER; }"), and
+     *   check_user_preferences_loaded() (lib/moodlelib.php:1429-1470) reloads the bundle with
+     *   one get_records_menu() whenever $user->preference is not set — the branch that never
+     *   consults its static $loadedusers, which nothing can reset. Unsetting the property is
+     *   what a fresh request's $USER looks like before its first preference read.
+     *
+     * - The context cache (lib/classes/context.php), a per-request static, reset through
+     *   context_helper::reset_caches() and then warmed back to what core has loaded before any
+     *   block code runs: the system context (SYSCONTEXTID, no read) and the site course
+     *   context (require_login()). Contexts the plugin preloads from its own rows stay free;
+     *   the user context validate_context() asks for costs the read it costs a real request.
+     *
+     * Deliberately NOT reset, because they are core's cost and the protocol's "warm core"
+     * excludes them (classes/local/budget.php): the access data behind has_capability(), the
+     * string manager and config, and the plugin's own MUC definitions — a budget test purges
+     * those explicitly, per layer, so its docblock can say which layers were cold.
+     *
+     * @return void
+     */
+    public function simulate_new_request(): void {
+        global $USER, $FILTERLIB_PRIVATE;
+
+        $FILTERLIB_PRIVATE = null;
+        \core_filters\filter_manager::reset_caches();
+        \core_cache\cache::make('core', 'coursecatrecords')->purge();
+        unset($USER->preference);
+        // The context cache is per request too. Core loads two contexts before any block code
+        // runs — the system context (built from SYSCONTEXTID, no read) and the site course
+        // context (require_login()) — so they are warmed back here, outside the meter; a
+        // context the plugin asks for beyond those costs what it costs a real request.
+        \core\context_helper::reset_caches();
+        \core\context\system::instance();
+        \core\context\course::instance(SITEID);
+    }
 }

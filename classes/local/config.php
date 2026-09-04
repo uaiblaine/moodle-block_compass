@@ -70,6 +70,42 @@ final class config {
         return $value < 1 ? self::DEFAULT_NEW_DAYS : $value;
     }
 
+    /** @var int Default category depth that forms the tier 3 groups (1 = top-level categories). */
+    public const DEFAULT_GROUP_DEPTH = 1;
+
+    /**
+     * Category depth, from the root, that forms the tier 3 groups.
+     *
+     * @return int At least 1.
+     */
+    public static function group_depth(): int {
+        $value = (int) get_config('block_compass', 'group_depth');
+
+        return $value < 1 ? self::DEFAULT_GROUP_DEPTH : $value;
+    }
+
+    /**
+     * Whether the tier 3 search box is shown. Never set means enabled.
+     *
+     * @return bool
+     */
+    public static function search_enabled(): bool {
+        $value = get_config('block_compass', 'enable_search');
+
+        return $value === false || $value === '' || (int) $value === 1;
+    }
+
+    /**
+     * Whether the tier 3 side index is shown. Never set means enabled.
+     *
+     * @return bool
+     */
+    public static function index_shown(): bool {
+        $value = get_config('block_compass', 'show_index');
+
+        return $value === false || $value === '' || (int) $value === 1;
+    }
+
     /**
      * Whether the favourites strip and the star are shown. Never set means enabled.
      *

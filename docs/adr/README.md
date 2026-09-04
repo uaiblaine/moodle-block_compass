@@ -17,7 +17,7 @@ the status flips to `Accepted` in the commit that lands it.
 | ADR | Title | Status | Phase |
 |---|---|---|---|
 | [000](000-scope-and-baseline.md) | Scope and baseline | Accepted | 0 |
-| [001](001-two-layer-cache.md) | Two-layer cache: `coursemeta`, `inventory`, `details` | Accepted | 1 |
-| 002 | Stamp validation of the inventory instead of enrolment observers | Planned | before 2 |
+| [001](001-two-layer-cache.md) | Two-layer cache: `coursemeta`, `categorymeta`, `inventory`, `details` (amended 2026-09-04: the category layer) | Accepted | 1 |
+| [002](002-inventory-stamp.md) | The inventory: per-enrolment rows, validated by a stamp | Accepted | 2 |
 | 003 | Optional, selective, budgeted pre-warming | Planned | before 3 |
 | 004 | Degraded `paged` mode above `inventory_max` | Planned | before 3 |

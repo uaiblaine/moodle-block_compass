@@ -112,12 +112,11 @@ export const render = async(root, data, config) => {
         }
         let ghost = null;
         if (name === 'new' && data.counts.newmore > 0) {
-            ghost = {count: data.counts.newmore, text: labels.ghost_more_new, url: config.mycoursesurl, kind: 'new'};
+            ghost = {count: data.counts.newmore, text: labels.ghost_more_new, kind: 'new'};
         } else if (name === 'favourites' && data.counts.favouritesmore > 0) {
             ghost = {
                 count: data.counts.favouritesmore,
                 text: labels.ghost_more_favourites,
-                url: config.mycoursesurl,
                 kind: 'favourites',
             };
         }
@@ -133,7 +132,6 @@ export const render = async(root, data, config) => {
                 count: data.counts.more,
                 text: labels.ghost_more,
                 cta: labels.ghost_explore,
-                url: config.mycoursesurl,
                 kind: 'tier2',
             },
         });

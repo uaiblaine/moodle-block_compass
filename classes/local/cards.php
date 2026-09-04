@@ -25,7 +25,6 @@
 namespace block_compass\local;
 
 use core_course\external\course_summary_exporter;
-use core_course_category;
 use moodle_url;
 use stdClass;
 
@@ -34,8 +33,9 @@ use stdClass;
  *
  * Everything language-dependent happens here, at response time: names are
  * formatted with the course context rebuilt from the cache and the filters
- * preloaded in one query (ADR-001); images come from core's course_image
- * cache; progress comes from the details cache, pending when not cached.
+ * preloaded in one query (ADR-001), category names the same way from the
+ * category layer; images come from core's course_image cache; progress comes
+ * from the details cache, pending when not cached.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -76,8 +76,9 @@ final class cards {
         }
         filters::preload(array_values($contexts));
 
-        $categoryids = array_unique(array_column($entries, 'category'));
-        $categories = core_course_category::get_many($categoryids);
+        // The category layer: one read when cold, none when warm (ADR-001, category layer). The
+        // category contexts are ancestors on the course context paths, so they are preloaded above.
+        $categories = category_meta::get_many(array_unique(array_column($entries, 'category')));
 
         $completionenabled = !empty($CFG->enablecompletion);
         $withcompletion = [];
@@ -96,6 +97,16 @@ final class cards {
                 $entry = $entries[$courseid];
                 $context = $contexts[$courseid];
                 $category = $categories[$entry['category']] ?? null;
+                // The category's name in its own context, as core_course_category::get_formatted_name()
+                // formats it (course/classes/category.php:2539-2546); "Uncategorised" once it no longer exists.
+                $categoryname = get_string('uncategorised', 'block_compass');
+                if ($category !== null) {
+                    $categoryname = format_string(
+                        $category['name'],
+                        true,
+                        ['context' => category_meta::context_of($category), 'escape' => false]
+                    );
+                }
                 $hascompletion = in_array($courseid, $withcompletion, true);
                 $cached = $hascompletion ? (array_key_exists($courseid, $progress) ? $progress[$courseid] : false) : null;
 
@@ -105,7 +116,7 @@ final class cards {
                     'shortname' => format_string($entry['shortname'], true, ['context' => $context, 'escape' => false]),
                     'url' => (new moodle_url('/course/view.php', ['id' => $courseid]))->out(false),
                     'imageurl' => (string) course_summary_exporter::get_course_image((object) ['id' => $courseid]),
-                    'category' => $category ? $category->get_formatted_name(['escape' => false]) : '',
+                    'category' => $categoryname,
                     'hascompletion' => $hascompletion,
                     'progress' => is_int($cached) ? $cached : null,
                     'pending' => $hascompletion && $cached === false,

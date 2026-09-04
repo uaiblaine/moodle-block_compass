@@ -18,30 +18,30 @@
     @template block_compass/ghost
 
     The ghost card: a count, not a load (PLAN.md §2, tier 2). Used for the tier 2
-    "+N other courses" card and for the per-strip "+N more" cards.
+    "+N other courses" card and for the per-strip "+N more" cards. A button,
+    because pressing it opens tier 3 in place (the kind decides which chip is
+    preselected); it navigates nowhere.
 
     Context variables required for this template:
     * count - the number.
     * text - what is counted, already translated.
     * cta - call to action, already translated, optional.
-    * url - where the card leads.
-    * kind - tier2, new or favourites.
+    * kind - tier2, new or favourites (the chip preselected when tier 3 opens).
 
     Example context (json):
     {
         "count": 87,
         "text": "other courses",
         "cta": "Explore all",
-        "url": "https://example.com/my/courses.php",
         "kind": "tier2"
     }
 }}
-<a href="{{url}}" class="compass-ghost card h-100 text-center text-decoration-none" data-region="ghost-card" data-ghost="{{kind}}">
-    <div class="card-body d-flex flex-column justify-content-center">
+<button type="button" class="compass-ghost card h-100 text-center w-100" data-region="ghost-card" data-action="explore" data-ghost="{{kind}}">
+    <span class="card-body d-flex flex-column justify-content-center">
         <span class="compass-ghost-count">+{{count}}</span>
         <span class="compass-ghost-text small text-muted">{{text}}</span>
         {{#cta}}
         <span class="compass-ghost-cta small mt-2">{{cta}}</span>
         {{/cta}}
-    </div>
-</a>
+    </span>
+</button>

@@ -27,13 +27,19 @@
 import {getAttention} from 'block_compass/repository';
 import {render} from 'block_compass/attention';
 import {init as initFavourites} from 'block_compass/favourites';
+import {open as openExplore} from 'block_compass/explore';
+import Notification from 'core/notification';
 
 const SELECTORS = {
     status: '[data-region="status"]',
     error: '[data-region="error"]',
     errorText: '[data-region="error-text"]',
     retry: '[data-action="retry"]',
+    ghost: '[data-action="explore"]',
+    ghostWrap: '[data-region="ghost"]',
 };
+
+const CHIP_OF_GHOST = {tier2: 'all', 'new': 'new', favourites: 'favourites'};
 
 /**
  * Read the JSON configuration the server placed on the root element.
@@ -86,5 +92,22 @@ export const init = (rootId) => {
     config.labels = config.labels || {};
     initFavourites(root, config.labels);
     root.querySelector(SELECTORS.retry).addEventListener('click', () => load(root, config));
+    // Every ghost card opens tier 3 in place, with the chip its kind implies.
+    root.addEventListener('click', (event) => {
+        const ghost = event.target.closest(SELECTORS.ghost);
+        if (!ghost || !root.contains(ghost)) {
+            return;
+        }
+        event.preventDefault();
+        openExplore(root, config, CHIP_OF_GHOST[ghost.dataset.ghost] || 'all')
+            .then(() => {
+                const wrap = root.querySelector(SELECTORS.ghostWrap);
+                if (wrap && ghost.dataset.ghost === 'tier2') {
+                    wrap.hidden = true;
+                }
+                return null;
+            })
+            .catch(() => Notification.addNotification({message: config.labels.loaderror || '', type: 'error'}));
+    });
     load(root, config);
 };

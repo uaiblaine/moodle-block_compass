@@ -88,6 +88,16 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
+     * resetAfterTest() does not restore superglobals: drop the sesskey call() plants in $_POST.
+     *
+     * @return void
+     */
+    protected function tearDown(): void {
+        unset($_POST['sesskey']);
+        parent::tearDown();
+    }
+
+    /**
      * Call the service the way the browser does.
      *
      * @param int[] $courseids Course ids to ask for.

@@ -29,10 +29,12 @@ shell and the browser renders**, and **scale is a requirement**: every endpoint
 has a query budget enforced by an automated test. The plan is in `PLAN.md` and
 the architecture decisions in `docs/adr/`.
 
-**Status: Phase 1 (tier 1).** The block shows Continue, New enrolments and
-Favourites with full cards, the ghost card with the count of everything else,
-and the star. Tier 3 (the explorable inventory) arrives in Phase 2; until then
-the ghost card leads to the My courses page.
+**Status: Phase 2 (tiers 1 to 3, full mode).** The block shows Continue, New
+enrolments and Favourites with full cards, the ghost card with the count of
+everything else, and the star; pressing a ghost card opens the full list in
+place, grouped by category, with a category index, an instant search and
+sorting that never reload the page. The degraded mode for learners with more
+than `inventory_max` enrolments arrives in Phase 3.
 
 
 Requirements
@@ -60,15 +62,16 @@ page*.
 Cache stores (read this before a large rollout)
 -----------------------------------------------
 
-Compass keeps three MUC application caches, declared in `db/caches.php`:
+Compass keeps four MUC application caches, declared in `db/caches.php`:
 
-| Definition   | Key            | Content                                            |
-|--------------|----------------|----------------------------------------------------|
-| `coursemeta` | course id      | raw name, category id, visibility, completion flag, context columns (no image: core caches it) |
-| `inventory`  | user id        | the user's enrolments, without course data         |
-| `details`    | user + course  | progress percentage                                |
+| Definition     | Key            | Content                                            |
+|----------------|----------------|----------------------------------------------------|
+| `coursemeta`   | course id      | raw name, category id, visibility, completion flag, context columns (no image: core caches it) |
+| `categorymeta` | category id    | raw category name, path, depth, context columns (core's own category cache lasts one request) |
+| `inventory`    | user id        | one row per enrolment plus the validity stamp, without course data |
+| `details`      | user + course  | progress percentage                                |
 
-Map all three to a **shared in-memory store, Redis by preference**, under
+Map all four to a **shared in-memory store, Redis by preference**, under
 *Site administration > Plugins > Caching > Configuration*. A plugin cannot
 choose a store for you; it can only tell you what it needs.
 
@@ -84,16 +87,21 @@ Usage
 
 **Administrators** find the settings under *Site administration > Plugins >
 Blocks > Compass*: cards per strip (default 3), days an enrolment stays new
-(default 30), whether favourites are shown, whether the block title is hidden,
-and the cache-store notice. Dormancy, grouping depth and the degraded-mode
-threshold arrive with the phases that use them.
+(default 30), grouping depth of the full list (default 1, top-level
+categories), whether favourites, the search box and the category index are
+shown, whether the block title is hidden, and the cache-store notice.
+Dormancy and the degraded-mode threshold arrive with the phases that use them.
 
 **Learners** see the block on their Dashboard. *Continue where you left off*
 lists the most recently opened courses (completed ones leave the strip), *New
 enrolments* the courses they were enrolled in recently and never opened, with
 the enrolment method and any deadline, and *My favourites* the starred courses.
 Each strip shows up to three cards; whatever does not fit is counted on a ghost
-card. Courses hidden in the Course overview block are hidden here too.
+card, and pressing it opens *All courses*: every active course grouped by
+category (at the depth the administrator chose), a side index on wide screens,
+a search box that filters what is already on the page, sorting by category,
+name or last opened, and chips for new enrolments and favourites. Courses
+hidden in the Course overview block are hidden here too.
 
 
 Capabilities
@@ -124,7 +132,7 @@ Troubleshooting
   Moodle hides a block whose content is empty.
 - **The block shows "JavaScript is required".** The browser renders the block;
   JavaScript is not optional.
-- **Slow Dashboard on a large site.** Check the three cache definitions are
+- **Slow Dashboard on a large site.** Check the four cache definitions are
   mapped to a shared in-memory store (see above), not to the default file store.
 
 

@@ -136,16 +136,18 @@ entries. Hence two layers with different keys and different invalidation.
 
 | Definition | Mode | Key | Content | Invalidation |
 |---|---|---|---|---|
-| `coursemeta` | application | `courseid` | raw `fullname`/`shortname`, category **id**, `visible`, `enablecompletion`, the six context preload columns — no image (core's `course_image` cache), no category name (core's `coursecatrecords` cache), nothing formatted | per-key `delete()` in observers of `\core\event\course_updated` and `course_deleted`; shared by every user; no TTL |
-| `inventory` | application | `userid` | array of `[courseid, timecreated, timeaccess, enrolmethod, timeend]` — **no course data** | stamp validation (§6.3); safety TTL 24 h |
+| `coursemeta` | application | `courseid` | raw `fullname`/`shortname`, category **id**, `visible`, `enablecompletion`, the six context preload columns — no image (core's `course_image` cache), no category name (`categorymeta`: core's `coursecatrecords` cache is request-scoped), nothing formatted | per-key `delete()` in observers of `\core\event\course_updated` and `course_deleted`; shared by every user; no TTL |
+| `categorymeta` | application | `categoryid` | raw `name`, `path`, `depth`, the six preload columns of the **category** context — nothing formatted | per-key `delete()` in observers of `\core\event\course_category_updated` (plus the descendants' keys: a move rewrites their paths and the event cannot tell a move from a rename — one `LIKE` over the category table, from the observer) and `course_category_deleted`; shared by every user; no TTL |
+| `inventory` | application | `userid` | the seven-field stamp plus one row per **enrolment** keyed by `user_enrolments.id` (ten integers, ADR-002) — **no course data**; "active" is decided at read time | stamp validation (§6.3); safety TTL 24 h |
 | `details` | application | `<userid>_<courseid>` (no `:` in MUC keys) | progress percentage as int, or `null` = "no completion" (a cached value; a miss is `false`) | per-key `delete()` in observers of the user's `course_module_completion_updated` and `course_completed`; TTL 1 h bounds criteria changes and deletions |
 
-Store: **Redis recommended for all three** (documented in the README with the
+Store: **Redis recommended for all four** (documented in the README with the
 MUC mapping; `mdl redis m502` maps the local stack). One user with 2 000
 enrolments is about 60 KB of serialised `inventory`, which is acceptable.
 **Never invalidate `inventory` or `details` from course events** — the rule
-that makes the design hold. Names are formatted at **response time**: the
-course context is rebuilt from the stored columns and the filters of every
+that makes the design hold. Names — of courses and categories alike — are
+formatted at **response time**: the
+context is rebuilt from the stored columns and the filters of every
 course shown (and their ancestors) are preloaded in **one query** by
 `classes/local/filters.php`, which fills `$FILTERLIB_PRIVATE->active` the way
 core's `filter_preload_activities()` does but with the exact
@@ -155,22 +157,20 @@ core's `filter_preload_activities()` does but with the exact
 
 ### Stamp validation instead of event invalidation (§6.3, *ADR-002*)
 
-Before trusting a cached `inventory`, run two cheap indexed aggregates:
-
-```sql
-SELECT COUNT(*), MAX(timemodified) FROM {user_enrolments} WHERE userid = :userid
-```
-
-```sql
-SELECT MAX(timeaccess) FROM {user_lastaccess} WHERE userid = :userid
-```
-
-If all three values match the stamp stored with the entry, the entry is valid;
-otherwise recompute. Cost: two index scans per user, independent of table size.
-This removes every enrolment observer and the stale-cache risk after bulk
-imports, and the second aggregate keeps "last access" and the dormant
-classification in tier 3 current (ADR-000, decision 15). Both columns exist on
-5.2 (verified in `install.xml`) and both queries ride the `userid` indexes.
+Before trusting a cached `inventory`, run **one statement of seven
+`userid`-indexed aggregates** — `COUNT(*)`, `MAX(id)`, `MAX(timemodified)` of
+the user's enrolments, `MAX(timemodified)` of their methods, `MAX(timeaccess)`
+of their last accesses, and `COUNT(*)` / `MAX(timemodified)` of their core
+stars — over the same row set the fill uses (`e.courseid <> SITEID` in both).
+If all seven match the stamp stored with the entry, it is valid; otherwise
+recompute. On a miss the stamp is derived from the fill's own rows (the three
+cross-table aggregates travel as scalar subqueries in the fill statement), so
+the miss path costs no stamp read; a fill with no rows runs the statement
+instead. Cost: one index scan plus three scalar subqueries, independent of
+table size. `MAX(id)` is what catches a same-second unenrol-plus-enrol. Known
+limit: `enrol_ldap` writes `status` with no timestamp and is seen only at the
+TTL. Full rationale, the bench and the alternatives:
+[`docs/adr/002-inventory-stamp.md`](docs/adr/002-inventory-stamp.md).
 
 ### Pre-warming: optional, selective, budgeted (§6.4, *ADR-003*)
 
@@ -186,7 +186,7 @@ forever: permanent failures `mtrace()` and return, never throw.
 
 ### Degraded mode above `inventory_max` (§6.5, *ADR-004*)
 
-Above `inventory_max` enrolments (default 1 500) tier 3 does **not** ship the
+Above `inventory_max` enrolments (default 250) tier 3 does **not** ship the
 whole inventory to the browser: `get_inventory` returns group headers with
 counts only (one `GROUP BY category` query); each opened group fetches its rows
 by cursor (`LIMIT 100`, `after=courseid`); search becomes server-side — a
@@ -198,10 +198,10 @@ with a 300 ms debounce. The response carries
 
 ### Budgets and how they are tested (§6.6)
 
-| Endpoint | Reads | Server p95, plugin caches cold | Payload |
+| Endpoint | Reads per request | Server p95, plugin caches cold | Payload |
 |---|---|---|---|
-| `get_attention` | ≤ 6 | 150 ms | ≤ 20 KB |
-| `get_inventory` (500 enrolments) | ≤ 3 | 300 ms | ≤ 40 KB |
+| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
+| `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer (the user-context lookup) | 300 ms | ≤ 40 KB |
 | `get_inventory` (degraded, headers) | ≤ 2 | 150 ms | ≤ 5 KB |
 | `get_card_details` (24 ids) | 1 (the active-enrolment check that stops id enumeration) when every answer is cached or untracked; + 1 + completion for the courses that must be computed | 200 ms | ≤ 10 KB |
 
@@ -209,9 +209,19 @@ with a 300 ms debounce. The response carries
   (`lib/dml/moodle_database.php`, verified on 5.2): take a reading, run the
   endpoint, assert the delta. It counts **every** `SELECT`, including core's
   own (config, strings, contexts, `require_login`), so the measurement protocol
-  is fixed and written in each budget test's docblock: warm core by calling the
-  endpoint once, purge only the plugin's caches, then measure the second call.
-  "Cold" in the table means the plugin's caches, not core's.
+  is fixed and written in each budget test's docblock, and it counts reads
+  **per request**: warm what core keeps across requests (MUC, the session) by
+  calling the endpoint once; reset what core keeps only for the request, in PHP
+  globals — the filter array `$FILTERLIB_PRIVATE`, the user's preference bundle
+  (`$USER->preference`, reloaded by `check_user_preferences_loaded()` when
+  unset), core's `MODE_REQUEST` caches — purge the user's own layers
+  (`inventory`, `details`), keep the shared layers (`coursemeta`,
+  `categorymeta`) warm, and measure the second call. The table's figures are
+  that state, the steady state of shared layers kept hot by observers; every
+  cold shared layer adds one read, and the fully-cold bound is stated beside
+  the figure. A warm-up and a measurement in one PHP process without the reset
+  under-count by exactly that per-request state, which is what makes a
+  request-scoped core cache look free.
 - Time budgets are measured, not unit-tested: `EXPLAIN ANALYZE` on PostgreSQL
   (`psql` against port 5502) for every query in §6.1 and §6.3, attached to the
   ADR; concurrency (k6 or `ab`, 200 users on `get_attention`) on the GCP staging
@@ -270,8 +280,8 @@ implementation. The plan mandates four:
 
 | ADR | Decision | Written before |
 |---|---|---|
-| ADR-001 | two-layer cache (`coursemeta` / `inventory` / `details`), keys, invalidation, store | Phase 1 |
-| ADR-002 | stamp validation of `inventory` (`COUNT(*)` and `MAX(timemodified)` of enrolments, `MAX(timeaccess)` of last access) instead of observers | Phase 2 |
+| ADR-001 | two-layer cache (`coursemeta` / `categorymeta` / `inventory` / `details`), keys, invalidation, store; amended in Phase 2 with the category layer | Phase 1 |
+| ADR-002 | stamp validation of `inventory` (seven aggregates over enrolments, methods, last access and favourites, one statement) instead of observers | Phase 2 |
 | ADR-003 | optional, selective, budgeted pre-warming | Phase 3 |
 | ADR-004 | degraded `paged` mode above `inventory_max` | Phase 3 |
 
@@ -303,7 +313,7 @@ classes/
                              core_course_set_favourite_courses (the star) and
                              core_user_update_user_preferences (archiving) — ADR-000, decisions 8 and 16
     get_attention.php        tier 1 + ghost count (Phase 1)
-    get_inventory.php        tier 3, mode full|paged (Phases 2-3)
+    get_inventory.php        tier 3, mode full (Phase 2); paged in Phase 3
     get_card_details.php     image + progress for ≤ 24 visible ids (Phase 4)
   local/                     THE ONLY place $DB is allowed
     budget.php               perf_get_reads() delta helper used by every budget test (Phase 0)
@@ -313,10 +323,13 @@ classes/
     cards.php                rows → card arrays: formatting, images, progress, action label (Phase 1)
     filters.php              one-query bulk preload of string filters for many contexts (Phase 1)
     course_meta.php          course layer: coursemeta cache wrapper, miss fill, context rebuild (Phase 1)
+    category_meta.php        category layer: categorymeta cache wrapper, miss fill, context rebuild, group id (Phase 2)
     details.php              per user+course progress cache wrapper; null = no completion (Phase 1)
-    inventory.php            user layer: stamp validation + inventory cache wrapper (Phase 2)
+    inventory.php            user layer: fill, seven-field stamp, active rows at read time (Phase 2)
+    explore.php              inventory → groups by category depth, names formatted (Phase 2)
     dormancy.php             dormant classification (Phase 5)
-  observer.php               per-key cache deletes on the four events of db/events.php (Phase 1)
+  observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
+                             category events in Phase 2)
   task/warm_active_users.php optional scheduled task (Phase 3)
   output/                    renderable+templatable shells only (block.php)
   privacy/provider.php       Phase 0: null_provider. Becomes a user_preference_provider in the phase
@@ -324,12 +337,13 @@ classes/
                              preferences are core's and are exported/deleted by core)
 amd/src/                     ES modules: main, repository (the only module that calls core/ajax),
                              attention (renders tier 1, fills pending progress), favourites (the core
-                             star); later: explore, filter
+                             star), explore (renders tier 3 once, then toggles and reorders), filter
+                             (pure helpers: normalise, match, relative time, chips)
 amd/build/                   tracked minified output — rebuilt by mdl grunt, committed with src
 templates/                   block (shell, strips rendered empty), cards + card (one template; isnew
-                             switches the new-enrolment presentation), progress, ghost; later: group,
-                             row, skeleton, index
-db/                          access.php, services.php, caches.php (three definitions), events.php,
+                             switches the new-enrolment presentation), progress, ghost (a button that
+                             opens tier 3), explore (toolbar, index, groups), group, row
+db/                          access.php, services.php, caches.php (four definitions), events.php,
                              tasks.php (Phase 3). NO install.xml, NO upgrade.php with schema steps,
                              and no uninstall.php purge: the plugin owns no rows outside MUC
 lang/en, lang/pt_br          lockstep, alphabetical, no section comments
@@ -355,9 +369,12 @@ strings are never fetched from JS with `core/str` in a loop.
 
 Three round trips at most, each with a purpose: `get_attention` on first paint
 (tier 1 cards + ghost count, one call); `get_inventory` when the ghost card is
-clicked, the search box receives input, or the user scrolls past tier 1;
+clicked (Phase 2), and when the search box receives input or the user scrolls
+past tier 1 (both Phase 4);
 `get_card_details` in batches of ≤ 24 for rows entering the viewport
-(IntersectionObserver). The only other calls are to core's own services: the
+(IntersectionObserver, Phase 4). Tier 3 is rendered **once** from the
+`get_inventory` payload; search, chips and sort then only toggle `hidden` or
+reorder nodes. The only other calls are to core's own services: the
 star (`core_course_set_favourite_courses`) and preferences
 (`core_user_update_user_preferences`). Filtering, grouping and
 the side index work on the inventory already in the browser (except in `paged`
@@ -402,7 +419,8 @@ core rejects a preferences write for any family no callback declares.
 ### Caches are wrapped, never called raw
 
 Each definition in `db/caches.php` has exactly one wrapper class in
-`classes/local/` exposing `get_many()`, `set()` and `invalidate()`; callers
+`classes/local/` (four definitions, four wrappers: `course_meta`,
+`category_meta`, `inventory`, `details`) exposing `get_many()`, `set()` and `invalidate()`; callers
 never `\core_cache\cache::make()` themselves. That is where the stamp
 validation, the TTL choices and the "no course data inside `inventory`"
 invariant live, and where a test can assert them. Cache keys carry no `:`
@@ -477,8 +495,15 @@ Four rules the fleet paid for elsewhere and this plugin inherits:
   `core_course_set_favourite_courses` (`course/externallib.php`) for writing
   them from the browser — component `core_course`, itemtype `courses`.
 - Events: `\core\event\course_updated`, `course_category_updated`,
-  `course_deleted`, `course_completion_updated`,
+  `course_category_deleted`, `course_deleted`, `course_completion_updated`,
   `course_module_completion_updated` all exist under `lib/classes/event/`.
+  `course_category_updated` is created with `objectid` and `context` only, at
+  every site in `course/classes/category.php`, so it cannot tell a move from a
+  rename — the reason its observer also drops the descendants' entries.
+- Category records: `core_course_category::get_many()` reads core's
+  `coursecatrecords` cache, which is `MODE_REQUEST` (`lib/db/caches.php`) —
+  one read per request for every id, however often it was fetched before. The
+  hot path reads `categorymeta` instead and never calls it.
 - Preferences: `get_user_preferences()`, `set_user_preference()`,
   `unset_user_preference()` in `lib/moodlelib.php`.
 - Query counter: `$DB->perf_get_reads()` (`lib/dml/moodle_database.php`).
@@ -532,10 +557,10 @@ set per key (`format_mtube-502`).
 - Reduced motion honoured; favourite toggles announced through an assertive
   live region (`data-region="announce"`), and — from Phase 2, when tier 3
   exists — result counts through a polite one; icon-only buttons carry
-  `aria-label`. The ghost card is an `<a>` while it navigates (Phase 1: to the
-  My courses page) and becomes a `<button>` in the phase that makes it open
-  tier 3 in place, because an element that navigates is a link and one that
-  acts is a button.
+  `aria-label`. The ghost card is a `<button>` since Phase 2: it opens tier 3
+  in place and navigates nowhere (an element that navigates is a link, one
+  that acts is a button). Tier 3's result count is announced through a polite
+  live region on every filter change.
 
 ## Moodle 5.2-only: where this plugin departs from the fleet default
 
@@ -582,9 +607,10 @@ the following defaults flip, deliberately:
 ## Testing notes
 
 - Every external function has two tests beside it: behaviour and budget. The
-  budget test's docblock states the measurement protocol (warm core, purge
-  plugin caches, measure the second call) and the number it asserts, which is
-  the §6.6 figure, not "whatever it currently is".
+  budget test's docblock states the measurement protocol (warm core, reset
+  core's per-request state, purge the user's layers, keep the shared layers
+  warm, measure the second call) and the number it asserts, which is the §6.6
+  figure, not "whatever it currently is".
 - A test asserting that a cached path issued **no** query first proves the
   cache was warm (assert the stamp matched) — otherwise it passes when the
   cache is broken.
