@@ -1,12 +1,15 @@
-import{useRef as d,useState as h}from"react";import{amd as u}from"./amd";import{jsx as n,jsxs as g}from"react/jsx-runtime";var f={root:'[data-region="block_compass"]',ghostwrap:'[data-region="ghost"]'},y={tier2:"all",new:"new",favourites:"favourites"},b=o=>{try{return JSON.parse(o.dataset.config||"{}")}catch{return{}}},x=({count:o,text:a,cta:r,kind:e})=>{let i=d(null),[c,l]=h(!1);return n("button",{type:"button",ref:i,className:"compass-ghost card h-100 text-center w-100","data-region":"ghost-card","data-ghost":e,"aria-busy":c,onClick:async()=>{let t=i.current?.closest(f.root);if(!t||c)return;let p=b(t);l(!0);try{if(await(await u("block_compass/explore")).open(t,p,y[e]||"all"),e==="tier2"){let s=t.querySelector(f.ghostwrap);s&&(s.hidden=!0)}}catch{(await u("core/notification")).addNotification({message:p.labels?.loaderror||"",type:"error"})}finally{l(!1)}},children:g("span",{className:"card-body d-flex flex-column justify-content-center",children:[g("span",{className:"compass-ghost-count",children:["+",o]}),n("span",{className:"compass-ghost-text small text-muted",children:a}),r?n("span",{className:"compass-ghost-cta small mt-2",children:r}):null]})})},M=x;export{M as default};
+import{useState as p}from"react";import{jsx as s,jsxs as n}from"react/jsx-runtime";var i=({count:c,text:l,cta:t,kind:o,onExplore:r})=>{let[a,e]=p(!1);return s("button",{type:"button",className:"compass-ghost card h-100 text-center w-100","data-ghost":o,"aria-busy":a,onClick:async()=>{if(!a){e(!0);try{await r(o)}finally{e(!1)}}},children:n("span",{className:"card-body d-flex flex-column justify-content-center",children:[n("span",{className:"compass-ghost-count",children:["+",c]}),s("span",{className:"compass-ghost-text small text-muted",children:l}),t?s("span",{className:"compass-ghost-cta small mt-2",children:t}):null]})})},d=i;export{d as default};
 /**
  * The ghost card: a count, not a load (PLAN.md section 2, tier 2).
  *
- * A button, because pressing it opens tier 3 in place; it navigates nowhere.
- * The count and the labels arrive as props; everything else it needs - the
- * block root and its configuration - it reads off the page, from the same
- * data-config attribute the AMD client reads, so the two halves of the client
- * cannot disagree about the configuration while the migration is under way.
+ * A button, because pressing it opens tier 3 in place; it navigates nowhere. Three
+ * of them exist: one per strip for what did not fit, and the tier 2 one for every
+ * course outside tier 1 altogether. The kind decides which chip tier 3 opens on.
+ *
+ * In phase R1 this component found the block root and its configuration by walking
+ * the DOM, because it was mounted alone from a Mustache template. Phase R2 renders
+ * it inside the block, so it takes what it needs as props and touches nothing
+ * outside itself - the compromise R1 recorded, removed by the phase that could.
  *
  * @module     block_compass/Ghost
  * @copyright  2026 Anderson Blaine

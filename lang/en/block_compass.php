@@ -92,6 +92,7 @@ $string['prewarm_days'] = 'Pre-warm users active in the last';
 $string['prewarm_days_desc'] = 'Number of days: only users who logged in within this window are pre-warmed. Default 7.';
 $string['prewarm_desc'] = 'Optionally fill the caches of recently active users off-peak, so their first Dashboard visit of the day costs what every later one does.';
 $string['privacy:metadata'] = 'The Compass block does not store personal data of its own. It reads courses, enrolments, favourites and preferences that Moodle already stores.';
+$string['progresserror'] = 'Some progress could not be loaded.';
 $string['progressloading'] = 'Loading progress';
 $string['progresspercent'] = '{$a}% complete';
 $string['removefromfavourites'] = 'Remove from favourites';

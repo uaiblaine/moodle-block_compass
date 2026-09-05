@@ -16,102 +16,55 @@
 /**
  * The ghost card: a count, not a load (PLAN.md section 2, tier 2).
  *
- * A button, because pressing it opens tier 3 in place; it navigates nowhere.
- * The count and the labels arrive as props; everything else it needs - the
- * block root and its configuration - it reads off the page, from the same
- * data-config attribute the AMD client reads, so the two halves of the client
- * cannot disagree about the configuration while the migration is under way.
+ * A button, because pressing it opens tier 3 in place; it navigates nowhere. Three
+ * of them exist: one per strip for what did not fit, and the tier 2 one for every
+ * course outside tier 1 altogether. The kind decides which chip tier 3 opens on.
+ *
+ * In phase R1 this component found the block root and its configuration by walking
+ * the DOM, because it was mounted alone from a Mustache template. Phase R2 renders
+ * it inside the block, so it takes what it needs as props and touches nothing
+ * outside itself - the compromise R1 recorded, removed by the phase that could.
  *
  * @module     block_compass/Ghost
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useRef, useState} from 'react';
-import {amd} from './amd';
+import {useState} from 'react';
 
-const SELECTORS = {
-    root: '[data-region="block_compass"]',
-    ghostwrap: '[data-region="ghost"]',
-};
-
-/** The chip tier 3 opens on, per kind of ghost. */
-const CHIP_OF_KIND: Record<string, string> = {
-    tier2: 'all',
-    'new': 'new',
-    favourites: 'favourites',
-};
+/** Which ghost this is; the chip tier 3 opens on follows from it. */
+export type GhostKind = 'tier2' | 'new' | 'favourites';
 
 type GhostProps = {
     count: number,
     text: string,
     cta?: string,
-    kind: string,
-};
-
-type BlockConfig = {
-    labels?: Record<string, string>,
-};
-
-type ExploreModule = {
-    open: (root: HTMLElement, config: BlockConfig, chip: string) => Promise<void>,
-};
-
-type NotificationModule = {
-    addNotification: (notification: {message: string, type: string}) => void,
-};
-
-/**
- * Read the JSON configuration the server placed on the block root.
- *
- * @param {HTMLElement} root The block root.
- * @returns {object} The parsed configuration, or an empty one.
- */
-const readConfig = (root: HTMLElement): BlockConfig => {
-    try {
-        return JSON.parse(root.dataset.config || '{}') as BlockConfig;
-    } catch (e) {
-        return {};
-    }
+    kind: GhostKind,
+    onExplore: (kind: GhostKind) => Promise<void>,
 };
 
 /**
  * The ghost card.
  *
- * @param {object} props The count, its already-translated text and call to action, and the
- *     kind of ghost this is; see the GhostProps type above for the field types.
+ * @param {object} props The count, its already-translated text and call to action,
+ *     the kind of ghost, and what to do when it is pressed; see GhostProps.
  * @returns {object} The rendered button.
  */
-const Ghost = ({count, text, cta, kind}: GhostProps) => {
-    const button = useRef<HTMLButtonElement>(null);
+const Ghost = ({count, text, cta, kind, onExplore}: GhostProps) => {
     const [busy, setBusy] = useState(false);
 
     /**
      * Open tier 3 on the chip this kind implies.
      *
-     * @returns {Promise} Resolves once tier 3 is open, or once the failure has been reported.
+     * @returns {Promise} Resolves once tier 3 is open, or the failure reported.
      */
-    const explore = async(): Promise<void> => {
-        const root = button.current?.closest<HTMLElement>(SELECTORS.root);
-        if (!root || busy) {
+    const click = async(): Promise<void> => {
+        if (busy) {
             return;
         }
-        const config = readConfig(root);
         setBusy(true);
         try {
-            const module = await amd<ExploreModule>('block_compass/explore');
-            await module.open(root, config, CHIP_OF_KIND[kind] || 'all');
-            // The tier 2 ghost counts what tier 3 now lists, so it stops being true
-            // the moment tier 3 opens. The per-strip ghosts keep counting their strip.
-            if (kind === 'tier2') {
-                const wrap = root.querySelector<HTMLElement>(SELECTORS.ghostwrap);
-                if (wrap) {
-                    wrap.hidden = true;
-                }
-            }
-        } catch (e) {
-            const notification = await amd<NotificationModule>('core/notification');
-            notification.addNotification({message: config.labels?.loaderror || '', type: 'error'});
+            await onExplore(kind);
         } finally {
             setBusy(false);
         }
@@ -120,12 +73,10 @@ const Ghost = ({count, text, cta, kind}: GhostProps) => {
     return (
         <button
             type="button"
-            ref={button}
             className="compass-ghost card h-100 text-center w-100"
-            data-region="ghost-card"
             data-ghost={kind}
             aria-busy={busy}
-            onClick={explore}
+            onClick={click}
         >
             <span className="card-body d-flex flex-column justify-content-center">
                 <span className="compass-ghost-count">+{count}</span>

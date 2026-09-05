@@ -92,6 +92,7 @@ $string['prewarm_days'] = 'Pré-aquecer usuários ativos nos últimos';
 $string['prewarm_days_desc'] = 'Número de dias: apenas usuários que entraram dentro desta janela são pré-aquecidos. Padrão 7.';
 $string['prewarm_desc'] = 'Opcionalmente preenche os caches dos usuários ativos recentemente fora do horário de pico, para que a primeira visita ao Painel do dia custe o mesmo que as seguintes.';
 $string['privacy:metadata'] = 'O bloco Compass não armazena dados pessoais próprios. Ele lê cursos, inscrições, favoritos e preferências que o Moodle já armazena.';
+$string['progresserror'] = 'Não foi possível carregar parte do progresso.';
 $string['progressloading'] = 'Carregando progresso';
 $string['progresspercent'] = '{$a}% concluído';
 $string['removefromfavourites'] = 'Remover dos favoritos';

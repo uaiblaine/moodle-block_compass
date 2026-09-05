@@ -117,13 +117,6 @@
     grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
 }
 
-/* The fallback the React mount point carries is a div, not a control: it states the
-   count and does nothing, so it must not answer to hover the way the button does.
-   Same specificity as the rule above, so source order is what decides it. */
-.block_compass .compass-ghost-fallback:hover {
-    background: transparent;
-}
-
 .block_compass .compass-ghost-count {
     font-size: 1.75rem;
     font-weight: 600;

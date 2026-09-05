@@ -410,7 +410,7 @@ implementation. The plan mandates four:
 | ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04) |
-| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04), R1 implemented |
+| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1 and R2 implemented |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -472,17 +472,18 @@ classes/
   privacy/provider.php       Phase 0: null_provider. Becomes a user_preference_provider in the phase
                              that introduces block_compass_view (favourites and hidden-course
                              preferences are core's and are exported/deleted by core)
-amd/src/                     ES modules: main, repository (the only module that calls core/ajax),
-                             attention (renders tier 1, fills pending progress), favourites (the core
-                             star), explore (renders tier 3 once, then toggles and reorders), filter
-                             (pure helpers: normalise, match, relative time, chips)
+js/esm/src/                  React and TypeScript (5.2+): Block (tier 1 end to end), Strip, Card,
+                             Progress, Star, Ghost; amd (the RequireJS bridge), repository (typed view
+                             of the AMD one), str (placeholder substitution), types (the payload shapes)
+js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src
+amd/src/                     what is still AMD, all of it tier 3: repository (the only module that
+                             calls core/ajax), explore (renders tier 3 once, then toggles and
+                             reorders), filter (pure helpers: normalise, match, relative time, chips)
 amd/build/                   tracked minified output — rebuilt by mdl grunt, committed with src
-templates/                   block (shell, strips rendered empty), cards + card (one template; isnew
-                             switches the new-enrolment presentation), progress, ghost (a button that
-                             opens tier 3), explore (toolbar, index, groups), group (with the hidden
-                             "Show more" button of paged mode), row, rows (a fragment of row items
-                             appended into a group's list or the flat list in paged mode; no list
-                             role of its own)
+templates/                   block (the shell: a React mount point plus tier 3's region beside it),
+                             explore (toolbar, index, groups), group (with the hidden "Show more"
+                             button of paged mode), row, rows (a fragment of row items appended into
+                             a group's list or the flat list in paged mode; no list role of its own)
 db/                          access.php, services.php (five read functions), caches.php (four
                              definitions), events.php, tasks.php (warm_active_users, 04:00, random
                              minute; Phase 3). NO install.xml, NO upgrade.php with schema steps, and
@@ -726,10 +727,15 @@ things about writing them here are not obvious and were paid for in R1:
   trailing content is the fallback shown when the mount fails, so it must be
   true and inert — never a control that does nothing. Whatever only the mounted
   component renders is what a Behat step should assert.
-- **Strings are props.** There is no `core/str` for ESM. They travel through the
-  section's JSON, from the labels the shell already exports, wrapped in the
-  `quote` helper around a **triple** stash: nothing between there and React is
-  an HTML context, so a double stash reaches the reader as entities.
+- **Strings are props, and the props are one pre-encoded value.** There is no
+  `core/str` for ESM, so every label the client shows is a key the shell exports.
+  The producer JSON-encodes the whole props object and the template interpolates
+  it through a **triple** stash. Not the `quote` helper per field: it corrupts any
+  value holding a doubled-brace pair, measured in R1. And not a double stash:
+  nothing between there and React is an HTML context, so it would reach the reader
+  as entities. `data-react-props` **is** the props object — a component takes those
+  fields directly, and nesting them under a key of your own renders nothing at all,
+  silently, which is how R2 spent an afternoon.
 - **`js/esm/src/.eslintrc` is load-bearing, not decoration.** Core applies its
   jsdoc rules to `amd/src` and none at all to `.tsx`, so that file restores
   them; and it sets `no-unused-vars` to `args: "none"` because the base rule,
@@ -744,6 +750,25 @@ things about writing them here are not obvious and were paid for in R1:
   `className="…"` since R1 — and a computed `className={…}` defeats it, so the
   construct is banned outright and a test asserts the ban. Anything conditional
   picks between whole literals.
+- **There is no React eslint plugin either.** Core registers neither
+  `eslint-plugin-react` nor `eslint-plugin-react-hooks`, so `rules-of-hooks`,
+  `exhaustive-deps`, `jsx-key` and `no-danger` do not exist — and an
+  `eslint-disable-line` naming one of them is itself an error ("Definition for rule
+  was not found"). Nothing will tell you a hook is called conditionally. Write the
+  code so it needs no disable: R2's tier 1 does its fetch and its follow-up batches
+  in one function guarded by a sequence number, rather than in an effect whose
+  dependencies no rule checks.
+- **Server-rendered markup reaches React as a prop and is set as inner HTML.** That
+  is how the star icons arrive, because there is no `pix` helper for ESM — the shell
+  calls `$OUTPUT->render(new pix_icon(...))` once. The trust boundary is the fleet's
+  triple-stash one: core's own output, never user data.
+
+**What is still AMD after R2: tier 3 only** — `explore.js`, `filter.js` and
+`repository.js`. The React side borrows `repository.js` through the bridge rather
+than reimplementing it (`js/esm/src/repository.ts` is a typed view of it); two copies
+of the call list is how a half-migrated client starts answering differently. Tier 3's
+region is a **sibling** of the React tree, not inside it: `explore.js` writes markup
+there directly and React would undo that on its next render. Both go in R3.
 
 The AMD half, while it lasts:
 

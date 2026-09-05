@@ -25,6 +25,7 @@
 namespace block_compass\output;
 
 use block_compass\local\config;
+use core\output\pix_icon;
 use core\output\renderable;
 use core\output\renderer_base;
 use core\output\templatable;
@@ -44,8 +45,15 @@ class block implements renderable, templatable {
     /**
      * Export the shell context.
      *
+     * Everything the client needs travels in one JSON value, which the template hands
+     * to React as the component's props. Two kinds of thing are in it that a Mustache
+     * template would have fetched for itself, because an ES module cannot: language
+     * strings, since there is no core/str for ESM, and the two star icons, since there
+     * is no pix helper either (ADR-006). A string the client uses is a key here or it
+     * does not exist.
+     *
      * @param renderer_base $output The renderer.
-     * @return array Template context: strips and configjson.
+     * @return array Template context: the props JSON.
      */
     public function export_for_template(renderer_base $output): array {
         $keys = [
@@ -54,25 +62,33 @@ class block implements renderable, templatable {
             'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
             'lastopened', 'resultsshown', 'noresults', 'coursesingroup',
             'searchtooshort', 'searchtruncated', 'loadingrows', 'pagednote', 'filterupdated',
+            'badge_new', 'progressloading', 'progresserror', 'progresspercent', 'completed', 'retry',
         ];
         $labels = [];
         foreach ($keys as $key) {
             $labels[$key] = get_string($key, 'block_compass');
         }
-        $config = [
+        // The one core string the client shows; every other label is the plugin's own.
+        $labels['loading'] = get_string('loading');
+
+        $props = [
             'labels' => $labels,
+            'icons' => [
+                'staron' => $output->render(new pix_icon('i/star', '')),
+                'staroff' => $output->render(new pix_icon('i/star-o', '')),
+            ],
+            'strips' => [
+                ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
+                ['name' => 'new', 'title' => get_string('strip_new', 'block_compass')],
+                ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
+            ],
             'favouritesenabled' => config::favourites_enabled(),
             'showsearch' => config::search_enabled(),
             'showindex' => config::index_shown(),
         ];
 
         return [
-            'strips' => [
-                ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
-                ['name' => 'new', 'title' => get_string('strip_new', 'block_compass')],
-                ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
-            ],
-            'configjson' => json_encode($config),
+            'props' => json_encode($props),
         ];
     }
 }

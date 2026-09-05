@@ -108,21 +108,34 @@ final class block_compass_test extends advanced_testcase {
         $content = $this->make_block()->get_content();
 
         $this->assertStringContainsString('data-region="block_compass"', $content->text);
-        // The configuration travels as escaped JSON in a data attribute; the JS itself is
-        // queued on the page requirements by the Mustache js helper, not returned in the text.
-        $this->assertStringContainsString(s('"favouritesenabled":true'), $content->text);
-        $ghostlabel = json_encode(get_string('ghost_more', 'block_compass'));
-        $this->assertStringContainsString(s('"ghost_more":' . $ghostlabel), $content->text);
-        // The three strips are rendered empty and hidden, so their order and headings are stable.
+        // Since phase R2 the shell is a React mount point: the component name and its props
+        // ARE the contract between the server and the client, so they are what is asserted.
+        $this->assertStringContainsString('data-react-component="@moodle/lms/block_compass/Block"', $content->text);
+        $this->assertMatchesRegularExpression('/data-react-props=\'(.*?)\'/', $content->text);
+        preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
+        $props = json_decode(html_entity_decode($matches[1]), true);
+        $this->assertIsArray($props, 'the props attribute must decode as JSON');
+
+        $this->assertTrue($props['favouritesenabled']);
+        $this->assertSame(get_string('ghost_more', 'block_compass'), $props['labels']['ghost_more']);
+        // The strips travel in the props in order, with their headings: a client cannot ask
+        // for a string, so an absent label is an absent feature rather than a missing word.
+        $this->assertSame(
+            ['continue', 'new', 'favourites'],
+            array_column($props['strips'], 'name')
+        );
         $headings = [
             'continue' => get_string('strip_continue', 'block_compass'),
             'new' => get_string('strip_new', 'block_compass'),
             'favourites' => get_string('strip_favourites', 'block_compass'),
         ];
-        foreach ($headings as $strip => $heading) {
-            $this->assertStringContainsString('data-strip="' . $strip . '"', $content->text);
-            $this->assertStringContainsString($heading, $content->text);
-        }
+        $this->assertSame(array_values($headings), array_column($props['strips'], 'title'));
+        // The icons are server-rendered markup because there is no pix helper for ESM.
+        $this->assertStringContainsString('<i', $props['icons']['staron']);
+        $this->assertStringContainsString('<i', $props['icons']['staroff']);
+
+        // Tier 3 still renders into its own region, outside the React tree, until phase R3.
+        $this->assertStringContainsString('data-region="explore"', $content->text);
         $this->assertStringContainsString(get_string('javascriptrequired', 'block_compass'), $content->text);
         $this->assertSame('', $content->footer);
     }

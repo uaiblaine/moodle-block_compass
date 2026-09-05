@@ -1,0 +1,321 @@
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Tier 1: one request on first paint, then the strips.
+ *
+ * Everything the block shows above tier 3 is rendered here - the loading and error
+ * states, the three strips, the ghost cards, the empty state and the live region.
+ * Tier 3 is still AMD until phase R3; its region is a sibling of this component's
+ * root, outside React's tree, because explore.js writes into it directly and React
+ * would undo that on the next render.
+ *
+ * @module     block_compass/Block
+ * @copyright  2026 Anderson Blaine
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+import {useCallback, useEffect, useRef, useState} from 'react';
+import Strip from './Strip';
+import Ghost from './Ghost';
+import type {GhostKind} from './Ghost';
+import {amd} from './amd';
+import {fill} from './str';
+import {getAttention, getCardDetails, setFavourite} from './repository';
+import type {Attention, BlockConfig, CourseCard} from './types';
+
+const SELECTORS = {
+    root: '[data-region="block_compass"]',
+    explore: '[data-region="explore"]',
+};
+
+/** The chip tier 3 opens on, per kind of ghost. */
+const CHIP_OF_KIND: Record<GhostKind, string> = {
+    tier2: 'all',
+    'new': 'new',
+    favourites: 'favourites',
+};
+
+/** Get_card_details refuses more than this many ids, so the client batches. */
+const DETAILS_BATCH = 24;
+
+type ExploreModule = {
+    open: (root: HTMLElement, config: BlockConfig, chip: string) => Promise<void>,
+};
+
+type NotificationModule = {
+    addNotification: (notification: {message: string, type: string}) => void,
+};
+
+/**
+ * Apply a change to whichever strip holds a course.
+ *
+ * A course appears in exactly one strip (ADR-000: Continue, then New, then
+ * Favourite), so this rewrites at most one card - but it walks all three rather
+ * than assuming which, because the strip a course sits in is the server's decision.
+ *
+ * @param {object} data The payload.
+ * @param {number} courseid The course to change.
+ * @param {Function} change What to do to the card.
+ * @returns {object} A new payload; the old one is untouched.
+ */
+const withCard = (data: Attention, courseid: number, change: (card: CourseCard) => CourseCard): Attention => {
+    /**
+     * Map one strip.
+     *
+     * @param {object[]} cards The strip's cards.
+     * @returns {object[]} The strip, with the card changed if it is here.
+     */
+    const strip = (cards: CourseCard[]): CourseCard[] =>
+        cards.map((card) => (card.id === courseid ? change(card) : card));
+
+    return {...data, "continue": strip(data.continue), "new": strip(data.new), favourites: strip(data.favourites)};
+};
+
+/**
+ * The block.
+ *
+ * The props ARE the configuration: data-react-props is parsed and handed to the
+ * component as its props object, so what the shell exports is what arrives here.
+ * Wrapping it in a `config` key was this component's first bug, and an instructive
+ * one - React renders nothing, unmounts, and says so only in the console, which is
+ * the silent failure ADR-006 names. Nothing types the gap between a Mustache
+ * template and a component; the Behat scenario is what catches it.
+ *
+ * @param {object} config Everything classes/output/block.php exported; see BlockConfig.
+ * @returns {object} The rendered block.
+ */
+const Block = (config: BlockConfig) => {
+    const [data, setData] = useState<Attention | null>(null);
+    // The message to show, or null. It carries the text rather than a boolean because the
+    // two failures are different statements: tier 1 did not load, or it did and some of
+    // its progress did not. Saying the first when the cards are on screen is untrue.
+    const [error, setError] = useState<string | null>(null);
+    const [exploring, setExploring] = useState(false);
+    // The counter is what makes a repeat announceable: React writes nothing when the text
+    // is identical, so a screen reader would hear the first "X added to favourites" and
+    // not the second. Keying the region on it remounts the node, which is an announcement.
+    const [announcement, setAnnouncement] = useState({text: '', at: 0});
+    const root = useRef<HTMLDivElement>(null);
+    // Which load is current. A retry supersedes whatever the previous one still owes.
+    const seq = useRef(0);
+    const {labels} = config;
+
+    /**
+     * Fetch tier 1 and then the progress it could not answer from cache.
+     *
+     * Both halves live in one function, and the sequence number is why: pressing Try
+     * again while a fill is still running must not let the old run write into the new
+     * payload. Every write checks that it is still the current run first - the same
+     * guard explore.js uses for a superseded page fetch.
+     *
+     * @returns {Promise} Resolves when the payload and its details are in state, or
+     *     when the failure is.
+     */
+    const load = useCallback(async(): Promise<void> => {
+        const mine = seq.current + 1;
+        seq.current = mine;
+        setError(null);
+        setData(null);
+
+        let payload;
+        try {
+            payload = await getAttention();
+        } catch (e) {
+            if (seq.current === mine) {
+                setError(labels.loaderror || '');
+            }
+
+            return;
+        }
+        if (seq.current !== mine) {
+            return;
+        }
+        setData(payload);
+
+        const pending = [payload.continue, payload.new, payload.favourites]
+            .flat()
+            .filter((card) => card.pending)
+            .map((card) => card.id);
+
+        for (let at = 0; at < pending.length; at += DETAILS_BATCH) {
+            let answer;
+            try {
+                answer = await getCardDetails(pending.slice(at, at + DETAILS_BATCH));
+            } catch (e) {
+                /*
+                 * Say so, and stop claiming to be loading. A card whose progress never
+                 * arrives must not keep the loading text for ever - that becomes a lie the
+                 * moment we give up - and must not claim 0% either: an unknown percentage
+                 * is not a zero one. So the remaining cards lose their pending flag and
+                 * render no progress at all, and the banner says which half failed. The
+                 * cards themselves stay on screen; only their progress is missing.
+                 */
+                if (seq.current === mine) {
+                    setError(labels.progresserror || '');
+                    setData((current) => (current
+                        ? pending.slice(at).reduce(
+                            (into, id) => withCard(into, id, (card) => ({...card, pending: false})),
+                            current
+                        )
+                        : current));
+                }
+
+                return;
+            }
+            if (seq.current !== mine) {
+                return;
+            }
+            setData((current) => (current
+                ? answer.details.reduce(
+                    (into, detail) => withCard(into, detail.id, (card) => ({
+                        ...card,
+                        pending: false,
+                        hascompletion: detail.hascompletion,
+                        progress: detail.progress,
+                        nodata: detail.progress === null,
+                    })),
+                    current
+                )
+                : current));
+        }
+    }, [labels]);
+
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    /**
+     * Toggle the core course star of one course.
+     *
+     * @param {number} courseid The course.
+     * @param {boolean} favourite The state it becomes.
+     * @param {string} fullname The course name, for the announcement.
+     * @returns {Promise} Resolves when the write has been answered.
+     */
+    const toggleFavourite = useCallback(async(courseid: number, favourite: boolean, fullname: string) => {
+        try {
+            await setFavourite(courseid, favourite);
+            setData((current) => (current
+                ? withCard(current, courseid, (card) => ({...card, isfavourite: favourite}))
+                : current));
+            setAnnouncement((current) => ({
+                text: fill(favourite ? labels.favouriteadded : labels.favouriteremoved, fullname),
+                at: current.at + 1,
+            }));
+        } catch (e) {
+            const notification = await amd<NotificationModule>('core/notification');
+            notification.addNotification({message: labels.favouriteerror || '', type: 'error'});
+        }
+    }, [labels]);
+
+    /**
+     * Open tier 3, which is still an AMD module until phase R3.
+     *
+     * @param {string} kind Which ghost was pressed; it decides the chip.
+     * @returns {Promise} Resolves once tier 3 is open, or the failure reported.
+     */
+    const explore = useCallback(async(kind: GhostKind) => {
+        const block = root.current?.closest<HTMLElement>(SELECTORS.root);
+        if (!block || !block.querySelector(SELECTORS.explore)) {
+            return;
+        }
+        try {
+            const module = await amd<ExploreModule>('block_compass/explore');
+            await module.open(block, config, CHIP_OF_KIND[kind]);
+            // The tier 2 ghost counts what tier 3 now lists, so it stops being true the
+            // moment tier 3 opens. The per-strip ghosts keep counting their own strip.
+            if (kind === 'tier2') {
+                setExploring(true);
+            }
+        } catch (e) {
+            const notification = await amd<NotificationModule>('core/notification');
+            notification.addNotification({message: labels.loaderror || '', type: 'error'});
+        }
+    }, [config, labels]);
+
+    /**
+     * The ghost that closes a strip, when the server counted more than it sent.
+     *
+     * @param {string} kind Which strip.
+     * @param {number} count How many did not fit.
+     * @returns {object} The ghost description, or null when everything fitted.
+     */
+    const stripghost = (kind: GhostKind, count: number) => (count > 0
+        ? {count, text: kind === 'new' ? labels.ghost_more_new : labels.ghost_more_favourites, kind}
+        : null);
+
+    const shown = data ? data.continue.length + data.new.length + data.favourites.length : 0;
+    const ghosts: Record<string, {count: number, text: string, kind: GhostKind} | null> = data
+        ? {
+            'continue': null,
+            'new': stripghost('new', data.counts.newmore),
+            favourites: stripghost('favourites', data.counts.favouritesmore),
+        }
+        : {};
+
+    return (
+        <div ref={root}>
+            {!data && error === null && (
+                <div className="compass-status text-muted small" role="status" aria-live="polite">
+                    {labels.loading}
+                </div>
+            )}
+            {error !== null && (
+                <div className="alert alert-warning compass-error" role="alert">
+                    <span>{error}</span>
+                    <button type="button" className="btn btn-sm btn-outline-secondary ms-auto" onClick={load}>
+                        {labels.retry}
+                    </button>
+                </div>
+            )}
+            {data && config.strips.map((strip) => (
+                <Strip
+                    key={strip.name}
+                    name={strip.name}
+                    title={strip.title}
+                    cards={data[strip.name]}
+                    ghost={ghosts[strip.name] || null}
+                    config={config}
+                    onToggleFavourite={toggleFavourite}
+                    onExplore={explore}
+                />
+            ))}
+            {data && data.counts.more > 0 && !exploring && (
+                <div className="compass-ghost-wrap">
+                    <Ghost
+                        count={data.counts.more}
+                        text={labels.ghost_more}
+                        cta={labels.ghost_explore}
+                        kind="tier2"
+                        onExplore={explore}
+                    />
+                </div>
+            )}
+            {data && shown === 0 && (
+                <p className="compass-empty text-muted">
+                    {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
+                </p>
+            )}
+            {/* Always in the DOM: a live region added at the moment of the change is
+                not reliably announced, because there was nothing to observe before it. */}
+            <span key={announcement.at} className="visually-hidden" role="alert" aria-live="assertive">
+                {announcement.text}
+            </span>
+        </div>
+    );
+};
+
+export default Block;

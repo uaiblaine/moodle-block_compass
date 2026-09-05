@@ -62,6 +62,16 @@ final class bootstrap_compat_test extends basic_testcase {
     ];
 
     /**
+     * A badge's class attribute, under both spellings the client writes.
+     *
+     * ONE pattern, shared by the rule and by the guard that proves the rule reads both
+     * languages. Two copies would let the guard pass while the rule went blind, which is
+     * the shape this whole file exists to prevent - and the first draft of the guard had
+     * exactly that bug.
+     */
+    private const BADGE_ATTRIBUTE = '/\bclass(?:Name)?="([^"]*\bbadge\b[^"]*)"/';
+
+    /**
      * Every file the scan covers, with its contents.
      *
      * @return array Relative path => contents.
@@ -104,9 +114,14 @@ final class bootstrap_compat_test extends basic_testcase {
     public function test_the_scan_covers_templates_javascript_and_the_stylesheet(): void {
         $files = $this->sources();
 
-        $this->assertArrayHasKey('templates/card.mustache', $files);
-        $this->assertArrayHasKey('amd/src/attention.js', $files);
-        $this->assertArrayHasKey('js/esm/src/Ghost.tsx', $files);
+        // One file per source language the plugin still writes markup in, named rather than
+        // counted: a glob that silently stops matching is how this defect class ships, and
+        // a count alone would pass with js/esm/src empty. Update these as phases move them
+        // - the shell and tier 3's row survive until R3, and Card.tsx until the plugin does.
+        $this->assertArrayHasKey('templates/block.mustache', $files);
+        $this->assertArrayHasKey('templates/row.mustache', $files);
+        $this->assertArrayHasKey('amd/src/explore.js', $files);
+        $this->assertArrayHasKey('js/esm/src/Card.tsx', $files);
         $this->assertArrayHasKey('styles.css', $files);
         $this->assertGreaterThanOrEqual(8, count($files));
     }
@@ -147,7 +162,7 @@ final class bootstrap_compat_test extends basic_testcase {
     public function test_every_badge_states_its_text_colour(): void {
         $badges = 0;
         foreach ($this->sources() as $file => $contents) {
-            preg_match_all('/\bclass(?:Name)?="([^"]*\bbadge\b[^"]*)"/', $contents, $matches);
+            preg_match_all(self::BADGE_ATTRIBUTE, $contents, $matches);
             foreach ($matches[1] as $classes) {
                 $badges++;
                 $this->assertMatchesRegularExpression(
@@ -169,6 +184,27 @@ final class bootstrap_compat_test extends basic_testcase {
         }
         // The rule must have had something to check, or a renamed class silently disables it.
         $this->assertGreaterThanOrEqual(1, $badges, 'no badge found: has the card template lost its New badge?');
+
+        /*
+         * And it must have checked a badge on EACH side of the migration, which the count
+         * above cannot tell: while one Mustache badge survives in tier 3, dropping the
+         * className half of the regex would leave every React badge unread and the total
+         * still non-zero. Phase R1 recorded this gate as owed by the phase that wrote the
+         * first .tsx badge; this is that phase.
+         */
+        $reactbadges = 0;
+        foreach ($this->sources() as $file => $contents) {
+            if (!str_ends_with($file, '.tsx')) {
+                continue;
+            }
+            $reactbadges += preg_match_all(self::BADGE_ATTRIBUTE, $contents);
+        }
+        $this->assertGreaterThanOrEqual(
+            1,
+            $reactbadges,
+            'no badge found in the React sources: has Card.tsx lost its New badge, or has the '
+                . 'attribute regex stopped reading className?'
+        );
     }
 
     /**

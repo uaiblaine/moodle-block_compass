@@ -8,6 +8,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase R2 — tier 1 is React (ADR-006), version 2026090501. The block shell is now
+  a single mount point: `classes/output/block.php` exports one props object and
+  `templates/block.mustache` hands it to `block_compass/Block`, which owns the
+  loading and error states, the three strips, the cards, the ghost cards, the
+  favourite star, the empty state and the live region. `main.js`, `attention.js`
+  and `favourites.js` are deleted with their build output, and so are the
+  `card`, `cards`, `progress`, `ghost` and `tier2` templates.
+  Two things the shell now ships that a Mustache template would have fetched for
+  itself, because an ES module cannot: the language strings, since there is no
+  `core/str` for ESM, and the two star icons as server-rendered markup, since
+  there is no `pix` helper either. A string the client uses is a key in the props
+  or it does not exist.
+  `js/esm/src/repository.ts` puts types on `amd/src/repository.js` through the
+  bridge rather than reimplementing it: tier 3 is still AMD until R3, and two copies
+  of the call list is how a half-migrated client starts answering differently.
+  Tier 3's region stays a sibling of the React tree, outside it, because
+  `explore.js` writes into it directly and React would undo that on the next render.
+  The R1 compromise is gone: `Ghost` no longer reads the block root out of the DOM,
+  it takes what it needs as props.
+  `bootstrap_compat_test` gains the gate R1 recorded as owed: one shared pattern for
+  the badge attribute, and a guard proving it reads a badge in the React sources and
+  not merely somewhere — with one Mustache badge still alive in tier 3, the rule's own
+  total would have stayed non-zero while every React badge went unread.
+
 - Phase R1, the React spike — the tier 2 ghost card is a React component
   (ADR-006), version 2026090405. `js/esm/src/Ghost.tsx` is mounted from the new
   `templates/tier2.mustache` through core's Mustache `react` section, which
