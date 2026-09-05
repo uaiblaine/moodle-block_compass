@@ -43,6 +43,38 @@ until it exists nothing mounts the plugin anywhere, whatever this file says —
 and `auto` means `version.php`'s `supported` range decides the stacks (m502 and
 m502b at `[502, 502]`). One edit is live on both; there is no copy step.
 
+## Agent orchestration budget (fleet rule, repeated here on purpose)
+
+This is section 6 of `~/dev/CLAUDE.md`, mirrored into every repo of the fleet.
+It is the one fleet rule these files are allowed to duplicate: a session opened
+inside a plugin directory does not always carry the fleet file in context, and
+the cost of missing this rule is paid immediately, in tokens, before anyone
+notices it was missing.
+
+**Every `Agent` call and every `agent()` inside a Workflow sets `model`
+explicitly.** An omitted `model` runs that subagent on the session model — the
+most expensive one — and is a defect, not a default:
+
+- `sonnet` — readers, graders, refuters, verifiers, measurers, stale-reference
+  sweeps, mechanical renames, test files written against a stated contract.
+- `opus` — implementers of non-trivial code, ADR and documentation drafters,
+  consolidators, critics, estimators.
+- the session model — only for work done inline in the main loop, never for a
+  subagent.
+
+Multi-agent workflows stay opt-in and lean whatever mode is on: size the fan-out
+to the question (roughly 10 to 25 agents), one refuter per finding and only for
+blocking findings, no open-ended "investigate every gap" rounds. Stop and resume
+with `resumeFromRunId` rather than relaunching, so completed agents stay cached.
+State which model each role got when reporting a launch.
+
+Measured 2026-09-02 on the hub category-context gap analysis: 7 lenses x 2
+refuters x 2 measurers plus a critic round, every one of them on the session
+model, had to be interrupted for cost — 36 agents with the refuters on Sonnet
+produced the same verified result. The rule has been restated three times
+(2026-09-01, 2026-09-02, 2026-09-04), the last time over implementers launched
+without `model` while the reviewers around them were correctly downgraded.
+
 ## Commands
 
 ```sh
@@ -53,7 +85,8 @@ mdl ci moodle-block_compass --strict           # phpmd as a gate; keep it at zer
 mdl phpunit m502 block_compass                 # whole suite (re-init first if any mounted version.php moved)
 mdl phpunit m502 blocks/compass/tests/external/get_attention_test.php
 mdl behat m502 @block_compass                  # smoke scenarios only
-mdl grunt m502 blocks/compass                  # rebuild amd/build — commit with the src change + version bump
+mdl grunt m502 blocks/compass                  # rebuild js/esm/build — commit with the src change + version bump
+mdl purge m502                                 # AND THEN THIS: a rebuilt js/esm module is invisible until the JS revision moves
 mdl purge m502                                 # after PHP changes that affect rendered output
 mdl mutate moodle-block_compass <spec> --stack m502b   # break one guard, prove exactly one test reddens
 psql -h localhost -p 5502 -U moodle moodle     # EXPLAIN ANALYZE the queries in classes/local/ (password in ~/dev/CLAUDE.md §1)
@@ -78,21 +111,24 @@ it with the maintainer** instead of working around it.
    `user_preferences`. If a feature seems to need another store, stop and
    discuss — the answer has so far always been one of those three.
 2. **The server ships a shell; the browser renders.** `block_compass.php` and
-   `classes/output/` export labels, ids and configuration JSON only — no `$DB`,
-   no cache reads, no course data. Data arrives over AJAX and cards/rows are
-   rendered client-side with `core/templates`. Never add server-side card
-   building back into the block class (block_dimensions removed exactly that
-   dead path once).
+   `classes/output/` export labels, icons and configuration as one props object —
+   no `$DB`, no cache reads, no course data. Data arrives over AJAX and every card
+   and row is rendered by React (ADR-006; it was `core/templates` until R3). Never
+   add server-side card building back into the block class (block_dimensions
+   removed exactly that dead path once).
 3. **Pay only for what is visible.** Image and progress are fetched for cards
    actually on screen (tier 1, and tier 3 rows inside the viewport plus a
    buffer), in batches of at most 24 ids. Counting is cheap; rendering is not.
 4. **Tier 1 never depends on the full inventory.** The first paint is resolved
    by limited, indexed queries (§6.1 below) and must stay correct when the
    inventory cache is cold, stale or disabled.
-5. **Filtering never re-renders.** Search and filters toggle the `hidden`
-   attribute on nodes already in the DOM. New Ajax calls are for new data
-   (opening a group in degraded mode, server-side search), never for a filter
-   the browser can apply itself.
+5. **A filter the browser can answer costs no request.** New Ajax calls are for
+   new data — opening a group in degraded mode, server-side search — never for a
+   filter over rows already held. Until R3 this rule read "filtering never
+   re-renders", because the mechanism was toggling `hidden` on nodes already in the
+   DOM; under ADR-006 filtering re-renders from state and still issues nothing,
+   which is the same promise kept a different way. The half that was never about
+   mechanism is the half to enforce: **count the requests**.
 6. **Core first.** `core_course`, `core_completion`, `core_favourites`,
    `core_user`. Own SQL lives **only** in `classes/local/`, and every statement
    there carries a comment naming the index it rides and either a `LIMIT` or an
@@ -292,21 +328,22 @@ ancestors → group id per course):
   required by 5.2 (`admin/environment.xml:5402`), so `Normalizer` is always
   there.
 
-The client (`explore.js`) reads `mode` once. In `paged`: every group renders
-**closed** with its count (full mode opens the first); the first `toggle` that
-opens a group fetches page 1 and appends its rows through
-`templates/rows.mustache` inside the group's existing `data-region="rows"`
-list; a "Show more" button (`data-action="showmore"`, hidden while `hasmore` is
-false) fetches the next page with the stored `after`, and a click while a
-fetch is in flight is ignored; a chip or sort change clears every loaded group
-and refetches page 1 of the open ones — **sort never flattens in paged mode**,
-the flat list serves only the search; search debounces `PAGE_DEBOUNCE_MS` =
-300, hides the groups wrapper and the index nav while a query is active,
-renders the hits into `data-region="flat"` with each item stamped with its
-`groupid`, and announces the count plus `searchtruncated` when cut; clearing
-the query restores the groups. The `pagednote` label is announced once through
-the polite live region after the first render. Full mode keeps every Phase 2
-behaviour untouched; the UI is the same in both. Known limits, recorded in
+The client (`js/esm/src/Explore.tsx` since R3) reads `mode` once. In `paged`:
+every group renders **closed** with its count (full mode opens the first);
+opening a group fetches page 1 and a "Show more" button fetches the next with
+the stored `after`, both ignored while a page is in flight, and a page whose
+rows the group already holds replaces them rather than appending — the server
+restarted the group because its cursor was gone; a chip or sort change clears
+every loaded group and refetches the open ones — **sort never flattens in paged
+mode**, the flat list serves only the search; search debounces
+`PAGE_DEBOUNCE_MS` = 300, replaces the groups and the index with its hits, and
+announces the count plus `searchtruncated` when cut; clearing the query restores
+the groups. `pagednote` is announced once through the polite live region after
+the first render, and a chip or sort change announces `filterupdated` instead of
+a count, because none is true yet. A failed page marks the group `failed` rather
+than being retried — the effect that fetches an open group would otherwise ask
+again immediately, for ever; reopening the group is the retry. Full mode keeps
+every Phase 2 behaviour; the UI is the same in both. Known limits, recorded in
 ADR-004: raw-name ordering of pages, header counts not narrowed by chips until
 a group's rows arrive, a user crossing the threshold sees the mode change
 between visits.
@@ -410,7 +447,7 @@ implementation. The plan mandates four:
 | ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04) |
-| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1 and R2 implemented |
+| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1, R2 and R3 implemented — the AMD tree is gone |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -472,18 +509,17 @@ classes/
   privacy/provider.php       Phase 0: null_provider. Becomes a user_preference_provider in the phase
                              that introduces block_compass_view (favourites and hidden-course
                              preferences are core's and are exported/deleted by core)
-js/esm/src/                  React and TypeScript (5.2+): Block (tier 1 end to end), Strip, Card,
-                             Progress, Star, Ghost; amd (the RequireJS bridge), repository (typed view
-                             of the AMD one), str (placeholder substitution), types (the payload shapes)
+js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since R3:
+                             Block (the block: tiers 1 and 2, and tier 3 once opened), Strip, Card,
+                             Progress, Star, Ghost; Explore (tier 3, both modes), Group, Row;
+                             repository (every web service, through the bridge to core/ajax),
+                             amd (the RequireJS bridge — the only file that knows about it),
+                             filter (normalise, match, relative time, chips — the PHP twin of the
+                             first two is classes/local/matcher.php and the pair is pinned by a
+                             fixture), str (placeholder substitution), types (the payload shapes)
 js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src
-amd/src/                     what is still AMD, all of it tier 3: repository (the only module that
-                             calls core/ajax), explore (renders tier 3 once, then toggles and
-                             reorders), filter (pure helpers: normalise, match, relative time, chips)
-amd/build/                   tracked minified output — rebuilt by mdl grunt, committed with src
-templates/                   block (the shell: a React mount point plus tier 3's region beside it),
-                             explore (toolbar, index, groups), group (with the hidden "Show more"
-                             button of paged mode), row, rows (a fragment of row items appended into
-                             a group's list or the flat list in paged mode; no list role of its own)
+templates/                   block — the only one left: a React mount point, its fallback, and the
+                             noscript. Every card, row, group and toolbar is a component
 db/                          access.php, services.php (five read functions), caches.php (four
                              definitions), events.php, tasks.php (warm_active_users, 04:00, random
                              minute; Phase 3). NO install.xml, NO upgrade.php with schema steps, and
@@ -712,7 +748,7 @@ set per key (`format_mtube-502`).
 both halves are live and the rules below apply to whichever half a file is in.
 
 React sources are `js/esm/src/**/*.tsx` and `**/*.ts`; the build is committed in
-`js/esm/build/` exactly as `amd/build/` is, rebuilt by the same
+`js/esm/build/` the way `amd/build/` used to be, rebuilt by the same
 `mdl grunt m502 blocks/compass`, and a `js/esm` change bumps `version.php` for
 the same reason an `amd` change does — the revision is in the served URL. Five
 things about writing them here are not obvious and were paid for in R1:
@@ -763,44 +799,36 @@ things about writing them here are not obvious and were paid for in R1:
   calls `$OUTPUT->render(new pix_icon(...))` once. The trust boundary is the fleet's
   triple-stash one: core's own output, never user data.
 
-**What is still AMD after R2: tier 3 only** — `explore.js`, `filter.js` and
-`repository.js`. The React side borrows `repository.js` through the bridge rather
-than reimplementing it (`js/esm/src/repository.ts` is a typed view of it); two copies
-of the call list is how a half-migrated client starts answering differently. Tier 3's
-region is a **sibling** of the React tree, not inside it: `explore.js` writes markup
-there directly and React would undo that on its next render. Both go in R3.
+**Nothing is AMD any more.** R3 deleted the last three modules and four templates;
+`core/ajax` and `core/notification` are the only AMD left anywhere near this plugin
+and both are reached through `js/esm/src/amd.ts`.
 
-The AMD half, while it lasts:
+Tier 3, whose behaviour is the most intricate thing here:
 
-- ES modules in `amd/src/`, no jQuery, `SELECTORS` const of `data-*` hooks,
-  one `repository.js` owning every `core/ajax` call, `core/templates`
-  `renderForPromise` for cards and rows, `core/notification` for errors.
-  Core modules with named exports and no default (`core/pubsub`) are imported
-  as `import * as PubSub` — a default import compiles to `undefined` and ships
-  a runtime error through every green gate, because nothing in the pipeline
-  executes plugin JavaScript (`enrol_apply`).
-- Filtering toggles `hidden`; virtualisation renders viewport rows plus a
-  buffer; lazy details through IntersectionObserver; debounce 150 ms client
-  search (`DEBOUNCE_MS`), 300 ms server search (`PAGE_DEBOUNCE_MS`).
-- Paged mode in `explore.js` keeps per-group state in a `Map` (`groupid` →
-  `{after, hasmore, loaded, loading, seq}`): `loading` swallows a second click
-  while a page is in flight (the "Show more" button reads `loadingrows`
-  meanwhile), and a reset bumps `seq` so a late answer to a superseded fetch is
-  dropped — the search keeps its own sequence number for the same reason. Rows
-  arrive through `block_compass/rows`, a
-  fragment of `row-item` elements appended into the group's existing
-  `role="list"` wrapper (the fragment declares no list role of its own), each
-  item stamped with `dataset.groupId` and each row with `dataset.search` from
-  its rendered name, then `fillRelativeTimes`. No `innerHTML`: `textContent`
-  only. Object literals that carry the `new` key quote it (`'new'`), as
-  `rowFacts` does, for `quote-props` consistency. The five Phase 3 labels the
-  shell exports are `searchtooshort`, `searchtruncated`, `loadingrows`,
-  `pagednote` and `filterupdated` — the last one is what a chip or sort change
-  announces in paged mode, where no total exists to announce until every group
-  is open, so the live region says the counts are unfiltered totals instead of
-  showing a number that would be wrong. The "Show more" control is `.compass-showmore`, a full-width
-  `btn-link` with a top border in `--block_compass-line` and no radius — no
-  `!important`.
+- **Two modes and one component.** `Explore.tsx` reads `mode` from the payload
+  (ADR-004). Full: every row is held, and the chip, the query and the sort are
+  applied by re-rendering from state — no request. Paged: the groups arrive with
+  counts only, a group fetches on first open and page by page, the chip and sort
+  are **parameters** of those fetches, and the search box asks the server because
+  the rows are not here to search.
+- **Sequence numbers, not cancellation.** A per-group counter and one for the
+  search: a reset or a newer query bumps it, and an answer whose number no longer
+  matches is dropped rather than shown. A page that arrives holding rows the group
+  already has means the server restarted the group (its cursor was gone), so the
+  page replaces what is held instead of appending.
+- **Debounce 150 ms in full mode, 300 in paged** — one costs a request, the other
+  does not. A query shorter than two characters normalised is never sent, because
+  the server would refuse it.
+- **The live region says what is true of the mode it is in.** Full mode announces
+  a count. Paged mode has no total to announce until every group is open, so a chip
+  or sort change announces `filterupdated`, which says the counts are unfiltered
+  totals, and the first render announces `pagednote`. Both are keyed on a counter
+  so a repeated message is still spoken.
+- **The category index hides below 640 px of the SECTION**, measured with a
+  `ResizeObserver` — the block may sit in a drawer, and a viewport query would fire
+  at the wrong moments.
+- **Focus after "Show more" is deliberate**: back to the button while pages remain,
+  and into the rows when the last page removes it.
 - Root class `.block_compass` is what core already puts on the block wrapper (`html_attributes()` in `blocks/moodleblock.class.php`), so
   scope styles and tokens there and repeat the token block on any element core
   relocates (`core/modal` dialogues appended to `body`). Custom properties use
