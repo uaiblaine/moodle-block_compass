@@ -1,0 +1,80 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template block_compass/tier2
+
+    The tier 2 ghost card, mounted as a React component (ADR-006, phase R1).
+
+    The react section carries a JSON object naming the component and its props,
+    followed by the content shown until React takes over - and shown for good if
+    it never does, since a failed import leaves the element untouched with only a
+    console message. That fallback is therefore deliberately NOT a button: it
+    states the count, which is true, and offers no action, because there would be
+    nothing behind it. Only the mounted component renders the call to action, so a
+    step asserting the call to action is asserting that React mounted.
+
+    The props arrive already JSON-encoded, in one value, through a triple stash.
+    That is not a style choice and the obvious alternative is broken: wrapping each
+    string in the quote helper corrupts any value containing two or three
+    consecutive curly braces. The quote helper JSON-encodes and then neutralises
+    such a run with a Mustache delimiter-change directive, which only comes out
+    right if something downstream re-parses the result as a template - and nothing
+    does here, in either engine, so the directive text itself lands in the props.
+    Measured on m502 in phase R1 with a label holding a doubled-brace pair around a
+    word: it reached the component as the escape markers, while the fallback beside
+    it, a plain double stash, showed the original. No console error, no JSON syntax
+    error, nothing to see. JSON.stringify in the caller is the whole fix. (The
+    offending sequence is described rather than written because a Mustache comment
+    closes at the first pair of closing braces, which would truncate this docblock.)
+
+    The stash is triple because nothing between here and React is an HTML context:
+    the value is JSON, carried in a data attribute, parsed back with JSON.parse and
+    rendered as a React text node, which escapes for itself. A double stash would
+    reach the reader as literal entities. Mustache does not re-scan an interpolated
+    value, so braces inside the JSON stay inert.
+
+    Rendered from the browser by block_compass/attention, so the section is
+    processed by the client-side Mustache engine, which implements the same helper
+    as the PHP one (lib/amd/src/local/templates/renderer.js).
+
+    Context variables required for this template:
+    * count - the number of courses not shown in tier 1, for the fallback.
+    * text - what is counted, already translated, for the fallback.
+    * props - the component's props, already JSON-encoded by the caller: an object
+      with count, text, cta and kind, the last being tier2, new or favourites,
+      which decides the chip preselected when tier 3 opens.
+
+    Example context (json):
+    {
+        "count": 87,
+        "text": "other courses & more",
+        "props": "{\"count\": 87, \"text\": \"other courses & more\", \"cta\": \"Explore all\", \"kind\": \"tier2\"}"
+    }
+}}
+{{#react}}
+{
+    "component": "@moodle/lms/block_compass/Ghost",
+    "props": {{{props}}},
+    "class": "compass-ghost-mount"
+}
+<div class="compass-ghost compass-ghost-fallback card h-100 text-center w-100">
+    <span class="card-body d-flex flex-column justify-content-center">
+        <span class="compass-ghost-count">+{{count}}</span>
+        <span class="compass-ghost-text small text-muted">{{text}}</span>
+    </span>
+</div>
+{{/react}}

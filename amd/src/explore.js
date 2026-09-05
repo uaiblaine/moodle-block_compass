@@ -716,6 +716,71 @@ const selectChip = (state, chip) => {
 };
 
 /**
+ * Fetch the inventory and render tier 3 into the region.
+ *
+ * Split out of open() so the state flag can be cleared on failure without wrapping the
+ * whole of open() -- the part after it is idempotent and must run on a warm region too.
+ *
+ * @param {HTMLElement} region The tier 3 region.
+ * @param {Object} config Block configuration.
+ * @returns {Promise}
+ */
+const render = async(region, config) => {
+    const data = await getInventory();
+    const mode = data.mode === 'paged' ? 'paged' : 'full';
+    const paged = mode === 'paged';
+    // In paged mode every group arrives with an empty courses list and starts closed: its rows
+    // are fetched on first open (ADR-004). In full mode the first group starts open.
+    const groups = data.groups.map((group, index) => ({
+        ...group,
+        open: !paged && index === 0,
+        courses: withUrls(group.courses),
+    }));
+    const rendered = await Templates.renderForPromise('block_compass/explore', {
+        total: data.total,
+        showsearch: !!config.showsearch,
+        showindex: !!config.showindex,
+        groups,
+    });
+    Templates.replaceNodeContents(region, rendered.html, rendered.js);
+    const root = region.querySelector(SELECTORS.root);
+    const labels = config.labels || {};
+    decorateItems(
+        Array.from(root.querySelectorAll(SELECTORS.items)),
+        labels,
+        (row) => row.closest(SELECTORS.groups).dataset.groupId
+    );
+    const showmore = root.querySelector(SELECTORS.showMore);
+    const state = {
+        root,
+        labels,
+        showindex: !!config.showindex,
+        mode,
+        query: '',
+        chip: 'all',
+        sort: 'category',
+        openbeforesearch: null,
+        pages: new Map(),
+        searching: false,
+        searchseq: 0,
+        showmorelabel: showmore ? showmore.textContent.trim() : '',
+    };
+    region.compassState = state;
+    wire(state);
+    observeWidth(state);
+    if (paged) {
+        const results = root.querySelector(SELECTORS.results);
+        if (results) {
+            // Said once, politely: rows arrive as groups open, and the search reaches every course.
+            results.textContent = labels.pagednote || '';
+        }
+    } else {
+        applyFilters(state);
+    }
+    region.dataset.state = 'ready';
+};
+
+/**
  * Fetch and render tier 3 into the block, once; later calls only reveal it.
  *
  * @param {HTMLElement} blockroot The block root.
@@ -729,59 +794,23 @@ export const open = async(blockroot, config, chip = 'all') => {
         return;
     }
     if (!region.dataset.state) {
+        /*
+         * The flag is what makes every later open() a no-op, so it must not survive a
+         * failure. getInventory() rejects on any transient network or web-service error,
+         * and every caller answers that with a notification -- which invites a retry. Left
+         * marked 'loading', the retry would skip the fetch entirely, fall through to
+         * region.hidden = false and RESOLVE, revealing an empty region and, on the tier 2
+         * path, hiding the ghost card that was the way back in: neither a working ghost
+         * nor a working tier 3 until a reload. Clear it and rethrow, so a retry really is
+         * one. Found by review in phase R1; the defect dates from Phase 2.
+         */
         region.dataset.state = 'loading';
-        const data = await getInventory();
-        const mode = data.mode === 'paged' ? 'paged' : 'full';
-        const paged = mode === 'paged';
-        // In paged mode every group arrives with an empty courses list and starts closed: its rows
-        // are fetched on first open (ADR-004). In full mode the first group starts open.
-        const groups = data.groups.map((group, index) => ({
-            ...group,
-            open: !paged && index === 0,
-            courses: withUrls(group.courses),
-        }));
-        const rendered = await Templates.renderForPromise('block_compass/explore', {
-            total: data.total,
-            showsearch: !!config.showsearch,
-            showindex: !!config.showindex,
-            groups,
-        });
-        Templates.replaceNodeContents(region, rendered.html, rendered.js);
-        const root = region.querySelector(SELECTORS.root);
-        const labels = config.labels || {};
-        decorateItems(
-            Array.from(root.querySelectorAll(SELECTORS.items)),
-            labels,
-            (row) => row.closest(SELECTORS.groups).dataset.groupId
-        );
-        const showmore = root.querySelector(SELECTORS.showMore);
-        const state = {
-            root,
-            labels,
-            showindex: !!config.showindex,
-            mode,
-            query: '',
-            chip: 'all',
-            sort: 'category',
-            openbeforesearch: null,
-            pages: new Map(),
-            searching: false,
-            searchseq: 0,
-            showmorelabel: showmore ? showmore.textContent.trim() : '',
-        };
-        region.compassState = state;
-        wire(state);
-        observeWidth(state);
-        if (paged) {
-            const results = root.querySelector(SELECTORS.results);
-            if (results) {
-                // Said once, politely: rows arrive as groups open, and the search reaches every course.
-                results.textContent = labels.pagednote || '';
-            }
-        } else {
-            applyFilters(state);
+        try {
+            await render(region, config);
+        } catch (e) {
+            delete region.dataset.state;
+            throw e;
         }
-        region.dataset.state = 'ready';
     }
     region.hidden = false;
     if (region.compassState && chip !== 'all') {
@@ -792,3 +821,4 @@ export const open = async(blockroot, config, chip = 'all') => {
         search.focus();
     }
 };
+

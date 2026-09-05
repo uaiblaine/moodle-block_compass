@@ -409,6 +409,8 @@ implementation. The plan mandates four:
 | ADR-002 | stamp validation of `inventory` (seven aggregates over enrolments, methods, last access and favourites, one statement) instead of observers | Phase 2 | Accepted |
 | ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
+| ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04) |
+| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04), R1 implemented |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -704,6 +706,46 @@ cache admin page dies site-wide (`format_mtube-501` has the write-up). Check
 set per key (`format_mtube-502`).
 
 ### Client side
+
+**The client is migrating to React (ADR-006), phase by phase.** Until R4 lands,
+both halves are live and the rules below apply to whichever half a file is in.
+
+React sources are `js/esm/src/**/*.tsx` and `**/*.ts`; the build is committed in
+`js/esm/build/` exactly as `amd/build/` is, rebuilt by the same
+`mdl grunt m502 blocks/compass`, and a `js/esm` change bumps `version.php` for
+the same reason an `amd` change does — the revision is in the served URL. Five
+things about writing them here are not obvious and were paid for in R1:
+
+- **A React component cannot import an AMD module.** The served import map has
+  six keys over four specifier families and none is AMD, and the failure is silent: `react_autoinit`
+  logs to the console and leaves the element untouched. Every core or plugin AMD
+  module is reached through `js/esm/src/amd.ts`, which is the only file allowed
+  to know that, and which must stay the only one.
+- **A component is a default-exported function**, mounted from a Mustache
+  `react` section naming `@moodle/lms/block_compass/<Module>`. The section's
+  trailing content is the fallback shown when the mount fails, so it must be
+  true and inert — never a control that does nothing. Whatever only the mounted
+  component renders is what a Behat step should assert.
+- **Strings are props.** There is no `core/str` for ESM. They travel through the
+  section's JSON, from the labels the shell already exports, wrapped in the
+  `quote` helper around a **triple** stash: nothing between there and React is
+  an HTML context, so a double stash reaches the reader as entities.
+- **`js/esm/src/.eslintrc` is load-bearing, not decoration.** Core applies its
+  jsdoc rules to `amd/src` and none at all to `.tsx`, so that file restores
+  them; and it sets `no-unused-vars` to `args: "none"` because the base rule,
+  running over a TypeScript AST without the `@typescript-eslint` plugin, reports
+  every parameter name inside a function *type* as unused. Read its comments
+  before changing it — each setting is a measured consequence, not a taste.
+- **`tsc --noEmit` is a gate** in `mdl grunt` and in `mdl ci`, because nothing
+  in core type-checks anything. A type error is invisible to eslint and reaches
+  the browser as a component that mounts nothing.
+- **A badge names its classes in a string literal.** `bootstrap_compat_test`
+  reads the attribute with a regex — it accepts both `class="…"` and
+  `className="…"` since R1 — and a computed `className={…}` defeats it, so the
+  construct is banned outright and a test asserts the ban. Anything conditional
+  picks between whole literals.
+
+The AMD half, while it lasts:
 
 - ES modules in `amd/src/`, no jQuery, `SELECTORS` const of `data-*` hooks,
   one `repository.js` owning every `core/ajax` call, `core/templates`

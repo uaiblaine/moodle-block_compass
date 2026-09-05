@@ -8,6 +8,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase R1, the React spike — the tier 2 ghost card is a React component
+  (ADR-006), version 2026090405. `js/esm/src/Ghost.tsx` is mounted from the new
+  `templates/tier2.mustache` through core's Mustache `react` section, which
+  `block_compass/attention` renders in the browser and core's `react_autoinit`
+  mounts off its `MutationObserver`. `js/esm/build/` is committed beside it, the
+  way `amd/build/` is. The component owns its own click and hides the tier 2
+  region once tier 3 is open, so that path leaves `main.js`; the per-strip ghost
+  cards are untouched and still render `templates/ghost.mustache`.
+  `js/esm/src/amd.ts` is the one place that knows a React component cannot
+  import an AMD module — the served import map has six keys, four families, none AMD
+  — and reaches `block_compass/explore` and `core/notification` through
+  RequireJS's global, as core's own ESM reaches `window.M.cfg`.
+  The section's fallback content is deliberately not a button: it states the
+  count, which stays true, and offers no action, because a failed mount is
+  silent and there would be nothing behind it. The Behat step that clicks
+  "Explore all" is therefore also the proof that React mounted.
+  Two gates arrive with it: `js/esm/src/.eslintrc` restores the jsdoc rules core
+  applies to `amd/src` and applies to nothing under `js/esm/src`, and
+  `mdl grunt` and `mdl ci` now run `tsc --noEmit`, without which `strict: true`
+  is an editor setting. `tests/local/bootstrap_compat_test.php` scans
+  `js/esm/src` — it is the only thing in any pipeline that reads a class name.
+
 - Phase 3, scale — the `paged` mode of tier 3 (ADR-004), version 2026090404.
   Above `inventory_max` (default 250) `block_compass_get_inventory` answers
   `mode: paged` with every group's `id`, `name` and `count` and its `courses`
@@ -121,3 +143,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   design (ADR-004; ADR-000 decision 23).
 
 ### Fixed
+
+- The block showed a permanently visible, empty warning with a "Try again"
+  button on every Dashboard, from Phase 1 until now. The error region carries
+  `hidden` and is unhidden only on a failure, but it also carried `d-flex`, and
+  Bootstrap's display utilities are `!important`; Boost's own
+  `[hidden] { display: none !important; }` has the same specificity, so source
+  order decided it and the utility won. The layout moves to a plugin class
+  guarded by `:not([hidden])`, which is the general fix, and
+  `bootstrap_compat_test` now fails any element carrying both `hidden` and a
+  Bootstrap display utility. Found by opening the page: phpcs reads PHP, the
+  Mustache lint reads structure, stylelint reads the stylesheet, and Behat's
+  "I should see" never asks whether an empty span is displayed.

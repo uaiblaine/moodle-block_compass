@@ -126,14 +126,27 @@ export const render = async(root, data, config) => {
     tier1.hidden = shown === 0;
 
     if (data.counts.more > 0) {
-        const rendered = await Templates.renderForPromise('block_compass/cards', {
-            cards: [],
-            ghost: {
-                count: data.counts.more,
-                text: labels.ghost_more,
-                cta: labels.ghost_explore,
-                kind: 'tier2',
-            },
+        /*
+         * Tier 2 is a React component from phase R1 (ADR-006): this template renders a
+         * mount point rather than a button, and core's react_autoinit mounts it off its
+         * MutationObserver as soon as the markup lands. The per-strip ghosts inside the
+         * cards are still block_compass/ghost, and still reach main.js's delegation --
+         * the React one carries no data-action, so it owns its click and nothing else
+         * sees it. The list wrapper cards.mustache used to supply goes with it: one
+         * ghost alone is not a list.
+         */
+        const ghost = {
+            count: data.counts.more,
+            text: labels.ghost_more || '',
+            cta: labels.ghost_explore || '',
+            kind: 'tier2',
+        };
+        const rendered = await Templates.renderForPromise('block_compass/tier2', {
+            count: ghost.count,
+            text: ghost.text,
+            // JSON.stringify, not the quote helper: see the template's docblock for the
+            // delimiter-corruption this avoids. The template interpolates it whole.
+            props: JSON.stringify(ghost),
         });
         Templates.replaceNodeContents(ghostwrap, rendered.html, rendered.js);
         ghostwrap.hidden = false;

@@ -1,6 +1,13 @@
 # ADR-005 — Lazy details for tier 3, the list/cards view, and virtualisation deferred
 
-- **Status:** Proposed (2026-09-04; awaiting the maintainer)
+- **Status:** Accepted (2026-09-04, maintainer; implementation in Phase R4).
+  **Revised before acceptance**, on 2026-09-04, under ADR-006 decision 8: two
+  passages described the client in terms of `explore.js` and hand-wired DOM
+  registration, which the React migration removes. Only those passages changed —
+  every decision this record makes is the one it made when it was drafted. The
+  "never edited after acceptance" rule in the index is not bent by this: the
+  record had not been accepted, and correcting an unaccepted draft is cheaper and
+  more honest than accepting it in order to supersede it.
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent against the
   5.2 source and the code Phases 1–3 shipped
@@ -98,13 +105,13 @@ in cards view, fetched for the rows the viewer can actually see:
 - One `IntersectionObserver` per region marks a row visible when it enters the
   viewport plus a **200 px** buffer, and unobserves it once its details have
   arrived (a row is filled once per rendering, never refetched on scroll-back).
-- **Rows rendered later are registered explicitly.** The module exposes
-  `observeRows(items)`, called wherever rows reach the DOM: `open()`'s first
-  render, `loadPage()`'s appended page and `serverSearch()`'s appended hits —
-  the three sites `decorateItems()` is already called from. An observer that
-  registered only at first render would observe nothing at all in paged mode,
-  where every group arrives with an empty course list (ADR-004) — and paged
-  mode is the population this phase exists for.
+- **Every row that reaches the DOM is observed, however it got there** — the
+  first render, an appended page, an appended search hit. Registration is a
+  property of the row rather than of the code that produced it: a row registers
+  as it appears and unregisters as it goes, so no call site can be forgotten.
+  Wiring the observer only at first render would observe nothing at all in paged
+  mode, where every group arrives with an empty course list (ADR-004) — and
+  paged mode is the population this phase exists for.
 - Ids collect in a pending set flushed on a **fixed 100 ms interval** while the
   set is non-empty — an interval, not a debounce reset by each new id the way
   the search box in `wire()` is, or a continuous scroll would send nothing
@@ -216,24 +223,24 @@ The client writes the preference through core's own
 `core_user/repository::setUserPreferences`, the same route archiving uses
 (ADR-000 decision 16) — Compass ships no write service.
 
-Switching view **re-renders tier 3 without a request**, and that requires one
-change to what the client keeps. Today `explore.js` discards the payload as
-soon as it renders: `open()`'s `data` and `groups` are locals, and the state it
-stores holds DOM references and control flags only (`amd/src/explore.js`,
-the state literal after `replaceNodeContents`). Rows are therefore reconstructable
-only from their `data-*` attributes, which carry the id and the flags but not,
-for instance, anything fetched later.
+Switching view **re-renders tier 3 without a request**, which requires the
+client to hold **one record per row** rather than reconstruct rows from the
+markup it rendered: the fields the server sent (`name`, `opened`, `new`, `fav`)
+plus whatever the details batch has since added (`progress`, `hascompletion`,
+`imageurl`, `hasimage`), keyed by course id, with both views rendering from it.
+Paged mode fills it as pages arrive, so an accumulated group re-renders as
+completely as a full-mode one. Two things follow, and they are the reason for a
+record rather than a re-read of the DOM: details already fetched survive the
+switch by construction, and a row whose details never arrived stays pending and
+is observed again after the re-render.
 
-So the state gains **one record per row** — a `Map` keyed by course id holding
-the payload fields the server sent (`name`, `opened`, `new`, `fav`) plus
-whatever the details batch has since added (`progress`, `hascompletion`,
-`imageurl`, `hasimage`) — and both templates render from that Map. Paged
-mode fills it as pages arrive, so an accumulated group re-renders as
-completely as a full-mode one. Two things follow, and they are the reason for
-choosing a record over re-reading the DOM: details already fetched survive the
-switch by construction rather than by scraping rendered markup, and a row
-whose details never arrived stays pending and is observed again after the
-re-render.
+This was the one requirement here that the pre-React client did not meet —
+`explore.js` discarded the payload as soon as it rendered and kept DOM
+references and control flags only, so a row was reconstructable from its
+`data-*` attributes and nothing else. Under ADR-006 it costs nothing: a React
+client holds the payload because rendering from it is how it renders at all.
+The requirement is stated anyway, because it is a requirement and not an
+artefact of either implementation.
 
 ## Consequences
 

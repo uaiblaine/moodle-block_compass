@@ -36,10 +36,9 @@ const SELECTORS = {
     errorText: '[data-region="error-text"]',
     retry: '[data-action="retry"]',
     ghost: '[data-action="explore"]',
-    ghostWrap: '[data-region="ghost"]',
 };
 
-const CHIP_OF_GHOST = {tier2: 'all', 'new': 'new', favourites: 'favourites'};
+const CHIP_OF_GHOST = {'new': 'new', favourites: 'favourites'};
 
 /**
  * Read the JSON configuration the server placed on the root element.
@@ -92,7 +91,14 @@ export const init = (rootId) => {
     config.labels = config.labels || {};
     initFavourites(root, config.labels);
     root.querySelector(SELECTORS.retry).addEventListener('click', () => load(root, config));
-    // Every ghost card opens tier 3 in place, with the chip its kind implies.
+    /*
+     * The per-strip ghost cards open tier 3 in place, with the chip their kind implies.
+     * The tier 2 ghost is not among them since phase R1 (ADR-006): it is a React
+     * component that owns its own click and carries no data-action, so it never reaches
+     * this listener -- and neither does the "hide the wrap once tier 3 is open" step,
+     * which moved into the component with it. Only new and favourites arrive here, so a
+     * tier2 branch below would be unreachable code a reader would take for live.
+     */
     root.addEventListener('click', (event) => {
         const ghost = event.target.closest(SELECTORS.ghost);
         if (!ghost || !root.contains(ghost)) {
@@ -100,13 +106,6 @@ export const init = (rootId) => {
         }
         event.preventDefault();
         openExplore(root, config, CHIP_OF_GHOST[ghost.dataset.ghost] || 'all')
-            .then(() => {
-                const wrap = root.querySelector(SELECTORS.ghostWrap);
-                if (wrap && ghost.dataset.ghost === 'tier2') {
-                    wrap.hidden = true;
-                }
-                return null;
-            })
             .catch(() => Notification.addNotification({message: config.labels.loaderror || '', type: 'error'}));
     });
     load(root, config);

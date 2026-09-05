@@ -69,9 +69,19 @@ final class bootstrap_compat_test extends basic_testcase {
     private function sources(): array {
         $root = dirname(__DIR__, 2);
         $files = [];
+        /*
+         * js/esm/src joins the scan in phase R1 (ADR-006): the class names of the client
+         * are moving out of templates/ and amd/src/ into .tsx, and this file is the only
+         * thing in any pipeline that reads a class name -- phpcs reads PHP, the Mustache
+         * lint reads structure, stylelint reads CSS, and eslint reads neither vocabulary
+         * nor contrast. A migration that left this list alone would carry the protection
+         * away with the markup it protects.
+         */
         $paths = array_merge(
             glob($root . '/templates/*.mustache'),
             glob($root . '/amd/src/*.js'),
+            glob($root . '/js/esm/src/*.ts'),
+            glob($root . '/js/esm/src/*.tsx'),
             [$root . '/styles.css']
         );
         foreach ($paths as $path) {
@@ -84,6 +94,11 @@ final class bootstrap_compat_test extends basic_testcase {
     /**
      * The scan sees the files it is meant to see.
      *
+     * A scan is only worth what it reads, and every one of these paths is a place this
+     * plugin writes a Bootstrap class name. The React source is named explicitly rather
+     * than left to the count: a glob that silently stops matching is how this defect
+     * class ships, and the count alone would still pass with js/esm/src empty.
+     *
      * @return void
      */
     public function test_the_scan_covers_templates_javascript_and_the_stylesheet(): void {
@@ -91,6 +106,7 @@ final class bootstrap_compat_test extends basic_testcase {
 
         $this->assertArrayHasKey('templates/card.mustache', $files);
         $this->assertArrayHasKey('amd/src/attention.js', $files);
+        $this->assertArrayHasKey('js/esm/src/Ghost.tsx', $files);
         $this->assertArrayHasKey('styles.css', $files);
         $this->assertGreaterThanOrEqual(8, count($files));
     }
@@ -119,12 +135,19 @@ final class bootstrap_compat_test extends basic_testcase {
      * failing cases are disjoint between the branches and the light backgrounds
      * (secondary, warning, light) fail on 5.x.
      *
+     * The attribute is matched under both spellings because the client writes markup in
+     * two languages during the React migration (ADR-006): a Mustache template writes
+     * class="..." and a .tsx writes className="...". Reading only the first would have
+     * left every badge React renders unchecked from the phase that writes one - a green
+     * gate over the exact defect class this file exists for, which is how it has shipped
+     * four times elsewhere in the fleet. Found and closed in R1, before R2 writes a badge.
+     *
      * @return void
      */
     public function test_every_badge_states_its_text_colour(): void {
         $badges = 0;
         foreach ($this->sources() as $file => $contents) {
-            preg_match_all('/class="([^"]*\bbadge\b[^"]*)"/', $contents, $matches);
+            preg_match_all('/\bclass(?:Name)?="([^"]*\bbadge\b[^"]*)"/', $contents, $matches);
             foreach ($matches[1] as $classes) {
                 $badges++;
                 $this->assertMatchesRegularExpression(
@@ -146,6 +169,78 @@ final class bootstrap_compat_test extends basic_testcase {
         }
         // The rule must have had something to check, or a renamed class silently disables it.
         $this->assertGreaterThanOrEqual(1, $badges, 'no badge found: has the card template lost its New badge?');
+    }
+
+    /**
+     * Nothing carries both the hidden attribute and a Bootstrap display utility.
+     *
+     * Bootstrap writes its display utilities as `display: flex !important`, and Boost's
+     * own reset writes `[hidden] { display: none !important; }`. The two have the SAME
+     * specificity, so source order decides, and the utility comes later: an element with
+     * both is permanently visible however carefully the JavaScript sets `hidden`.
+     *
+     * This shipped in this plugin from Phase 1 to R1 - the error region carried `d-flex`,
+     * so every Dashboard showed an empty warning with a Try again button - and no gate in
+     * the fleet could see it. phpcs reads PHP, the Mustache lint reads structure,
+     * stylelint reads the stylesheet, and Behat's "I should see" never asks whether an
+     * empty span is displayed. Only opening the page found it, which is not a gate.
+     *
+     * The rule is general: put the layout in a plugin class guarded by :not([hidden]).
+     *
+     * @return void
+     */
+    public function test_nothing_hidden_also_carries_a_display_utility(): void {
+        $checked = 0;
+        foreach ($this->sources() as $file => $contents) {
+            if (!str_ends_with($file, '.mustache') && !str_ends_with($file, '.tsx')) {
+                continue;
+            }
+            $checked++;
+            preg_match_all('/<[a-zA-Z][^>]*>/s', $contents, $tags);
+            foreach ($tags[0] as $tag) {
+                // The bare attribute only: visually-hidden and data-region="hidden" are not it.
+                if (!preg_match('/(?<![-\w"])hidden(?![-\w=])/', $tag)) {
+                    continue;
+                }
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\bd-(?:none|inline|inline-block|inline-flex|block|grid|table|flex)\b/',
+                    $tag,
+                    "{$file}: this element is hidden AND carries a Bootstrap display utility, "
+                        . 'which is !important and wins - it will never actually hide: ' . trim($tag)
+                );
+            }
+        }
+        // Vacuity guard: the markup files must have been read.
+        $this->assertGreaterThanOrEqual(1, $checked, 'no markup scanned: have the templates moved?');
+    }
+
+    /**
+     * A badge's classes are a literal, so that the rule above can read them.
+     *
+     * The check above is a regex over an attribute value, which a computed JSX className
+     * defeats: className={cx('badge', tone)} carries a badge the scan cannot see, and it
+     * would pass in silence. Rather than pretend the regex is cleverer than it is, the
+     * construct is banned in this plugin's React sources - a badge names its classes as a
+     * string, and anything conditional picks between whole literals.
+     *
+     * @return void
+     */
+    public function test_react_sources_write_badge_classes_as_literals(): void {
+        $checked = 0;
+        foreach ($this->sources() as $file => $contents) {
+            if (!str_ends_with($file, '.tsx') && !str_ends_with($file, '.ts')) {
+                continue;
+            }
+            $checked++;
+            $this->assertDoesNotMatchRegularExpression(
+                '/className=\{[^}]*badge/',
+                $contents,
+                "{$file}: a computed className carrying a badge is invisible to the badge rule; "
+                    . 'name the classes in a string literal'
+            );
+        }
+        // Vacuity guard: the loop must have seen the React sources, not skipped them all.
+        $this->assertGreaterThanOrEqual(1, $checked, 'no React source scanned: has js/esm/src moved?');
     }
 
     /**

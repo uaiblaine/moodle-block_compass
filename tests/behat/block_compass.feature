@@ -69,6 +69,10 @@ Feature: The Compass block puts the courses that need attention first
     And I turn editing mode on
     And I add the "Compass" block
     And I turn editing mode off
+    # This click is also the only end-to-end proof that React mounted (ADR-006, R1). The
+    # tier 2 ghost is a React component; the fallback the mount point carries states the
+    # count and is a div with no call to action, so "Explore all" exists as a button only
+    # once the component is running. A failed import is silent everywhere else.
     When I click on "Explore all" "button"
     Then I should see "All courses (4)" in the "Compass" "block"
     And I should see "Cat A" in the "Compass" "block"

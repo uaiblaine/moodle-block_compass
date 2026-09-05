@@ -1,13 +1,14 @@
 # ADR-006 — The client is React, and what that costs
 
-- **Status:** Proposed (2026-09-04; awaiting the maintainer)
+- **Status:** Accepted (2026-09-04, maintainer; implementation in Phases R1–R4)
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent against the
   5.2 source, a working build of this plugin, and a live m502 page
 - **Builds on:** ADR-000 (the tiers and the shell); ADR-002 (the payload the
   client consumes); ADR-004 (paged mode)
 - **Supersedes:** nothing. See decision 8 — the case for superseding ADR-004
-  and ADR-005 was examined and rejected.
+  and ADR-005 was examined and rejected; ADR-005 was revised in place instead,
+  which the maintainer accepted on 2026-09-04.
 
 ## Context
 
@@ -89,8 +90,9 @@ component through `\core\component::get_component_directory($component)`
 Proven end to end by building this plugin (see Evidence).
 
 **4. A React component cannot import any AMD module.** The import map served to
-the browser has exactly four entries — `@moodle/lms/`, `@moodlehq/design-system`,
-`react`, `react-dom` (captured live, quoted in Evidence) — and `add_import()`
+the browser has exactly six keys over four specifier families — `@moodle/lms/`,
+`@moodlehq/design-system`, `react` and `react-dom`, the last two with a subpath
+key each (captured live, quoted in Evidence) — and `add_import()`
 is called from nowhere but `add_standard_imports()`. There is no ESM shim for
 `core/ajax`, `core/str`, `core/templates` or anything else, and no bridge in
 core's own ESM sources. A bare `import 'core/ajax'` inside a `.tsx` is a
@@ -427,7 +429,7 @@ byte-identical, which is what makes it safe for `grunt react` to ignore
 }}
 ```
 
-Four families, no AMD — decision 3's whole justification.
+Six keys, four families, no AMD — decision 3's whole justification.
 
 **Both new gates were mutation-tested.** `mdl grunt` with the `npx grunt react`
 step removed from its command, everything else unchanged, exits 1 naming both
@@ -474,3 +476,61 @@ refused; the revisit trigger is a release in which the theme loads its tokens.
 a test suite the fleet's only gate (`mdl ci --matrix`) would not execute. It
 would be a fleet decision about `moodle-dev`, and it should be taken on its own
 merits rather than smuggled in under a plugin migration.
+
+## Amendments
+
+**2026-09-04, from phase R1: core's lint does not merely omit rules for
+TypeScript, it misfires on it.** Fact 5 above recorded that the `**/*.ts` /
+`**/*.tsx` override registers the `@typescript-eslint` *parser* without its
+*plugin*, and drew the consequence that no `jsdoc/*` rule applies. There is a
+second consequence, found the first time this plugin's React sources were
+linted, and it is the sharper one: the base `no-unused-vars` runs its plain
+JavaScript implementation over a TypeScript AST, so **the parameter names inside
+a function type are reported as unused arguments**. A type alias as ordinary as
+
+```ts
+type ExploreModule = {
+    open: (root: HTMLElement, config: BlockConfig, chip: string) => Promise<void>,
+};
+```
+
+produces three errors, and there is no way to "use" those names — they are
+documentation. Under the fleet's zero-warning policy that fails the build. The
+answer is `no-unused-vars` with `args: "none"` in the plugin's own
+`js/esm/src/.eslintrc`, which is the narrowest switch that silences exactly this
+while keeping unused *variables* and unused imports enforced. This is not
+particular to Compass: it applies to any Moodle plugin that writes a function
+type in TypeScript, which is most of them.
+
+**Both mechanisms decision 6 and decision 7 left unproven now work, and both were
+mutation-tested.** The eslintrc cascade does merge with core's rather than
+replace it. `jsdoc/require-jsdoc` had to be configured explicitly with
+`ArrowFunctionExpression: true`, because its default covers only
+`FunctionDeclaration` and a `.tsx` file is arrow functions end to end — left at
+the default the rule would have enforced nothing here while reading as though it
+did, which is the vacuous-gate shape the fleet keeps paying for. `require-param`
+and `check-param-names` both take `checkDestructured: false`: a destructured
+props parameter otherwise demands one `@param` per field, eslint's fix mode
+*writes* those bare lines into the source, and they then fail
+`require-param-type`, which is not fixable — a loop the author cannot exit by
+writing better docblocks.
+
+The type check is a gate in `mdl grunt` and in `mdl ci`'s grunt step, and it
+bites: a type error confined to a type alias (an argument declared `number` and
+passed a `string`) is invisible to eslint and fails with `TS2345`. Note the
+ordering that took three attempts to measure — the two obvious mutations, an
+unused variable and an unused constant, were both caught by *eslint* first, so
+they proved nothing about `tsc`. A mutation aimed at one gate has to be
+invisible to every gate that runs before it.
+
+**A third fact, from the same phase: the type check has an ordering
+prerequisite.** `tsconfig.json` extends `tsconfig.aliases.json`, and that file
+is **generated** by `generateAliases()` and gitignored. On any checkout where
+nothing has built React yet — every CI leg, by construction — `tsc` fails with
+`TS5083` on the missing file and then `TS2307` on every `@moodle/lms/` import in
+core's own three sources. Nothing in those errors mentions the plugin under
+test. `grunt jsconfig` writes the file and must run first; both runners now do
+that. The local run passed before CI did purely because an earlier build had
+left the file lying about, which is the shape of every gate that works on the
+author's machine and nowhere else.
+

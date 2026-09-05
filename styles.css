@@ -95,6 +95,35 @@
     background: var(--bs-secondary-bg, #f8f9fa);
 }
 
+/* The error region carries `hidden` from the server and is unhidden only on a failure --
+   but `d-flex` used to sit on it, and Bootstrap utilities are !important. Boost's own
+   `[hidden] { display: none !important; }` has the SAME specificity, so source order
+   decided it and `.d-flex` won: the block shipped a permanently visible empty warning
+   with a Try again button, on every Dashboard, since Phase 1. Nothing could see it --
+   phpcs reads PHP, the Mustache lint reads structure, stylelint reads this file, and
+   Behat's `I should see` does not ask whether an empty span is displayed. Found by
+   looking at the page. The layout is the same; the guard is what makes `hidden` win. */
+.block_compass .compass-error:not([hidden]) {
+    display: flex;
+    align-items: center;
+}
+
+/* Until R1 the tier 2 ghost was rendered inside the cards grid, alone, so it was one
+   column wide rather than the block's full width. It has its own region now, so the
+   region reproduces that grid: without this the w-100 button stretches edge to edge,
+   which is a visual change nobody decided. */
+.block_compass .compass-ghost-wrap {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+}
+
+/* The fallback the React mount point carries is a div, not a control: it states the
+   count and does nothing, so it must not answer to hover the way the button does.
+   Same specificity as the rule above, so source order is what decides it. */
+.block_compass .compass-ghost-fallback:hover {
+    background: transparent;
+}
+
 .block_compass .compass-ghost-count {
     font-size: 1.75rem;
     font-weight: 600;
