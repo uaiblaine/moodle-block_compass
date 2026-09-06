@@ -43,6 +43,8 @@ declare global {
     /* eslint-disable-next-line no-unused-vars */
     interface Window {
         require?: RequireJs,
+        /* Moodle's own page globals. Core's ESM reads these the same way: lib/js/esm/src/profiler.ts. */
+        M: {cfg: {wwwroot: string, jsrev: number}},
     }
 }
 

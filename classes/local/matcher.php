@@ -28,7 +28,7 @@ use core_text;
 use Normalizer;
 
 /**
- * PHP twin of amd/src/filter.js's normalise() and matches() (ADR-004, fact 5).
+ * PHP twin of js/esm/src/filter.ts's normalise() and matches() (ADR-004, fact 5).
  *
  * Full mode matches in the browser; paged mode matches here, over the raw course
  * names of the entry. The two must agree bit for bit, so this class reproduces
@@ -37,7 +37,7 @@ use Normalizer;
  * which also folds letters that have no canonical decomposition (ø, ß, æ, ł)
  * where NFD leaves them alone — or for the database collation, which cannot be
  * accent-insensitive on PostgreSQL. A PHPUnit fixture of query/name pairs pins
- * the parity from the PHP side; the same pairs pin filter.js.
+ * the parity from the PHP side; the same pairs pin filter.ts.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -45,7 +45,7 @@ use Normalizer;
  */
 final class matcher {
     /**
-     * Lower-case, accent-free, trimmed form of a string — filter.js normalise().
+     * Lower-case, accent-free, trimmed form of a string — filter.ts normalise().
      *
      * The four steps in the JavaScript order: canonical decomposition (NFD, what
      * String.prototype.normalize('NFD') does in the client) through the intl
@@ -73,7 +73,7 @@ final class matcher {
     }
 
     /**
-     * Whether every word of the query appears in the normalised haystack — filter.js matches().
+     * Whether every word of the query appears in the normalised haystack — filter.ts matches().
      *
      * The query is normalised and split on whitespace: PCRE's \s stays ASCII-only under a plain
      * /u (that sets PCRE2_UTF, not PCRE2_UCP), while JavaScript's \s includes U+00A0 and the

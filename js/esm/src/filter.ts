@@ -12,24 +12,45 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Pure helpers for tier 3: text normalisation, matching and relative time.
  *
- * No DOM access, so every function is unit-testable and the explore module
- * stays about wiring.
+ * No DOM access, so every function is testable in isolation and the components
+ * stay about rendering.
+ *
+ * **normalise() and matches() have a twin in PHP** — classes/local/matcher.php —
+ * and the two must stay equal step for step, because full mode filters here and
+ * paged mode filters there (ADR-004): the same query must find the same courses
+ * whichever side answers. One fixture of query/name pairs pins both, built by
+ * tests/generator/lib.php and consumed by matcher_test.php. Change a line here and
+ * that fixture has to fail; if it does not, the fixture is the thing to fix.
+ *
+ * The steps are, in order: NFD, strip the combining marks U+0300-U+036F,
+ * lower-case, trim. Not core_text::specialtoascii(), which also folds o-slash,
+ * eszett and ae - characters NFD leaves alone, so a query for "strom" must NOT
+ * find "Strøm".
  *
  * @module     block_compass/filter
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+/** What a row is judged by: the facts under the get_inventory row keys. */
+export type RowFacts = {
+    name: string,
+    opened: number,
+    new: boolean,
+    fav: boolean,
+};
+
 /**
  * Lower-case, accent-free form of a string, for accent-insensitive matching.
  *
  * @param {string} text Input.
- * @returns {string}
+ * @returns {string} The normalised form.
  */
-export const normalise = (text) => String(text || '')
+export const normalise = (text: string): string => String(text || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -40,25 +61,26 @@ export const normalise = (text) => String(text || '')
  *
  * @param {string} haystack Normalised text to search.
  * @param {string} query Raw query.
- * @returns {boolean}
+ * @returns {boolean} Whether it matches.
  */
-export const matches = (haystack, query) => {
+export const matches = (haystack: string, query: string): boolean => {
     const words = normalise(query).split(/\s+/).filter(Boolean);
+
     return words.every((word) => haystack.includes(word));
 };
 
 /**
- * "3 days ago" in the page language, from a unix timestamp — the browser's own
+ * "3 days ago" in the page language, from a unix timestamp - the browser's own
  * Intl.RelativeTimeFormat, so no strings travel for it.
  *
  * @param {number} timestamp Unix time in seconds.
  * @param {number} now Unix time in seconds.
  * @param {string} lang BCP 47 language tag.
- * @returns {string}
+ * @returns {string} The formatted interval.
  */
-export const relativeTime = (timestamp, now, lang) => {
+export const relativeTime = (timestamp: number, now: number, lang: string): string => {
     const seconds = timestamp - now;
-    const units = [
+    const units: [Intl.RelativeTimeFormatUnit, number][] = [
         ['year', 31536000],
         ['month', 2592000],
         ['week', 604800],
@@ -72,6 +94,7 @@ export const relativeTime = (timestamp, now, lang) => {
             return formatter.format(Math.round(seconds / size), unit);
         }
     }
+
     return formatter.format(0, 'second');
 };
 
@@ -79,17 +102,16 @@ export const relativeTime = (timestamp, now, lang) => {
  * Whether a row passes the chip filter.
  *
  * @param {string} chip all, new or favourites.
- * @param {Object} row The row facts, under the get_inventory row keys.
- * @param {boolean} row.new Whether the enrolment is new.
- * @param {boolean} row.fav Whether the course is starred.
- * @returns {boolean}
+ * @param {object} row The row facts, under the get_inventory row keys.
+ * @returns {boolean} Whether it passes.
  */
-export const passesChip = (chip, row) => {
+export const passesChip = (chip: string, row: RowFacts): boolean => {
     if (chip === 'new') {
         return row.new;
     }
     if (chip === 'favourites') {
         return row.fav;
     }
+
     return true;
 };

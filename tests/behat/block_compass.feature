@@ -79,5 +79,12 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
     When I set the field "Search my courses" to "Course 4"
-    Then I should see "Course 4" in the "Compass" "block"
+    # The count settles the race before the negative assertion runs. Searching is debounced,
+    # and "should not see" fails the instant it finds the text rather than waiting for it to
+    # go - so asserting the absence first only passes when the typing happens to outrun the
+    # debounce. The live region says how many rows survived the filter, so waiting for it is
+    # waiting for the filter itself. (Course 4 is also in tier 1, so asserting it proves
+    # nothing about tier 3 either way.)
+    Then I should see "1 courses shown" in the "Compass" "block"
+    And I should see "Course 4" in the "Compass" "block"
     And I should not see "Course 2" in the "Compass" "block"

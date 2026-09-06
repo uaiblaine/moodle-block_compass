@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * The PHP twin of amd/src/filter.js, pinned step by step (ADR-004, fact 5).
+ * The PHP twin of js/esm/src/filter.ts, pinned step by step (ADR-004, fact 5).
  *
  * Full mode matches in the browser and paged mode matches here, so the two rules
  * must agree bit for bit. The cases that matter most are the ones where the
@@ -72,7 +72,7 @@ final class matcher_test extends basic_testcase {
     }
 
     /**
-     * The four steps of filter.js normalise(), in order: NFD, strip U+0300-U+036F, lower-case, trim.
+     * The four steps of filter.ts normalise(), in order: NFD, strip U+0300-U+036F, lower-case, trim.
      *
      * @param string $input The text.
      * @param string $expected Its normalised form.
@@ -116,7 +116,7 @@ final class matcher_test extends basic_testcase {
     }
 
     /**
-     * matches() answers every pair of the shared fixture the way filter.js does.
+     * matches() answers every pair of the shared fixture the way filter.ts does.
      *
      * The name is normalised once, as the caller is expected to do; the query is raw, as the
      * browser's is.

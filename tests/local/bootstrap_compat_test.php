@@ -89,7 +89,6 @@ final class bootstrap_compat_test extends basic_testcase {
          */
         $paths = array_merge(
             glob($root . '/templates/*.mustache'),
-            glob($root . '/amd/src/*.js'),
             glob($root . '/js/esm/src/*.ts'),
             glob($root . '/js/esm/src/*.tsx'),
             [$root . '/styles.css']
@@ -114,14 +113,13 @@ final class bootstrap_compat_test extends basic_testcase {
     public function test_the_scan_covers_templates_javascript_and_the_stylesheet(): void {
         $files = $this->sources();
 
-        // One file per source language the plugin still writes markup in, named rather than
-        // counted: a glob that silently stops matching is how this defect class ships, and
-        // a count alone would pass with js/esm/src empty. Update these as phases move them
-        // - the shell and tier 3's row survive until R3, and Card.tsx until the plugin does.
+        // One file per place the plugin writes markup, named rather than counted: a glob
+        // that silently stops matching is how this defect class ships, and a count alone
+        // would pass with js/esm/src empty. Since R3 there is one template left - the shell
+        // - and every class name the client writes is in a .tsx.
         $this->assertArrayHasKey('templates/block.mustache', $files);
-        $this->assertArrayHasKey('templates/row.mustache', $files);
-        $this->assertArrayHasKey('amd/src/explore.js', $files);
         $this->assertArrayHasKey('js/esm/src/Card.tsx', $files);
+        $this->assertArrayHasKey('js/esm/src/Row.tsx', $files);
         $this->assertArrayHasKey('styles.css', $files);
         $this->assertGreaterThanOrEqual(8, count($files));
     }

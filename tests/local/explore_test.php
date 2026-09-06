@@ -1004,7 +1004,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * search() answers the shared query/name fixture the way filter.js does, over real courses.
+     * search() answers the shared query/name fixture the way filter.ts does, over real courses.
      *
      * One course per name of block_compass_generator::search_pairs(), then every pair asked of
      * explore::search(): a course whose pair says "matches" is in the rows, one whose pair says
@@ -1047,7 +1047,7 @@ final class explore_test extends advanced_testcase {
     /**
      * The search reads the course name only, never the short name.
      *
-     * Full mode indexes the rendered name (explore.js's data-search); a server that also read
+     * Full mode matches the rendered name, normalised by filter.ts; a server that also read
      * the short name would find courses the browser does not, and the two modes would disagree.
      *
      * @return void

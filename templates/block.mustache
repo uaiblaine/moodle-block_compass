@@ -17,13 +17,10 @@
 {{!
     @template block_compass/block
 
-    The block shell: a React mount point for tier 1 and, beside it, the region tier 3
-    still renders into.
+    The block shell: one React mount point, and nothing else of the block's own.
 
-    Tier 3 is an AMD module until phase R3, and it writes its markup into
-    data-region="explore" directly. That region is therefore a SIBLING of the mount
-    point, outside React's tree: rendered from the component, React would own it and
-    undo explore.js's work on the next render. It moves inside when tier 3 does.
+    Every tier renders from the component since phase R3, tier 3 included, so this
+    template no longer carries a region for it.
 
     The props arrive already JSON-encoded from the renderable, in one value, through a
     triple stash - the same shape phase R1 arrived at, and for the same reason: the
@@ -57,7 +54,6 @@
     }
     <p class="compass-noscript">{{#str}}loaderror, block_compass{{/str}}</p>
     {{/react}}
-    <div class="compass-explore-wrap mt-3" data-region="explore" hidden></div>
     <noscript>
         <p class="compass-noscript">{{#str}}javascriptrequired, block_compass{{/str}}</p>
     </noscript>

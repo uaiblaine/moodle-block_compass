@@ -178,7 +178,7 @@ final class explore {
      * @param int $groupid The group: a category id at the group depth.
      * @param int $after Id of the last row the client holds; 0 for the first page.
      * @param string $chip 'all', 'new' (never opened, enrolled inside the new window) or 'favourites'
-     *     (the core star); anything else reads as 'all', as filter.js passesChip() does.
+     *     (the core star); anything else reads as 'all', as filter.ts passesChip() does.
      * @param string $sort 'name' or 'recent'; anything else reads as 'name'.
      * @param int|null $pagesize Rows per page; null for PAGE_SIZE.
      * @param int|null $groupdepth Category depth that forms the groups; null for the setting.
@@ -246,10 +246,10 @@ final class explore {
     /**
      * The server-side search of paged mode (ADR-004, "Search").
      *
-     * The rule filter.js applies in full mode, through matcher: query and name lower-cased and
+     * The rule filter.ts applies in full mode, through matcher: query and name lower-cased and
      * stripped of diacritics, the query split on whitespace, a course matching when every word
      * is a substring of its normalised name — order-independent, over the course name only,
-     * never the shortname (full mode indexes the rendered name, explore.js's data-search). The
+     * never the shortname (full mode matches the rendered name, normalised by filter.ts). The
      * population is resolve()'s — the user's active, visible courses minus the archived ones —
      * so the cost follows the user's enrolments, not {course}. Matches are ordered by raw name
      * and capped at $limit, 'truncated' saying when the cap cut; only the shipped names are
@@ -450,7 +450,7 @@ final class explore {
     }
 
     /**
-     * Whether a course passes a chip — filter.js passesChip(), on the row facts.
+     * Whether a course passes a chip — filter.ts passesChip(), on the row facts.
      *
      * @param string $chip 'new', 'favourites', or anything else for all.
      * @param array $course An inventory::courses() row.

@@ -16,11 +16,11 @@
 /**
  * Tier 1: one request on first paint, then the strips.
  *
- * Everything the block shows above tier 3 is rendered here - the loading and error
- * states, the three strips, the ghost cards, the empty state and the live region.
- * Tier 3 is still AMD until phase R3; its region is a sibling of this component's
- * root, outside React's tree, because explore.js writes into it directly and React
- * would undo that on the next render.
+ * Everything the block shows is rendered from here: the loading and error states,
+ * the three strips, the cards, the ghost cards, the empty state, the live region -
+ * and, once a ghost has been pressed, tier 3. Until phase R3 tier 3 was an AMD
+ * module writing into a region beside this tree; it is a component now, so opening
+ * it is a state change and no code outside React touches the block's DOM.
  *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
@@ -30,16 +30,12 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import Strip from './Strip';
 import Ghost from './Ghost';
+import Explore from './Explore';
 import type {GhostKind} from './Ghost';
 import {amd} from './amd';
 import {fill} from './str';
 import {getAttention, getCardDetails, setFavourite} from './repository';
 import type {Attention, BlockConfig, CourseCard} from './types';
-
-const SELECTORS = {
-    root: '[data-region="block_compass"]',
-    explore: '[data-region="explore"]',
-};
 
 /** The chip tier 3 opens on, per kind of ghost. */
 const CHIP_OF_KIND: Record<GhostKind, string> = {
@@ -50,10 +46,6 @@ const CHIP_OF_KIND: Record<GhostKind, string> = {
 
 /** Get_card_details refuses more than this many ids, so the client batches. */
 const DETAILS_BATCH = 24;
-
-type ExploreModule = {
-    open: (root: HTMLElement, config: BlockConfig, chip: string) => Promise<void>,
-};
 
 type NotificationModule = {
     addNotification: (notification: {message: string, type: string}) => void,
@@ -103,12 +95,12 @@ const Block = (config: BlockConfig) => {
     // two failures are different statements: tier 1 did not load, or it did and some of
     // its progress did not. Saying the first when the cards are on screen is untrue.
     const [error, setError] = useState<string | null>(null);
-    const [exploring, setExploring] = useState(false);
+    // Tier 3 is open once a ghost has been pressed, on the chip that ghost implies.
+    const [exploring, setExploring] = useState<string | null>(null);
     // The counter is what makes a repeat announceable: React writes nothing when the text
     // is identical, so a screen reader would hear the first "X added to favourites" and
     // not the second. Keying the region on it remounts the node, which is an announcement.
     const [announcement, setAnnouncement] = useState({text: '', at: 0});
-    const root = useRef<HTMLDivElement>(null);
     // Which load is current. A retry supersedes whatever the previous one still owes.
     const seq = useRef(0);
     const {labels} = config;
@@ -222,29 +214,18 @@ const Block = (config: BlockConfig) => {
     }, [labels]);
 
     /**
-     * Open tier 3, which is still an AMD module until phase R3.
+     * Open tier 3 on the chip the pressed ghost implies.
+     *
+     * Until phase R3 this reached an AMD module through the bridge and tier 3 rendered
+     * into a region beside React's tree. It is a component now, so opening it is a state
+     * change and nothing outside this tree is touched.
      *
      * @param {string} kind Which ghost was pressed; it decides the chip.
-     * @returns {Promise} Resolves once tier 3 is open, or the failure reported.
+     * @returns {Promise} Resolves once tier 3 is open.
      */
-    const explore = useCallback(async(kind: GhostKind) => {
-        const block = root.current?.closest<HTMLElement>(SELECTORS.root);
-        if (!block || !block.querySelector(SELECTORS.explore)) {
-            return;
-        }
-        try {
-            const module = await amd<ExploreModule>('block_compass/explore');
-            await module.open(block, config, CHIP_OF_KIND[kind]);
-            // The tier 2 ghost counts what tier 3 now lists, so it stops being true the
-            // moment tier 3 opens. The per-strip ghosts keep counting their own strip.
-            if (kind === 'tier2') {
-                setExploring(true);
-            }
-        } catch (e) {
-            const notification = await amd<NotificationModule>('core/notification');
-            notification.addNotification({message: labels.loaderror || '', type: 'error'});
-        }
-    }, [config, labels]);
+    const explore = useCallback(async(kind: GhostKind): Promise<void> => {
+        setExploring(CHIP_OF_KIND[kind]);
+    }, []);
 
     /**
      * The ghost that closes a strip, when the server counted more than it sent.
@@ -267,7 +248,7 @@ const Block = (config: BlockConfig) => {
         : {};
 
     return (
-        <div ref={root}>
+        <div>
             {!data && error === null && (
                 <div className="compass-status text-muted small" role="status" aria-live="polite">
                     {labels.loading}
@@ -293,7 +274,7 @@ const Block = (config: BlockConfig) => {
                     onExplore={explore}
                 />
             ))}
-            {data && data.counts.more > 0 && !exploring && (
+            {data && data.counts.more > 0 && exploring === null && (
                 <div className="compass-ghost-wrap">
                     <Ghost
                         count={data.counts.more}
@@ -308,6 +289,11 @@ const Block = (config: BlockConfig) => {
                 <p className="compass-empty text-muted">
                     {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
                 </p>
+            )}
+            {exploring !== null && (
+                <div className="compass-explore-wrap mt-3">
+                    <Explore config={config} chip={exploring} />
+                </div>
             )}
             {/* Always in the DOM: a live region added at the moment of the change is
                 not reliably announced, because there was nothing to observe before it. */}

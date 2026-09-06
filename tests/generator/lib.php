@@ -205,7 +205,7 @@ class block_compass_generator extends testing_block_generator {
     }
 
     /**
-     * Query/name pairs pinning the search rule shared by amd/src/filter.js and classes/local/matcher.php.
+     * Query/name pairs pinning the search rule shared by js/esm/src/filter.ts and classes/local/matcher.php.
      *
      * One fixture, two consumers (ADR-004, fact 5): matcher_test feeds each pair to the PHP rule
      * and explore_test creates a course per name and asks explore::search() the same questions,

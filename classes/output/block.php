@@ -63,6 +63,9 @@ class block implements renderable, templatable {
             'lastopened', 'resultsshown', 'noresults', 'coursesingroup',
             'searchtooshort', 'searchtruncated', 'loadingrows', 'pagednote', 'filterupdated',
             'badge_new', 'progressloading', 'progresserror', 'progresspercent', 'completed', 'retry',
+            'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'filterby',
+            'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
+            'sort_category', 'sort_name', 'sort_recent',
         ];
         $labels = [];
         foreach ($keys as $key) {

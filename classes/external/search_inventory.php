@@ -39,7 +39,7 @@ use core_text;
  * Full mode filters the rows already in the browser; above the threshold they
  * are not there, so the same rule — every word of the query a substring of the
  * course name, case- and accent-insensitive — runs in PHP over the user's own
- * courses (matcher, mirroring amd/src/filter.js) and the first
+ * courses (matcher, mirroring js/esm/src/filter.ts) and the first
  * explore::SEARCH_LIMIT hits come back, each with the group it belongs to.
  * The query is PARAM_RAW because the domain normalises it; it is bounded to
  * QUERY_MAX_LENGTH characters here. Read-only, current user only; three

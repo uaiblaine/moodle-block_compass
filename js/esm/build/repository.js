@@ -1,12 +1,11 @@
-import{amd as r}from"./amd";var e=null,o=()=>(e||(e=r("block_compass/repository")),e),s=async()=>(await o()).getAttention(),a=async t=>(await o()).getCardDetails(t),m=async(t,i)=>(await o()).setFavourite(t,i);export{s as getAttention,a as getCardDetails,m as setFavourite};
+import{amd as a}from"./amd";var n=null,t=async(e,o)=>(n||(n=a("core/ajax")),await(await n).call([{methodname:e,args:o}])[0]),c=()=>t("block_compass_get_attention",{}),l=e=>t("block_compass_get_card_details",{courseids:e}),m=(e,o)=>t("core_course_set_favourite_courses",{courses:[{id:e,favourite:o}]}),u=()=>t("block_compass_get_inventory",{}),_=(e,o,r,s)=>t("block_compass_get_inventory_rows",{groupid:e,after:o,chip:r,sort:s}),g=e=>t("block_compass_search_inventory",{query:e});export{c as getAttention,l as getCardDetails,u as getInventory,_ as getInventoryRows,g as searchInventory,m as setFavourite};
 /**
- * Typed access to the plugin's web services.
+ * The only module that talks to the server.
  *
- * This does NOT reimplement amd/src/repository.js: it borrows it through the
- * RequireJS bridge and puts types on it. Two copies of the call list is how the
- * two halves of a half-migrated client start answering differently, and tier 3
- * is still AMD until phase R3 - so there is one repository, and this is a view
- * of it. When explore.js goes, the module moves here and the bridge drops out.
+ * core/ajax is an AMD module and a React component cannot import one (ADR-006), so
+ * it is reached through the bridge, once, and every call goes through here. Phase R2
+ * had this file borrow the AMD repository through that same bridge because tier 3
+ * still used it; R3 removed the AMD half, so this is now the repository itself.
  *
  * @module     block_compass/repository
  * @copyright  2026 Anderson Blaine

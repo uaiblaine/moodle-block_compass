@@ -8,6 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase R3 — tier 3 is React, and nothing is AMD (ADR-006), version 2026090502.
+  `explore.js` (824 lines), `filter.js` and `repository.js` are deleted with their
+  build output, and so are the `explore`, `group`, `row` and `rows` templates:
+  `templates/` holds the shell alone. Tier 3 is `Explore.tsx` with `Group.tsx` and
+  `Row.tsx`, rendered **inside** the React tree — the region it used to need beside
+  it is gone from the shell, and with it the last piece of the block's DOM that code
+  outside React touched.
+  Both modes keep every behaviour ADR-004 specified: full mode filters, sorts and
+  flattens without a request; paged mode fetches a group on first open and page by
+  page, treats the chip and the sort as parameters of those fetches, and asks the
+  server to search. Sequence numbers per group and per search drop the answer to a
+  superseded request, and a page that arrives holding rows the group already has
+  replaces them rather than appending — the server restarted the group.
+  `repository.ts` is now the repository rather than a typed view of one: it reaches
+  `core/ajax` through the bridge, which with `core/notification` is the only AMD the
+  plugin still touches.
+  `filter.js` became `js/esm/src/filter.ts`, unchanged step for step — including the
+  `\u0300-\u036f` strip written as escapes, not as the literal combining marks. Its
+  PHP twin `classes/local/matcher.php` and the parity fixture that pins the two are
+  untouched; every citation of the old path now names the new one.
+
 - Phase R2 — tier 1 is React (ADR-006), version 2026090501. The block shell is now
   a single mount point: `classes/output/block.php` exports one props object and
   `templates/block.mustache` hands it to `block_compass/Block`, which owns the

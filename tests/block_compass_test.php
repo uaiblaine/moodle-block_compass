@@ -134,8 +134,14 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
 
-        // Tier 3 still renders into its own region, outside the React tree, until phase R3.
-        $this->assertStringContainsString('data-region="explore"', $content->text);
+        // Since R3 the shell carries ONE mount point and nothing else of the block's own:
+        // tier 3 renders from the component, so the region it used to need is gone.
+        $this->assertStringNotContainsString('data-region="explore"', $content->text);
+        $this->assertSame(
+            1,
+            substr_count($content->text, 'data-react-component'),
+            'the shell mounts exactly one component'
+        );
         $this->assertStringContainsString(get_string('javascriptrequired', 'block_compass'), $content->text);
         $this->assertSame('', $content->footer);
     }

@@ -97,3 +97,45 @@ export type BlockConfig = {
     showsearch: boolean,
     showindex: boolean,
 };
+
+/** One tier 3 row, as get_inventory and its two paging services return it. */
+export type InventoryRow = {
+    id: number,
+    name: string,
+    opened: number | null,
+    new: boolean,
+    fav: boolean,
+};
+
+/** A search hit is a row that also says which group it belongs to. */
+export type SearchRow = InventoryRow & {groupid: number};
+
+/** One category group of tier 3. In paged mode `courses` is empty (ADR-004). */
+export type InventoryGroup = {
+    id: number,
+    name: string,
+    count: number,
+    courses: InventoryRow[],
+};
+
+/** The whole tier 3 payload. */
+export type Inventory = {
+    total: number,
+    mode: 'full' | 'paged',
+    groups: InventoryGroup[],
+};
+
+/** One page of one group, in paged mode. */
+export type RowPage = {
+    groupid: number,
+    rows: InventoryRow[],
+    hasmore: boolean,
+    after: number,
+};
+
+/** What the server-side search answers. */
+export type SearchHits = {
+    rows: SearchRow[],
+    truncated: boolean,
+};
+
