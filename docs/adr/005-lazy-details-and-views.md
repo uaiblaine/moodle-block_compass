@@ -403,3 +403,12 @@ record left open were answered in code.**
   exists to be true. Found by review, which is the whole argument for having one:
   the wrong version passed every test in the file, because every test used a value
   from the vocabulary.
+
+**2026-09-06, after R4 was published: a card inside a group prints no category.**
+Decision 4's consequences say a tier 3 card's category "is the enclosing group's `name`,
+already in the payload", and it is — that is where the flat view still gets it. But drawn
+inside the group it names, it repeats the header one line above it on every card, which is
+what the sentence turns into on screen. Only driving the browser showed that; every test
+still passes either way, because none of them reads a card's category. The flat view (A–Z,
+Recent, and a paged search's hits) keeps it, because there is no header there to say it.
+Version 2026090602.

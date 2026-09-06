@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Changed
+
+- A tier 3 card inside a category group no longer prints that category, version
+  2026090602. ADR-005 has a card take its category from the enclosing group, and the flat
+  views still do — but inside the group itself that repeats the header one line above every
+  card. Found by driving the browser; no test reads a card's category, so nothing else
+  would have.
+
 ### Added
 
 - Phase R4 — lazy details, the course image, and the list/cards view (ADR-005),

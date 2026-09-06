@@ -69,11 +69,16 @@ const Group = ({
     const list = useRef<HTMLDivElement>(null);
 
     /**
-     * A row's category is the group it is in, so nothing travels for it.
+     * A card inside a group prints no category, because the group's own header is the
+     * category and sits one line above it.
      *
-     * @returns {string} The group's name.
+     * ADR-005 says a tier 3 card's category "is the enclosing group's name", and it is -
+     * that is where the flat view gets it from. Printing it again on every card inside the
+     * group it names is what that reads as on screen, which only the browser showed.
+     *
+     * @returns {string} Nothing: the heading above already said it.
      */
-    const categoryof = useCallback((): string => name, [name]);
+    const categoryof = useCallback((): string => '', []);
 
     /*
      * The button that asked for a page was blurred when it disabled, so the keyboard has to
