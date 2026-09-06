@@ -69,11 +69,26 @@ export type Attention = {
     favouritesenabled: boolean,
 };
 
-/** Progress for one course, from block_compass_get_card_details. */
+/** Progress and image for one course, from block_compass_get_card_details. */
 export type CardDetail = {
     id: number,
     hascompletion: boolean,
     progress: number | null,
+    imageurl: string,
+    hasimage: boolean,
+};
+
+/**
+ * What a tier 3 row learns once it has been seen (ADR-005).
+ *
+ * The same batch answers both views, image included, so switching between them costs no
+ * request: a row filled while the list was showing is a card the moment the cards are.
+ */
+export type RowDetail = {
+    hascompletion: boolean,
+    progress: number | null,
+    imageurl: string,
+    hasimage: boolean,
 };
 
 /** One strip of tier 1: its payload key and its heading. */
@@ -96,6 +111,7 @@ export type BlockConfig = {
     favouritesenabled: boolean,
     showsearch: boolean,
     showindex: boolean,
+    view: string,
 };
 
 /** One tier 3 row, as get_inventory and its two paging services return it. */

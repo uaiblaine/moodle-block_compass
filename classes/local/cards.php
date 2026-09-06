@@ -232,10 +232,17 @@ final class cards {
      * never runs on the first paint). Ids the user is not actively enrolled in are
      * silently dropped: an unvalidated course id is an enumeration oracle.
      *
+     * Since ADR-005 the answer also carries the course image, because the batch is exactly
+     * the set of rows somebody is looking at: putting the URL in the inventory instead would
+     * cost a read per course for courses nobody scrolls to. Warm, the image is free; cold it
+     * is core's course_image datasource, which loops per course whatever the entry point
+     * (course/classes/cache/course_image.php:99-105) - which is why the contexts are warmed
+     * from the course layer just below, and why the budget test states the cold cost apart.
+     *
      * @param int $userid The viewer.
      * @param int[] $courseids At most DETAILS_BATCH ids.
      * @param int|null $now Unix time to treat as now; null for time().
-     * @return array List of ['id' => int, 'hascompletion' => bool, 'progress' => int|null].
+     * @return array List of entries: id, hascompletion, progress, imageurl and hasimage.
      */
     public static function details(int $userid, array $courseids, ?int $now = null): array {
         global $DB, $CFG;
@@ -291,6 +298,17 @@ final class cards {
         }
         $courses = empty($tocompute) ? [] : $DB->get_records_list('course', 'id', $tocompute);
 
+        /*
+         * Warm the batch's course contexts before any image is asked for. get_course_image()
+         * ends in get_course_overviewfiles(), which takes context_course::instance() per course
+         * (course/classes/list_element.php:253) - a read each, on a cold context, for something
+         * the course layer already holds in its stored columns. cards::build() does this for the
+         * filter preload; this path did not, and ADR-005 decision 3 makes it part of the phase.
+         */
+        foreach ($meta as $entry) {
+            course_meta::context_of($entry);
+        }
+
         $result = [];
         foreach ($courseids as $courseid) {
             if (!isset($meta[$courseid])) {
@@ -314,6 +332,12 @@ final class cards {
             ];
         }
 
-        return $result;
+        return array_map(static function (array $detail): array {
+            $image = (string) course_summary_exporter::get_course_image((object) ['id' => $detail['id']]);
+            $detail['imageurl'] = $image;
+            $detail['hasimage'] = $image !== '';
+
+            return $detail;
+        }, $result);
     }
 }

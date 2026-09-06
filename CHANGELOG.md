@@ -8,6 +8,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase R4 — lazy details, the course image, and the list/cards view (ADR-005),
+  version 2026090601. A tier 3 row now gains progress, and in the cards view the course
+  image, **only once somebody can see it**: one `IntersectionObserver` per region with a
+  200 px buffer, a pending set drained on a fixed 100 ms interval into batches of at most
+  24 ids, and one request in flight at a time. A row that leaves before its id goes out is
+  dropped rather than deferred, a row whose answer arrives is unobserved so scrolling back
+  costs nothing, and rows that are never seen are never asked for — which is the phase's
+  acceptance criterion.
+  `block_compass_get_card_details` answers with `imageurl` and `hasimage` alongside the
+  progress it already returned. The image travels with the visible batch rather than with
+  the inventory because core's `course_image` datasource loops per course whatever the
+  entry point: putting it in the inventory would cost a read per course for courses nobody
+  scrolls to. Measured for one course: 1 read warm, 3 cold, the third read saved by warming
+  the batch's course contexts from the course layer first.
+  Tier 3 renders as a compact list or as cards, chosen from the toolbar and remembered in
+  the new `block_compass_view` user preference, with a new `default_view` site setting
+  behind it. Switching costs no request: the rows and their details are already held, so
+  only the rendering changes. The preference brings `lib.php` with
+  `block_compass_user_preferences()` — its `choices` vocabulary is what constrains what may
+  be stored, since `PARAM_ALPHA` alone would accept any run of letters — and turns the
+  privacy provider from a `null_provider` into a metadata plus `user_preference_provider`
+  pair, which is what core's compliance check requires of a component that stores anything.
+  Virtualisation stays deferred, as ADR-005 decided, with its revisit triggers on the
+  record.
+
 - Phase R3 — tier 3 is React, and nothing is AMD (ADR-006), version 2026090502.
   `explore.js` (824 lines), `filter.js` and `repository.js` are deleted with their
   build output, and so are the `explore`, `group`, `row` and `rows` templates:

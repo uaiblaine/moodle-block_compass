@@ -30,6 +30,7 @@ use block_compass\local\budget;
 use block_compass\local\cards;
 use block_compass\local\details;
 use completion_info;
+use core\context_helper;
 use core_cache\cache;
 use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -85,6 +86,36 @@ final class get_card_details_test extends advanced_testcase {
         }
 
         return [$user, $course, $cm];
+    }
+
+    /**
+     * A course carrying an overview image, the way core's own exporter test builds one.
+     *
+     * Real image bytes are required rather than any file: core's course_image datasource keeps
+     * only what is_valid_image() accepts, and that reads the bytes through GD
+     * (lib/filestorage/stored_file.php:596-609). One transparent GIF pixel is enough, and as a
+     * literal it keeps a binary fixture out of the repository. The caller must be the owner of
+     * the draft area, so this runs as the admin the test set.
+     *
+     * @return \stdClass The course.
+     */
+    private function course_with_image(): \stdClass {
+        global $USER;
+
+        $draftid = file_get_unused_draft_itemid();
+        get_file_storage()->create_file_from_string(
+            [
+                'component' => 'user',
+                'filearea' => 'draft',
+                'contextid' => \core\context\user::instance($USER->id)->id,
+                'itemid' => $draftid,
+                'filename' => 'pixel.gif',
+                'filepath' => '/',
+            ],
+            base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
+        );
+
+        return $this->getDataGenerator()->create_course(['overviewfiles_filemanager' => $draftid]);
     }
 
     /**
@@ -306,5 +337,86 @@ final class get_card_details_test extends advanced_testcase {
         $meter = budget::start();
         cards::details((int) $user->id, [(int) $completable->id]);
         $this->assertGreaterThanOrEqual(2, $meter->reads(), 'computing reads the course record');
+    }
+
+    /**
+     * The image travels with the details, and a course without one says so (ADR-005, decision 3).
+     *
+     * Read through clean_returnvalue(), so this also proves the two fields are on the
+     * allowlist: an undeclared key is stripped in silence, which is exactly the failure a
+     * client would then report as "the cards view has no images".
+     *
+     * @return void
+     */
+    public function test_the_image_travels_with_the_details(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $withimage = $this->course_with_image();
+        $without = $gen->create_course();
+        $user = $gen->create_user();
+        $gen->enrol_user($user->id, $withimage->id, 'student');
+        $gen->enrol_user($user->id, $without->id, 'student');
+        $this->setUser($user);
+
+        $details = array_column($this->call([(int) $withimage->id, (int) $without->id])['details'], null, 'id');
+
+        $this->assertArrayHasKey('imageurl', $details[(int) $withimage->id], 'the allowlist must carry imageurl');
+        $this->assertArrayHasKey('hasimage', $details[(int) $withimage->id], 'the allowlist must carry hasimage');
+        $this->assertTrue($details[(int) $withimage->id]['hasimage']);
+        $this->assertStringContainsString('pluginfile.php', $details[(int) $withimage->id]['imageurl']);
+        $this->assertStringContainsString('pixel.gif', $details[(int) $withimage->id]['imageurl']);
+
+        // Control: the course with no image is answered, and answered with nothing.
+        $this->assertFalse($details[(int) $without->id]['hasimage']);
+        $this->assertSame('', $details[(int) $without->id]['imageurl']);
+    }
+
+    /**
+     * Budget: the image is free warm and is the call's new variable cost cold (ADR-005, decision 3).
+     *
+     * The §6.6 figure is a warm one and stays one read — that is the assertion the plugin's
+     * budget promise rests on. Cold, one image is three: the enrolment check, the get_course()
+     * core's datasource runs (course/classes/cache/course_image.php:58-65) and the one file-area
+     * query behind get_course_overviewfiles(). It is three rather than four because the batch's
+     * course contexts are warmed from the course layer first — delete that loop and this number
+     * moves, which is the point of asserting it exactly.
+     *
+     * @return void
+     */
+    public function test_the_cold_image_is_the_calls_new_variable_cost(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->course_with_image();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+        $this->setUser($user);
+
+        // Warm everything the call touches, the image included, then cool the image alone.
+        cards::details((int) $user->id, [(int) $course->id]);
+
+        /*
+         * The context cache is emptied before each measurement, and without that this test
+         * would be measuring nothing: creating a course leaves its context in the per-request
+         * static cache, so context_course::instance() would be free whether or not the code
+         * warmed anything, and the mutation that deletes the warming would redden nothing.
+         */
+        context_helper::reset_caches();
+        $meter = budget::start();
+        cards::details((int) $user->id, [(int) $course->id]);
+        $warm = $meter->reads();
+
+        cache::make('core', 'course_image')->purge();
+        context_helper::reset_caches();
+        $meter = budget::start();
+        cards::details((int) $user->id, [(int) $course->id]);
+        $cold = $meter->reads();
+
+        $this->assertSame(1, $warm, 'a warm image costs nothing beyond the enrolment check');
+        $this->assertSame(
+            3,
+            $cold,
+            "one cold image cost {$cold} reads: expected the enrolment check, get_course() and the file area"
+        );
     }
 }

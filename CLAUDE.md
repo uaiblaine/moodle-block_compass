@@ -446,8 +446,8 @@ implementation. The plan mandates four:
 | ADR-002 | stamp validation of `inventory` (seven aggregates over enrolments, methods, last access and favourites, one statement) instead of observers | Phase 2 | Accepted |
 | ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
-| ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04) |
-| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1, R2 and R3 implemented — the AMD tree is gone |
+| ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04), implemented in R4 with one deviation recorded in the record itself |
+| ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1–R4 implemented — the AMD tree is gone |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -470,7 +470,8 @@ settings.php                 §8 settings: attention_max, new_days, dormant_mont
                              hide_block_title, show_index (ints via configtext+PARAM_INT,
                              vocabularies via configselect — never a free-text field for an enum)
 version.php                  requires 2026042000, supported [502, 502]
-lib.php                      block_compass_user_preferences() once block_compass_view exists (Phase 4)
+lib.php                      block_compass_user_preferences(): block_compass_view, with its choices
+                             vocabulary and the is_current_user permission callback (Phase R4)
 classes/
   external/                  READ functions only, one class per file, all in the USER context, none
                              accepting a userid. Writes go to core's own services from the browser:
@@ -481,7 +482,7 @@ classes/
                              inventory_max (Phase 3) — same return structure in both
     get_inventory_rows.php   paged mode: one page of one group (groupid, after, chip, sort) (Phase 3)
     search_inventory.php     paged mode: server-side search by course name (query) (Phase 3)
-    get_card_details.php     image + progress for ≤ 24 visible ids (Phase 4)
+    get_card_details.php     image + progress for ≤ 24 visible ids (Phase 1; the image in R4)
   local/                     THE ONLY place $DB is allowed
     budget.php               perf_get_reads() delta helper used by every budget test (Phase 0)
     config.php               settings with defaults; the one reader of get_config() (Phase 1; inventory_max,
@@ -506,12 +507,14 @@ classes/
   task/warm_active_users.php scheduled task, always registered, gated by enable_prewarm; a thin caller
                              of local\prewarm::run() that mtraces one summary line (Phase 3)
   output/                    renderable+templatable shells only (block.php)
-  privacy/provider.php       Phase 0: null_provider. Becomes a user_preference_provider in the phase
-                             that introduces block_compass_view (favourites and hidden-course
-                             preferences are core's and are exported/deleted by core)
+  privacy/provider.php       metadata provider + user_preference_provider since R4, for
+                             block_compass_view alone (favourites and hidden-course preferences
+                             are core's and are exported and deleted by core)
 js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since R3:
                              Block (the block: tiers 1 and 2, and tier 3 once opened), Strip, Card,
-                             Progress, Star, Ghost; Explore (tier 3, both modes), Group, Row;
+                             Progress, Star, Ghost; Explore (tier 3, both modes), Group, RowList
+                             (the one place that knows there are two views), Row, RowCard;
+                             rowdetails (the viewport observer and the batching behind it, R4);
                              repository (every web service, through the bridge to core/ajax),
                              amd (the RequireJS bridge — the only file that knows about it),
                              filter (normalise, match, relative time, chips — the PHP twin of the
@@ -540,9 +543,10 @@ tests/                       PHPUnit per area; generator; budget tests beside ea
 cache, no course. `applicable_formats()` is `['my' => true]` (the Dashboard) —
 widening it is a maintainer decision recorded in ADR-000. `can_block_be_added()`
 mirrors any hard precondition so an admin cannot place a block that will render
-nothing. Every label the JS needs is exported once from the renderable as JSON
-and passed through the template's `{{#js}}` block, as block_dimensions does;
-strings are never fetched from JS with `core/str` in a loop.
+nothing. Every label the JS needs is exported once from the renderable as one
+JSON props object, which the template hands to React through `data-react-props`
+(ADR-006); strings are never fetched from JS, because for an ES module there is
+no `core/str` to fetch them with.
 
 ### Data flow
 
@@ -550,10 +554,10 @@ Three round trips at most, each with a purpose: `get_attention` on first paint
 (tier 1 cards + ghost count, one call); `get_inventory` when the ghost card is
 clicked (Phase 2), and when the search box receives input or the user scrolls
 past tier 1 (both Phase 4);
-`get_card_details` in batches of ≤ 24 for rows entering the viewport
-(IntersectionObserver, Phase 4). In `full` mode tier 3 is rendered **once** from
-the `get_inventory` payload; search, chips and sort then only toggle `hidden` or
-reorder nodes. In `paged` mode (Phase 3) `get_inventory` ships the group
+`get_card_details` in batches of ≤ 24 for rows entering the viewport (one
+IntersectionObserver per region, a pending set drained on a fixed 100 ms interval,
+one request in flight at a time — ADR-005, built in R4). In `full` mode tier 3
+re-renders from the payload it holds; search, chips and sort issue nothing. In `paged` mode (Phase 3) `get_inventory` ships the group
 headers with `courses` empty, and two further calls are explicit and
 data-bearing: `get_inventory_rows` once per opened group and once per "Show
 more" (100 rows a page, cursor `after`, the current chip and sort as
@@ -561,8 +565,10 @@ parameters), and `search_inventory` once per settled query (300 ms debounce,
 ≥ 2 characters after normalisation, ≤ 50 hits rendered into the flat list in
 place of the groups). Neither is a filter the browser could apply itself — the
 rows are not in the browser — so non-negotiable 5 holds. The only other calls
-are to core's own services: the star (`core_course_set_favourite_courses`) and
-preferences (`core_user_update_user_preferences`). Filtering, grouping and the
+are to core's own: the star (`core_course_set_favourite_courses`) and the view
+preference, which goes through `core_user/repository`'s `setUserPreferences` to
+core's own preferences endpoint — the one that looks the definition up, asks the
+permission callback and refuses a value cleaning would change. Filtering, grouping and the
 side index work on the inventory already in the browser in `full` mode; in
 `paged` mode the index counts stay the headers' totals.
 
@@ -744,8 +750,8 @@ set per key (`format_mtube-502`).
 
 ### Client side
 
-**The client is migrating to React (ADR-006), phase by phase.** Until R4 lands,
-both halves are live and the rules below apply to whichever half a file is in.
+**The client is React (ADR-006).** The migration finished in R4; the rules below
+apply to every file of it.
 
 React sources are `js/esm/src/**/*.tsx` and `**/*.ts`; the build is committed in
 `js/esm/build/` the way `amd/build/` used to be, rebuilt by the same
@@ -829,6 +835,23 @@ Tier 3, whose behaviour is the most intricate thing here:
   at the wrong moments.
 - **Focus after "Show more" is deliberate**: back to the button while pages remain,
   and into the rows when the last page removes it.
+- **A row is filled once, and only if it was seen** (ADR-005, R4). `rowdetails.ts`
+  owns one `IntersectionObserver` for the region with a 200 px buffer, a pending set
+  drained on a fixed 100 ms interval into batches of at most 24, and one request in
+  flight at a time. A row that leaves before its id goes out is dropped rather than
+  deferred; a row whose answer arrives is unobserved, so scrolling back costs nothing;
+  and every id in a batch counts as answered even when the batch failed, because a
+  skeleton that never resolves is a lie and a retry loop against an unwell server is
+  worse. Registration belongs to the row's own effect, which is what makes it true for
+  a first render, an appended page and a search hit alike — wiring it at the call sites
+  would observe nothing at all in paged mode, where every group arrives empty.
+- **Two views, one payload.** `RowList` picks between `Row` and `RowCard`; switching
+  costs no request, because the rows and their details are held in state and only the
+  rendering changes. The choice is the `block_compass_view` preference, written through
+  core's own endpoint and read back by the shell, with `default_view` as the site
+  default. Both views fetch the image, including the list, which never draws it: gating
+  the fetch on the current view would make the switch cost a request per row filled
+  before it, and ADR-005 chose the free switch knowingly.
 - Root class `.block_compass` is what core already puts on the block wrapper (`html_attributes()` in `blocks/moodleblock.class.php`), so
   scope styles and tokens there and repeat the token block on any element core
   relocates (`core/modal` dialogues appended to `body`). Custom properties use
@@ -947,6 +970,15 @@ the following defaults flip, deliberately:
 - Never run Behat and `mdl ci` on the same stack at the same time (measured 9
   → 110 minutes with spurious WebDriver failures); the parallel run goes to
   m502b, where the per-stack lock is what `mdl mutate` relies on.
+- **That lock does not make a sweep safe to run beside anything else, and R4 paid
+  for the difference.** The lock is per stack and it guards the test *database*; the
+  plugin's source is ONE directory bind-mounted into every stack that carries it,
+  m502 and m502b included. So while `mdl mutate` holds a mutation on disk, a suite
+  run on the other stack is running the broken code. It fails in a way that reads
+  exactly like a real defect — R4 saw `test_the_view_the_shell_ships_...` report
+  `'sideways'` instead of `'cards'`, which is precisely what
+  `block_view_vocabulary` had removed the guard for. While a sweep is running,
+  run nothing else against this plugin on any stack.
 - WS tests through `call_external_function()`: re-set
   `$_POST['sesskey'] = sesskey()` after **every** `setUser()`, and assert on
   `$result['exception']->errorcode` — the result is a `stdClass`, so
@@ -961,6 +993,19 @@ the following defaults flip, deliberately:
   first: perl interpolates `$variables` on both sides of `s///`, and two
   identical guard lines in one file are common. A guard that reddens nothing
   is the finding — a green suite is not evidence the guard is tested.
+- **Do not edit tests while a sweep is running.** Each gate is judged against the
+  tests that are on disk when it runs, and a sweep of forty-odd gates takes hours,
+  so a test edited halfway through leaves the gates before it judged against the
+  old version and the ones after it against the new. R4 lost a verdict this way:
+  `cards_context_warming` was measured before its test learned to empty the context
+  cache, so it reddened nothing and looked like a finding. (Only the files the spec
+  names are restored from the pre-sweep copy, so an edit elsewhere is not reverted —
+  it is silently mixed in.)
+- **A budget test measures nothing unless the cache it is about is really cold.**
+  Creating a course leaves its context in the per-request static cache, so
+  `context_course::instance()` is free for the rest of the test whatever the code
+  does. `\core\context_helper::reset_caches()` before the measurement is what makes
+  the number belong to the code rather than to the fixture.
 
 ## Git and delivery
 

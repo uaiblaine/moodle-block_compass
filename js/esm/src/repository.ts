@@ -35,6 +35,12 @@ type AjaxModule = {
     call: (requests: AjaxRequest[]) => Promise<unknown>[],
 };
 
+type UserPreference = {name: string, value: string, userid: number};
+
+type UserRepository = {
+    setUserPreferences: (preferences: UserPreference[]) => Promise<unknown>,
+};
+
 /** Memoised so the bridge is crossed once per page, not once per call. */
 let loading: Promise<AjaxModule> | null = null;
 
@@ -112,3 +118,20 @@ export const getInventoryRows = (groupid: number, after: number, chip: string, s
  */
 export const searchInventory = (query: string): Promise<SearchHits> =>
     call<SearchHits>('block_compass_search_inventory', {query});
+
+/**
+ * Persist the viewer's choice of tier 3 view, through core's own preference route.
+ *
+ * Compass ships no write service for this (ADR-005, decision 4): core_user/repository posts
+ * to core's own preference endpoint, which cleans the value against the choices lib.php
+ * declares. The userid is passed as 0 and must be - the module's checkUserId() compares
+ * Number(userid) against 0 and against the current user, and an omitted one is NaN, which
+ * equals neither and throws (user/amd/src/repository.js:28-38).
+ *
+ * @param {string} view list or cards.
+ * @returns {Promise} Resolves once the preference is written.
+ */
+export const setViewPreference = async(view: string): Promise<void> => {
+    const repository = await amd<UserRepository>('core_user/repository');
+    await repository.setUserPreferences([{name: 'block_compass_view', value: view, userid: 0}]);
+};

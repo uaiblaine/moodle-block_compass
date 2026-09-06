@@ -28,9 +28,10 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useRef} from 'react';
-import Row from './Row';
+import {useCallback, useEffect, useRef} from 'react';
+import RowList from './RowList';
 import {fill} from './str';
+import type {RowDetails} from './rowdetails';
 import type {BlockConfig, InventoryRow} from './types';
 
 type GroupProps = {
@@ -44,6 +45,8 @@ type GroupProps = {
     config: BlockConfig,
     now: number,
     lang: string,
+    view: string,
+    details: RowDetails,
     onToggle: (id: number, open: boolean) => void,
     onShowMore: (id: number) => void,
     focusfrom: number | null,
@@ -53,16 +56,24 @@ type GroupProps = {
 /**
  * The group.
  *
- * @param {object} props The group's identity and rows, its open and paging state,
- *     the block config and the two callbacks; see GroupProps.
+ * @param {object} props The group's identity and rows, its open and paging state, the
+ *     block config, the view, the details store and the two callbacks; see GroupProps.
  * @returns {object} The rendered disclosure.
  */
 const Group = ({
-    id, name, count, rows, open, loading, hasmore, config, now, lang, onToggle, onShowMore, focusfrom, anchor,
+    id, name, count, rows, open, loading, hasmore, config, now, lang, view, details,
+    onToggle, onShowMore, focusfrom, anchor,
 }: GroupProps) => {
     const {labels} = config;
     const more = useRef<HTMLButtonElement>(null);
     const list = useRef<HTMLDivElement>(null);
+
+    /**
+     * A row's category is the group it is in, so nothing travels for it.
+     *
+     * @returns {string} The group's name.
+     */
+    const categoryof = useCallback((): string => name, [name]);
 
     /*
      * The button that asked for a page was blurred when it disabled, so the keyboard has to
@@ -83,6 +94,7 @@ const Group = ({
 
             return;
         }
+        // Both views name their link the same, so the target is found whichever is showing.
         const links = list.current?.querySelectorAll<HTMLAnchorElement>('.compass-row-link');
         links?.[focusfrom]?.focus();
     }, [focusfrom, loading, hasmore]);
@@ -100,12 +112,16 @@ const Group = ({
                     {fill(labels.coursesingroup, String(count))}
                 </span>
             </summary>
-            <div className="compass-rows" role="list" ref={list} aria-busy={loading || undefined}>
-                {rows.map((row) => (
-                    <div className="compass-rows-item" role="listitem" key={row.id}>
-                        <Row row={row} config={config} now={now} lang={lang} />
-                    </div>
-                ))}
+            <div className="compass-rows-shell" ref={list} aria-busy={loading || undefined}>
+                <RowList
+                    rows={rows}
+                    view={view}
+                    categoryof={categoryof}
+                    config={config}
+                    now={now}
+                    lang={lang}
+                    details={details}
+                />
             </div>
             {(hasmore || loading) && (
                 <button

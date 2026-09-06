@@ -66,6 +66,7 @@ class block implements renderable, templatable {
             'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'filterby',
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
             'sort_category', 'sort_name', 'sort_recent',
+            'viewas', 'view_cards', 'view_list', 'viewerror',
         ];
         $labels = [];
         foreach ($keys as $key) {
@@ -88,10 +89,32 @@ class block implements renderable, templatable {
             'favouritesenabled' => config::favourites_enabled(),
             'showsearch' => config::search_enabled(),
             'showindex' => config::index_shown(),
+            'view' => self::view(),
         ];
 
         return [
             'props' => json_encode($props),
         ];
+    }
+
+    /**
+     * The tier 3 view this viewer gets: their own choice, or the site default.
+     *
+     * Reading a preference is not the data access the shell is forbidden (PLAN.md §3.2):
+     * get_user_preferences() answers from $USER->preference, which the session already
+     * carries, so it costs no query and touches no course.
+     *
+     * The vocabulary is checked rather than trusted. core_user::clean_preference() constrains
+     * what is written through core's own route, but a row can also arrive from an upgrade
+     * script, a restored site or a hand-edited table, and a view the client does not know
+     * renders no rows at all - a blank tier 3 with nothing in the console.
+     *
+     * @return string list or cards.
+     */
+    private static function view(): string {
+        $default = config::default_view();
+        $view = (string) get_user_preferences('block_compass_view', $default);
+
+        return in_array($view, config::VIEWS, true) ? $view : $default;
     }
 }

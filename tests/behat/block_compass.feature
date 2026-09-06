@@ -88,3 +88,13 @@ Feature: The Compass block puts the courses that need attention first
     Then I should see "1 courses shown" in the "Compass" "block"
     And I should see "Course 4" in the "Compass" "block"
     And I should not see "Course 2" in the "Compass" "block"
+    # The cards are a second component tree over the same rows, and in React a defect in one
+    # unmounts the whole block rather than drawing a broken card - so this is the only place
+    # that would notice. The reload is what proves the choice was WRITTEN: it goes through
+    # core's own preferences endpoint, a route nothing else in this plugin uses, and a client
+    # that failed to persist it would look perfectly correct until the next page load.
+    When I click on "Cards" "button" in the "Compass" "block"
+    Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
+    When I reload the page
+    And I click on "Explore all" "button"
+    Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"

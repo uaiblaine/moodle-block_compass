@@ -1,6 +1,8 @@
 # ADR-005 — Lazy details for tier 3, the list/cards view, and virtualisation deferred
 
-- **Status:** Accepted (2026-09-04, maintainer; implementation in Phase R4).
+- **Status:** Accepted (2026-09-04, maintainer), implemented in Phase R4 (2026-09-06);
+  see the amendments at the end for what the implementation measured and where it
+  departed from this record.
   **Revised before acceptance**, on 2026-09-04, under ADR-006 decision 8: two
   passages described the client in terms of `explore.js` and hand-wired DOM
   registration, which the React migration removes. Only those passages changed —
@@ -336,3 +338,68 @@ artefact of either implementation.
 | An observer per row rather than one per container | Hundreds of observers where one suffices; `IntersectionObserver` takes many targets by design. |
 | Store the view in `localStorage` | It would not follow the user between devices, and ADR-000 decision 17 already chose a preference. |
 
+## Amendments
+
+**2026-09-06, from phase R4: this record asks for two mutation gates it also
+explains cannot exist.** "Tests the phase must ship" says twice that the client
+half is verified by review because the fleet has no JavaScript runner — and then
+its last bullet asks for mutation gates on "the observer's buffer" and "the
+'fill once' guard", which are client-side and can therefore redden nothing. A
+gate that reddens no test is, by this fleet's own rule, the finding rather than
+the coverage, so adding them would have made the sweep report six failures that
+mean nothing.
+
+What R4 shipped instead is seven gates over the guards that *are* reachable from
+PHP:
+
+| gate | what it breaks |
+|---|---|
+| `cards_context_warming` | the context warming this record's decision 3 asks for |
+| `card_details_image_allowlist` | `imageurl` in the return allowlist |
+| `config_default_view` | the site default's vocabulary check |
+| `block_view_vocabulary` | the same check on the stored preference |
+| `preference_choices` | the `choices` entry that constrains what may be written |
+| `preference_permission` | the `is_current_user` callback |
+| `privacy_data_provider` | the data-provider half of the privacy pair, without which core does not count the component compliant |
+
+The batch cap keeps its existing gate (`card_details_batch_cap`). The observer's
+buffer, the flush interval and the fill-once guard remain verified by review
+alone, and they join the debt ADR-004 already recorded for `filter.js`'s matching
+rule: **the client half of this plugin has no automated test of any kind**, and
+closing it is a `moodle-dev` change, not a plugin one.
+
+**2026-09-06, from phase R4: the measured budget, warm and cold.** Decision 3
+promised the §6.6 figure warm and stated the cold cost as a bound with arithmetic
+behind it. Measured on m502, PostgreSQL 17, for one course: **1 read warm and 3
+cold** — the enrolment check, the `get_course()` core's datasource runs, and the
+one file-area query behind `get_course_overviewfiles()`. It is three rather than
+four because the batch's course contexts are warmed from the course layer first,
+which is what decision 3 asked for; deleting that loop moves the number, and the
+budget test asserts it exactly so that it does.
+
+**2026-09-06, from phase R4: the card is a thin one, and four questions this
+record left open were answered in code.**
+
+- The consequences section left "reuse the tier 1 card or write a thin one" to
+  code review. It is a thin one, `RowCard.tsx`, and the reason is the payload
+  rather than the styling: a tier 1 card renders `actiontext`, `enrolledtext`,
+  `deadlinetext`, `shortname` and a server-built URL, none of which an inventory
+  row carries (ADR-002 keeps it to ten integers per enrolment). Reusing `Card`
+  would have meant inventing those fields in the browser.
+- **What a failed batch does was not specified.** It is told once per region and
+  every id in it is marked answered: a skeleton that never resolves is a lie, and
+  re-asking on every scroll would hammer a server that has already failed. The
+  rows show no progress, which is what they showed before this phase.
+- **The stored preference is checked twice, not once.** Decision 4 rests on
+  `choices` cleaning the value, and that is true of the endpoints — but
+  `set_user_preference()` itself writes what it is given, so an upgrade, a restore
+  or a hand-edited table can leave a word the client cannot draw. The shell
+  therefore validates what it ships, and falls back to the site default rather
+  than to the hardcoded list.
+- **The privacy export does the opposite, deliberately.** Every other reader of the
+  preference substitutes something renderable for a value it does not know; the
+  export prints it verbatim. An export answers "what is held about me", so naming a
+  view the person never chose would be a false statement in the one document that
+  exists to be true. Found by review, which is the whole argument for having one:
+  the wrong version passed every test in the file, because every test used a value
+  from the vocabulary.

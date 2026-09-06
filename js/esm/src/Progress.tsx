@@ -30,15 +30,22 @@ import {fill} from './str';
 type ProgressProps = {
     progress: number,
     labels: Record<string, string>,
+    compact?: boolean,
 };
 
 /**
- * The bar plus its text.
+ * The bar, and its text unless the caller is short of room.
  *
- * @param {object} props The percentage and the block labels; see ProgressProps.
+ * A tier 3 row is one line and already carries a name, a date and a star, so it takes the
+ * compact form: the percentage is still announced, because it is the bar's own accessible
+ * name rather than the text beside it (ADR-005 asks the skeleton to be sized like the value
+ * it stands in for, and this is what makes that width honest).
+ *
+ * @param {object} props The percentage, the block labels and whether to drop the text;
+ *     see ProgressProps.
  * @returns {object} The rendered bar.
  */
-const Progress = ({progress, labels}: ProgressProps) => {
+const Progress = ({progress, labels, compact = false}: ProgressProps) => {
     const complete = progress >= 100;
     const percent = fill(labels.progresspercent, String(progress));
 
@@ -54,9 +61,11 @@ const Progress = ({progress, labels}: ProgressProps) => {
             >
                 <div className={`progress-bar${complete ? ' bg-success' : ''}`} style={{width: `${progress}%`}}></div>
             </div>
-            <span className="compass-progress-text small text-muted">
-                {complete ? labels.completed : percent}
-            </span>
+            {!compact && (
+                <span className="compass-progress-text small text-muted">
+                    {complete ? labels.completed : percent}
+                </span>
+            )}
         </>
     );
 };

@@ -79,6 +79,20 @@ if ($ADMIN->fulltree) {
         1
     ));
 
+    // The view tier 3 opens in for a viewer who has never chosen one (ADR-005, decision 4).
+    // A select rather than a text field: the value is compared against a fixed vocabulary,
+    // and admin_setting_configtext defaults to PARAM_RAW and would validate nothing.
+    $settings->add(new admin_setting_configselect(
+        'block_compass/default_view',
+        get_string('default_view', 'block_compass'),
+        get_string('default_view_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_VIEW,
+        [
+            'list' => get_string('view_list', 'block_compass'),
+            'cards' => get_string('view_cards', 'block_compass'),
+        ]
+    ));
+
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/hide_block_title',
         get_string('hide_block_title', 'block_compass'),

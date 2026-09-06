@@ -147,6 +147,46 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
+     * The props the shell shipped, decoded.
+     *
+     * @return array The props object.
+     */
+    private function props(): array {
+        preg_match('/data-react-props=\'(.*?)\'/', $this->make_block()->get_content()->text, $matches);
+
+        return (array) json_decode(html_entity_decode($matches[1]), true);
+    }
+
+    /**
+     * The view the shell ships is the viewer's own choice, or the site default.
+     *
+     * Four states and each one matters: nothing configured and nothing chosen; a site default
+     * reaching a viewer who never chose; a viewer's choice outranking that default; and a
+     * stored word the client does not know, which must not travel - a view React cannot draw
+     * renders no rows at all and says nothing anywhere.
+     *
+     * @return void
+     */
+    public function test_the_view_the_shell_ships_is_the_viewers_own_or_the_site_default(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+
+        $this->assertSame('list', $this->props()['view']);
+
+        set_config('default_view', 'cards', 'block_compass');
+        $this->assertSame('cards', $this->props()['view']);
+
+        set_user_preference('block_compass_view', 'list', $user);
+        $this->assertSame('list', $this->props()['view']);
+
+        // Only the endpoints clean a preference; set_user_preference() writes what it is given.
+        // So a value outside the vocabulary can be in the column, and the shell is where it stops.
+        set_user_preference('block_compass_view', 'sideways', $user);
+        $this->assertSame('cards', $this->props()['view']);
+    }
+
+    /**
      * Guests get an empty block, which Moodle then does not display.
      *
      * @return void

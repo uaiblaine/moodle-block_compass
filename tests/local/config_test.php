@@ -56,6 +56,7 @@ final class config_test extends advanced_testcase {
             'attention_max', 'new_days', 'group_depth',
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
+            'default_view',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -403,5 +404,35 @@ final class config_test extends advanced_testcase {
 
         set_config('enable_prewarm', 1, 'block_compass');
         $this->assertTrue(config::prewarm_enabled());
+    }
+
+    /**
+     * The site default view is one of two words, and anything else is the list.
+     *
+     * The setting is a select, so an administrator cannot type a third word — but the column
+     * can also be written by an upgrade, a restore or a hand-edited database, and a view the
+     * client does not know renders no rows at all rather than failing loudly. The control is
+     * the stored 'cards': without it this test would pass against an accessor that always
+     * answered 'list'.
+     *
+     * @return void
+     */
+    public function test_the_default_view_is_list_unless_cards_is_stored(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertSame('list', config::default_view());
+
+        set_config('default_view', 'cards', 'block_compass');
+        $this->assertSame('cards', config::default_view());
+
+        set_config('default_view', 'list', 'block_compass');
+        $this->assertSame('list', config::default_view());
+
+        set_config('default_view', 'sideways', 'block_compass');
+        $this->assertSame('list', config::default_view());
+
+        set_config('default_view', '', 'block_compass');
+        $this->assertSame('list', config::default_view());
     }
 }

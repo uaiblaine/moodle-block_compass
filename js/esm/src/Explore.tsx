@@ -23,6 +23,12 @@
  * and page by page, the chip and the sort are parameters of those fetches, and the
  * search box asks the server, because the rows are not here to search.
  *
+ * Since R4 the section also owns two things that cut across both modes: the viewer's
+ * choice between the list and the cards, which is a re-render and a preference write and
+ * nothing more, and the details store, which fetches progress and the course image for the
+ * rows that actually reach the viewport (ADR-005). Neither knows about the mode, because a
+ * row is a row however it arrived.
+ *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -30,11 +36,12 @@
 
 import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
 import Group from './Group';
-import Row from './Row';
+import RowList from './RowList';
 import {amd} from './amd';
 import {matches, normalise, passesChip} from './filter';
 import {fill} from './str';
-import {getInventory, getInventoryRows, searchInventory} from './repository';
+import {getInventory, getInventoryRows, searchInventory, setViewPreference} from './repository';
+import {useRowDetails} from './rowdetails';
 import type {BlockConfig, Inventory, InventoryRow, SearchRow} from './types';
 
 /** Full mode: the browser answers a keystroke, so it may answer it soon. */
@@ -89,8 +96,12 @@ const EMPTY_PAGE: PageState = {rows: [], after: 0, hasmore: false, loaded: false
  * @returns {Promise} Resolves once the notification is up.
  */
 const notify = async(message: string): Promise<void> => {
-    const notification = await amd<NotificationModule>('core/notification');
-    notification.addNotification({message, type: 'error'});
+    try {
+        const notification = await amd<NotificationModule>('core/notification');
+        notification.addNotification({message, type: 'error'});
+    } catch (e) {
+        // There is nowhere left to say it: the notifier itself did not load.
+    }
 };
 
 /**
@@ -116,6 +127,19 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
     const [announcement, setAnnouncement] = useState({text: '', at: 0});
     const [narrow, setNarrow] = useState(false);
     const [focusmore, setFocusmore] = useState<{id: number, from: number} | null>(null);
+    // The shell resolved this: the viewer's own preference, or the site default (ADR-005).
+    const [view, setView] = useState(config.view === 'cards' ? 'cards' : 'list');
+
+    /**
+     * Say once that some progress did not arrive; the hook calls this at most once.
+     *
+     * @returns {void}
+     */
+    const detailsfailed = useCallback((): void => {
+        notify(labels.progresserror || '');
+    }, [labels.progresserror]);
+
+    const details = useRowDetails(detailsfailed);
 
     const section = useRef<HTMLElement>(null);
     // The open state of every group when the current search began, put back when it ends.
@@ -420,6 +444,54 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
     };
 
     /**
+     * Change the view, and remember it for next time.
+     *
+     * The rows are already held, so this is a re-render and nothing else: every detail
+     * already fetched survives it, and a row still waiting is observed again once it is
+     * back on screen. Only the memory of the choice travels (ADR-005, decision 4).
+     *
+     * @param {string} value list or cards.
+     * @returns {Promise} Resolves once the preference is written, or the failure reported.
+     */
+    const chooseView = async(value: string): Promise<void> => {
+        if (value === view) {
+            return;
+        }
+        setView(value);
+        try {
+            await setViewPreference(value);
+        } catch (e) {
+            await notify(labels.viewerror || '');
+        }
+    };
+
+    /**
+     * Which category a row belongs to, for the cards view to print.
+     *
+     * Full mode knows it from the group the row was sent in; a paged search hit carries its
+     * group id (ADR-004), which the group headers name. Either way nothing new travels.
+     */
+    const categoryname = useMemo((): Map<number, string> => {
+        const names = new Map<number, string>();
+        const groups = new Map<number, string>();
+        data?.groups.forEach((group) => {
+            groups.set(group.id, group.name);
+            group.courses.forEach((row) => names.set(row.id, group.name));
+        });
+        hits?.rows.forEach((row) => names.set(row.id, groups.get(row.groupid) || ''));
+
+        return names;
+    }, [data, hits]);
+
+    /**
+     * The category of one row, as the cards view prints it.
+     *
+     * @param {object} row The row.
+     * @returns {string} Its category name, or the empty string when none is known.
+     */
+    const categoryof = useCallback((row: InventoryRow): string => categoryname.get(row.id) || '', [categoryname]);
+
+    /**
      * The rows of the flat list, sorted; full mode only uses it when not grouped.
      *
      * @returns {object[]} The rows in order.
@@ -514,6 +586,19 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                         </button>
                     ))}
                 </div>
+                <div className="compass-views btn-group btn-group-sm" role="group" aria-label={labels.viewas}>
+                    {[['list', labels.view_list], ['cards', labels.view_cards]].map(([value, label]) => (
+                        <button
+                            key={value}
+                            type="button"
+                            className={`btn btn-outline-secondary${view === value ? ' active' : ''}`}
+                            aria-pressed={view === value}
+                            onClick={() => chooseView(value)}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                </div>
                 <div className="compass-chips d-flex gap-1" role="group" aria-label={labels.filterby}>
                     {[['all', labels.chip_all], ['new', labels.chip_new],
                         ['favourites', labels.chip_favourites]].map(([value, label]) => (
@@ -534,8 +619,8 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                     <nav className="compass-index" aria-label={labels.categoryindex}>
                         <ul className="list-unstyled small mb-0">
                             {data.groups.map((group) => {
-                                const view = groupview(group.id, group.count);
-                                if (!view.show) {
+                                const slice = groupview(group.id, group.count);
+                                if (!slice.show) {
                                     return null;
                                 }
 
@@ -553,7 +638,7 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                                             onClick={() => setOpen((c) => ({...c, [group.id]: true}))}
                                         >
                                             <span>{group.name}</span>
-                                            <span className="text-muted">{view.count}</span>
+                                            <span className="text-muted">{slice.count}</span>
                                         </a>
                                     </li>
                                 );
@@ -564,8 +649,8 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                 {grouped && (
                     <div className="compass-groups flex-grow-1">
                         {data.groups.map((group) => {
-                            const view = groupview(group.id, group.count);
-                            if (!view.show) {
+                            const slice = groupview(group.id, group.count);
+                            if (!slice.show) {
                                 return null;
                             }
                             const page = pages[group.id] || EMPTY_PAGE;
@@ -577,14 +662,16 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                                     key={group.id}
                                     id={group.id}
                                     name={group.name}
-                                    count={view.count}
-                                    rows={view.rows}
+                                    count={slice.count}
+                                    rows={slice.rows}
                                     open={isopen}
                                     loading={page.loading}
                                     hasmore={paged && page.hasmore}
                                     config={config}
                                     now={now.current}
                                     lang={lang}
+                                    view={view}
+                                    details={details}
                                     onToggle={(id, value) => {
                                         setOpen((c) => ({...c, [id]: value}));
                                         if (value) {
@@ -601,12 +688,16 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                     </div>
                 )}
                 {!grouped && (
-                    <div className="compass-flat flex-grow-1" role="list">
-                        {flat.map((row) => (
-                            <div className="compass-rows-item" role="listitem" key={row.id}>
-                                <Row row={row} config={config} now={now.current} lang={lang} />
-                            </div>
-                        ))}
+                    <div className="compass-flat flex-grow-1">
+                        <RowList
+                            rows={flat}
+                            view={view}
+                            categoryof={categoryof}
+                            config={config}
+                            now={now.current}
+                            lang={lang}
+                            details={details}
+                        />
                     </div>
                 )}
             </div>

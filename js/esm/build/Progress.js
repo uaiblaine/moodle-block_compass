@@ -1,4 +1,4 @@
-import{fill as t}from"./str";import{Fragment as p,jsx as r,jsxs as c}from"react/jsx-runtime";var l=({progress:s,labels:e})=>{let a=s>=100,o=t(e.progresspercent,String(s));return c(p,{children:[r("div",{className:"progress compass-progress-bar",role:"progressbar","aria-valuenow":s,"aria-valuemin":0,"aria-valuemax":100,"aria-label":o,children:r("div",{className:`progress-bar${a?" bg-success":""}`,style:{width:`${s}%`}})}),r("span",{className:"compass-progress-text small text-muted",children:a?e.completed:o})]})},m=l;export{m as default};
+import{fill as l}from"./str";import{Fragment as c,jsx as e,jsxs as i}from"react/jsx-runtime";var p=({progress:s,labels:r,compact:t=!1})=>{let a=s>=100,o=l(r.progresspercent,String(s));return i(c,{children:[e("div",{className:"progress compass-progress-bar",role:"progressbar","aria-valuenow":s,"aria-valuemin":0,"aria-valuemax":100,"aria-label":o,children:e("div",{className:`progress-bar${a?" bg-success":""}`,style:{width:`${s}%`}})}),!t&&e("span",{className:"compass-progress-text small text-muted",children:a?r.completed:o})]})},n=p;export{n as default};
 /**
  * The progress bar of a card.
  *

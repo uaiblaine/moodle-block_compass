@@ -33,10 +33,14 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * Computes and caches progress for the courses the client marks pending (ADR-000, decision 10).
+ * Computes and caches progress for the courses the client marks pending (ADR-000, decision 10),
+ * and since ADR-005 answers with the course image as well.
  *
  * Batches of at most cards::DETAILS_BATCH ids; ids the user is not actively
- * enrolled in are dropped, not reported.
+ * enrolled in are dropped, not reported. Both halves of the client call it: tier 1 for the
+ * cards get_attention marked pending, tier 3 for the rows that entered the viewport. The
+ * image is what tier 3's cards view draws and what tier 1 already had, so the batch carries
+ * it once for whoever asked.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -92,6 +96,8 @@ class get_card_details extends external_api {
                 'id' => new external_value(PARAM_INT, 'Course id'),
                 'hascompletion' => new external_value(PARAM_BOOL, 'Whether completion is tracked for this course'),
                 'progress' => new external_value(PARAM_INT, 'Progress percentage', VALUE_OPTIONAL, null, NULL_ALLOWED),
+                'imageurl' => new external_value(PARAM_URL, 'Course image URL, empty when the course has none'),
+                'hasimage' => new external_value(PARAM_BOOL, 'Whether imageurl is set'),
             ]), 'One entry per course the user is actively enrolled in'),
         ]);
     }

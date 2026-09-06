@@ -98,6 +98,27 @@ final class config {
         return $value < 1 ? self::DEFAULT_INVENTORY_MAX : $value;
     }
 
+    /** @var string The view tier 3 opens in when nobody has chosen otherwise (ADR-005, decision 4). */
+    public const DEFAULT_VIEW = 'list';
+
+    /** @var string[] The views a stored preference or a site default may name. */
+    public const VIEWS = ['list', 'cards'];
+
+    /**
+     * The site default for the tier 3 view. An unset or unrecognised value means the list.
+     *
+     * The vocabulary is checked here rather than trusted: the setting is a select, but a
+     * value can also reach the column from an upgrade script or a site copied by hand, and
+     * a view the client does not know renders nothing at all.
+     *
+     * @return string list or cards.
+     */
+    public static function default_view(): string {
+        $value = (string) get_config('block_compass', 'default_view');
+
+        return in_array($value, self::VIEWS, true) ? $value : self::DEFAULT_VIEW;
+    }
+
     /**
      * Whether the tier 3 search box is shown. Never set means enabled.
      *
