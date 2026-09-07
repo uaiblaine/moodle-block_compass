@@ -204,7 +204,7 @@ final class search_inventory_test extends advanced_testcase {
         $this->assertSame(['rows', 'truncated'], array_keys($data));
         $this->assertFalse($data['truncated']);
         $this->assertCount(3, $data['rows']);
-        $rowkeys = ['id', 'name', 'opened', 'new', 'fav', 'groupid'];
+        $rowkeys = ['id', 'name', 'opened', 'new', 'fav', 'dorm', 'groupid'];
         foreach ($data['rows'] as $row) {
             $this->assertSame($rowkeys, array_keys($row));
         }

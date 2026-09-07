@@ -98,6 +98,24 @@ final class config {
         return $value < 1 ? self::DEFAULT_INVENTORY_MAX : $value;
     }
 
+    /** @var int Default months of silence after which a course is dormant (ADR-007, decision 5). */
+    public const DEFAULT_DORMANT_MONTHS = 12;
+
+    /**
+     * Months of silence after which tier 3 counts a course as dormant.
+     *
+     * No upper clamp, unlike attention_max: 24 or 36 months is a legitimate site choice and a
+     * large value degrades nothing — it simply empties the group. Only a value below one is
+     * refused, because the widget stores whatever an administrator types.
+     *
+     * @return int At least 1.
+     */
+    public static function dormant_months(): int {
+        $value = (int) get_config('block_compass', 'dormant_months');
+
+        return $value < 1 ? self::DEFAULT_DORMANT_MONTHS : $value;
+    }
+
     /** @var string The view tier 3 opens in when nobody has chosen otherwise (ADR-005, decision 4). */
     public const DEFAULT_VIEW = 'list';
 

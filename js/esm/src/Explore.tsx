@@ -40,8 +40,9 @@ import RowList from './RowList';
 import {amd} from './amd';
 import {matches, normalise, passesChip} from './filter';
 import {fill} from './str';
-import {getInventory, getInventoryRows, searchInventory, setViewPreference} from './repository';
+import {getInventory, getInventoryRows, searchInventory, setArchived, setViewPreference} from './repository';
 import {useRowDetails} from './rowdetails';
+import {GROUP_ARCHIVED, GROUP_DORMANT} from './types';
 import type {BlockConfig, Inventory, InventoryRow, SearchRow} from './types';
 
 /** Full mode: the browser answers a keystroke, so it may answer it soon. */
@@ -64,10 +65,13 @@ const NARROW_PX = 640;
 type ExploreProps = {
     config: BlockConfig,
     chip: string,
+    announce: (text: string) => void,
+    onChanged: () => Promise<void>,
 };
 
 type NotificationModule = {
     addNotification: (notification: {message: string, type: string}) => void,
+    saveCancelPromise: (title: string, question: string, savelabel: string) => Promise<unknown>,
 };
 
 /**
@@ -107,10 +111,11 @@ const notify = async(message: string): Promise<void> => {
 /**
  * Tier 3.
  *
- * @param {object} props The block config and the chip to open on; see ExploreProps.
+ * @param {object} props The block config, the chip to open on, the block's assertive live
+ *     region and the callback that refetches tier 1; see ExploreProps.
  * @returns {object} The rendered section.
  */
-const Explore = ({config, chip: initialchip}: ExploreProps) => {
+const Explore = ({config, chip: initialchip, announce: alert, onChanged}: ExploreProps) => {
     const {labels} = config;
     const titleid = useId();
     const searchid = useId();
@@ -129,6 +134,13 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
     const [focusmore, setFocusmore] = useState<{id: number, from: number} | null>(null);
     // The shell resolved this: the viewer's own preference, or the site default (ADR-005).
     const [view, setView] = useState(config.view === 'cards' ? 'cards' : 'list');
+    // An archive write is out. Every archive control is disabled while it is, because a
+    // second write racing the first would be racing a batch the route may abandon midway.
+    const [busy, setBusy] = useState(false);
+    // Bumped by an archive so that a paged-mode search, whose hits are state of their own
+    // and not derived from the inventory, is asked again rather than left showing a row
+    // that is no longer in the population it searched.
+    const [searchgen, setSearchgen] = useState(0);
 
     /**
      * Say once that some progress did not arrive; the hook calls this at most once.
@@ -164,35 +176,53 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
         setAnnouncement((current) => ({text, at: current.at + 1}));
     }, []);
 
-    // One request brings the inventory; what happens next depends on the mode it names.
-    useEffect(() => {
-        let live = true;
-        (async() => {
-            try {
-                const payload = await getInventory();
-                if (!live) {
-                    return;
-                }
-                now.current = Math.floor(Date.now() / 1000);
-                setData(payload);
-                if (payload.mode === 'paged') {
-                    // No total exists to announce yet: the counts are the groups' own, and
-                    // a group's stays its unfiltered total until its rows arrive.
-                    announce(labels.pagednote || '');
-                } else if (payload.groups.length) {
-                    setOpen({[payload.groups[0].id]: true});
-                }
-            } catch (e) {
-                if (live) {
-                    setFailed(true);
-                }
+    // Which inventory load is current; an archive reloads it and supersedes the last.
+    const loadseq = useRef(0);
+
+    /**
+     * Fetch the inventory; what happens next depends on the mode it names.
+     *
+     * @param {boolean} first Whether this is the mount's load, which also decides what is
+     *     open. A reload after an archive keeps the open state the reader had.
+     * @returns {Promise} Resolves when the payload is in state, or the failure is.
+     */
+    const loadInventory = useCallback(async(first: boolean): Promise<void> => {
+        const mine = loadseq.current + 1;
+        loadseq.current = mine;
+        try {
+            const payload = await getInventory();
+            if (loadseq.current !== mine) {
+                return;
             }
-        })();
+            now.current = Math.floor(Date.now() / 1000);
+            setData(payload);
+            if (!first) {
+                return;
+            }
+            if (payload.mode === 'paged') {
+                // No total exists to announce yet: the counts are the groups' own, and
+                // a group's stays its unfiltered total until its rows arrive.
+                announce(labels.pagednote || '');
+            } else if (payload.groups.length && payload.groups[0].id >= 0) {
+                // The first CATEGORY opens; the two groups that are not categories are closed
+                // by default even when one of them is all there is (ADR-007, decision 2).
+                setOpen({[payload.groups[0].id]: true});
+            }
+        } catch (e) {
+            if (loadseq.current === mine) {
+                setFailed(true);
+            }
+        }
+    }, [announce, labels.pagednote]);
+
+    // One request brings the inventory.
+    useEffect(() => {
+        loadInventory(true);
 
         return () => {
-            live = false;
+            loadseq.current += 1;
         };
-    }, [announce, labels.pagednote]);
+    }, [loadInventory]);
 
     // The index hides when the section itself is narrow, whatever the viewport is.
     useEffect(() => {
@@ -288,19 +318,34 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
         announce(labels.filterupdated || '');
     }, [announce, labels.filterupdated]);
 
-    // Paged mode: an open group with no rows needs a page, whether it was just opened
-    // or just reset. One effect covers both, so no call site can be forgotten.
+    /**
+     * Whether a group fetches its rows rather than holding them.
+     *
+     * Every group does in paged mode. The archived group does in BOTH modes: its rows never
+     * travel in the first payload, so that archiving cannot grow the first paint or push a
+     * tidy-up over inventory_max (ADR-007, decision 2).
+     *
+     * @param {number} id The group.
+     * @returns {boolean} Whether rows() is how this group gets its rows.
+     */
+    const pagedgroup = useCallback((id: number): boolean => paged || id === GROUP_ARCHIVED, [paged]);
+
+    // An open group that pages and has no rows needs a page, whether it was just opened or
+    // just reset. One effect covers every such group, so no call site can be forgotten.
     useEffect(() => {
-        if (!paged || !data) {
+        if (!data) {
             return;
         }
         data.groups.forEach((group) => {
+            if (!pagedgroup(group.id)) {
+                return;
+            }
             const page = pages[group.id] || EMPTY_PAGE;
             if (open[group.id] && !page.loaded && !page.loading && !page.failed) {
                 loadPage(group.id);
             }
         });
-    }, [paged, data, open, pages, loadPage]);
+    }, [data, open, pages, loadPage, pagedgroup]);
 
     // Paged mode: the search is the server's, and a query it would refuse is not sent.
     useEffect(() => {
@@ -347,7 +392,7 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                 }
             }
         })();
-    }, [applied, paged, announce, labels.searchtooshort, labels.resultsshown, labels.searchtruncated,
+    }, [applied, paged, searchgen, announce, labels.searchtooshort, labels.resultsshown, labels.searchtruncated,
         labels.loaderror]);
 
     // Full mode: matching is over the normalised name, so normalise each once rather
@@ -442,6 +487,128 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
             resetGroups();
         }
     };
+
+    /**
+     * Both tiers again, after the set of courses changed under them (ADR-007, decision 3).
+     *
+     * Every loaded page is dropped so an open paged group refetches, tier 3 is fetched again
+     * and tier 1 with it: the strips and the ghost counts are the server's decision and the
+     * client cannot patch them without reimplementing which strip a course lands in.
+     *
+     * @returns {Promise} Resolves when both have been asked for.
+     */
+    const reloadBoth = useCallback(async(): Promise<void> => {
+        setPages((current) => {
+            const next: Record<number, PageState> = {};
+            Object.keys(current).forEach((key) => {
+                const id = Number(key);
+                groupseq.current[id] = (groupseq.current[id] || 0) + 1;
+                next[id] = EMPTY_PAGE;
+            });
+
+            return next;
+        });
+        setSearchgen((current) => current + 1);
+        await Promise.all([loadInventory(false), onChanged()]);
+    }, [loadInventory, onChanged]);
+
+    /**
+     * Where the keyboard goes once the control it was on has left the page.
+     *
+     * An archived row unmounts with its button, so focus would fall to the body and a
+     * keyboard user would lose their place in the list they just changed - the same
+     * failure "Show more" had in R3. The target is decided BEFORE the write, while the
+     * control is still there: the group's own summary when the row is in a group, the
+     * section title otherwise. It is used only if focus has actually been lost.
+     *
+     * @returns {Function} Puts focus back, if it fell to the body.
+     */
+    const keepFocus = useCallback((): (() => void) => {
+        const origin = document.activeElement as HTMLElement | null;
+        const target = origin?.closest('.compass-group')?.querySelector<HTMLElement>('summary')
+            ?? section.current?.querySelector<HTMLElement>('.compass-explore-title')
+            ?? null;
+
+        return () => {
+            const active = document.activeElement;
+            if (target && (active === null || active === document.body || !document.contains(active))) {
+                target.focus();
+            }
+        };
+    }, []);
+
+    /**
+     * Archive one course or bring it back, then look again.
+     *
+     * The write goes through core's preference route (ADR-000 decision 16, ADR-007 decision 3)
+     * and is confirmed through the assertive live region, the way a favourite is. On failure
+     * the reader is told, and both tiers are still reloaded: the only way to know what is
+     * actually stored after a write that may have half-happened is to ask.
+     *
+     * @param {number} courseid The course.
+     * @param {string} name Its name, for the announcement.
+     * @param {boolean} archived Whether it becomes archived.
+     * @returns {Promise} Resolves when the write has been answered and the tiers asked for.
+     */
+    const archive = useCallback(async(courseid: number, name: string, archived: boolean): Promise<void> => {
+        if (busy) {
+            return;
+        }
+        const refocus = keepFocus();
+        setBusy(true);
+        try {
+            await setArchived([courseid], archived);
+            alert(fill(archived ? labels.coursearchived : labels.courseunarchived, name));
+        } catch (e) {
+            await notify((archived ? labels.archiveerror : labels.unarchiveerror) || '');
+        }
+        setBusy(false);
+        await reloadBoth();
+        refocus();
+    }, [busy, alert, labels.coursearchived, labels.courseunarchived, labels.archiveerror, labels.unarchiveerror,
+        reloadBoth, keepFocus]);
+
+    /**
+     * Archive every dormant course, after asking.
+     *
+     * Only what the browser knows to be dormant is written: in full mode that is the dormant
+     * group's rows; in paged mode it is the rows the group has fetched so far, and the button
+     * says how many. The confirmation is core's own dialogue, so the reader gets the same
+     * modal, focus handling and Escape behaviour as everywhere else in Moodle.
+     *
+     * @param {object[]} rows The dormant rows the browser holds.
+     * @returns {Promise} Resolves when the run has ended, whichever way.
+     */
+    const archiveAll = useCallback(async(rows: InventoryRow[]): Promise<void> => {
+        if (busy || rows.length === 0) {
+            return;
+        }
+        const notification = await amd<NotificationModule>('core/notification');
+        try {
+            await notification.saveCancelPromise(
+                labels.archiveall,
+                fill(labels.archiveallconfirm, String(rows.length)),
+                labels.confirm
+            );
+        } catch (e) {
+            // Cancelled, or the dialogue was dismissed: nothing to do and nothing to say.
+            return;
+        }
+        const refocus = keepFocus();
+        setBusy(true);
+        try {
+            await setArchived(rows.map((row) => row.id), true);
+            alert(fill(labels.coursearchived, String(rows.length)));
+        } catch (e) {
+            // A batch may have been written before the one that failed (ADR-007, fact 5):
+            // say so, and let the reload below show what is actually stored.
+            await notify(labels.archiveerror || '');
+        }
+        setBusy(false);
+        await reloadBoth();
+        refocus();
+    }, [busy, alert, labels.archiveall, labels.archiveallconfirm, labels.confirm, labels.coursearchived,
+        labels.archiveerror, reloadBoth, keepFocus]);
 
     /**
      * Change the view, and remember it for next time.
@@ -542,19 +709,24 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
      * @returns {object} The rows, the count, and whether the group is worth showing.
      */
     const groupview = (id: number, total: number) => {
-        if (!paged) {
+        if (!pagedgroup(id)) {
             const rows = visible.get(id) || [];
 
             return {rows, count: rows.length, show: rows.length > 0};
         }
         const page = pages[id] || EMPTY_PAGE;
+        // In full mode a search or a chip hides every group with no matching row; the archived
+        // group holds no rows locally to match, so it stays - closed - while the rest is
+        // filtered. It is not part of the population the filter is over, and hiding it would
+        // make the archive unreachable for as long as a query is typed (ADR-007, decision 2).
+        // Review caught the first version of this line doing the opposite of this comment.
 
         return {rows: page.rows, count: page.loaded ? page.rows.length : total, show: true};
     };
 
     return (
         <section className="compass-explore" ref={section} aria-labelledby={titleid}>
-            <h3 className="compass-explore-title h5" id={titleid}>
+            <h3 className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </h3>
             <div className="compass-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
@@ -620,7 +792,9 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                         <ul className="list-unstyled small mb-0">
                             {data.groups.map((group) => {
                                 const slice = groupview(group.id, group.count);
-                                if (!slice.show) {
+                                // The index is a map of the categories; the two groups that are
+                                // not categories sit at the end and are found by scrolling.
+                                if (!slice.show || group.id < 0) {
                                     return null;
                                 }
 
@@ -633,7 +807,7 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                                             it, leaving the reader to open what they had just asked
                                             for. */}
                                         <a
-                                            href={`#${titleid}-group-${group.id}`}
+                                            href={`#${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
                                             className="d-flex justify-content-between text-decoration-none"
                                             onClick={() => setOpen((c) => ({...c, [group.id]: true}))}
                                         >
@@ -655,7 +829,11 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                             }
                             const page = pages[group.id] || EMPTY_PAGE;
                             // A search opens what it found; otherwise the group's own state rules.
-                            const isopen = (!paged && applied !== '') || !!open[group.id];
+                            // The archived group is not searched, so a search leaves it closed.
+                            const isopen = (!paged && applied !== '' && group.id !== GROUP_ARCHIVED)
+                                || !!open[group.id];
+                            const isarchived = group.id === GROUP_ARCHIVED;
+                            const isdormant = group.id === GROUP_DORMANT;
 
                             return (
                                 <Group
@@ -666,7 +844,7 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                                     rows={slice.rows}
                                     open={isopen}
                                     loading={page.loading}
-                                    hasmore={paged && page.hasmore}
+                                    hasmore={pagedgroup(group.id) && page.hasmore}
                                     config={config}
                                     now={now.current}
                                     lang={lang}
@@ -681,7 +859,22 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                                     }}
                                     onShowMore={(id) => loadPage(id, true)}
                                     focusfrom={focusmore?.id === group.id ? focusmore.from : null}
-                                    anchor={`${titleid}-group-${group.id}`}
+                                    anchor={`${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
+                                    archived={isarchived}
+                                    onArchive={archive}
+                                    busy={busy}
+                                    toolbar={isdormant && slice.rows.length > 0 ? (
+                                        <div className="compass-archiveall">
+                                            <button
+                                                type="button"
+                                                className="btn btn-outline-secondary btn-sm"
+                                                disabled={busy}
+                                                onClick={() => archiveAll(slice.rows)}
+                                            >
+                                                {busy ? labels.archiving : `${labels.archiveall} (${slice.rows.length})`}
+                                            </button>
+                                        </div>
+                                    ) : undefined}
                                 />
                             );
                         })}
@@ -697,6 +890,9 @@ const Explore = ({config, chip: initialchip}: ExploreProps) => {
                             now={now.current}
                             lang={lang}
                             details={details}
+                            archived={false}
+                            onArchive={archive}
+                            busy={busy}
                         />
                     </div>
                 )}

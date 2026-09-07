@@ -364,3 +364,62 @@ line that must not be in it.
 | Write the archive through the legacy `core_user_update_user_preferences` | It silently skips an item it cannot write, so a partial failure looks like a success. Its tolerance is attractive only until the day it hides one. |
 | One request for "archive all" whatever the count | 300 courses is ~900 reads and 300 writes in one request, with no transaction and an abort that leaves part of it written. Chunking bounds the blast radius of exactly that. |
 | A `set_hidden` web service of Compass's own | ADR-000 decision 16 rejected it and nothing here changes: core's route already validates the family, the ownership and the value, and a second door onto the same rows is a second thing to keep correct. |
+
+## Amendments
+
+**2026-09-07, from Phase 5: `null` does not travel in a batch.** Decision 3 says unarchiving
+writes the value `null`, and it does — but not through the route the decision names for
+archiving. The batch route declares its body as a map of strings
+(`user/classes/route/api/preferences.php:98-112`, `array_of_strings` with a `RAW` value
+type), and a `null` value in that map is answered with **HTTP 500**, measured on m502 from
+the browser and reproduced by the fourth Behat scenario before the fix (the write failed,
+the client said so through the error path exactly as decision 3 asks, and the course stayed
+archived). The single-preference route declares its value as a nullable scalar
+(`:151-172`) and is the one core's own block uses to bring a course back
+(`blocks/myoverview/amd/src/view.js:373`). So `repository.ts` archives in batches of 50
+through the batch route and brings back one course at a time through the single route.
+Nobody brings back fifty courses at once, so the shape costs nothing the feature would not
+cost anyway; the server-side exception text was not captured, only the status.
+
+It was found by driving the browser after the PHPUnit suite was green, which is worth
+saying: every server-side test passed, because none of them speaks HTTP to the router. The
+cross-plugin Behat scenario the maintainer granted is the only automated test that would
+ever have seen it — and it did, on its first complete run.
+
+**2026-09-07, from Phase 5: two places the shipped scenario differs in form from the one
+written here, and one place the first implementation differed in substance.** The Gherkin
+above asserts the literal `Archived (1)`; the group header the client has rendered since
+Phase 2 is a name and a count in two elements (`Group.tsx`: `compass-group-name` and
+`compass-group-count`, "1 courses"), so the shipped step asserts the name and then the count
+inside that group's `details` — the same anchor, in the shape the markup actually has. And
+the reverse half gained one step the sketch lacked: after `Unarchive Course 2`, the scenario
+waits for the announcement `Course 2 brought back` before navigating, because the
+announcement is made only after the write has been awaited and navigating on the click races
+the write — the same lesson the forward half already applied with the archived count.
+
+The substance: the first implementation named the control `Bring <fullname> back` and edited
+the scenario to match, which review caught as a deviation from an accepted decision made
+without saying so. The control is now `Unarchive <fullname>`, as decision 4 and the scenario
+above say. The announcement stays `<fullname> brought back`; the record only fixes the
+control's name.
+
+**2026-09-07, from Phase 5: what the adversarial review added to this record.** Six lenses
+and thirteen refuters over the uncommitted change confirmed twelve findings; three of them
+are decisions this record had not made and now does.
+
+- **The keyboard is put back after an archive.** The row that held the control unmounts
+  with it, so focus would fall to the body — the failure "Show more" had in R3. The target
+  is decided before the write, while the control still exists: the group's own summary when
+  the row is in a group, the section title otherwise, and it is used only if focus was
+  actually lost.
+- **A paged-mode search is re-run after an archive.** Its hits are state of their own, not
+  derived from the inventory, so the reload of decision 3 left an archived hit on screen,
+  still labelled Archive. A generation counter on the search effect re-asks the server.
+- **The archived group stays visible, closed, while a full-mode filter is active.** The
+  first implementation hid it — the code said the opposite of the comment beside it, and
+  review read both. It is not part of the population a search or a chip is over, and
+  hiding it made the archive unreachable for as long as a query was typed.
+
+Two more were the record's own tests list being honoured: the budget test for opening the
+archived group (one paged read, the same resolve() as any page) and the budget test proving
+dormancy and the archived header add no read to a build. Both now exist and pass.

@@ -56,7 +56,7 @@ final class config_test extends advanced_testcase {
             'attention_max', 'new_days', 'group_depth',
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
-            'default_view',
+            'default_view', 'dormant_months',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -434,5 +434,30 @@ final class config_test extends advanced_testcase {
 
         set_config('default_view', '', 'block_compass');
         $this->assertSame('list', config::default_view());
+    }
+
+    /**
+     * Months of silence default to twelve, refuse anything below one, and have no ceiling.
+     *
+     * The ceiling is absent on purpose (ADR-007, decision 5): unlike attention_max a large
+     * value degrades nothing, it empties the group. The control is a stored 36, which must
+     * come back as 36 and not as the default.
+     *
+     * @return void
+     */
+    public function test_dormant_months_defaults_to_twelve_and_refuses_less_than_one(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertSame(12, config::dormant_months());
+
+        set_config('dormant_months', 36, 'block_compass');
+        $this->assertSame(36, config::dormant_months());
+
+        set_config('dormant_months', 0, 'block_compass');
+        $this->assertSame(12, config::dormant_months());
+
+        set_config('dormant_months', -4, 'block_compass');
+        $this->assertSame(12, config::dormant_months());
     }
 }

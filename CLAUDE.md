@@ -476,7 +476,9 @@ classes/
   external/                  READ functions only, one class per file, all in the USER context, none
                              accepting a userid. Writes go to core's own services from the browser:
                              core_course_set_favourite_courses (the star) and
-                             core_user_update_user_preferences (archiving) — ADR-000, decisions 8 and 16
+                             core's preferences ROUTER endpoint through core_user/repository (the view
+                             and the archive; not the legacy core_user_update_user_preferences —
+                             ADR-007) — ADR-000, decisions 8 and 16
     get_attention.php        tier 1 + ghost count (Phase 1)
     get_inventory.php        tier 3: mode full (Phase 2), or paged headers with courses => [] above
                              inventory_max (Phase 3) — same return structure in both
@@ -501,7 +503,8 @@ classes/
                              rule, pinned to the client's by a parity fixture (Phase 3)
     prewarm.php              the pre-warming sweep: keyset selection, cursor/since/lastsweep in plugin
                              config, budget between users, warm one user = fill + shared layers (Phase 3)
-    dormancy.php             dormant classification (Phase 5)
+    dormancy.php             the dormancy rule and the two reserved group ids, -1 dormant and -2
+                             archived; zero reads, both inputs are in the inventory row (Phase 5, ADR-007)
   observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
                              category events in Phase 2)
   task/warm_active_users.php scheduled task, always registered, gated by enable_prewarm; a thin caller
@@ -513,7 +516,8 @@ classes/
 js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since R3:
                              Block (the block: tiers 1 and 2, and tier 3 once opened), Strip, Card,
                              Progress, Star, Ghost; Explore (tier 3, both modes), Group, RowList
-                             (the one place that knows there are two views), Row, RowCard;
+                             (the one place that knows there are two views), Row, RowCard,
+                             Archive (the one control that archives or brings back, Phase 5);
                              rowdetails (the viewport observer and the batching behind it, R4);
                              repository (every web service, through the bridge to core/ajax),
                              amd (the RequireJS bridge — the only file that knows about it),
@@ -565,10 +569,13 @@ parameters), and `search_inventory` once per settled query (300 ms debounce,
 ≥ 2 characters after normalisation, ≤ 50 hits rendered into the flat list in
 place of the groups). Neither is a filter the browser could apply itself — the
 rows are not in the browser — so non-negotiable 5 holds. The only other calls
-are to core's own: the star (`core_course_set_favourite_courses`) and the view
-preference, which goes through `core_user/repository`'s `setUserPreferences` to
-core's own preferences endpoint — the one that looks the definition up, asks the
-permission callback and refuses a value cleaning would change. Filtering, grouping and the
+are to core's own: the star (`core_course_set_favourite_courses`), the view
+preference and the archive (Phase 5), both through `core_user/repository`'s
+`setUserPreferences` to core's own preferences endpoint — the one that looks the
+definition up, asks the permission callback and refuses a value cleaning would
+change. An archive is the one action that makes the browser's copy of BOTH tiers
+wrong at once, so it is followed by one `get_attention` and one `get_inventory`
+— the two calls the page made on load — rather than by any local patching. Filtering, grouping and the
 side index work on the inventory already in the browser in `full` mode; in
 `paged` mode the index counts stay the headers' totals.
 
@@ -592,17 +599,28 @@ decides to draw a star.
 
 ### Hidden ("archived") courses
 
-Archiving reuses `block_myoverview_hidden_course_<courseid>` (`0`/`1`), so
-hiding in Compass hides in the Course overview block and vice versa (ADR-000,
-decision 16). Reads go through `get_user_preferences()` in `classes/local/`;
-writes happen in the browser through `core_user/repository`'s
-`setUserPreferences`, which batches "archive all dormant" into one call to
-`core_user_update_user_preferences` after an explicit confirmation dialog. Core
-declares that family in `blocks/myoverview/lib.php` with `isregex` and the
-`is_current_user` permission callback, which is what lets the core service
-accept it for the current user only. Compass ships no `set_hidden` service.
-Hidden courses leave the ghost count and the category groups and sit in a
-collapsed "Archived (N)" group with an unarchive action. The plugin's **own**
+Archiving reuses `block_myoverview_hidden_course_<courseid>` (`1`, or `null` to
+delete the row — how core's own block brings a course back), so hiding in Compass
+hides in the Course overview block and vice versa (ADR-000 decision 16, built in
+Phase 5 under ADR-007). Reads go through `get_user_preferences()` in
+`classes/local/`; writes happen in the browser through `core_user/repository`'s
+`setUserPreferences`, which posts to core's **router** endpoint — not the legacy
+`core_user_update_user_preferences` decision 16 named; ADR-007 corrects that. The
+two differ where it matters: the router validates each item and **abandons the
+rest of the batch on the first it cannot write**, with no transaction (measured
+live), while the legacy function silently skips it. So `repository.ts` archives in
+batches of 50, a failed batch stops and both tiers reload rather than retrying
+over a partial write, and "archive all" asks first through `core/notification`'s
+`saveCancelPromise`. **Bringing back goes one course at a time through the
+single-preference route**, because the batch route's body is a map of strings and a
+`null` in it is a 500 (measured; ADR-007 amendment) — the single route is the one
+core's own block uses for exactly this. Core declares the family in `blocks/myoverview/lib.php`
+with `isregex` and the `is_current_user` permission callback. Compass ships no
+`set_hidden` service. Archived courses leave the ghost count and the category
+groups and sit in a collapsed "Archived (N)" group at the end of tier 3, whose
+header travels alone in both modes and whose rows page on first open; every row
+and card carries the archive control. **Never delete these rows on uninstall**:
+they are the learner's archive of the Course overview block and outlive Compass. The plugin's **own**
 preference, `block_compass_view` (list or cards, decision 17), is declared in
 `lib.php` `block_compass_user_preferences()` and exported by the privacy
 provider's `user_preference_provider` in the same commit that introduces it —
@@ -845,6 +863,18 @@ Tier 3, whose behaviour is the most intricate thing here:
   worse. Registration belongs to the row's own effect, which is what makes it true for
   a first render, an appended page and a search hit alike — wiring it at the call sites
   would observe nothing at all in paged mode, where every group arrives empty.
+- **Two groups are not categories** (ADR-007, Phase 5). Group ids `-1` (dormant) and
+  `-2` (archived) come after the category groups, closed by default, and the side index
+  skips them. Dormant is a re-grouping of rows the browser already holds — in full mode
+  moving a course there is a re-render, not a request — and the server decides it, as
+  the row's `dorm` flag, because the never-opened clause needs the enrolment date the
+  row does not carry. Archived pages on first open **in both modes**: `pagedgroup()` in
+  `Explore.tsx` is the one place that knows, and `groupview()`, the fetch-on-open effect
+  and `hasmore` all go through it. After any archive action both tiers reload
+  (`reloadBoth()` and Block's `load(true)`), because the strips and the ghost counts are
+  the server's decision; a paged-mode search is re-run too, because its hits are state of
+  their own; and the keyboard is put back deliberately (`keepFocus()`), because the row
+  that held the control has left the page — the R3 "Show more" lesson again.
 - **Two views, one payload.** `RowList` picks between `Row` and `RowCard`; switching
   costs no request, because the rows and their details are held in state and only the
   rendering changes. The choice is the `block_compass_view` preference, written through
@@ -960,8 +990,13 @@ the following defaults flip, deliberately:
   between the warm-up and the measured call: headers ≤ 3, rows ≤ 3, search ≤ 3
   (+ 1 each through the web service); the task ≤ 1 read per user + 1 per batch
   + 1 for the count line with the shared layers warm.
-- Behat: three smoke scenarios at most — the block appears on the Dashboard, a
-  recently accessed course shows in Continue, the ghost card opens tier 3. Logic
+- Behat: **four** smoke scenarios at most — the block appears on the Dashboard, a
+  recently accessed course shows in Continue, the ghost card opens tier 3 (and,
+  since R4, switches to cards and finds them again after a reload), and archiving
+  in Compass removes the course from the Course overview block and back. The
+  fourth was granted by the maintainer for ADR-007 because its criterion is
+  cross-plugin and browser-only; it reaches the archived course through core's
+  own "Removed from view" filter, which is what proves the row is core's. Logic
   stays in PHPUnit. Read the lang string before writing a step's label.
 - Re-run `mdl phpunit-init m502` when any mounted `version.php` moved, including
   another session's. A CSS change is invisible to Behat until `mdl behat-init`

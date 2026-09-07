@@ -1,3 +1,4 @@
+var e=-1,o=-2;export{o as GROUP_ARCHIVED,e as GROUP_DORMANT};
 /**
  * The shapes the server sends and the shell exports.
  *

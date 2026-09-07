@@ -1,0 +1,1 @@
+s/            \$archived\['count'\] = count\(\$archivedmeta\);\n/            \$archived['count'] = count(\$archivedmeta);\n            \$archived['courses'] = array_values(array_map(static fn(\$m) => ['id' => \$m['id']], \$archivedmeta));\n/;

@@ -39,6 +39,7 @@ type UserPreference = {name: string, value: string, userid: number};
 
 type UserRepository = {
     setUserPreferences: (preferences: UserPreference[]) => Promise<unknown>,
+    setUserPreference: (name: string, value: string | null, userid: number) => Promise<unknown>,
 };
 
 /** Memoised so the bridge is crossed once per page, not once per call. */
@@ -134,4 +135,48 @@ export const searchInventory = (query: string): Promise<SearchHits> =>
 export const setViewPreference = async(view: string): Promise<void> => {
     const repository = await amd<UserRepository>('core_user/repository');
     await repository.setUserPreferences([{name: 'block_compass_view', value: view, userid: 0}]);
+};
+
+/** The most preferences one request carries (ADR-007, decision 3). */
+export const ARCHIVE_BATCH = 50;
+
+/**
+ * Archive or bring back courses, through core's own preference routes.
+ *
+ * The preference is the Course overview block's own, block_myoverview_hidden_course_<id>
+ * (ADR-000, decision 16): 1 archives, null deletes the row and is how core's own block
+ * brings a course back.
+ *
+ * Archiving is batched at ARCHIVE_BATCH, because a write is one row and roughly three reads
+ * with no bulk SQL anywhere, and because the batch route abandons the rest of a batch on the
+ * first item it cannot write - so this stops at the first failed batch and lets the error
+ * travel, rather than retrying over a state it no longer knows (ADR-007, decision 3).
+ *
+ * Bringing back goes one course at a time through the SINGLE-preference route, and not by
+ * choice: the batch route's body is declared as a map of strings, and a null in it is a 500
+ * from core, measured on m502. The single route declares its value as a nullable scalar and
+ * is the one core's own block uses for exactly this (blocks/myoverview/amd/src/view.js:373).
+ * Nobody brings back fifty courses at once, so the shape costs nothing it would not anyway.
+ *
+ * @param {number[]} courseids The courses, in the order they are written.
+ * @param {boolean} archived Whether they become archived.
+ * @returns {Promise} Resolves once everything is written; rejects at the first write that is not.
+ */
+export const setArchived = async(courseids: number[], archived: boolean): Promise<void> => {
+    const repository = await amd<UserRepository>('core_user/repository');
+    if (!archived) {
+        for (const id of courseids) {
+            await repository.setUserPreference(`block_myoverview_hidden_course_${id}`, null, 0);
+        }
+
+        return;
+    }
+    for (let at = 0; at < courseids.length; at += ARCHIVE_BATCH) {
+        const batch = courseids.slice(at, at + ARCHIVE_BATCH).map((id) => ({
+            name: `block_myoverview_hidden_course_${id}`,
+            value: '1',
+            userid: 0,
+        }));
+        await repository.setUserPreferences(batch);
+    }
 };

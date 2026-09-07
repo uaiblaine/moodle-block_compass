@@ -246,19 +246,28 @@ final class inventory {
      * active rows for one course the earliest timecreated wins, tie-broken by
      * the lowest user_enrolments id — the rule ADR-001 gives New and the counts.
      *
+     * Two modes over the hidden set, and they are complements of each other (ADR-007,
+     * decision 2). By default the hidden courses are left out, which is what every tier 3
+     * answer has meant by "active" since Phase 2. With $onlyhidden the SAME active test runs
+     * over exactly the hidden courses and nothing else, so that the archived group can be
+     * built from the same cached entry, in PHP, with no second read: an archived course
+     * whose enrolment has since ended must not come back from the archive, and only the
+     * active test knows that.
+     *
      * @param array $entry An entry from get().
      * @param int $now Unix time to treat as now.
-     * @param int[] $hidden Course ids to leave out (the user's hidden courses).
+     * @param int[] $hidden Course ids the user hid (archived).
+     * @param bool $onlyhidden Return the hidden courses instead of the rest.
      * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite'].
      */
-    public static function courses(array $entry, int $now, array $hidden = []): array {
+    public static function courses(array $entry, int $now, array $hidden = [], bool $onlyhidden = false): array {
         $hidden = array_flip(array_map('intval', $hidden));
         $courses = [];
         $rows = $entry['rows'];
         ksort($rows);
         foreach ($rows as $ueid => $row) {
             $courseid = $row[self::COURSEID];
-            if (isset($hidden[$courseid])) {
+            if (isset($hidden[$courseid]) !== $onlyhidden) {
                 continue;
             }
             $active = $row[self::UESTATUS] === ENROL_USER_ACTIVE

@@ -1,1 +1,1 @@
-s/if \(isset\(\$hidden\[\$courseid\]\)\) \{/if (false) {/;
+s/if \(isset\(\$hidden\[\$courseid\]\) !== \$onlyhidden\) \{/if (false) {/;

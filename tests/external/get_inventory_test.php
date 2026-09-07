@@ -220,7 +220,7 @@ final class get_inventory_test extends advanced_testcase {
         $this->assertSame('Cat B', $second['name']);
         $this->assertSame(1, $second['count']);
 
-        $rowkeys = ['id', 'name', 'opened', 'new', 'fav'];
+        $rowkeys = ['id', 'name', 'opened', 'new', 'fav', 'dorm'];
         $this->assertSame($rowkeys, array_keys($first['courses'][0]));
         $this->assertSame($rowkeys, array_keys($first['courses'][1]));
 

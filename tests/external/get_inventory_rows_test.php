@@ -27,6 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
+use block_compass\local\dormancy;
 use block_compass\local\category_meta;
 use block_compass\local\course_meta;
 use block_compass\local\details;
@@ -226,6 +227,35 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
+     * The two reserved group ids are accepted and any other negative is refused before any work.
+     *
+     * A negative id is not a category, so letting it through would answer an empty page that
+     * reads like a category the user has no course in — a client bug made invisible. The two
+     * reserved ones are the dormant and archived groups (ADR-007, decision 2).
+     *
+     * @return void
+     */
+    public function test_the_reserved_group_ids_are_accepted_and_other_negatives_refused(): void {
+        $this->resetAfterTest();
+        [$user] = $this->fixture();
+        $this->setUser($user);
+
+        $this->assertSame(dormancy::GROUP_DORMANT, $this->call(['groupid' => dormancy::GROUP_DORMANT])['groupid']);
+        $this->assertSame(dormancy::GROUP_ARCHIVED, $this->call(['groupid' => dormancy::GROUP_ARCHIVED])['groupid']);
+
+        $meter = budget::start();
+        try {
+            get_inventory_rows::execute(-3, 0, 'all', 'name');
+            $this->fail('an unknown negative group id must be refused');
+        } catch (invalid_parameter_exception $e) {
+            $this->assertStringContainsString('groupid', $e->getMessage());
+        }
+        $this->assertSame(0, $meter->reads(), 'a refused group id must cost nothing');
+        $this->assertSame('invalidparameter', $this->failing_call(['groupid' => -3]));
+        $this->assertSame([dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED], get_inventory_rows::RESERVED_GROUPS);
+    }
+
+    /**
      * A sort outside name and recent is refused before any work, at both layers.
      *
      * @return void
@@ -270,7 +300,7 @@ final class get_inventory_rows_test extends advanced_testcase {
         $this->assertSame((int) $courses['beta']->id, $page['after']);
         $this->assertCount(2, $page['rows']);
 
-        $rowkeys = ['id', 'name', 'opened', 'new', 'fav'];
+        $rowkeys = ['id', 'name', 'opened', 'new', 'fav', 'dorm'];
         $this->assertSame($rowkeys, array_keys($page['rows'][0]));
         $this->assertSame($rowkeys, array_keys($page['rows'][1]));
         [$alpha, $beta] = $page['rows'];
@@ -432,6 +462,46 @@ final class get_inventory_rows_test extends advanced_testcase {
             4,
             $reads,
             "get_inventory_rows cost {$reads} reads on a valid hit in a new request; the budget is 3 + 1."
+        );
+    }
+
+    /**
+     * Budget: opening the archived group costs what opening any group costs (ADR-007, decision 2).
+     *
+     * The archived rows never travel in the first payload, so their first open is one paged
+     * read — the same resolve() every page pays, over the same cached entry, plus the filter
+     * preload of the names it ships. The archived population is resolved in the SAME get_many()
+     * as the active one, so there is no read of its own for it, and this is the assertion that
+     * would catch a second lookup creeping in. Protocol as the other rows budgets: warm, then a
+     * new request, then measure.
+     *
+     * @return void
+     */
+    public function test_opening_the_archived_group_stays_within_three_reads_on_a_valid_hit(): void {
+        $this->resetAfterTest();
+        [$user, $courses, $cata] = $this->fixture();
+        $this->setUser($user);
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $plugin->hide((int) $user->id, (int) $courses['gamma']->id);
+
+        $this->purge_plugin_caches();
+        $warm = get_inventory_rows::execute(dormancy::GROUP_ARCHIVED);
+        $plugin->simulate_new_request();
+
+        $meter = budget::start();
+        $hit = get_inventory_rows::execute(dormancy::GROUP_ARCHIVED);
+        $reads = $meter->reads();
+
+        // Controls: the page is the archived course and nothing else, and a category page of the
+        // same request shape still excludes it.
+        $this->assertSame($warm, $hit);
+        $this->assertSame([(int) $courses['gamma']->id], array_column($hit['rows'], 'id'));
+        $category = get_inventory_rows::execute((int) $cata->id);
+        $this->assertNotContains((int) $courses['gamma']->id, array_column($category['rows'], 'id'));
+        $this->assertLessThanOrEqual(
+            4,
+            $reads,
+            "opening the archived group cost {$reads} reads on a valid hit in a new request; the budget is 3 + 1."
         );
     }
 }

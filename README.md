@@ -202,14 +202,15 @@ user id), callable over AJAX after login and never by the guest account:
 | Function                             | Purpose                                                                                                                  |
 |--------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
 | `block_compass_get_attention`        | Tier 1: the three strips and the ghost counts.                                                                           |
-| `block_compass_get_inventory`        | Tier 3: every active course grouped by category (`mode: full`), or the group headers with counts alone (`mode: paged`). |
+| `block_compass_get_inventory`        | Tier 3: every active course grouped by category (`mode: full`), or the group headers with counts alone (`mode: paged`); dormant courses gather in a group of their own (id `-1`) and archived ones travel as a header alone (id `-2`). |
 | `block_compass_get_inventory_rows`   | Paged mode: one page of up to 100 courses of one group, by cursor, under a chip (`all`, `new`, `favourites`) and a sort (`name`, `recent`). |
 | `block_compass_search_inventory`     | Paged mode: up to 50 courses whose name contains every word of the query, each with its group.                          |
-| `block_compass_get_card_details`     | Progress for a batch of up to 24 courses on screen.                                                                     |
+| `block_compass_get_card_details`     | Progress and the course image for a batch of up to 24 courses on screen.                                                |
 
 Writes go to core's own services — the star through
-`core_course_set_favourite_courses`, archiving through
-`core_user_update_user_preferences` — so Compass ships no write function.
+`core_course_set_favourite_courses`; the list/cards view and archiving through
+`core_user/repository`, which posts to core's preferences endpoint (the router, not the
+legacy `core_user_update_user_preferences`) — so Compass ships no write function.
 
 
 Privacy

@@ -98,3 +98,50 @@ Feature: The Compass block puts the courses that need attention first
     When I reload the page
     And I click on "Explore all" "button"
     Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
+
+  @javascript
+  Scenario: Archiving in Compass removes the course from the Course overview block, and unarchiving brings it back
+    # The fourth scenario, written into ADR-007 before the code existed: the acceptance criterion
+    # of Phase 5 is cross-plugin and browser-only, so no PHPUnit test can stand in for it.
+    # attention_max 1 is what makes the ghost exist: with the default three, the Background's
+    # three courses all fit in tier 1 and there is no "Explore all" to open tier 3 with.
+    Given the following config values are set as admin:
+      | enablemycourses | 1 |             |
+      | attention_max   | 1 | block_compass |
+    # A fourth course keeps the ghost alive AFTER the archive: with three, archiving one leaves
+    # two, one per strip, nothing over, and no "Explore all" to reopen tier 3 with.
+    And the following "courses" exist:
+      | fullname | shortname | category |
+      | Course 4 | C4        | CATB     |
+    And the following "course enrolments" exist:
+      | user     | course | role    |
+      | student1 | C4     | student |
+    And I am on the "C1" "Course" page logged in as "student1"
+    And I follow "Dashboard"
+    And I turn editing mode on
+    And I add the "Compass" block
+    And I turn editing mode off
+    When I click on "Explore all" "button"
+    And I click on "Archive Course 2" "button" in the "Compass" "block"
+    # The count is what settles the write before anything is asserted about absence, the way
+    # the search scenario waits for the live region rather than racing a debounce.
+    Then I should see "Archived" in the "Compass" "block"
+    And I should see "1 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    And I am on the "My courses" page
+    And I should not see "Course 2" in the "Course overview" "block"
+    # Core's own filter is what proves the row is core's, not a second store of our own.
+    And I click on "All" "button" in the "Course overview" "block"
+    And I click on "Removed from view" "link" in the "Course overview" "block"
+    And I should see "Course 2" in the "Course overview" "block"
+    # "Dashboard" is not a core page type for the "I am on the ... page" step; the nav link is.
+    When I follow "Dashboard"
+    And I click on "Explore all" "button"
+    And I click on "Archived" "text" in the "Compass" "block"
+    And I click on "Unarchive Course 2" "button" in the "Compass" "block"
+    # The announcement is made only after the write has been awaited, so waiting for it is
+    # waiting for the row to be gone - navigating away on the click would race the write.
+    And I should see "Course 2 brought back" in the "Compass" "block"
+    And I am on the "My courses" page
+    And I click on "Removed from view" "button" in the "Course overview" "block"
+    And I click on "All" "link" in the "Course overview" "block"
+    Then I should see "Course 2" in the "Course overview" "block"

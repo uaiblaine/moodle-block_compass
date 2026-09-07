@@ -39,9 +39,12 @@ use core_text;
  * group headers alone in paged mode, above inventory_max; rows() — one page of
  * one group; search() — the server-side search of paged mode, matching the way
  * the browser matches in full mode. Names are formatted only for the rows a
- * response ships, after one bulk filter preload of their contexts, and hidden
- * courses never enter. No SQL of its own: the entry and the shared layers are
- * the only sources, so the stamp is the single validity check in both modes.
+ * response ships, after one bulk filter preload of their contexts. Since ADR-007
+ * the population is two: the active courses, grouped by category with the
+ * dormant ones gathered into a group of their own, and the archived courses,
+ * which travel as a header alone and page on first open. No SQL of its own: the
+ * entry and the shared layers are the only sources, so the stamp is the single
+ * validity check in both modes.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -70,24 +73,35 @@ final class explore {
      * @param int|null $groupdepth Category depth that forms the groups; null for the setting.
      * @param int|null $newdays Days an enrolment stays new; null for the setting.
      * @param int|null $inventorymax Courses full mode ships at most; null for the setting.
-     * @return array mode (full or paged), total, groups (id, name, count, courses: id, name, opened, new, fav).
+     * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
+     * @return array mode (full or paged), total, groups (id, name, count, courses: id, name, opened, new, fav, dorm).
      */
     public static function build(
         int $userid,
         int $now,
         ?int $groupdepth = null,
         ?int $newdays = null,
-        ?int $inventorymax = null
+        ?int $inventorymax = null,
+        ?int $dormantmonths = null
     ): array {
         $groupdepth = max(1, $groupdepth ?? config::group_depth());
         $newwindow = max(1, $newdays ?? config::new_days()) * DAYSECS;
         $inventorymax = max(1, $inventorymax ?? config::inventory_max());
+        $threshold = dormancy::threshold($now, $dormantmonths);
 
         $resolved = self::resolve($userid, $now, $groupdepth);
-        if (empty($resolved['meta'])) {
+        if (empty($resolved['meta']) && empty($resolved['archivedmeta'])) {
             return ['mode' => 'full', 'total' => 0, 'groups' => []];
         }
-        ['active' => $active, 'meta' => $meta, 'categories' => $categories, 'groupof' => $groupof] = $resolved;
+        [
+            'active' => $active,
+            'meta' => $meta,
+            'archivedmeta' => $archivedmeta,
+            'categories' => $categories,
+            'groupof' => $groupof,
+        ] = $resolved;
+        // The archived rows never travel here (ADR-007, decision 2), so they do not count
+        // towards the threshold either: the mode is about what the browser holds.
         $paged = count($meta) > $inventorymax;
 
         $contexts = [];
@@ -111,8 +125,26 @@ final class explore {
             filters::preload(array_values($contexts));
         }
 
+        // A dormant course leaves its category for the dormant group, so a year-old course
+        // stops padding the category a learner is working in (ADR-007, decision 2). A course
+        // appears once: here or there, never both.
         $groups = [];
+        $dormant = self::special_group(dormancy::GROUP_DORMANT);
         foreach ($meta as $courseid => $entrymeta) {
+            $course = $active[$courseid];
+            if (dormancy::is_dormant($course, $threshold)) {
+                if (!$paged) {
+                    $dormant['courses'][] = self::row(
+                        $course,
+                        self::course_name($entrymeta, $contexts[$courseid]),
+                        $now,
+                        $newwindow,
+                        $threshold
+                    );
+                }
+                $dormant['count']++;
+                continue;
+            }
             $categoryid = $entrymeta['category'];
             $groupid = $groupof[$categoryid] ?? $categoryid;
             if (!isset($groups[$groupid])) {
@@ -127,10 +159,11 @@ final class explore {
                 // Row keys are short by design: each repeats once per course in a payload the client
                 // holds whole, and get_inventory::execute_returns() pins this exact shape.
                 $groups[$groupid]['courses'][] = self::row(
-                    $active[$courseid],
+                    $course,
                     self::course_name($entrymeta, $contexts[$courseid]),
                     $now,
-                    $newwindow
+                    $newwindow,
+                    $threshold
                 );
             }
             $groups[$groupid]['count']++;
@@ -146,13 +179,44 @@ final class explore {
                 $group['courses'] = array_values($group['courses']);
             }
             unset($group);
+            core_collator::asort_array_of_arrays_by_key($dormant['courses'], 'name', core_collator::SORT_NATURAL);
+            $dormant['courses'] = array_values($dormant['courses']);
         }
         core_collator::asort_array_of_arrays_by_key($groups, 'name', core_collator::SORT_NATURAL);
+        $groups = array_values($groups);
+
+        // The two groups that are not categories come after the categories, in this order,
+        // and only when they hold something: an empty "Dormant (0)" is noise. The archived
+        // group is a header alone in BOTH modes — its rows arrive through rows() on first
+        // open — so archiving never grows the first paint (ADR-007, decision 2).
+        if ($dormant['count'] > 0) {
+            $groups[] = $dormant;
+        }
+        if (!empty($archivedmeta)) {
+            $archived = self::special_group(dormancy::GROUP_ARCHIVED);
+            $archived['count'] = count($archivedmeta);
+            $groups[] = $archived;
+        }
 
         return [
             'mode' => $paged ? 'paged' : 'full',
             'total' => count($meta),
-            'groups' => array_values($groups),
+            'groups' => $groups,
+        ];
+    }
+
+    /**
+     * The header of one of the two groups that are not categories, empty.
+     *
+     * @param int $groupid dormancy::GROUP_DORMANT or dormancy::GROUP_ARCHIVED.
+     * @return array id, name, count (0), courses (none).
+     */
+    private static function special_group(int $groupid): array {
+        return [
+            'id' => $groupid,
+            'name' => get_string($groupid === dormancy::GROUP_ARCHIVED ? 'archived' : 'dormant', 'block_compass'),
+            'count' => 0,
+            'courses' => [],
         ];
     }
 
@@ -175,7 +239,9 @@ final class explore {
      *
      * @param int $userid The viewer.
      * @param int $now Unix time to treat as now.
-     * @param int $groupid The group: a category id at the group depth.
+     * @param int $groupid The group: a category id at the group depth, or one of dormancy's two
+     *     reserved ids — GROUP_DORMANT for the dormant courses of every category, GROUP_ARCHIVED for
+     *     the courses the user archived, which no category group holds (ADR-007, decision 2).
      * @param int $after Id of the last row the client holds; 0 for the first page.
      * @param string $chip 'all', 'new' (never opened, enrolled inside the new window) or 'favourites'
      *     (the core star); anything else reads as 'all', as filter.ts passesChip() does.
@@ -183,7 +249,8 @@ final class explore {
      * @param int|null $pagesize Rows per page; null for PAGE_SIZE.
      * @param int|null $groupdepth Category depth that forms the groups; null for the setting.
      * @param int|null $newdays Days an enrolment stays new; null for the setting.
-     * @return array groupid, rows (id, name, opened, new, fav), hasmore, after (id of the last row, 0 when none).
+     * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
+     * @return array groupid, rows (id, name, opened, new, fav, dorm), hasmore, after (id of the last row, 0 when none).
      */
     public static function rows(
         int $userid,
@@ -194,22 +261,50 @@ final class explore {
         string $sort,
         ?int $pagesize = null,
         ?int $groupdepth = null,
-        ?int $newdays = null
+        ?int $newdays = null,
+        ?int $dormantmonths = null
     ): array {
         $groupdepth = max(1, $groupdepth ?? config::group_depth());
         $newwindow = max(1, $newdays ?? config::new_days()) * DAYSECS;
         $pagesize = max(1, $pagesize ?? self::PAGE_SIZE);
+        $threshold = dormancy::threshold($now, $dormantmonths);
         $empty = ['groupid' => $groupid, 'rows' => [], 'hasmore' => false, 'after' => 0];
 
-        ['active' => $active, 'meta' => $meta, 'groupof' => $groupof] = self::resolve($userid, $now, $groupdepth);
+        [
+            'active' => $active,
+            'meta' => $meta,
+            'archived' => $archived,
+            'archivedmeta' => $archivedmeta,
+            'groupof' => $groupof,
+        ] = self::resolve($userid, $now, $groupdepth);
 
-        // The group's courses that pass the chip, with the two keys the order needs.
+        // The archived group pages over the other population; everything else over the active one.
+        if ($groupid === dormancy::GROUP_ARCHIVED) {
+            $population = $archived;
+            $populationmeta = $archivedmeta;
+        } else {
+            $population = $active;
+            $populationmeta = $meta;
+        }
+
+        // The group's courses that pass the chip, with the two keys the order needs. A dormant
+        // course belongs to the dormant group and to no category group, so the two branches
+        // are complements: what one skips the other keeps.
         $candidates = [];
-        foreach ($meta as $courseid => $entrymeta) {
-            if (($groupof[$entrymeta['category']] ?? $entrymeta['category']) !== $groupid) {
-                continue;
+        foreach ($populationmeta as $courseid => $entrymeta) {
+            $course = $population[$courseid];
+            if ($groupid === dormancy::GROUP_DORMANT) {
+                if (!dormancy::is_dormant($course, $threshold)) {
+                    continue;
+                }
+            } else if ($groupid !== dormancy::GROUP_ARCHIVED) {
+                if (dormancy::is_dormant($course, $threshold)) {
+                    continue;
+                }
+                if (($groupof[$entrymeta['category']] ?? $entrymeta['category']) !== $groupid) {
+                    continue;
+                }
             }
-            $course = $active[$courseid];
             if (!self::passes_chip($chip, $course, $now, $newwindow)) {
                 continue;
             }
@@ -237,7 +332,7 @@ final class explore {
 
         return [
             'groupid' => $groupid,
-            'rows' => array_values(self::ship($ids, $active, $meta, $now, $newwindow)),
+            'rows' => array_values(self::ship($ids, $population, $populationmeta, $now, $newwindow, $threshold)),
             'hasmore' => $start + count($ids) < count($ordered),
             'after' => (int) end($ids),
         ];
@@ -265,7 +360,8 @@ final class explore {
      * @param int|null $limit Most rows to return; null for SEARCH_LIMIT.
      * @param int|null $groupdepth Category depth that forms the groups; null for the setting.
      * @param int|null $newdays Days an enrolment stays new; null for the setting.
-     * @return array rows (id, name, opened, new, fav, groupid), truncated.
+     * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
+     * @return array rows (id, name, opened, new, fav, dorm, groupid), truncated.
      */
     public static function search(
         int $userid,
@@ -273,7 +369,8 @@ final class explore {
         string $query,
         ?int $limit = null,
         ?int $groupdepth = null,
-        ?int $newdays = null
+        ?int $newdays = null,
+        ?int $dormantmonths = null
     ): array {
         $query = matcher::normalise($query);
         if (core_text::strlen($query) < self::SEARCH_MIN_LENGTH) {
@@ -282,6 +379,7 @@ final class explore {
         $groupdepth = max(1, $groupdepth ?? config::group_depth());
         $newwindow = max(1, $newdays ?? config::new_days()) * DAYSECS;
         $limit = max(1, $limit ?? self::SEARCH_LIMIT);
+        $threshold = dormancy::threshold($now, $dormantmonths);
 
         ['active' => $active, 'meta' => $meta, 'groupof' => $groupof] = self::resolve($userid, $now, $groupdepth);
 
@@ -303,21 +401,29 @@ final class explore {
         $truncated = count($ordered) > $limit;
         $ids = array_column(array_slice($ordered, 0, $limit), 'id');
 
-        $rows = self::ship($ids, $active, $meta, $now, $newwindow);
+        // A hit names the group that holds it, and a dormant course is held by the dormant
+        // group, not by its category: that is the group the client opens for it. The archived
+        // courses are not in this population at all — a search is over the courses a learner
+        // is working with, and the archived group is the one way to the rest (ADR-007).
+        $rows = self::ship($ids, $active, $meta, $now, $newwindow, $threshold);
         foreach ($rows as $courseid => $row) {
             $categoryid = $meta[$courseid]['category'];
-            $rows[$courseid]['groupid'] = $groupof[$categoryid] ?? $categoryid;
+            $rows[$courseid]['groupid'] = $row['dorm']
+                ? dormancy::GROUP_DORMANT
+                : ($groupof[$categoryid] ?? $categoryid);
         }
 
         return ['rows' => array_values($rows), 'truncated' => $truncated];
     }
 
     /**
-     * The population every tier 3 answer is a function of: the user's active, visible, not hidden
-     * courses and the group each rolls up to.
+     * The populations every tier 3 answer is a function of: the user's active, visible courses
+     * and the group each rolls up to, and beside them the courses the user archived (ADR-007).
      *
-     * The inventory gives the active courses, the hidden ones left out (hidden_courses::ids());
-     * the course layer gives names, visibility and category, with moodle/course:viewhiddencourses
+     * The inventory gives the active courses with the hidden ones left out, and the hidden ones
+     * on their own through the same active test (inventory::courses(), both modes); the course
+     * layer gives names, visibility and category for both populations IN ONE READ — a single
+     * get_many() over the union — with moodle/course:viewhiddencourses
      * evaluated once at the system context (ADR-000, decision 12), never per row; the category
      * layer gives the courses' categories and then the ancestors that form the groups — each list
      * one read when cold, none when warm. An id the layer cannot resolve (a category deleted under
@@ -334,31 +440,46 @@ final class explore {
      * @param int $now Unix time to treat as now.
      * @param int $groupdepth Category depth that forms the groups, at least 1.
      * @return array 'active' (course id => inventory::courses() row), 'meta' (course id => course_meta
-     *     entry, visibility applied; empty when there is nothing to show), 'categories' (category id =>
-     *     category_meta entry, group ancestors included), 'groupof' (category id => group category id).
+     *     entry of an active course, visibility applied), 'archived' and 'archivedmeta' (the same pair
+     *     for the courses the user archived), 'categories' (category id => category_meta entry, group
+     *     ancestors included, for the ACTIVE courses only — the archived group does not group by
+     *     category), 'groupof' (category id => group category id). Every list empty when there is
+     *     nothing to show in either population.
      */
     private static function resolve(int $userid, int $now, int $groupdepth): array {
-        $empty = ['active' => [], 'meta' => [], 'categories' => [], 'groupof' => []];
+        $empty = ['active' => [], 'meta' => [], 'archived' => [], 'archivedmeta' => [], 'categories' => [], 'groupof' => []];
 
         $entry = inventory::get($userid);
-        $active = inventory::courses($entry, $now, hidden_courses::ids($userid));
-        if (empty($active)) {
+        $hidden = hidden_courses::ids($userid);
+        $active = inventory::courses($entry, $now, $hidden);
+        $archived = inventory::courses($entry, $now, $hidden, true);
+        if (empty($active) && empty($archived)) {
             return $empty;
         }
 
-        // The course layer: names, visibility, category, context — misses filled in one read.
-        $meta = course_meta::get_many(array_keys($active));
+        // The course layer: names, visibility, category, context for BOTH populations — one
+        // get_many() over the union, so the archived group costs no read of its own; misses are
+        // filled in one statement whichever list they come from.
+        $allmeta = course_meta::get_many(array_merge(array_keys($active), array_keys($archived)));
         $seehidden = has_capability('moodle/course:viewhiddencourses', context_system::instance(), $userid);
-        foreach ($meta as $courseid => $entrymeta) {
+        foreach ($allmeta as $courseid => $entrymeta) {
             if (!$seehidden && !$entrymeta['visible']) {
-                unset($meta[$courseid]);
+                unset($allmeta[$courseid]);
             }
         }
-        if (empty($meta)) {
+        $meta = array_intersect_key($allmeta, $active);
+        $archivedmeta = array_intersect_key($allmeta, $archived);
+        if (empty($meta) && empty($archivedmeta)) {
             return $empty;
         }
+        if (empty($meta)) {
+            // Nothing active to group, but the archive is still worth a header: it is how the
+            // learner gets a course back.
+            return ['active' => $active, 'meta' => [], 'archived' => $archived, 'archivedmeta' => $archivedmeta,
+                'categories' => [], 'groupof' => []];
+        }
 
-        // The category layer: the courses' categories, then the ancestors that form the groups.
+        // The category layer: the active courses' categories, then the ancestors that form the groups.
         $categories = category_meta::get_many(array_unique(array_column($meta, 'category')));
         $groupof = [];
         $missing = [];
@@ -372,7 +493,14 @@ final class explore {
             $categories += category_meta::get_many(array_keys($missing));
         }
 
-        return ['active' => $active, 'meta' => $meta, 'categories' => $categories, 'groupof' => $groupof];
+        return [
+            'active' => $active,
+            'meta' => $meta,
+            'archived' => $archived,
+            'archivedmeta' => $archivedmeta,
+            'categories' => $categories,
+            'groupof' => $groupof,
+        ];
     }
 
     /**
@@ -383,9 +511,17 @@ final class explore {
      * @param array $meta resolve()'s 'meta'.
      * @param int $now Unix time to treat as now.
      * @param int $newwindow Seconds during which a never-opened enrolment is new.
-     * @return array Rows (id, name, opened, new, fav) keyed by course id, in the order of $courseids.
+     * @param int $threshold The instant from dormancy::threshold().
+     * @return array Rows (id, name, opened, new, fav, dorm) keyed by course id, in the order of $courseids.
      */
-    private static function ship(array $courseids, array $active, array $meta, int $now, int $newwindow): array {
+    private static function ship(
+        array $courseids,
+        array $active,
+        array $meta,
+        int $now,
+        int $newwindow,
+        int $threshold
+    ): array {
         $contexts = [];
         foreach ($courseids as $courseid) {
             $contexts[$courseid] = course_meta::context_of($meta[$courseid]);
@@ -399,7 +535,8 @@ final class explore {
                 $active[$courseid],
                 self::course_name($meta[$courseid], $contexts[$courseid]),
                 $now,
-                $newwindow
+                $newwindow,
+                $threshold
             );
         }
 
@@ -482,21 +619,26 @@ final class explore {
     }
 
     /**
-     * One tier 3 row, the shape get_inventory::execute_returns() pins: id, name, opened, new, fav.
+     * One tier 3 row, the shape get_inventory::execute_returns() pins: id, name, opened, new, fav, dorm.
+     *
+     * dorm is the answer and not the inputs (ADR-007, decision 1): the browser holds opened but
+     * not the enrolment date, and the threshold is a site setting it does not have.
      *
      * @param array $course An inventory::courses() row.
      * @param string $name The course name, formatted.
      * @param int $now Unix time to treat as now.
      * @param int $newwindow Seconds during which a never-opened enrolment is new.
+     * @param int $threshold The instant from dormancy::threshold().
      * @return array
      */
-    private static function row(array $course, string $name, int $now, int $newwindow): array {
+    private static function row(array $course, string $name, int $now, int $newwindow, int $threshold): array {
         return [
             'id' => $course['courseid'],
             'name' => $name,
             'opened' => $course['timeaccess'] > 0 ? $course['timeaccess'] : null,
             'new' => self::is_new($course, $now, $newwindow),
             'fav' => $course['isfavourite'],
+            'dorm' => dormancy::is_dormant($course, $threshold),
         ];
     }
 

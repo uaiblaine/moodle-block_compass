@@ -106,13 +106,23 @@ export type Strip = {
  */
 export type BlockConfig = {
     labels: Record<string, string>,
-    icons: {staron: string, staroff: string},
+    icons: {staron: string, staroff: string, hide: string, show: string},
     strips: Strip[],
     favouritesenabled: boolean,
     showsearch: boolean,
     showindex: boolean,
     view: string,
 };
+
+/**
+ * The two group ids that are not categories (ADR-007, decision 2).
+ *
+ * Negative on purpose: every other group id in the payload is a category id. The dormant
+ * group is a re-grouping of rows the browser already holds; the archived group is a header
+ * whose rows never travel in the first payload and arrive on first open, in both modes.
+ */
+export const GROUP_DORMANT = -1;
+export const GROUP_ARCHIVED = -2;
 
 /** One tier 3 row, as get_inventory and its two paging services return it. */
 export type InventoryRow = {
@@ -121,6 +131,7 @@ export type InventoryRow = {
     opened: number | null,
     new: boolean,
     fav: boolean,
+    dorm: boolean,
 };
 
 /** A search hit is a row that also says which group it belongs to. */

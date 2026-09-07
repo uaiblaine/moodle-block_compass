@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- Phase 5 — dormancy and archiving (ADR-007), version 2026090603. Tier 3 gains two groups
+  that are not categories. **Dormant** gathers the courses gone quiet — no access for
+  `dormant_months` (new setting, default 12, calendar months), or never opened and enrolled
+  longer ago than that — out of their categories and into one collapsed group at the end,
+  with an **Archive all** control. It costs nothing: both inputs were already in the ten
+  integers the inventory keeps per enrolment, and ADR-000 decision 15 had put the last
+  access in the stamp for exactly this. **Archived** holds the courses the learner removed
+  from view, which tier 3 used to drop entirely; its header travels alone in both modes and
+  its rows arrive on first open, so archiving never grows the first paint or pushes a
+  tidy-up into paged mode. Every row and card carries an archive control, and the archive
+  is the Course overview block's own `block_myoverview_hidden_course_*` preference, written
+  through core's preferences endpoint in batches of 50 (and brought back one at a time
+  through the single-preference route, because a `null` in the batch route is a 500 —
+  measured) — a course archived here disappears
+  from the native My courses, and one removed from view there appears under Archived here.
+  A failed batch stops and reloads rather than retrying, because the endpoint abandons the
+  rest of a batch on its first bad item and a retry would write over a state it no longer
+  knows; every archive action reloads tier 1 as well, because the strips and the ghost
+  counts are the server's decision. The row gains a sixth key, `dorm`, in all three tier 3
+  services. The Behat budget rises to four: the fourth scenario archives in Compass and
+  finds the course under the Course overview block's own "Removed from view" filter, which
+  is what proves the row is core's.
+
 ### Changed
 
 - A tier 3 card inside a category group no longer prints that category, version

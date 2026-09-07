@@ -306,3 +306,26 @@
         animation: none;
     }
 }
+
+/* Archiving (ADR-007): one icon-only control per row, on the row's own line, and above the
+   card's stretched link so the click is the button's and not the card's. */
+.block_compass .compass-archive {
+    line-height: 1;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-archive:hover,
+.block_compass .compass-archive:focus-visible {
+    color: var(--block_compass-brand);
+}
+
+.block_compass .compass-card-action {
+    position: relative;
+    z-index: 2;
+}
+
+/* The "Archive all" bar at the top of the dormant group, when it is open. */
+.block_compass .compass-archiveall {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--block_compass-line);
+}

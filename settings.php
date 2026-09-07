@@ -79,6 +79,15 @@ if ($ADMIN->fulltree) {
         1
     ));
 
+    // Months of silence after which tier 3 gathers a course into the dormant group (ADR-007).
+    $settings->add(new admin_setting_configtext(
+        'block_compass/dormant_months',
+        get_string('dormant_months', 'block_compass'),
+        get_string('dormant_months_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_DORMANT_MONTHS,
+        PARAM_INT
+    ));
+
     // The view tier 3 opens in for a viewer who has never chosen one (ADR-005, decision 4).
     // A select rather than a text field: the value is compared against a fixed vocabulary,
     // and admin_setting_configtext defaults to PARAM_RAW and would validate nothing.

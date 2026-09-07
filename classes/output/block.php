@@ -67,19 +67,27 @@ class block implements renderable, templatable {
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
             'sort_category', 'sort_name', 'sort_recent',
             'viewas', 'view_cards', 'view_list', 'viewerror',
+            'archive', 'archiveall', 'archiveallconfirm', 'archived', 'archiveerror', 'archivenone', 'archiving',
+            'coursearchived', 'courseunarchived', 'dormant', 'unarchive', 'unarchiveerror',
         ];
         $labels = [];
         foreach ($keys as $key) {
             $labels[$key] = get_string($key, 'block_compass');
         }
-        // The one core string the client shows; every other label is the plugin's own.
+        // The core strings the client shows; every other label is the plugin's own.
         $labels['loading'] = get_string('loading');
+        $labels['confirm'] = get_string('confirm');
+        $labels['cancel'] = get_string('cancel');
 
         $props = [
             'labels' => $labels,
             'icons' => [
                 'staron' => $output->render(new pix_icon('i/star', '')),
                 'staroff' => $output->render(new pix_icon('i/star-o', '')),
+                // Archiving is the Course overview block's "remove from view", so its icons are
+                // core's hide and show, through the theme's icon map like the stars (ADR-007).
+                'hide' => $output->render(new pix_icon('t/hide', '')),
+                'show' => $output->render(new pix_icon('t/show', '')),
             ],
             'strips' => [
                 ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],

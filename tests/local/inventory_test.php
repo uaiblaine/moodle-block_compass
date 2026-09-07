@@ -593,6 +593,35 @@ final class inventory_test extends advanced_testcase {
         $hidden = hidden_courses::ids($this->userid);
         $this->assertSame([(int) $archived->id], $hidden);
         $this->assertSame([(int) $kept->id], array_keys(inventory::courses($after, self::NOW, $hidden)));
+        // The complement (ADR-007, decision 2): the same active test over exactly the hidden set,
+        // so the two calls partition the entry and nothing is in both or in neither.
+        $this->assertSame([(int) $archived->id], array_keys(inventory::courses($after, self::NOW, $hidden, true)));
+    }
+
+    /**
+     * The hidden-only mode still runs the active test: an archived course whose enrolment ended is not in it.
+     *
+     * @return void
+     */
+    public function test_the_hidden_only_mode_still_applies_the_active_test(): void {
+        $live = $this->course('Live archived');
+        $ended = $this->course('Ended archived');
+        $this->plugingen->enrol_at($this->userid, (int) $live->id, self::NOW - 10 * DAYSECS);
+        $this->plugingen->enrol_at(
+            $this->userid,
+            (int) $ended->id,
+            self::NOW - 10 * DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            0,
+            self::NOW - DAYSECS
+        );
+        $hidden = [(int) $live->id, (int) $ended->id];
+
+        $entry = inventory::get($this->userid);
+
+        $this->assertSame([(int) $live->id], array_keys(inventory::courses($entry, self::NOW, $hidden, true)));
+        $this->assertSame([], array_keys(inventory::courses($entry, self::NOW, $hidden)));
     }
 
     /**

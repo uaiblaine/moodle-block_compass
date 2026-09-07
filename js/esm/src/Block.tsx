@@ -106,6 +106,16 @@ const Block = (config: BlockConfig) => {
     const {labels} = config;
 
     /**
+     * Say something through the assertive live region, even when it repeats.
+     *
+     * @param {string} text The already-translated message.
+     * @returns {void}
+     */
+    const announce = useCallback((text: string): void => {
+        setAnnouncement((current) => ({text, at: current.at + 1}));
+    }, []);
+
+    /**
      * Fetch tier 1 and then the progress it could not answer from cache.
      *
      * Both halves live in one function, and the sequence number is why: pressing Try
@@ -113,14 +123,19 @@ const Block = (config: BlockConfig) => {
      * payload. Every write checks that it is still the current run first - the same
      * guard explore.js uses for a superseded page fetch.
      *
+     * @param {boolean} keep Whether to keep the cards on screen while the new payload
+     *     travels. False on first paint and on Try again; true after an archive, where the
+     *     strips are merely stale and blanking them would read as a failure.
      * @returns {Promise} Resolves when the payload and its details are in state, or
      *     when the failure is.
      */
-    const load = useCallback(async(): Promise<void> => {
+    const load = useCallback(async(keep = false): Promise<void> => {
         const mine = seq.current + 1;
         seq.current = mine;
         setError(null);
-        setData(null);
+        if (!keep) {
+            setData(null);
+        }
 
         let payload;
         try {
@@ -190,6 +205,15 @@ const Block = (config: BlockConfig) => {
     }, [load]);
 
     /**
+     * Tier 3 changed which courses exist for this user, so tier 1 is stale (ADR-007,
+     * decision 3): the strips and all three ghost counts are the server's decision, and the
+     * client cannot patch them without reimplementing which strip a course lands in.
+     *
+     * @returns {Promise} Resolves when tier 1 has been fetched again.
+     */
+    const refreshAttention = useCallback((): Promise<void> => load(true), [load]);
+
+    /**
      * Toggle the core course star of one course.
      *
      * @param {number} courseid The course.
@@ -257,7 +281,7 @@ const Block = (config: BlockConfig) => {
             {error !== null && (
                 <div className="alert alert-warning compass-error" role="alert">
                     <span>{error}</span>
-                    <button type="button" className="btn btn-sm btn-outline-secondary ms-auto" onClick={load}>
+                    <button type="button" className="btn btn-sm btn-outline-secondary ms-auto" onClick={() => load()}>
                         {labels.retry}
                     </button>
                 </div>
@@ -292,7 +316,7 @@ const Block = (config: BlockConfig) => {
             )}
             {exploring !== null && (
                 <div className="compass-explore-wrap mt-3">
-                    <Explore config={config} chip={exploring} />
+                    <Explore config={config} chip={exploring} announce={announce} onChanged={refreshAttention} />
                 </div>
             )}
             {/* Always in the DOM: a live region added at the moment of the change is

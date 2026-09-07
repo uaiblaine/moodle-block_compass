@@ -24,6 +24,7 @@
 
 namespace block_compass\external;
 
+use block_compass\local\dormancy;
 use block_compass\local\explore;
 use core\context\user as context_user;
 use core_external\external_api;
@@ -56,6 +57,9 @@ class get_inventory_rows extends external_api {
     /** @var string[] The orders a page can be returned in; anything else is rejected before any work. */
     public const SORTS = ['name', 'recent'];
 
+    /** @var int[] The two group ids that are not categories (ADR-007, decision 2). */
+    public const RESERVED_GROUPS = [dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED];
+
     /**
      * Parameters: the group, the cursor, the chip and the sort. The viewer is the current user.
      *
@@ -63,7 +67,7 @@ class get_inventory_rows extends external_api {
      */
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
-            'groupid' => new external_value(PARAM_INT, 'Category id of the group'),
+            'groupid' => new external_value(PARAM_INT, 'Category id of the group, or a reserved negative id'),
             'after' => new external_value(PARAM_INT, 'Id of the last row held; 0 for the first page', VALUE_DEFAULT, 0),
             'chip' => new external_value(PARAM_ALPHA, 'all, new or favourites', VALUE_DEFAULT, 'all'),
             'sort' => new external_value(PARAM_ALPHA, 'name or recent', VALUE_DEFAULT, 'name'),
@@ -97,6 +101,14 @@ class get_inventory_rows extends external_api {
         if (!in_array($params['sort'], self::SORTS, true)) {
             throw new \invalid_parameter_exception('sort must be one of ' . implode(', ', self::SORTS) . '.');
         }
+        // A group id is a category id, except for the two reserved negatives (ADR-007, decision 2).
+        // Any other negative is a client bug, and it is refused here rather than answered with an
+        // empty page that would look like a category the user has no course in.
+        if ($params['groupid'] < 0 && !in_array($params['groupid'], self::RESERVED_GROUPS, true)) {
+            throw new \invalid_parameter_exception(
+                'groupid must be a category id or one of ' . implode(', ', self::RESERVED_GROUPS) . '.'
+            );
+        }
 
         require_login();
         if (isguestuser()) {
@@ -121,6 +133,7 @@ class get_inventory_rows extends external_api {
             'opened' => new external_value(PARAM_INT, 'Last access timestamp', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'new' => new external_value(PARAM_BOOL, 'Enrolled recently and never opened'),
             'fav' => new external_value(PARAM_BOOL, 'Whether the core course star is set'),
+            'dorm' => new external_value(PARAM_BOOL, 'Whether the course has gone quiet (ADR-007)'),
         ];
     }
 
@@ -132,7 +145,7 @@ class get_inventory_rows extends external_api {
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'groupid' => new external_value(PARAM_INT, 'Category id of the group'),
+            'groupid' => new external_value(PARAM_INT, 'Category id of the group, or a reserved negative id'),
             'rows' => new external_multiple_structure(
                 new external_single_structure(self::row_fields()),
                 'The page, in the requested order'

@@ -101,7 +101,10 @@ class search_inventory extends external_api {
      */
     public static function execute_returns(): external_single_structure {
         $rowfields = get_inventory_rows::row_fields();
-        $rowfields['groupid'] = new external_value(PARAM_INT, 'Category id of the group the course rolls up to');
+        $rowfields['groupid'] = new external_value(
+            PARAM_INT,
+            'Category id of the group the course rolls up to, or the reserved dormant group id (ADR-007)'
+        );
 
         return new external_single_structure([
             'rows' => new external_multiple_structure(

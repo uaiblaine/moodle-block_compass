@@ -300,11 +300,15 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * A course the user archived never reaches a group or the total.
+     * A course the user archived leaves its category and the total for the archived group,
+     * whose header travels without rows in BOTH modes (ADR-007, decision 2).
+     *
+     * The archived rows never ship in the first payload, so archiving cannot grow the first
+     * paint: the group says how many, and rows() answers on first open.
      *
      * @return void
      */
-    public function test_an_archived_course_never_reaches_a_group(): void {
+    public function test_an_archived_course_moves_to_the_archived_group_as_a_header_alone(): void {
         $tree = $this->tree();
         $kept = $this->course_in((int) $tree['alpha']->id, 'Kept course');
         $archived = $this->course_in((int) $tree['alpha']->id, 'Archived course');
@@ -319,8 +323,135 @@ final class explore_test extends advanced_testcase {
         // Control: the two courses differ by the preference and by nothing else.
         $this->assertSame(2, $before['total']);
         $this->assertSame(['Archived course', 'Kept course'], $this->course_names($before['groups'][0]));
-        $this->assertSame(1, $after['total']);
+        $this->assertSame(['Alpha faculty'], $this->group_names($before), 'no archived group while nothing is archived');
+
+        $this->assertSame(1, $after['total'], 'the headline count is the active count');
         $this->assertSame(['Kept course'], $this->course_names($after['groups'][0]));
+        $this->assertSame(['Alpha faculty', get_string('archived', 'block_compass')], $this->group_names($after));
+        $group = $after['groups'][1];
+        $this->assertSame(dormancy::GROUP_ARCHIVED, $group['id']);
+        $this->assertSame(1, $group['count']);
+        $this->assertSame([], $group['courses'], 'the archived rows never travel in the first payload');
+
+        // Paged mode: the same header, the same way. A second active course is what tips the
+        // mode, because the threshold clamps at one and the archived course does not count.
+        $second = $this->course_in((int) $tree['alpha']->id, 'Second kept course');
+        $this->plugingen->enrol_at($this->userid, (int) $second->id, self::NOW - 100 * DAYSECS);
+        $paged = explore::build($this->userid, self::NOW, 1, 30, 1);
+        $this->assertSame('paged', $paged['mode']);
+        $this->assertSame([2, 1], array_column($paged['groups'], 'count'));
+        $this->assertSame(dormancy::GROUP_ARCHIVED, $paged['groups'][1]['id']);
+        $this->assertSame([[], []], array_column($paged['groups'], 'courses'));
+    }
+
+    /**
+     * A user whose every course is archived still gets the archived header: it is how they get one back.
+     *
+     * @return void
+     */
+    public function test_a_user_with_only_archived_courses_gets_the_archived_header(): void {
+        $tree = $this->tree();
+        $course = $this->course_in((int) $tree['alpha']->id, 'Only course');
+        $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+        $this->plugingen->hide($this->userid, (int) $course->id);
+
+        $payload = $this->build(1);
+
+        $this->assertSame(0, $payload['total']);
+        $this->assertSame([dormancy::GROUP_ARCHIVED], array_column($payload['groups'], 'id'));
+        $this->assertSame([1], array_column($payload['groups'], 'count'));
+        $this->assertSame(['Only course'], $this->row_names($this->rows(dormancy::GROUP_ARCHIVED)));
+    }
+
+    /**
+     * A dormant course leaves its category for the dormant group, in both modes (ADR-007, decision 2).
+     *
+     * The group comes after the categories and only when it holds something. The headline
+     * count is unchanged, because a dormant course is still an active enrolment; what shrinks
+     * is the category it stops padding. Both clauses of the rule are exercised: one course
+     * opened long ago, one never opened and enrolled long ago, and a control enrolled long ago
+     * but opened yesterday, which stays where it is.
+     *
+     * @return void
+     */
+    public function test_a_dormant_course_leaves_its_category_for_the_dormant_group(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $zeta = (int) $tree['zeta']->id;
+        $threshold = dormancy::threshold(self::NOW, 12);
+        $stale = (int) $this->course_in($alpha, 'Stale course')->id;
+        $forgotten = (int) $this->course_in($zeta, 'Forgotten course')->id;
+        $awake = (int) $this->course_in($alpha, 'Awake course')->id;
+        foreach ([$stale, $forgotten, $awake] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, $threshold - 10 * DAYSECS);
+        }
+        $this->plugingen->access_at($this->userid, $stale, $threshold - DAYSECS);
+        $this->plugingen->access_at($this->userid, $awake, self::NOW - DAYSECS);
+
+        $payload = $this->build(1);
+
+        $this->assertSame(3, $payload['total'], 'dormant courses are active courses');
+        $this->assertSame(['Alpha faculty', get_string('dormant', 'block_compass')], $this->group_names($payload));
+        $this->assertSame(['Awake course'], $this->course_names($payload['groups'][0]));
+        $this->assertSame([1, 2], array_column($payload['groups'], 'count'));
+        $dormant = $payload['groups'][1];
+        $this->assertSame(dormancy::GROUP_DORMANT, $dormant['id']);
+        $this->assertSame(['Forgotten course', 'Stale course'], $this->course_names($dormant), 'sorted by name');
+        $rows = $this->rows_by_id($payload);
+        $this->assertTrue($rows[$stale]['dorm']);
+        $this->assertTrue($rows[$forgotten]['dorm']);
+        $this->assertFalse($rows[$awake]['dorm']);
+
+        // Paged mode: the same partition, as counts.
+        $paged = explore::build($this->userid, self::NOW, 1, 30, 1);
+        $this->assertSame('paged', $paged['mode']);
+        $this->assertSame([$alpha, dormancy::GROUP_DORMANT], array_column($paged['groups'], 'id'));
+        $this->assertSame([1, 2], array_column($paged['groups'], 'count'));
+        $this->assertSame([[], []], array_column($paged['groups'], 'courses'));
+
+        // Zeta holds nothing awake, so it has no group; a longer window wakes everything up.
+        $wide = explore::build($this->userid, self::NOW, 1, 30, null, 36);
+        $this->assertSame(['Alpha faculty', 'Zeta faculty'], $this->group_names($wide));
+    }
+
+    /**
+     * rows() pages the dormant group across categories, and keeps them out of every category page.
+     *
+     * @return void
+     */
+    public function test_rows_pages_the_dormant_group_and_keeps_dormant_rows_out_of_the_categories(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $zeta = (int) $tree['zeta']->id;
+        $threshold = dormancy::threshold(self::NOW, 12);
+        $stale = (int) $this->course_in($alpha, 'Stale course')->id;
+        $forgotten = (int) $this->course_in($zeta, 'Forgotten course')->id;
+        $awake = (int) $this->course_in($alpha, 'Awake course')->id;
+        foreach ([$stale, $forgotten, $awake] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, $threshold - 10 * DAYSECS);
+        }
+        $this->plugingen->access_at($this->userid, $stale, $threshold - DAYSECS);
+        $this->plugingen->access_at($this->userid, $awake, self::NOW - DAYSECS);
+
+        $this->assertSame(['Forgotten course', 'Stale course'], $this->row_names($this->rows(dormancy::GROUP_DORMANT)));
+        $this->assertSame(['Awake course'], $this->row_names($this->rows($alpha)));
+        $this->assertSame([], $this->row_names($this->rows($zeta)));
+
+        // The dormant page pages like any other, and the chip applies to it.
+        $first = $this->rows(dormancy::GROUP_DORMANT, 0, 'all', 'name', 1);
+        $this->assertSame(['Forgotten course'], $this->row_names($first));
+        $this->assertTrue($first['hasmore']);
+        $second = $this->rows(dormancy::GROUP_DORMANT, $first['after'], 'all', 'name', 1);
+        $this->assertSame(['Stale course'], $this->row_names($second));
+        $this->plugingen->favourite($this->userid, $stale);
+        $this->assertSame(['Stale course'], $this->row_names($this->rows(dormancy::GROUP_DORMANT, 0, 'favourites')));
+
+        // A search hit names the group that holds it, which for a dormant course is the dormant group.
+        $hits = $this->search('course');
+        $groupof = array_column($hits['rows'], 'groupid', 'id');
+        $this->assertSame(dormancy::GROUP_DORMANT, $groupof[$stale]);
+        $this->assertSame(dormancy::GROUP_DORMANT, $groupof[$forgotten]);
+        $this->assertSame($alpha, $groupof[$awake]);
     }
 
     /**
@@ -571,6 +702,55 @@ final class explore_test extends advanced_testcase {
             3,
             $reads,
             "a build on a valid hit in a new request cost {$reads} reads; the budget is 3"
+        );
+    }
+
+    /**
+     * Dormancy and the archived header cost no read of their own (ADR-007, decisions 1 and 2).
+     *
+     * The same protocol as the plain build budget, over a fixture that exercises both new
+     * paths at once: a dormant course (so the dormant group is built and `dorm` computed) and
+     * an archived one (so the archived population is resolved and its header counted). The
+     * claim is that the read count is unchanged — the dormancy inputs are in the cached row,
+     * and the archived courses' meta comes back in the SAME get_many() as the active ones. The
+     * payload is asserted too, or a cheap call that skipped both groups would pass the bound.
+     *
+     * @return void
+     */
+    public function test_dormancy_and_the_archived_header_add_no_read_to_a_build(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $threshold = dormancy::threshold(self::NOW, 12);
+        $awake = (int) $this->course_in($alpha, 'Awake course')->id;
+        $stale = (int) $this->course_in($alpha, 'Stale course')->id;
+        $archived = (int) $this->course_in($alpha, 'Archived course')->id;
+        foreach ([$awake, $stale, $archived] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, $threshold - 10 * DAYSECS);
+        }
+        $this->plugingen->access_at($this->userid, $awake, self::NOW - DAYSECS);
+        $this->plugingen->access_at($this->userid, $stale, $threshold - DAYSECS);
+        $this->plugingen->hide($this->userid, $archived);
+        $this->setUser($this->user);
+
+        $warm = $this->build(1);
+        $this->plugingen->simulate_new_request();
+
+        $meter = budget::start();
+        $hit = $this->build(1);
+        $reads = $meter->reads();
+
+        $this->assertSame($warm, $hit);
+        $this->assertSame(
+            [$alpha, dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED],
+            array_column($hit['groups'], 'id'),
+            'all three groups were built by the measured call'
+        );
+        $this->assertSame([1, 1, 1], array_column($hit['groups'], 'count'));
+        $this->assertSame(2, $hit['total'], 'the headline count is the active count');
+        $this->assertLessThanOrEqual(
+            3,
+            $reads,
+            "a build with a dormant and an archived course cost {$reads} reads on a valid hit; the budget is 3"
         );
     }
 
@@ -829,7 +1009,7 @@ final class explore_test extends advanced_testcase {
         $fullrows = $this->build(1)['groups'][0]['courses'];
         $this->assertCount(5, $fullrows);
         $this->assertSame($fullrows, array_merge($first['rows'], $second['rows'], $third['rows']));
-        $this->assertSame(['id', 'name', 'opened', 'new', 'fav'], array_keys($first['rows'][0]));
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm'], array_keys($first['rows'][0]));
 
         // The default page size holds all five; the constant is the ADR's hundred.
         $whole = $this->rows($alpha);
@@ -994,13 +1174,46 @@ final class explore_test extends advanced_testcase {
         $this->plugingen->hide($this->userid, $archived);
 
         $this->assertSame(['Kept course'], $this->row_names($this->rows($alpha)));
-        $this->assertSame([$kept], $this->row_ids($this->search('course')));
+        $this->assertSame([$kept], $this->row_ids($this->search('course')), 'a search is over the courses in use');
+        // The archived group is the one way to the course (ADR-007, decision 2).
+        $this->assertSame(['Archived course'], $this->row_names($this->rows(dormancy::GROUP_ARCHIVED)));
 
         // Control: the two courses differ by the preference and by nothing else.
         unset_user_preference(hidden_courses::PREFIX . $archived, $this->userid);
 
         $this->assertSame(['Archived course', 'Kept course'], $this->row_names($this->rows($alpha)));
         $this->assertSame([$archived, $kept], $this->row_ids($this->search('course')));
+        $this->assertSame([], $this->row_names($this->rows(dormancy::GROUP_ARCHIVED)));
+    }
+
+    /**
+     * An archived course whose enrolment has since ended does not come back from the archive.
+     *
+     * The archived group runs the same active test as everything else, on purpose: the
+     * preference says "hidden", the enrolment says "over", and the second is what decides.
+     *
+     * @return void
+     */
+    public function test_an_archived_course_whose_enrolment_ended_is_not_in_the_archive(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $live = (int) $this->course_in($alpha, 'Live archived course')->id;
+        $ended = (int) $this->course_in($alpha, 'Ended archived course')->id;
+        $this->plugingen->enrol_at($this->userid, $live, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at(
+            $this->userid,
+            $ended,
+            self::NOW - 100 * DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            0,
+            self::NOW - DAYSECS
+        );
+        $this->plugingen->hide($this->userid, $live);
+        $this->plugingen->hide($this->userid, $ended);
+
+        $this->assertSame(['Live archived course'], $this->row_names($this->rows(dormancy::GROUP_ARCHIVED)));
+        $this->assertSame([1], array_column($this->build(1)['groups'], 'count'));
     }
 
     /**
@@ -1038,7 +1251,7 @@ final class explore_test extends advanced_testcase {
         // Every hit carries the full-mode row plus the group it rolls up to.
         $hits = $this->search('tactics');
         $this->assertCount(1, $hits['rows']);
-        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'groupid'], array_keys($hits['rows'][0]));
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'groupid'], array_keys($hits['rows'][0]));
         $this->assertSame($alpha, $hits['rows'][0]['groupid']);
         $this->assertSame('Approach tactics', $hits['rows'][0]['name']);
         $this->assertFalse($hits['truncated']);

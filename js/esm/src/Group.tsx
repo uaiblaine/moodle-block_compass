@@ -29,6 +29,7 @@
  */
 
 import {useCallback, useEffect, useRef} from 'react';
+import type {ReactNode} from 'react';
 import RowList from './RowList';
 import {fill} from './str';
 import type {RowDetails} from './rowdetails';
@@ -51,18 +52,23 @@ type GroupProps = {
     onShowMore: (id: number) => void,
     focusfrom: number | null,
     anchor: string,
+    toolbar?: ReactNode,
+    archived: boolean,
+    onArchive: (courseid: number, name: string, archived: boolean) => void,
+    busy: boolean,
 };
 
 /**
  * The group.
  *
  * @param {object} props The group's identity and rows, its open and paging state, the
- *     block config, the view, the details store and the two callbacks; see GroupProps.
+ *     block config, the view, the details store, the archive action and the callbacks; see
+ *     GroupProps.
  * @returns {object} The rendered disclosure.
  */
 const Group = ({
     id, name, count, rows, open, loading, hasmore, config, now, lang, view, details,
-    onToggle, onShowMore, focusfrom, anchor,
+    onToggle, onShowMore, focusfrom, anchor, toolbar, archived, onArchive, busy,
 }: GroupProps) => {
     const {labels} = config;
     const more = useRef<HTMLButtonElement>(null);
@@ -117,6 +123,9 @@ const Group = ({
                     {fill(labels.coursesingroup, String(count))}
                 </span>
             </summary>
+            {/* Inside the body rather than the summary: a button in a summary toggles the
+                disclosure as well, and a control that opens and acts at once is two surprises. */}
+            {toolbar}
             <div className="compass-rows-shell" ref={list} aria-busy={loading || undefined}>
                 <RowList
                     rows={rows}
@@ -126,6 +135,9 @@ const Group = ({
                     now={now}
                     lang={lang}
                     details={details}
+                    archived={archived}
+                    onArchive={onArchive}
+                    busy={busy}
                 />
             </div>
             {(hasmore || loading) && (

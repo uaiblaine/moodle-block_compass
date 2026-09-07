@@ -38,17 +38,20 @@ type RowListProps = {
     now: number,
     lang: string,
     details: RowDetails,
+    archived: boolean,
+    onArchive: (courseid: number, name: string, archived: boolean) => void,
+    busy: boolean,
 };
 
 /**
  * The rows.
  *
  * @param {object} props The rows, the view, how to name a row's category, the block config,
- *     the instant "ago" is measured from, the page language and the details store; see
- *     RowListProps.
+ *     the instant "ago" is measured from, the page language, the details store and the archive
+ *     action; see RowListProps.
  * @returns {object} The rendered list.
  */
-const RowList = ({rows, view, categoryof, config, now, lang, details}: RowListProps) => {
+const RowList = ({rows, view, categoryof, config, now, lang, details, archived, onArchive, busy}: RowListProps) => {
     const {records, waiting, observe} = details;
 
     if (view === 'cards') {
@@ -65,6 +68,9 @@ const RowList = ({rows, view, categoryof, config, now, lang, details}: RowListPr
                             detail={records[row.id]}
                             waiting={!!waiting[row.id]}
                             observe={observe}
+                            archived={archived}
+                            onArchive={onArchive}
+                            busy={busy}
                         />
                     </div>
                 ))}
@@ -84,6 +90,9 @@ const RowList = ({rows, view, categoryof, config, now, lang, details}: RowListPr
                         detail={records[row.id]}
                         waiting={!!waiting[row.id]}
                         observe={observe}
+                        archived={archived}
+                        onArchive={onArchive}
+                        busy={busy}
                     />
                 </div>
             ))}

@@ -29,6 +29,7 @@
  */
 
 import {useEffect, useRef} from 'react';
+import Archive from './Archive';
 import Progress from './Progress';
 import {relativeTime} from './filter';
 import {fill} from './str';
@@ -42,16 +43,20 @@ type RowProps = {
     detail: RowDetail | undefined,
     waiting: boolean,
     observe: (id: number, element: Element) => () => void,
+    archived: boolean,
+    onArchive: (courseid: number, name: string, archived: boolean) => void,
+    busy: boolean,
 };
 
 /**
  * The row.
  *
  * @param {object} props The row, the block config, the instant "ago" is measured from,
- *     the page language, what is known about the row and how to register it; see RowProps.
+ *     the page language, what is known about the row, how to register it and the archive
+ *     action; see RowProps.
  * @returns {object} The rendered row.
  */
-const Row = ({row, config, now, lang, detail, waiting, observe}: RowProps) => {
+const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArchive, busy}: RowProps) => {
     const {labels, icons} = config;
     const opened = row.opened || 0;
     const url = `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
@@ -97,6 +102,14 @@ const Row = ({row, config, now, lang, detail, waiting, observe}: RowProps) => {
                     <span className="visually-hidden">{labels.chip_favourites}</span>
                 </>
             )}
+            <Archive
+                courseid={row.id}
+                name={row.name}
+                archived={archived}
+                busy={busy}
+                config={config}
+                onArchive={onArchive}
+            />
         </div>
     );
 };

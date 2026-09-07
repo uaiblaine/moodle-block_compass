@@ -34,6 +34,7 @@
  */
 
 import {useEffect, useRef} from 'react';
+import Archive from './Archive';
 import Progress from './Progress';
 import {relativeTime} from './filter';
 import {fill} from './str';
@@ -48,17 +49,22 @@ type RowCardProps = {
     detail: RowDetail | undefined,
     waiting: boolean,
     observe: (id: number, element: Element) => () => void,
+    archived: boolean,
+    onArchive: (courseid: number, name: string, archived: boolean) => void,
+    busy: boolean,
 };
 
 /**
  * The card.
  *
  * @param {object} props The row, its category, the block config, the instant "ago" is
- *     measured from, the page language, what is known about the row and how to register
- *     it; see RowCardProps.
+ *     measured from, the page language, what is known about the row, how to register it
+ *     and the archive action; see RowCardProps.
  * @returns {object} The rendered card.
  */
-const RowCard = ({row, category, config, now, lang, detail, waiting, observe}: RowCardProps) => {
+const RowCard = ({
+    row, category, config, now, lang, detail, waiting, observe, archived, onArchive, busy,
+}: RowCardProps) => {
     const {labels, icons} = config;
     const opened = row.opened || 0;
     const url = `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
@@ -118,6 +124,17 @@ const RowCard = ({row, category, config, now, lang, detail, waiting, observe}: R
                             <span className="visually-hidden">{labels.chip_favourites}</span>
                         </>
                     )}
+                    {/* Above the stretched link, or the card would swallow the click. */}
+                    <span className="compass-card-action">
+                        <Archive
+                            courseid={row.id}
+                            name={row.name}
+                            archived={archived}
+                            busy={busy}
+                            config={config}
+                            onArchive={onArchive}
+                        />
+                    </span>
                 </div>
             </div>
         </div>
