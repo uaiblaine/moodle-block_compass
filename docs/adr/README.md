@@ -25,3 +25,4 @@ the status flips to `Accepted` in the commit that lands it.
 | [006](006-react-client.md) | The client is React, and what that costs (supersedes nothing; ADR-005 revised in place instead) | Accepted | R1-R4 |
 | [007](007-dormancy-and-archiving.md) | Dormancy, archiving, and the two groups that are not categories (supersedes ADR-000 decision 16 on which write route the client uses; everything else in it stands) | Accepted | 5 |
 | [008](008-accessibility-docs-and-release.md) | The accessibility audit is executable, the documentation is English, and v5.2-r1 ships (supersedes nothing; completes PLAN.md §9 Phase 7 except the moodle.org submission itself) | Accepted | 7 |
+| [009](009-favourites-filters-and-pending-applications.md) | Complete favourites, one ghost, a filter panel, and applications awaiting approval (supersedes PLAN.md §2's exclusivity rule for the favourites strip and §10's custom-field non-objective; repurposes `enable_pending`) | Accepted | 8 |

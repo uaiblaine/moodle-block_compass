@@ -1,0 +1,1300 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass — favoritos, filtros e pendências</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* ---------------------------------------------------------------------------
+   High-fidelity mockup for block_compass. Self-contained on purpose: it is a
+   validation instrument for the maintainer, not shipped code. Token VALUES are
+   Boost 5.2's own, copied from local_dimensions' learner kit (--lk-*), so the
+   picture matches what the plugin will actually render.
+
+   Structure: tier 1 (three strips + the ghost) and tier 3 (toolbar, filter
+   panel, index, groups) inside one block card; the new admin settings in a
+   second card; then the legend, which is the thing to review.
+   --------------------------------------------------------------------------- */
+
+/* Light is the base. Dark redefines TOKENS ONLY, twice: once for the system
+   preference (guarded so an explicit light choice wins) and once for the
+   explicit dark choice. No component rule lives inside either block. */
+:root{
+  --cp-page:#f4f5f7;
+  --cp-surface:#fff;
+  --cp-surface-2:#f8f9fa;
+  --cp-text:#212529;
+  --cp-text-2:#495057;
+  --cp-muted:#6c757d;
+  --cp-line:#e9ecef;
+  --cp-line-2:#dee2e6;
+  --cp-accent:#0f6cbf;
+  --cp-accent-text:#0f6cbf;
+  --cp-on-accent:#fff;
+  --cp-pill-platter:#e9ecef;
+  --cp-pill-text:#6c757d;
+  --cp-counter-bg:#e9ecef;
+  --cp-counter-active-bg:#cfe2ff;
+  --cp-success:#198754;
+  --cp-success-text:#155724;
+  --cp-warning-ink:#6f5500;
+  --cp-warning-bg:#fff3cd;
+  --cp-warning-edge:#ffe69c;
+  --cp-star:#fd7e14;
+  --cp-star-off:#ced4da;
+  --cp-shadow:rgba(0,0,0,.10);
+  --cp-stripe-a:#f8f9fa;
+  --cp-stripe-b:#e9ecef;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --cp-page:#1d2125;
+    --cp-surface:#212529;
+    --cp-surface-2:#2b3035;
+    --cp-text:#dee2e6;
+    --cp-text-2:#adb5bd;
+    --cp-muted:rgba(173,181,189,.75);
+    --cp-line:#343a40;
+    --cp-line-2:#495057;
+    --cp-accent:#6ea8fe;
+    --cp-accent-text:#6ea8fe;
+    --cp-on-accent:#0b1013;
+    --cp-pill-platter:#343a40;
+    --cp-pill-text:#adb5bd;
+    --cp-counter-bg:#343a40;
+    --cp-counter-active-bg:rgba(110,168,254,.22);
+    --cp-success:#75b798;
+    --cp-success-text:#75b798;
+    --cp-warning-ink:#ffda6a;
+    --cp-warning-bg:#332701;
+    --cp-warning-edge:#664d03;
+    --cp-star:#fd7e14;
+    --cp-star-off:#495057;
+    --cp-shadow:rgba(0,0,0,.45);
+    --cp-stripe-a:#2b3035;
+    --cp-stripe-b:#343a40;
+  }
+}
+:root[data-theme="dark"]{
+  --cp-page:#1d2125;
+  --cp-surface:#212529;
+  --cp-surface-2:#2b3035;
+  --cp-text:#dee2e6;
+  --cp-text-2:#adb5bd;
+  --cp-muted:rgba(173,181,189,.75);
+  --cp-line:#343a40;
+  --cp-line-2:#495057;
+  --cp-accent:#6ea8fe;
+  --cp-accent-text:#6ea8fe;
+  --cp-on-accent:#0b1013;
+  --cp-pill-platter:#343a40;
+  --cp-pill-text:#adb5bd;
+  --cp-counter-bg:#343a40;
+  --cp-counter-active-bg:rgba(110,168,254,.22);
+  --cp-success:#75b798;
+  --cp-success-text:#75b798;
+  --cp-warning-ink:#ffda6a;
+  --cp-warning-bg:#332701;
+  --cp-warning-edge:#664d03;
+  --cp-star:#fd7e14;
+  --cp-star-off:#495057;
+  --cp-shadow:rgba(0,0,0,.45);
+  --cp-stripe-a:#2b3035;
+  --cp-stripe-b:#343a40;
+}
+
+*{box-sizing:border-box;}
+html{color-scheme:light dark;}
+body{
+  margin:0;
+  padding:24px 16px 64px;
+  background:var(--cp-page);
+  color:var(--cp-text);
+  font-family:'Noto Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+}
+.cp-page{max-width:960px;margin:0 auto;}
+
+:focus-visible{outline:2px solid var(--cp-accent);outline-offset:2px;}
+button,input,select{font:inherit;color:inherit;}
+
+/* ---- page chrome ------------------------------------------------------- */
+.cp-crumb{font-size:13px;color:var(--cp-muted);margin-bottom:6px;}
+.cp-h1{font-size:24px;font-weight:600;margin:0 0 4px;}
+.cp-lede{font-size:13px;color:var(--cp-text-2);margin:0 0 20px;max-width:70ch;}
+.cp-lede code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;}
+
+/* ---- the block card ---------------------------------------------------- */
+.cp-block{
+  position:relative;
+  background:var(--cp-surface);
+  border:1px solid var(--cp-line);
+  border-radius:.5rem;
+  box-shadow:0 1px 3px var(--cp-shadow);
+  padding:1rem 1.15rem 1.25rem;
+  margin-bottom:22px;
+}
+.cp-block-title{font-size:1.25rem;font-weight:600;margin:0 0 2px;}
+.cp-block-sub{font-size:13px;color:var(--cp-muted);margin:0 0 16px;}
+
+/* ---- annotation markers ------------------------------------------------ */
+.cp-marker{
+  position:absolute;top:-11px;right:-11px;z-index:5;
+  width:22px;height:22px;border-radius:50%;
+  border:2px solid var(--cp-accent);
+  background:var(--cp-surface);
+  color:var(--cp-accent-text);
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:10px;font-weight:700;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;
+  text-decoration:none;
+}
+.cp-marker:hover{background:var(--cp-counter-active-bg);}
+.cp-marker--inline{position:static;margin-left:8px;vertical-align:middle;flex:none;}
+
+/* ---- strips ------------------------------------------------------------ */
+.cp-strip{position:relative;margin:0 0 22px;}
+.cp-strip-head{
+  display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
+  margin:0 0 .6rem;
+}
+.cp-strip-title{font-size:16px;font-weight:600;margin:0;}
+.cp-strip-more{
+  margin-left:auto;font-size:13px;color:var(--cp-accent-text);
+  background:none;border:0;padding:2px 4px;cursor:pointer;text-decoration:underline;
+}
+.cp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:12px;align-items:stretch;}
+/* One discreet line under a strip: the pending applications' only notice in
+   tier 1, and it is a notice, not a card (D3). */
+.cp-strip-note{margin:.6rem 0 0;font-size:13px;color:var(--cp-muted);}
+.cp-linkbtn{
+  padding:0;border:0;background:none;
+  color:var(--cp-accent-text);font-size:13px;text-decoration:underline;cursor:pointer;
+}
+
+/* ---- a tier 1 card ----------------------------------------------------- */
+.cp-card{
+  display:flex;flex-direction:column;
+  border:1px solid var(--cp-line-2);
+  border-radius:.5rem;
+  background:var(--cp-surface);
+  overflow:hidden;
+  min-height:206px;
+}
+.cp-card--new{border-color:var(--cp-accent);}
+.cp-thumb{
+  position:relative;height:62px;flex:none;
+  border-bottom:1px solid var(--cp-line);
+  background:repeating-linear-gradient(135deg,var(--cp-stripe-a) 0 9px,var(--cp-stripe-b) 9px 18px);
+}
+.cp-cat{
+  position:absolute;left:6px;top:6px;
+  font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;
+  background:var(--cp-surface);color:var(--cp-text-2);border:1px solid var(--cp-line-2);
+}
+.cp-star{
+  position:absolute;right:4px;top:4px;
+  width:28px;height:28px;border:0;border-radius:50%;
+  background:transparent;color:var(--cp-star-off);
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.cp-star svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linejoin:round;}
+.cp-star.on{color:var(--cp-star);}
+.cp-star.on svg{fill:currentColor;}
+.cp-badge{
+  position:absolute;right:6px;top:6px;
+  font-size:11px;font-weight:600;line-height:1.4;
+  padding:1px 8px;border-radius:999px;
+}
+.cp-badge--new{background:var(--cp-accent);color:var(--cp-on-accent);}
+.cp-badge--wait{background:var(--cp-warning-bg);color:var(--cp-warning-ink);border:1px solid var(--cp-warning-edge);}
+.cp-card-body{display:flex;flex-direction:column;gap:.35rem;padding:.6rem .7rem .7rem;flex:1;}
+.cp-card-title{font-size:14px;font-weight:600;margin:0;line-height:1.3;}
+.cp-meta{font-size:13px;color:var(--cp-muted);margin:0;}
+.cp-meta b{font-weight:600;color:var(--cp-text-2);}
+.cp-bar{height:6px;border-radius:3px;background:var(--cp-line);overflow:hidden;}
+.cp-bar > i{display:block;height:100%;background:var(--cp-accent);}
+.cp-bar.done > i{background:var(--cp-success);}
+.cp-btn{
+  margin-top:auto;display:inline-block;text-align:center;
+  padding:.32rem .6rem;border-radius:.35rem;
+  border:1px solid var(--cp-line-2);background:var(--cp-surface);
+  color:var(--cp-text-2);font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;
+}
+.cp-btn--fill{background:var(--cp-accent);border-color:var(--cp-accent);color:var(--cp-on-accent);}
+
+/* ---- the ghost (tier 2) ------------------------------------------------ */
+.cp-ghost-wrap{position:relative;display:flex;}
+.cp-ghost{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem;
+  width:100%;min-height:206px;padding:.85rem;
+  border:1.5px dashed var(--cp-line-2);border-radius:.5rem;
+  background:var(--cp-surface-2);color:var(--cp-text-2);
+  text-align:center;cursor:pointer;
+}
+.cp-ghost b{font-size:20px;font-weight:700;color:var(--cp-text);}
+.cp-ghost span{font-size:13px;color:var(--cp-muted);}
+.cp-ghost .cp-ghost-link{color:var(--cp-accent-text);text-decoration:underline;margin-top:.3rem;}
+
+/* ---- pill groups (the kit's .otb-seg) ---------------------------------- */
+.cp-seg{display:inline-flex;background:var(--cp-pill-platter);border-radius:999px;padding:4px;}
+.cp-seg button{
+  display:inline-flex;align-items:center;gap:.45rem;
+  padding:.34rem .85rem;border:0;background:transparent;border-radius:999px;
+  font-size:13px;font-weight:500;color:var(--cp-pill-text);cursor:pointer;white-space:nowrap;
+}
+.cp-seg button.on{background:var(--cp-surface);color:var(--cp-accent-text);box-shadow:0 1px 3px var(--cp-shadow);}
+.cp-count{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:20px;height:20px;padding:0 6px;border-radius:999px;
+  background:var(--cp-surface);color:var(--cp-pill-text);
+  font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;
+}
+.cp-seg svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linejoin:round;}
+
+/* ---- tier 3 ------------------------------------------------------------ */
+.cp-tier3{position:relative;border-top:1px solid var(--cp-line);padding-top:1rem;margin-top:.5rem;}
+.cp-tier3-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;}
+.cp-tier3-title{font-size:16px;font-weight:600;margin:0;}
+
+/* Toolbar: the kit's .otb — pill groups on a platter, layout toggle pushed
+   right, a second full-basis row for search and the Filter button. */
+.cp-otb{
+  position:relative;
+  display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;
+  padding:.55rem .6rem;margin:0 0 .7rem;
+  border-radius:1.25rem;background:var(--cp-surface-2);
+}
+.cp-otb-view{display:inline-flex;background:var(--cp-pill-platter);border-radius:.5rem;padding:3px;margin-left:auto;}
+.cp-otb-view button{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:30px;height:28px;border:0;border-radius:.4rem;background:transparent;color:var(--cp-pill-text);cursor:pointer;
+}
+.cp-otb-view button.on{background:var(--cp-surface);color:var(--cp-accent-text);box-shadow:0 1px 2px var(--cp-shadow);}
+.cp-otb-view svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.cp-otb-row{display:flex;align-items:center;gap:.6rem;flex-basis:100%;min-width:0;}
+.cp-search{position:relative;display:flex;align-items:center;flex:1 1 auto;min-width:0;}
+.cp-search svg{
+  position:absolute;left:.6rem;width:14px;height:14px;color:var(--cp-muted);
+  stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;pointer-events:none;
+}
+.cp-search input{
+  width:100%;padding:.4rem .6rem .4rem 1.9rem;
+  border:1px solid var(--cp-line-2);border-radius:.5rem;
+  background:var(--cp-surface);color:var(--cp-text);font-size:13px;
+}
+.cp-search input::placeholder{color:var(--cp-muted);}
+.cp-filterbtn{
+  display:inline-flex;align-items:center;gap:.4rem;flex:none;
+  padding:.4rem .75rem;border:1px solid var(--cp-line-2);border-radius:.5rem;
+  background:var(--cp-surface);color:var(--cp-text-2);font-size:13px;cursor:pointer;
+}
+.cp-filterbtn[aria-expanded="true"]{border-color:var(--cp-accent);color:var(--cp-accent-text);}
+.cp-filterbtn svg{width:14px;height:14px;fill:currentColor;flex:none;}
+.cp-filterbtn .cp-count{background:var(--cp-counter-active-bg);color:var(--cp-accent-text);}
+/* An author display value outranks the UA's [hidden] rule, so say it here. */
+.cp-count[hidden]{display:none;}
+
+/* ---- the filter panel and its chip groups (chips.html shape) ----------- */
+.cp-fpanel{
+  padding:.9rem 1rem;margin:0 0 .9rem;
+  border:1px solid var(--cp-line-2);border-radius:.5rem;background:var(--cp-surface);
+}
+.cp-chips{display:flex;flex-direction:column;align-items:stretch;gap:.7rem;}
+.cp-chip-custom{position:relative;display:flex;flex-direction:column;gap:.7rem;width:100%;}
+.cp-chip-grp{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;width:100%;min-width:0;}
+.cp-chip-lbl{font-size:14px;font-weight:600;color:var(--cp-text-2);white-space:nowrap;min-width:88px;}
+/* The real thing gets a mask, paddles and arrow-key nav from filter_tabs_nav.js
+   when a group overflows. Here the platter simply scrolls inside itself, so a
+   narrow screen never pushes the page sideways. */
+.cp-chip-platter{
+  display:inline-flex;width:fit-content;max-width:100%;
+  padding:4px;background:var(--cp-pill-platter);border-radius:999px;
+  overflow-x:auto;scrollbar-width:thin;flex:0 1 auto;min-width:0;
+}
+.cp-chip{
+  position:relative;display:inline-flex;align-items:center;gap:.4rem;
+  padding:.3rem .8rem;border:0;background:transparent;border-radius:999px;
+  font-size:13px;font-weight:500;color:var(--cp-pill-text);cursor:pointer;white-space:nowrap;
+}
+.cp-chip[aria-pressed="true"]{color:var(--cp-accent-text);background:var(--cp-surface);box-shadow:0 1px 3px var(--cp-shadow);}
+.cp-chip .cp-count{background:var(--cp-counter-bg);}
+.cp-chip[aria-pressed="true"] .cp-count{background:var(--cp-counter-active-bg);color:var(--cp-accent-text);}
+.cp-chip-clear{
+  display:inline-flex;align-items:center;align-self:flex-start;gap:.4rem;
+  padding:.35rem .9rem;border:1px solid var(--cp-line-2);border-radius:999px;
+  background:transparent;color:var(--cp-pill-text);font-size:13px;font-weight:500;cursor:pointer;
+}
+.cp-chip-clear svg{width:13px;height:13px;fill:currentColor;}
+.cp-fnote{font-size:13px;color:var(--cp-muted);margin:.75rem 0 0;}
+
+/* ---- index + groups ---------------------------------------------------- */
+.cp-explore{display:grid;grid-template-columns:172px 1fr;gap:18px;align-items:start;}
+.cp-index{border-right:1px solid var(--cp-line);padding-right:12px;}
+.cp-index h5{font-size:13px;font-weight:600;color:var(--cp-muted);margin:0 0 .4rem;text-transform:uppercase;letter-spacing:.03em;}
+.cp-index ul{list-style:none;margin:0;padding:0;}
+.cp-index button{
+  display:flex;justify-content:space-between;gap:8px;width:100%;
+  padding:.28rem .45rem;border:0;border-radius:.35rem;background:transparent;
+  color:var(--cp-text-2);font-size:13px;text-align:left;cursor:pointer;
+}
+.cp-index button.on{background:var(--cp-surface-2);color:var(--cp-text);font-weight:600;}
+.cp-index small{color:var(--cp-muted);font-variant-numeric:tabular-nums;}
+
+.cp-group{border:1px solid var(--cp-line-2);border-radius:.5rem;background:var(--cp-surface);margin-bottom:8px;}
+.cp-group > summary{
+  display:flex;align-items:center;gap:.5rem;
+  padding:.55rem .75rem;cursor:pointer;font-size:14px;font-weight:600;list-style:none;
+}
+.cp-group > summary::-webkit-details-marker{display:none;}
+.cp-group > summary::before{content:"";width:0;height:0;flex:none;border:5px solid transparent;border-left-color:currentColor;color:var(--cp-muted);}
+.cp-group[open] > summary::before{transform:rotate(90deg);}
+.cp-group summary .cp-gcount{margin-left:auto;font-weight:400;font-size:13px;color:var(--cp-muted);font-variant-numeric:tabular-nums;}
+.cp-group--special{border-style:dashed;background:var(--cp-surface-2);}
+
+/* ---- rows: one markup, two layouts ------------------------------------- */
+.cp-rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--cp-line);}
+.cp-row{
+  display:grid;grid-template-columns:44px minmax(0,1fr) 128px auto;
+  gap:10px;align-items:center;
+  padding:.45rem .75rem;border-bottom:1px solid var(--cp-line);
+}
+.cp-row:last-child{border-bottom:0;}
+.cp-row-thumb{
+  height:30px;border-radius:.25rem;border:1px solid var(--cp-line);
+  background:repeating-linear-gradient(135deg,var(--cp-stripe-a) 0 7px,var(--cp-stripe-b) 7px 14px);
+}
+.cp-row-main{min-width:0;}
+.cp-row-cat{display:none;font-size:12px;color:var(--cp-muted);}
+/* D10: a course name is at most two lines, ellipsis and all - core's own .clamp-2 pattern
+   (theme/boost/scss/moodle/core.scss) - and the whole name rides in a title attribute, so
+   hovering a clamped name shows it in full. The real client applies the same five
+   declarations under .compass-clamp to the row name and to both card titles. */
+.cp-row-name,.cp-card-title{display:-webkit-box;-webkit-box-orient:vertical;line-clamp:2;-webkit-line-clamp:2;overflow:hidden;}
+.cp-row-name{font-size:14px;font-weight:500;line-height:1.3;}
+/* The pending row's name is a link to the course's own enrolment page (D3). The real
+   client resets colour and underline on every row link and underlines the name only on
+   hover or focus, so a linked name looks exactly like the unlinked ones beside it. */
+.cp-row-name a{color:inherit;text-decoration:none;}
+.cp-row-name a:hover,.cp-row-name a:focus-visible{text-decoration:underline;}
+.cp-row-meta{display:block;font-size:13px;color:var(--cp-muted);}
+.cp-row-prog{display:flex;flex-direction:column;gap:.2rem;}
+.cp-row-pct{font-size:12px;color:var(--cp-muted);font-variant-numeric:tabular-nums;}
+.cp-row-acts{display:flex;align-items:center;gap:2px;justify-self:end;}
+.cp-iconbtn{
+  width:30px;height:30px;min-width:1.5rem;min-height:1.5rem;
+  border:0;border-radius:.3rem;background:transparent;color:var(--cp-star-off);
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.cp-iconbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.cp-iconbtn.on{color:var(--cp-star);}
+.cp-iconbtn.on svg{fill:currentColor;}
+.cp-iconbtn--arch{color:var(--cp-muted);}
+.cp-rowbadge{
+  display:inline-block;margin-left:6px;vertical-align:1px;
+  font-size:11px;font-weight:600;padding:0 7px;border-radius:999px;
+}
+.cp-row--pending{position:relative;background:var(--cp-surface-2);}
+
+/* Grid state: the SAME rows, one class on the container. */
+.cp-rows.cp-rows--cards{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));
+  gap:12px;padding:12px;border-top:1px solid var(--cp-line);
+}
+.cp-rows--cards .cp-row{
+  display:flex;flex-direction:column;align-items:stretch;gap:.4rem;
+  padding:0 0 .6rem;border:1px solid var(--cp-line-2);border-radius:.5rem;overflow:hidden;
+}
+.cp-rows--cards .cp-row-thumb{height:74px;border:0;border-bottom:1px solid var(--cp-line);border-radius:0;}
+.cp-rows--cards .cp-row-cat{display:block;padding:0 .6rem;}
+.cp-rows--cards .cp-row-main{padding:0 .6rem;}
+.cp-rows--cards .cp-row-prog{padding:0 .6rem;}
+.cp-rows--cards .cp-row-acts{justify-self:start;padding:0 .35rem;margin-top:auto;}
+.cp-rows--cards .cp-row--pending{background:var(--cp-surface);border-color:var(--cp-warning-edge);}
+
+/* ---- settings card ----------------------------------------------------- */
+.cp-set{display:grid;grid-template-columns:250px minmax(0,1fr);gap:6px 20px;align-items:start;}
+.cp-set-lbl{font-size:14px;font-weight:600;padding-top:.3rem;}
+.cp-set-ctl{min-width:0;}
+.cp-set-desc{grid-column:2;font-size:13px;color:var(--cp-muted);margin:0 0 16px;}
+.cp-set select,.cp-set input[type="text"]{
+  width:100%;max-width:340px;padding:.35rem .5rem;
+  border:1px solid var(--cp-line-2);border-radius:.35rem;background:var(--cp-surface);color:var(--cp-text);font-size:13px;
+}
+.cp-set select[multiple]{height:auto;padding:.25rem;}
+.cp-set option:disabled{color:var(--cp-muted);}
+.cp-check{display:inline-flex;align-items:center;gap:.5rem;font-size:13px;color:var(--cp-text-2);}
+.cp-check input{width:16px;height:16px;accent-color:var(--cp-accent);}
+.cp-set-hr{grid-column:1 / -1;border:0;border-top:1px solid var(--cp-line);margin:0 0 16px;}
+
+/* ---- legend ------------------------------------------------------------ */
+.cp-legend{margin-top:26px;}
+.cp-legend-title{font-size:20px;font-weight:600;margin:0 0 4px;}
+.cp-legend-lede{font-size:13px;color:var(--cp-text-2);margin:0 0 14px;max-width:74ch;}
+.cp-dec{
+  display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 14px;
+  padding:12px 14px;margin-bottom:10px;
+  background:var(--cp-surface);border:1px solid var(--cp-line);border-radius:.5rem;
+}
+.cp-dec:target{border-color:var(--cp-accent);box-shadow:0 0 0 2px var(--cp-counter-active-bg);}
+.cp-dec-id{
+  grid-row:1 / span 3;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-weight:700;
+  color:var(--cp-accent-text);
+}
+.cp-dec-h{font-size:14px;font-weight:600;margin:0;}
+.cp-dec-why{font-size:13px;color:var(--cp-text-2);margin:0;}
+.cp-dec-alt{font-size:13px;color:var(--cp-muted);margin:0;}
+.cp-dec-alt b{color:var(--cp-text-2);font-weight:600;}
+.cp-dec-when{
+  display:inline-block;margin-left:.4rem;
+  font-size:12px;font-weight:600;color:var(--cp-success-text);white-space:nowrap;
+}
+.cp-dec code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;}
+
+.cp-vh{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+
+@media (prefers-reduced-motion: no-preference){
+  .cp-ghost,.cp-marker,.cp-chip,.cp-seg button,.cp-btn{transition:background-color .15s ease,border-color .15s ease,color .15s ease;}
+}
+@media (max-width:720px){
+  .cp-explore{grid-template-columns:1fr;}
+  .cp-index{display:none;}
+  .cp-row{grid-template-columns:44px minmax(0,1fr) auto;}
+  .cp-row-prog{display:none;}
+  .cp-set{grid-template-columns:1fr;}
+  .cp-set-desc{grid-column:1;}
+}
+</style>
+</head>
+<body>
+<div class="cp-page">
+
+  <p class="cp-crumb">Painel › Compass — mockup de alta fidelidade para validação</p>
+  <h1 class="cp-h1">Painel</h1>
+  <p class="cp-lede">
+    Este mockup existe para uma decisão de cada vez. Os círculos <b>D1</b>…<b>D8</b> e <b>D10</b> ficam no canto
+    do elemento que a decisão governa e levam à linha correspondente em <a href="#decisoes">Decisões
+    para validar</a>, que é o instrumento a ser lido. A escada de títulos é a do Painel real:
+    <code>h1</code> da página, <code>h3</code> do título do bloco (quem escreve é o core),
+    <code>h4</code> das faixas e do andar 3, <code>h5</code> dos cards.
+  </p>
+
+  <!-- ===================== O BLOCO ===================== -->
+  <section class="cp-block" aria-labelledby="cp-block-title">
+    <h3 class="cp-block-title" id="cp-block-title">Compass</h3>
+    <p class="cp-block-sub">Meus cursos por relevância</p>
+
+    <!-- ---------- faixa 1: Continuar ---------- -->
+    <section class="cp-strip" aria-labelledby="s-continuar">
+      <div class="cp-strip-head">
+        <h4 class="cp-strip-title" id="s-continuar">Continuar de onde parei</h4>
+      </div>
+      <div class="cp-cards">
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">PM</span>
+            <button type="button" class="cp-star on" aria-pressed="true" aria-label="Remover dos favoritos: Uso diferenciado da força">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Uso diferenciado da força</h5>
+            <p class="cp-meta">Acessado hoje</p>
+            <div class="cp-bar"><i style="width:62%"></i></div>
+            <p class="cp-meta">62% concluído</p>
+            <a class="cp-btn" href="#cp-block-title">Continuar</a>
+          </div>
+        </article>
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">CBM</span>
+            <button type="button" class="cp-star" aria-pressed="false" aria-label="Adicionar aos favoritos: Primeiros socorros — módulo 2">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Primeiros socorros — módulo 2</h5>
+            <p class="cp-meta">Último acesso há 1 dia</p>
+            <div class="cp-bar"><i style="width:30%"></i></div>
+            <p class="cp-meta">30% concluído</p>
+            <a class="cp-btn" href="#cp-block-title">Continuar</a>
+          </div>
+        </article>
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">PC</span>
+            <button type="button" class="cp-star" aria-pressed="false" aria-label="Adicionar aos favoritos: Inquérito digital">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Inquérito digital</h5>
+            <p class="cp-meta">Último acesso há 3 dias</p>
+            <p class="cp-meta">Sem conclusão configurada</p>
+            <a class="cp-btn" href="#cp-block-title">Acessar</a>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ---------- faixa 2: Novas inscrições ---------- -->
+    <section class="cp-strip" aria-labelledby="s-novas">
+      <div class="cp-strip-head">
+        <h4 class="cp-strip-title" id="s-novas">Novas inscrições</h4>
+        <button type="button" class="cp-strip-more" data-scroll="cp-tier3"
+                aria-label="Ver as outras 4 novas inscrições em Todos os cursos">+4 novos</button>
+        <a class="cp-marker cp-marker--inline" href="#d2" aria-label="Decisão D2: transbordo por faixa">D2</a>
+      </div>
+      <div class="cp-cards">
+
+        <article class="cp-card cp-card--new">
+          <div class="cp-thumb">
+            <span class="cp-cat">PM</span>
+            <span class="cp-badge cp-badge--new">Novo</span>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Policiamento comunitário</h5>
+            <p class="cp-meta">Inscrito há 2 dias · Inscrição manual</p>
+            <p class="cp-meta">Prazo: 30/09</p>
+            <a class="cp-btn cp-btn--fill" href="#cp-block-title">Começar</a>
+          </div>
+        </article>
+
+        <article class="cp-card cp-card--new">
+          <div class="cp-thumb">
+            <span class="cp-cat">Transversais</span>
+            <span class="cp-badge cp-badge--new">Novo</span>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Integridade e ética no serviço público</h5>
+            <p class="cp-meta">Inscrito hoje · Por coorte</p>
+            <a class="cp-btn cp-btn--fill" href="#cp-block-title">Começar</a>
+          </div>
+        </article>
+
+        <article class="cp-card cp-card--new">
+          <div class="cp-thumb">
+            <span class="cp-cat">CBM</span>
+            <span class="cp-badge cp-badge--new">Novo</span>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">NR-23 — combate a incêndio</h5>
+            <p class="cp-meta">Inscrito há 6 dias · Autoinscrição</p>
+            <a class="cp-btn cp-btn--fill" href="#cp-block-title">Começar</a>
+          </div>
+        </article>
+
+      </div>
+
+      <p class="cp-strip-note">
+        2 solicitações de inscrição aguardando aprovação ·
+        <button type="button" class="cp-linkbtn" id="cp-pending-jump"
+                aria-label="Ver as 2 solicitações de inscrição aguardando aprovação em Todos os cursos">ver</button>
+        <a class="cp-marker cp-marker--inline" href="#d3" aria-label="Decisão D3: onde aparecem as solicitações aguardando aprovação">D3</a>
+      </p>
+    </section>
+
+    <!-- ---------- faixa 3: Meus favoritos ---------- -->
+    <section class="cp-strip" aria-labelledby="s-fav">
+      <a class="cp-marker" href="#d1" aria-label="Decisão D1: o que a faixa Meus favoritos lista">D1</a>
+      <div class="cp-strip-head">
+        <h4 class="cp-strip-title" id="s-fav">Meus favoritos</h4>
+      </div>
+      <div class="cp-cards">
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">PM</span>
+            <button type="button" class="cp-star on" aria-pressed="true" aria-label="Remover dos favoritos: Uso diferenciado da força">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Uso diferenciado da força</h5>
+            <p class="cp-meta">Acessado hoje</p>
+            <div class="cp-bar"><i style="width:62%"></i></div>
+            <p class="cp-meta">62% concluído</p>
+            <a class="cp-btn" href="#cp-block-title">Continuar</a>
+          </div>
+        </article>
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">PP</span>
+            <button type="button" class="cp-star on" aria-pressed="true" aria-label="Remover dos favoritos: Gestão prisional">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Gestão prisional</h5>
+            <p class="cp-meta">Concluído</p>
+            <div class="cp-bar done"><i style="width:100%"></i></div>
+            <p class="cp-meta">100% concluído</p>
+            <a class="cp-btn" href="#cp-block-title">Rever</a>
+          </div>
+        </article>
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">PCi</span>
+            <button type="button" class="cp-star on" aria-pressed="true" aria-label="Remover dos favoritos: Cadeia de custódia">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Cadeia de custódia</h5>
+            <p class="cp-meta">Nunca aberto</p>
+            <a class="cp-btn" href="#cp-block-title">Acessar</a>
+          </div>
+        </article>
+
+        <article class="cp-card">
+          <div class="cp-thumb">
+            <span class="cp-cat">PM</span>
+            <button type="button" class="cp-star on" aria-pressed="true" aria-label="Remover dos favoritos: Direitos humanos">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+          </div>
+          <div class="cp-card-body">
+            <h5 class="cp-card-title">Direitos humanos</h5>
+            <p class="cp-meta">Acessado hoje</p>
+            <div class="cp-bar"><i style="width:15%"></i></div>
+            <p class="cp-meta">15% concluído</p>
+            <a class="cp-btn" href="#cp-block-title">Continuar</a>
+          </div>
+        </article>
+
+        <div class="cp-ghost-wrap">
+          <a class="cp-marker" href="#d2" aria-label="Decisão D2: o card fantasma">D2</a>
+          <button type="button" class="cp-ghost" data-scroll="cp-tier3">
+            <b>+87</b>
+            <span>outros cursos</span>
+            <span class="cp-ghost-link">Explorar todos</span>
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ---------- andar 3 ---------- -->
+    <section class="cp-tier3" id="cp-tier3" aria-labelledby="s-todos">
+      <div class="cp-tier3-head">
+        <h4 class="cp-tier3-title" id="s-todos">Todos os cursos (91)</h4>
+      </div>
+
+      <div class="cp-otb">
+        <a class="cp-marker" href="#d4" aria-label="Decisão D4: a barra de ferramentas">D4</a>
+
+        <div class="cp-seg" role="radiogroup" aria-label="Ordenar cursos">
+          <button type="button" class="on" role="radio" aria-checked="true" data-sort="category">Por categoria</button>
+          <button type="button" role="radio" aria-checked="false" data-sort="name">A–Z</button>
+          <button type="button" role="radio" aria-checked="false" data-sort="recent">Recentes</button>
+        </div>
+
+        <div class="cp-otb-view" role="group" aria-label="Mostrar cursos como">
+          <button type="button" class="on" aria-pressed="true" data-view="list" aria-label="Lista">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </button>
+          <button type="button" aria-pressed="false" data-view="cards" aria-label="Cartões">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </button>
+        </div>
+        <a class="cp-marker cp-marker--inline" href="#d6" aria-label="Decisão D6: lista e cartões">D6</a>
+
+        <div class="cp-otb-row">
+          <div class="cp-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="cp-search" placeholder="Filtrar por nome…" aria-label="Buscar nos meus cursos" autocomplete="off">
+          </div>
+          <button type="button" class="cp-filterbtn" id="cp-filterbtn" aria-expanded="true" aria-controls="cp-fpanel" aria-label="Filtrar cursos">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+            Filtrar <span class="cp-count" id="cp-fcount">2</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="cp-fpanel" id="cp-fpanel">
+        <div class="cp-chips">
+
+          <div class="cp-chip-grp">
+            <span class="cp-chip-lbl" id="lbl-situacao">Situação</span>
+            <div class="cp-chip-platter" role="group" aria-labelledby="lbl-situacao" data-chipgroup="situacao" data-single="1">
+              <button type="button" class="cp-chip" aria-pressed="true" data-neutral="1">Todos</button>
+              <button type="button" class="cp-chip" aria-pressed="false">Novos</button>
+              <button type="button" class="cp-chip" aria-pressed="false">Favoritos</button>
+              <button type="button" class="cp-chip" id="cp-chip-pending" aria-pressed="false">Aguardando aprovação <span class="cp-count">2</span></button>
+            </div>
+          </div>
+
+          <div class="cp-chip-custom">
+            <a class="cp-marker" href="#d5" aria-label="Decisão D5: campos de curso como filtro">D5</a>
+
+            <div class="cp-chip-grp">
+              <span class="cp-chip-lbl" id="lbl-modalidade">Modalidade</span>
+              <div class="cp-chip-platter" role="group" aria-labelledby="lbl-modalidade" data-chipgroup="modalidade" data-single="1">
+                <button type="button" class="cp-chip" aria-pressed="true">EAD</button>
+                <button type="button" class="cp-chip" aria-pressed="false">Presencial</button>
+                <button type="button" class="cp-chip" aria-pressed="false">Híbrido</button>
+              </div>
+            </div>
+
+            <div class="cp-chip-grp">
+              <span class="cp-chip-lbl" id="lbl-eixo">Eixo</span>
+              <div class="cp-chip-platter" role="group" aria-labelledby="lbl-eixo" data-chipgroup="eixo" data-single="1">
+                <button type="button" class="cp-chip" aria-pressed="false">Operacional</button>
+                <button type="button" class="cp-chip" aria-pressed="true">Gestão</button>
+                <button type="button" class="cp-chip" aria-pressed="false">Saúde</button>
+                <button type="button" class="cp-chip" aria-pressed="false">Jurídico</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="cp-chip-clear" id="cp-clear">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.14 3a2 2 0 0 0-1.42.59L3.6 13.7a2 2 0 0 0 0 2.83l3.88 3.88H12l8.4-8.4a2 2 0 0 0 0-2.83l-3.84-3.6A2 2 0 0 0 15.14 3zM7.5 20.4 12 15.9M9 21h11"/></svg>
+            Limpar filtros
+          </button>
+        </div>
+        <p class="cp-fnote">Só campos de curso do tipo lista de seleção ou caixa de seleção viram filtros; texto, número e data não (vocabulário aberto).</p>
+      </div>
+
+      <div class="cp-explore">
+        <nav class="cp-index" aria-label="Categorias">
+          <h5>Categorias</h5>
+          <ul>
+            <li><button type="button" class="on"><span>Polícia Militar</span><small>41</small></button></li>
+            <li><button type="button"><span>Polícia Civil</span><small>18</small></button></li>
+            <li><button type="button"><span>Polícia Científica</span><small>7</small></button></li>
+            <li><button type="button"><span>Polícia Penal</span><small>12</small></button></li>
+            <li><button type="button"><span>Corpo de Bombeiros</span><small>9</small></button></li>
+            <li><button type="button"><span>Transversais</span><small>4</small></button></li>
+          </ul>
+        </nav>
+
+        <div>
+          <details class="cp-group" open>
+            <summary><span>Polícia Militar</span><span class="cp-gcount">41 cursos</span></summary>
+            <ul class="cp-rows" id="cp-rows-pm">
+
+              <li class="cp-row">
+                <span class="cp-row-thumb" aria-hidden="true"></span>
+                <span class="cp-row-main">
+                  <span class="cp-row-cat">Polícia Militar</span>
+                  <span class="cp-row-name">Abordagem policial</span>
+                  <span class="cp-row-meta">Aberto mai/2026</span>
+                </span>
+                <span class="cp-row-prog">
+                  <span class="cp-bar done"><i style="width:100%"></i></span>
+                  <span class="cp-row-pct">Concluído</span>
+                </span>
+                <span class="cp-row-acts">
+                  <button type="button" class="cp-iconbtn" aria-pressed="false" aria-label="Adicionar aos favoritos: Abordagem policial">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  </button>
+                  <button type="button" class="cp-iconbtn cp-iconbtn--arch" aria-label="Arquivar Abordagem policial">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+                  </button>
+                </span>
+              </li>
+
+              <li class="cp-row">
+                <span class="cp-row-thumb" aria-hidden="true"></span>
+                <span class="cp-row-main">
+                  <span class="cp-row-cat">Polícia Militar</span>
+                  <span class="cp-row-name">Atendimento à ocorrência</span>
+                  <span class="cp-row-meta">Aberto fev/2026</span>
+                </span>
+                <span class="cp-row-prog">
+                  <span class="cp-bar"><i style="width:40%"></i></span>
+                  <span class="cp-row-pct">40% concluído</span>
+                </span>
+                <span class="cp-row-acts">
+                  <button type="button" class="cp-iconbtn" aria-pressed="false" aria-label="Adicionar aos favoritos: Atendimento à ocorrência">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  </button>
+                  <button type="button" class="cp-iconbtn cp-iconbtn--arch" aria-label="Arquivar Atendimento à ocorrência">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+                  </button>
+                </span>
+              </li>
+
+              <li class="cp-row">
+                <span class="cp-row-thumb" aria-hidden="true"></span>
+                <span class="cp-row-main">
+                  <span class="cp-row-cat">Polícia Militar</span>
+                  <span class="cp-row-name">Direitos humanos</span>
+                  <span class="cp-row-meta">Aberto hoje</span>
+                </span>
+                <span class="cp-row-prog">
+                  <span class="cp-bar"><i style="width:15%"></i></span>
+                  <span class="cp-row-pct">15% concluído</span>
+                </span>
+                <span class="cp-row-acts">
+                  <button type="button" class="cp-iconbtn on" aria-pressed="true" aria-label="Remover dos favoritos: Direitos humanos">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  </button>
+                  <button type="button" class="cp-iconbtn cp-iconbtn--arch" aria-label="Arquivar Direitos humanos">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+                  </button>
+                </span>
+              </li>
+
+              <li class="cp-row">
+                <span class="cp-row-thumb" aria-hidden="true"></span>
+                <span class="cp-row-main">
+                  <span class="cp-row-cat">Polícia Militar</span>
+                  <span class="cp-row-name" title="Legislação de trânsito aplicada à fiscalização de veículos de emergência e ao transporte escolar nas rodovias estaduais — módulo avançado 2026/2">Legislação de trânsito aplicada à fiscalização de veículos de emergência e ao transporte escolar nas rodovias estaduais — módulo avançado 2026/2</span>
+                  <span class="cp-row-meta">Aberto em 2024 <a class="cp-marker cp-marker--inline" href="#d10" aria-label="Decisão D10: nomes longos em duas linhas">D10</a></span>
+                </span>
+                <span class="cp-row-prog">
+                  <span class="cp-row-pct">—</span>
+                </span>
+                <span class="cp-row-acts">
+                  <button type="button" class="cp-iconbtn" aria-pressed="false" aria-label="Adicionar aos favoritos: Legislação de trânsito">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  </button>
+                  <button type="button" class="cp-iconbtn cp-iconbtn--arch" aria-label="Arquivar Legislação de trânsito">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+                  </button>
+                </span>
+              </li>
+
+              <li class="cp-row">
+                <span class="cp-row-thumb" aria-hidden="true"></span>
+                <span class="cp-row-main">
+                  <span class="cp-row-cat">Polícia Militar</span>
+                  <span class="cp-row-name">Policiamento comunitário<span class="cp-rowbadge cp-badge--new">Novo</span></span>
+                  <span class="cp-row-meta">Nunca aberto · inscrito há 2 dias</span>
+                </span>
+                <span class="cp-row-prog">
+                  <span class="cp-row-pct">—</span>
+                </span>
+                <span class="cp-row-acts">
+                  <button type="button" class="cp-iconbtn" aria-pressed="false" aria-label="Adicionar aos favoritos: Policiamento comunitário">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                  </button>
+                  <button type="button" class="cp-iconbtn cp-iconbtn--arch" aria-label="Arquivar Policiamento comunitário">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"/></svg>
+                  </button>
+                </span>
+              </li>
+
+              <li class="cp-row cp-row--pending">
+                <span class="cp-row-thumb" aria-hidden="true"></span>
+                <span class="cp-row-main">
+                  <span class="cp-row-cat">Polícia Militar</span>
+                  <span class="cp-row-name"><a href="#">Formação de instrutores — turma 2026/2</a><span class="cp-rowbadge cp-badge--wait">Aguardando aprovação</span></span>
+                  <span class="cp-row-meta">Solicitado em 3 set · sem acesso até a decisão</span>
+                </span>
+                <span class="cp-row-prog">
+                  <span class="cp-row-pct">—</span>
+                </span>
+                <span class="cp-row-acts">
+                  <a class="cp-marker cp-marker--inline" href="#d7" aria-label="Decisão D7: onde fica uma solicitação pendente">D7</a>
+                </span>
+              </li>
+
+            </ul>
+          </details>
+
+          <details class="cp-group"><summary><span>Polícia Civil</span><span class="cp-gcount">18 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Carregando…</span><span class="cp-row-meta">As linhas chegam quando o grupo é aberto.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+          <details class="cp-group"><summary><span>Polícia Científica</span><span class="cp-gcount">7 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Carregando…</span><span class="cp-row-meta">As linhas chegam quando o grupo é aberto.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+          <details class="cp-group"><summary><span>Polícia Penal</span><span class="cp-gcount">12 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Carregando…</span><span class="cp-row-meta">As linhas chegam quando o grupo é aberto.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+          <details class="cp-group"><summary><span>Corpo de Bombeiros</span><span class="cp-gcount">9 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Carregando…</span><span class="cp-row-meta">As linhas chegam quando o grupo é aberto.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+          <details class="cp-group"><summary><span>Transversais</span><span class="cp-gcount">4 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Carregando…</span><span class="cp-row-meta">As linhas chegam quando o grupo é aberto.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+
+          <details class="cp-group cp-group--special"><summary><span>Dormentes</span><span class="cp-gcount">23 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Cursos sem acesso há mais de 12 meses</span><span class="cp-row-meta">Recolhidos aqui para não engrossar as categorias.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+          <details class="cp-group cp-group--special"><summary><span>Arquivados</span><span class="cp-gcount">5 cursos</span></summary><ul class="cp-rows"><li class="cp-row"><span class="cp-row-thumb" aria-hidden="true"></span><span class="cp-row-main"><span class="cp-row-name">Removidos da sua visão</span><span class="cp-row-meta">Os mesmos que o bloco Visão geral dos cursos esconde.</span></span><span class="cp-row-prog"></span><span class="cp-row-acts"></span></li></ul></details>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ===================== CONFIGURAÇÕES ===================== -->
+  <section class="cp-block" aria-labelledby="cp-set-title">
+    <a class="cp-marker" href="#d8" aria-label="Decisão D8: as configurações novas">D8</a>
+    <h3 class="cp-block-title" id="cp-set-title">Configurações do bloco</h3>
+    <p class="cp-block-sub">
+      Administração do site › Plugins › Blocos › Compass — só o que é novo. Nada aqui salva:
+      é um desenho da tela.
+    </p>
+
+    <div class="cp-set">
+
+      <label class="cp-set-lbl" for="set-fields">Campos de curso usados como filtro</label>
+      <div class="cp-set-ctl">
+        <select id="set-fields" multiple size="5">
+          <option selected>Modalidade (lista)</option>
+          <option selected>Eixo (lista)</option>
+          <option>Público-alvo (lista)</option>
+          <option disabled>Carga horária (número) — não filtrável</option>
+          <option disabled>Ementa (área de texto) — não filtrável</option>
+        </select>
+      </div>
+      <p class="cp-set-desc">
+        Cada campo escolhido vira um grupo de chips no painel Filtrar da lista completa. Só campos
+        do tipo lista de seleção e caixa de seleção aparecem aqui: são os que têm um vocabulário
+        fechado. Texto, número, data e área de texto ficam esmaecidos e não podem ser marcados.
+        Os valores por curso vêm do cache compartilhado <code>coursemeta</code>, então um campo a
+        mais não custa leitura por usuário.
+      </p>
+
+      <hr class="cp-set-hr">
+
+      <span class="cp-set-lbl" id="set-pending-lbl">Mostrar solicitações de inscrição aguardando aprovação</span>
+      <div class="cp-set-ctl">
+        <label class="cp-check">
+          <input type="checkbox" id="set-pending" checked aria-labelledby="set-pending-lbl">
+          <span>Ativado</span>
+        </label>
+      </div>
+      <p class="cp-set-desc">
+        Requer o plugin enrol_apply. Sem ele, a opção fica desligada e não aparecem nem o chip
+        Aguardando aprovação, no painel Filtrar do andar 3, nem a linha de aviso sob Novas
+        inscrições — as duas únicas superfícies de uma pendência (<a href="#d3">D3</a>). Ela nunca
+        vira card do andar 1.
+      </p>
+
+      <hr class="cp-set-hr">
+
+      <label class="cp-set-lbl" for="set-fav">Faixa Meus favoritos</label>
+      <div class="cp-set-ctl">
+        <select id="set-fav">
+          <option selected>Todos os favoritos, mesmo os que já estão em outra faixa</option>
+          <option>Só os favoritos que não aparecem em Continuar ou Novas inscrições</option>
+        </select>
+      </div>
+      <p class="cp-set-desc">
+        Aparece aqui como configuração apenas para a escolha ser dita em voz alta. A recomendação é
+        que a primeira opção vire regra fixa do bloco, sem configuração: são dois comportamentos de
+        primeira pintura para testar, e o segundo é o que hoje deixa a faixa invisível para quem
+        favorita justamente o que está cursando (ver <a href="#d1">D1</a>).
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ===================== LEGENDA ===================== -->
+  <section class="cp-legend" id="decisoes" aria-labelledby="cp-leg-title">
+    <h2 class="cp-legend-title" id="cp-leg-title">Decisões para validar</h2>
+    <p class="cp-legend-lede">
+      Oito decisões, cada uma com o custo de dados nos termos do próprio bloco (leituras por
+      requisição, o que fica em qual cache) e uma alternativa. O que estiver aprovado aqui vira
+      ADR antes de virar código.
+    </p>
+
+    <div class="cp-dec" id="d1">
+      <span class="cp-dec-id">D1</span>
+      <p class="cp-dec-h">A faixa <b>Meus favoritos</b> é uma faixa simples como as outras duas, <b>sem pílulas</b>: lista <b>todos</b> os favoritos, inclusive os que já aparecem em Continuar ou Novas inscrições — repetição permitida.</p>
+      <p class="cp-dec-why">
+        Hoje a regra de exclusividade (PLAN.md §2: cada curso em uma faixa só, prioridade Continuar › Novo › Favorito)
+        tira o curso da faixa, e é por isso que o Painel do próprio mantenedor não mostra Meus favoritos:
+        seus dois favoritos já estavam em Continuar e em Novas inscrições, então a faixa existia vazia.
+        Favoritar é uma declaração do aluno sobre o que é dele; a faixa é onde essa declaração se vê.
+        <b>Custo: nenhum.</b> Os favoritos já são lidos na primeira pintura (uma das quatro consultas
+        limitadas do §6.1) e a contagem já sai do mesmo statement agregado — repetir um card é repetir
+        dados que já estão na resposta, dentro do orçamento de 6 leituras.
+        <b>E um favorito é sempre um curso em que a pessoa está inscrita</b>: a faixa parte das
+        inscrições ativas (<code>attention.php</code>, <code>favourite_rows</code>), então uma
+        solicitação de inscrição aguardando aprovação não pode ser favorito — pendurar Pendências
+        como segunda visão desta faixa era erro de categoria, e foi por isso que a pílula saiu (ver
+        <a href="#d3">D3</a>).
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> manter a exclusividade e mostrar a faixa só quando sobrar algum favorito — que é o comportamento de hoje, e é o que produz a faixa invisível.</p>
+    </div>
+
+    <div class="cp-dec" id="d2">
+      <span class="cp-dec-id">D2</span>
+      <p class="cp-dec-h">Um único fantasma, último card do andar 1, abre o andar 3 no chip <b>Todos</b>; o transbordo de cada faixa vira um link no cabeçalho dela.</p>
+      <p class="cp-dec-why">
+        O fantasma responde “quanto mais existe”; o link <b>+N novos</b> responde “onde estão os
+        que não couberam nesta faixa” e abre o andar 3 já no chip correspondente — um gesto, um
+        destino, sem cards vazios de conteúdo se multiplicando. A faixa Meus favoritos tem uma
+        visão só, sem pílulas (<a href="#d1">D1</a>), e só desaparece quando o aluno não tem nenhum favorito.
+        <b>Custo: nenhum.</b> Todas as contagens (total, novos, favoritos e as solicitações
+        aguardando aprovação que alimentam o aviso de <a href="#d3">D3</a>) vêm do
+        statement de contagens que o <code>get_attention</code> já executa, e o andar 3 continua
+        sendo buscado só quando alguém pede.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> um fantasma por faixa, como no wireframe original — três cards que não são cursos e três destinos para o mesmo gesto.</p>
+    </div>
+
+    <div class="cp-dec" id="d3">
+      <span class="cp-dec-id">D3</span>
+      <p class="cp-dec-h">Uma solicitação de inscrição aguardando aprovação (<code>enrol_apply</code>: <code>user_enrolments.status</code> diferente de ativo numa instância <code>apply</code> — 1 (suspensa) desde que a solicitação nasce, 2 (em espera) se um avaliador a adia — com <code>timeend = 0</code> ou futuro, o mesmo predicado que o próprio plugin usa na fila de aprovação) aparece <b>só no andar 3</b> — o chip <b>Aguardando aprovação</b> e o selo na linha —, mais <b>uma linha de aviso</b> sob Novas inscrições. <b>Nenhum card no andar 1.</b><span class="cp-dec-when">Decidido em 2026-09-07 (variante c)</span></p>
+      <p class="cp-dec-why">
+        O motivo do mantenedor: <b>sem garantia de aprovação, o cartão pode sumir e a única notícia
+        é a mensagem; um cartão no andar 1 gera ansiedade por retorno rápido.</b>
+        <b>Custo: zero leituras novas nas duas superfícies.</b> A contagem do aviso sai de uma
+        subconsulta escalar na mesma consulta de contagens que o andar 1 já executa (o agregado
+        atual só vê inscrições ativas) — e o chip é derivado do status da linha do inventário na leitura (ADR-002, dez
+        inteiros por linha), exatamente como a dormência (ADR-007). Uma pendência não é uma inscrição
+        ativa: não entra nas faixas, não conta no fantasma, não tem progresso e não pode ser favorito
+        (<a href="#d1">D1</a>). O aviso leva ao chip; e <b>o nome da linha leva à página de
+        inscrição do curso</b> (<code>enrol/index.php?id=&lt;courseid&gt;</code>), <b>não ao
+        enrol_apply</b>: é a página que descreve as opções de inscrição, quem tem solicitação
+        pendente a abre normalmente, e o link se monta no navegador a partir do id que a linha
+        já carrega — nenhum inteiro a mais na resposta.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> cards de pendência no andar 1 — descartada em 2026-09-07 pelo motivo acima; e, mais cara ainda, consultar o enrol_apply a cada primeira pintura, uma leitura a mais por Painel em cima de um plugin que pode não estar instalado.</p>
+    </div>
+
+    <div class="cp-dec" id="d4">
+      <span class="cp-dec-id">D4</span>
+      <p class="cp-dec-h">A barra do andar 3 passa a ser a do <code>local_dimensions</code>: plateia de ordenação e ícones lista/cartões numa linha, busca e <b>Filtrar</b> com contagem na outra.</p>
+      <p class="cp-dec-why">
+        Os quatro chips fixos (Todos, Novos, Favoritos, Aguardando aprovação) saem da linha e passam
+        a morar dentro do painel, no grupo <b>Situação</b>; hoje são pílulas soltas ao lado da busca,
+        e é justamente onde não caberiam os grupos por campo de curso. A contagem no botão Filtrar
+        conta chips pressionados, não grupos.
+        <b>Custo: nenhum.</b> É rearranjo de controles sobre linhas que já estão no navegador (modo
+        full) ou sobre parâmetros que <code>get_inventory_rows</code> e <code>search_inventory</code>
+        já aceitam (modo paged).
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> manter os chips sempre visíveis, que é o que existe hoje e o que deixa de caber assim que os campos de curso entram.</p>
+    </div>
+
+    <div class="cp-dec" id="d5">
+      <span class="cp-dec-id">D5</span>
+      <p class="cp-dec-h">Filtros por <b>campo de curso</b>: o administrador escolhe os campos, e só valem os tipos <b>lista de seleção</b> e <b>caixa de seleção</b>.</p>
+      <p class="cp-dec-why">
+        Os valores por curso dos campos escolhidos moram na camada compartilhada <code>coursemeta</code>
+        — invalidada por <code>course_updated</code>, uma leitura por curso no miss, compartilhada por
+        todos os usuários — então <b>nenhuma leitura por usuário</b> é acrescentada. Em modo full o
+        filtro roda no navegador e não custa requisição; em modo paged a seleção viaja como parâmetro
+        de <code>get_inventory_rows</code> e <code>search_inventory</code>, dentro do mesmo orçamento
+        de 3 leituras. As contagens por chip só existem em modo full, porque em paged não há total a
+        contar antes de o grupo abrir.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> aceitar texto, número e data também — troca um vocabulário fechado por uma lista aberta de valores, e com ela morrem a plateia de pílulas e a contagem.</p>
+    </div>
+
+    <div class="cp-dec" id="d6">
+      <span class="cp-dec-id">D6</span>
+      <p class="cp-dec-h"><b>Lista e cartões são a mesma linha</b>: uma classe no contêiner, e a escolha continua na preferência <code>block_compass_view</code>.</p>
+      <p class="cp-dec-why">
+        Trocar de visão <b>não custa requisição</b>: as linhas e os detalhes já estão no estado do
+        cliente e só a renderização muda — é o que a ADR-005 decidiu, e é literalmente o que este
+        mockup faz ao clicar no ícone de cartões. As duas visões buscam a imagem, inclusive a lista,
+        que nunca a desenha: condicionar a busca à visão atual faria a troca custar uma requisição
+        por linha já preenchida.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> dois conjuntos de markup — dobra o que precisa ficar em sincronia e faz a troca passar pelo servidor.</p>
+    </div>
+
+    <div class="cp-dec" id="d7">
+      <span class="cp-dec-id">D7</span>
+      <p class="cp-dec-h">Uma solicitação pendente <b>fica na categoria dela</b>, com o selo Aguardando aprovação, <b>sem estrela e sem controle de arquivar</b>; quem as isola é o chip.</p>
+      <p class="cp-dec-why">
+        Ela não é um curso que se cursa nem um curso que se esconde: arquivar um pedido em análise
+        não quer dizer nada, e favoritar o que ainda não é seu, tampouco. Ficar na categoria mantém
+        a resposta a “o que eu pedi em Polícia Militar” no lugar onde a pessoa foi procurar.
+        <b>Custo: zero leituras</b> — a linha já carrega o status, como em D3.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> um grupo próprio ao final, como Dormentes e Arquivados, e no lugar do controle ausente um <b>Cancelar solicitação</b> — que seria a primeira escrita do plugin fora dos serviços do core.</p>
+    </div>
+
+    <div class="cp-dec" id="d8">
+      <span class="cp-dec-id">D8</span>
+      <p class="cp-dec-h">Duas configurações novas: <code>filter_fields</code> (multisseleção de campos de curso) e <code>enable_pending</code>, que se desliga sozinha sem o <code>enrol_apply</code>.</p>
+      <p class="cp-dec-why">
+        <code>filter_fields</code> só oferece os campos elegíveis, e a lista sai do próprio site, então
+        um site sem campos de curso simplesmente não vê grupos de chips. <code>enable_pending</code>
+        governa as <b>duas únicas superfícies</b> de uma pendência — o chip Aguardando aprovação, no
+        painel Filtrar, e a linha de aviso sob Novas inscrições —, e desligada esconde as duas de uma
+        vez; nenhuma aparece sem a outra. Faixa de pendências não existe mais para esconder
+        (<a href="#d3">D3</a>).
+        A regra da faixa de favoritos (D1) <b>é recomendada como comportamento fixo</b>: ela aparece
+        aqui como select só para o mantenedor dizer qual das duas quer, não porque deva virar
+        configuração.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> transformar D1 em configuração de site de verdade — o que dobra os estados de primeira pintura a testar, para uma escolha que o aluno nunca faz.</p>
+    </div>
+    <div class="cp-dec" id="d10">
+      <span class="cp-dec-id">D10</span>
+      <p class="cp-dec-h">O nome de um curso ocupa <b>no máximo duas linhas</b>: o que passar disso termina em reticências, e o nome inteiro aparece como <b>tooltip</b> ao pairar o mouse.<span class="cp-dec-when">Decidido em 2026-09-07, na aceitação da ADR-009</span></p>
+      <p class="cp-dec-why">
+        A nota do mantenedor: há plataformas com nomes de curso extensos, não é o padrão, e não é
+        preocupação de tamanho de payload — o ponto de atenção é o <b>layout</b>, que um nome de várias
+        linhas quebra. O corte é CSS, o mesmo padrão <code>.clamp-2</code> que o Boost já usa, aplicado
+        ao título do card do andar 1, ao nome da linha e ao título do cartão do andar 3; o nome
+        inteiro continua no DOM (o leitor de tela lê tudo, a busca continua encontrando cada palavra)
+        e viaja num atributo <code>title</code> em todo nome, e não só nos cortados — medir cada
+        elemento depois do layout, e de novo a cada redimensionamento, é o que um painel em segundo
+        plano não consegue fazer. <b>Custo: nenhum no servidor</b> — nada muda na resposta.
+      </p>
+      <p class="cp-dec-alt"><b>Alternativa:</b> truncar o nome no servidor a N caracteres — perde a palavra que a busca acharia, e escolhe um N que só serve a uma largura de tela.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* Mockup behaviour only: no data, no requests. Every control here is one the
+   real client would own, so the interactions are the ones worth arguing with. */
+(function () {
+  'use strict';
+
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- tier 3: the sort platter ----------------------------------------- */
+  var sorters = Array.prototype.slice.call(document.querySelectorAll('[role="radio"][data-sort]'));
+  sorters.forEach(function (radio) {
+    radio.addEventListener('click', function () {
+      sorters.forEach(function (other) {
+        var on = other === radio;
+        other.setAttribute('aria-checked', on ? 'true' : 'false');
+        other.classList.toggle('on', on);
+      });
+    });
+  });
+
+  /* Arrow keys inside a radiogroup, wrapping - the kit's rule. */
+  function arrowNav(container, items) {
+    container.addEventListener('keydown', function (event) {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
+        return;
+      }
+      var index = items.indexOf(document.activeElement);
+      if (index < 0) {
+        return;
+      }
+      event.preventDefault();
+      var step = event.key === 'ArrowRight' ? 1 : -1;
+      var next = items[(index + step + items.length) % items.length];
+      next.focus();
+      next.click();
+    });
+  }
+  var sortgroup = document.querySelector('[role="radiogroup"]');
+  if (sortgroup) {
+    arrowNav(sortgroup, sorters);
+  }
+
+  /* ---- tier 3: list and cards are one markup ---------------------------- */
+  var view = 'list';
+  function applyView() {
+    var containers = document.querySelectorAll('details[open] .cp-rows');
+    Array.prototype.forEach.call(containers, function (rows) {
+      rows.classList.toggle('cp-rows--cards', view === 'cards');
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function (button) {
+    button.addEventListener('click', function () {
+      view = button.getAttribute('data-view');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-view]'), function (other) {
+        var on = other === button;
+        other.setAttribute('aria-pressed', on ? 'true' : 'false');
+        other.classList.toggle('on', on);
+      });
+      applyView();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('details.cp-group'), function (group) {
+    group.addEventListener('toggle', applyView);
+  });
+
+  /* ---- tier 3: the filter panel and its chips --------------------------- */
+  var panel = document.getElementById('cp-fpanel');
+  var toggle = document.getElementById('cp-filterbtn');
+  var counter = document.getElementById('cp-fcount');
+
+  function refreshCount() {
+    var pressed = document.querySelectorAll('.cp-chip[aria-pressed="true"]:not([data-neutral])');
+    counter.textContent = String(pressed.length);
+    counter.hidden = pressed.length === 0;
+  }
+
+  toggle.addEventListener('click', function () {
+    var open = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
+    panel.hidden = open;
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-chipgroup]'), function (group) {
+    var chips = Array.prototype.slice.call(group.querySelectorAll('.cp-chip'));
+    var neutral = group.querySelector('.cp-chip[data-neutral]');
+    group.addEventListener('click', function (event) {
+      var chip = event.target.closest('.cp-chip');
+      if (!chip) {
+        return;
+      }
+      var wason = chip.getAttribute('aria-pressed') === 'true';
+      chips.forEach(function (other) {
+        other.setAttribute('aria-pressed', 'false');
+      });
+      /* A custom-field group may be left with nothing pressed - that field
+         simply stops filtering. A group carrying a neutral chip cannot: one
+         option is always the selected one. */
+      if (!wason || neutral) {
+        chip.setAttribute('aria-pressed', 'true');
+      }
+      refreshCount();
+    });
+  });
+
+  document.getElementById('cp-clear').addEventListener('click', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('.cp-chip'), function (chip) {
+      chip.setAttribute('aria-pressed', chip.hasAttribute('data-neutral') ? 'true' : 'false');
+    });
+    refreshCount();
+  });
+
+  /* ---- the pending notice under Novas inscrições ------------------------ */
+  /* The notice is a shortcut into the ONE place a pending application is shown
+     (D3): it opens the filter panel, presses the chip, and the Filtrar count
+     follows - it never renders a card of its own. */
+  var pendingjump = document.getElementById('cp-pending-jump');
+  var pendingchip = document.getElementById('cp-chip-pending');
+  if (pendingjump && pendingchip) {
+    pendingjump.addEventListener('click', function () {
+      if (toggle.getAttribute('aria-expanded') !== 'true') {
+        toggle.setAttribute('aria-expanded', 'true');
+        panel.hidden = false;
+      }
+      var group = pendingchip.closest('[data-chipgroup]');
+      Array.prototype.forEach.call(group.querySelectorAll('.cp-chip'), function (chip) {
+        chip.setAttribute('aria-pressed', 'false');
+      });
+      pendingchip.setAttribute('aria-pressed', 'true');
+      refreshCount();
+      var tier3 = document.getElementById('cp-tier3');
+      if (tier3) {
+        tier3.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'start'});
+      }
+      pendingchip.focus({preventScroll: true});
+    });
+  }
+
+  /* ---- the ghost and the per-strip overflow link ------------------------ */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-scroll]'), function (control) {
+    control.addEventListener('click', function () {
+      var target = document.getElementById(control.getAttribute('data-scroll'));
+      if (target) {
+        target.scrollIntoView({behavior: reduced ? 'auto' : 'smooth', block: 'start'});
+      }
+    });
+  });
+
+  /* ---- stars and archive controls: visual only -------------------------- */
+  Array.prototype.forEach.call(document.querySelectorAll('.cp-star, .cp-iconbtn[aria-pressed]'), function (star) {
+    star.addEventListener('click', function () {
+      var on = star.getAttribute('aria-pressed') === 'true';
+      star.setAttribute('aria-pressed', on ? 'false' : 'true');
+      star.classList.toggle('on', !on);
+    });
+  });
+
+  refreshCount();
+}());
+</script>
+</body>
+</html>
