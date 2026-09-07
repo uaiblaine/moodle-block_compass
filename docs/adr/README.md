@@ -24,3 +24,4 @@ the status flips to `Accepted` in the commit that lands it.
 | [005](005-lazy-details-and-views.md) | Lazy details for tier 3, the list/cards view, and virtualisation deferred (supersedes PLAN.md §7 on virtualisation while its bounds hold; revised before acceptance under ADR-006 decision 8) | Accepted | R4 |
 | [006](006-react-client.md) | The client is React, and what that costs (supersedes nothing; ADR-005 revised in place instead) | Accepted | R1-R4 |
 | [007](007-dormancy-and-archiving.md) | Dormancy, archiving, and the two groups that are not categories (supersedes ADR-000 decision 16 on which write route the client uses; everything else in it stands) | Accepted | 5 |
+| [008](008-accessibility-docs-and-release.md) | The accessibility audit is executable, the documentation is English, and v5.2-r1 ships (supersedes nothing; completes PLAN.md §9 Phase 7 except the moodle.org submission itself) | Accepted | 7 |
