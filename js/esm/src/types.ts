@@ -111,6 +111,7 @@ export type BlockConfig = {
     favouritesenabled: boolean,
     showsearch: boolean,
     showindex: boolean,
+    titlehidden: boolean,
     view: string,
 };
 

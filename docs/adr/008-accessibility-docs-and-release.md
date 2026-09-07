@@ -663,6 +663,82 @@ Three stops, each a real one — the phase does not continue past a stop without
 | Prove the install on m502 instead of m502b | m502 is the working stack; uninstalling the plugin there to install a zip destroys the environment the maintainer is using. m502b exists for exactly this, and the other session is checked first. |
 | Grow `mutations/gates.conf` with a gate per accessibility fix | A gate breaks a production guard and names the test it must redden. A heading level and a CSS minimum are not guards; a gate over them would redden nothing or everything and make a multi-hour sweep longer for no verdict. The static scan rules are the tests, and their own vacuity is what gets checked. |
 
+## Amendments (2026-09-07, during Phase 7)
+
+- **The audit ran, and the gate was proved non-vacuous before any fix.** With the four steps in
+  place and `@accessibility` on the feature, `mdl behat m502 @block_compass` passed at all four
+  points on its first run — 4 scenarios, 87 steps, 52 s, the run header reporting
+  `Accessibility: Yes`. axe found nothing at HEAD `01ed94c`, `heading-order` included: sibling
+  `<h3>`s skip no level, so that rule cannot see finding 1, and the static ladder rule of
+  decision 3 is what reads it. Then the archive control's `aria-label` and `title` were replaced
+  in the working tree by a `data-label` carrying the same text — so the label variable stayed
+  used and eslint quiet — the bundle was rebuilt, and the same run failed at scenario 3's step
+  with `3 violations of rule 'button-name' found (severity: critical)`, naming the three
+  nameless buttons by that attribute: `button[data-label="Archive Course 1"]`, `2` and `3`.
+  Scenario 4 failed earlier, at the click on the button whose name was gone. Restored and
+  rebuilt, green again. The gate reads the client.
+- **The heading ladder follows the block title, not a constant.** The review of the first fix
+  found the premise of finding 1 half true: core's `<h3>` renders only while the block has a
+  title (`lib/classes/output/core_renderer.php:1492`), and this plugin's own `hide_block_title`
+  setting empties it (`block_compass.php`, `specialization()`). A fixed `<h4>` under a hidden
+  title skips a level of its own. So the level is a function of that one fact, chosen in
+  `js/esm/src/heading.ts` from a `titlehidden` prop the shell exports: sections `<h4>` and cards
+  `<h5>` under the title, `<h3>` and `<h4>` without it; a literal heading tag in a component is
+  banned by the static rule, which pins both ladders. Scenario 2 now runs with the title hidden,
+  so the axe step measures that configuration too — the block is still found by "Compass",
+  because core puts the plugin name in the section's `aria-label` when the title is empty
+  (`blocks/moodleblock.class.php:244`).
+- **5.2 has one dark mechanism, not two.** The first fix wrote a second override for a
+  `.theme-dark` class, on a fleet note that measured both by setting them by hand. The review
+  grepped for what emits the class: nothing in the 5.2 checkout, in Boost Union or in its child
+  theme, and the compiled sheet of m502 held no rule for it beyond this plugin's own — the
+  `block_dimensions` plugin had already deleted 154 rules keyed on it for the same reason. The
+  override is one selector, `:root[data-bs-theme="dark"]`, anchored at the root because Boost
+  Union sets the same attribute on its navbar alone. The fleet note is corrected.
+- **The driven pass** (2026-09-07, m502, the maintainer's own Dashboard — 12 enrolments, the
+  Fundaseg child of Boost Union, brand `#070093`), read through the browser's DOM rather than
+  the eye, with the block's own controls driven by keyboard and script. Measured: the ladder
+  renders `h3` (core) › `h4` ×3 › `h5` ×18 across both views; the archive control is
+  27.5 × 24 px in the list and in the cards, the star 38 × 26; the summary and the row link
+  draw the 2 px brand ring, the index link and the archive control the theme's own ring; the
+  keyboard reaches 37 controls in tier 3 in reading order — search, the three toolbars, the
+  index, each summary, each row's link and archive control; the polite region says
+  "12 courses shown" in full mode and the paged note in paged mode (measured with
+  `inventory_max` at 1, then restored to 250); no image without `alt`, no positive `tabindex`,
+  the three toolbars named. Dark mode, set by hand as `data-bs-theme="dark"` on `<html>`:
+  this site's brand on the dark body is **1.10:1**, far below Boost's 3.02 because the brand
+  is navy; Bootstrap's own dark emphasis tint of it, `#6a66be`, is **3.28:1** — still under
+  4.5 — so the text token's dark value moved from the emphasis tint to `--bs-body-color`,
+  **12.44:1**, the one colour dark mode guarantees readable. The same pass found the star's
+  `btn-link` painted with the brand itself (1.10:1 in dark mode): it takes the text token now.
+  At a 720 px viewport (200 % zoom of 1440) nothing overflows and the strips hold three cards;
+  at 375 px (the narrowest the pane emulates; 320 is worse) tier 1 stacks, the toolbar wraps
+  to three lines and the index hides, but **a list row overflowed the block by 19 px** —
+  finding 6, WCAG 1.4.10, fixed by letting the row wrap, with a static rule to keep it; the
+  same measurement after the fix read 0 px of overflow for the block and for the page. Not
+  measured: `prefers-reduced-motion` (the pane cannot emulate it; the two rules are read from
+  source) and a real screen reader. A trap worth keeping: in a hidden browser document no
+  frame is painted, so a `.btn` colour transition never advances and a `ResizeObserver` never
+  fires — two readings looked like defects until the transition was disabled and a screenshot
+  forced a paint.
+- **The review round of the first fix**: three lenses (the dark-mode stylesheet, the static
+  test's blindness, regressions and consistency) and one refuter per serious finding, all on
+  Sonnet; eight serious findings, seven confirmed and fixed — the two above, the proof's
+  wording, and four regex forms the static rules let through (a `var()` with a fallback, a
+  single-quoted `role`, the `outline-style` and `outline-width` longhands and a unit-suffixed
+  zero, a single-quoted `tabindex`) — and one refuted: a computed `tabIndex` expression is
+  invisible to the source scan, but axe's own `tabindex` rule reads the rendered value in every
+  scenario, so the static rule is the second reader, not the only one.
+- **Finding 4 (focus dropped when a search is cleared) is withdrawn, and the Behat step it
+  prescribed with it.** The effect that restores the groups runs when `applied` becomes empty,
+  and `applied` follows the search input: the only ways a learner empties it — typing, Backspace,
+  the field's own clear control — all happen with the keyboard focus inside that input, which
+  sits in the toolbar outside every `<details>`. So at the moment the restore closes a group,
+  focus is never inside it and nothing is lost. The test could not have been made non-vacuous
+  either: its control was "focus on a row before the query is cleared", and no user action clears
+  the query from a row. `keepFocus()` stays where ADR-007 put it — archiving unmounts the focused
+  row; clearing a search does not. Five findings remain, all fixed in the phase.
+
 ## Questions for the maintainer, and the answers (2026-09-07)
 
 1. **README language.** English only, as this record proposed and as the fleet rule of 2026-07-31

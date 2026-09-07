@@ -39,6 +39,7 @@ import Group from './Group';
 import RowList from './RowList';
 import {amd} from './amd';
 import {matches, normalise, passesChip} from './filter';
+import {sectionTag} from './heading';
 import {fill} from './str';
 import {getInventory, getInventoryRows, searchInventory, setArchived, setViewPreference} from './repository';
 import {useRowDetails} from './rowdetails';
@@ -724,11 +725,16 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         return {rows: page.rows, count: page.loaded ? page.rows.length : total, show: true};
     };
 
+    // The panel title's level comes from heading.ts: an h4 under core's own block-title h3,
+    // an h3 when hide_block_title has removed it (ADR-008, decision 3). The h5 class keeps
+    // the size, and keepFocus() finds the element by its class, so the level is free to move.
+    const Heading = sectionTag(config.titlehidden);
+
     return (
         <section className="compass-explore" ref={section} aria-labelledby={titleid}>
-            <h3 className="compass-explore-title h5" id={titleid} tabIndex={-1}>
+            <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
-            </h3>
+            </Heading>
             <div className="compass-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
                 {config.showsearch && (
                     <div className="compass-search flex-grow-1">

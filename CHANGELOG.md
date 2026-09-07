@@ -8,6 +8,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase 7, first half — the accessibility audit is a gate (ADR-008), version 2026090701.
+  The audit rides inside the scenarios that already existed rather than being written
+  down: the feature carries `@accessibility` and each of the four scenarios gains one of
+  core's own axe steps, scoped to this block with the `best-practice` extra tests, placed
+  where the most is on screen — both strips rendered, the ghost count visible, tier 3 open
+  with its index, groups and rows, and the Archived group open, because axe cannot see
+  inside a closed `details`. Core turns axe on by default and no runner in this fleet turns
+  it off, so the gate holds from this commit with nothing to configure. It was proved
+  non-vacuous before any fix was made: with the archive control stripped of its name the
+  run reddened at scenario 3 with `3 violations of rule 'button-name' found (severity:
+  critical)`, and went green again once the name was restored. Seven findings are fixed. The
+  **heading ladder** now follows the block title: under core's own `<h3>` the section
+  titles are `<h4>` and the card titles `<h5>`, and when `hide_block_title` removes that
+  `<h3>` each moves one rung up — the level is chosen in `heading.ts` from a `titlehidden`
+  prop the shell exports, a literal heading tag in a component is banned, and scenario 2 now
+  runs with the title hidden so axe measures that configuration too; every size class is
+  untouched (1.3.1). Brand-coloured **text** goes through a second token,
+  `--block_compass-brand-text`, overridden under `:root[data-bs-theme="dark"]` — the one
+  dark mechanism 5.2 has; a `.theme-dark` class is emitted by nothing in the checkout or in
+  the fleet's themes — to the body text colour, the one colour dark mode guarantees readable:
+  the brand on Boost's dark body is 3.02:1 against the 4.5:1 floor for text, and Bootstrap's
+  own dark emphasis tint of a brand is no safer — a navy brand measured 3.28:1 on the
+  development site, and the brand itself 1.10:1 — while outlines, borders and backgrounds
+  keep the plain token and clear their own 3:1 one (1.4.3). The **archive
+  control** declares a 1.5 rem minimum box, since `btn-link btn-sm p-0` computes to about
+  23 px against the 24 px minimum and axe-core 4.10.3 does not measure target size at all
+  (2.5.8). And the **group summary**, the **row link** and the **card link** state focus
+  rings of their own, instead of relying on the browser default and on an underline drawn
+  inside the link (2.4.7). Two more came from the driven pass in the browser: the **star** is
+  painted with the same text token, because Boost paints `btn-link` with the brand itself —
+  1.10:1 on a navy brand in dark mode (1.4.11) — and a **list row wraps** when its parts no
+  longer fit on one line, since at 375 px it overflowed the block by 19 px (1.4.10). `tests/local/accessibility_rules_test.php` reads what axe cannot
+  — alt attributes, positive tabindex values, `outline: none`, the names of the two
+  icon-only buttons and of the three `role="group"` toolbars, the ladder, the token pairing
+  and the minimum box — every rule carrying the vacuity guard its sibling
+  `bootstrap_compat_test` carries, and every one of them mutation-checked by hand. Finding
+  4 of the record, focus dropped when a search is cleared, is **withdrawn**: the restore
+  only ever runs while focus is in the search input, which sits in the toolbar outside every
+  group, so no group can close on the focused element and the test could not have been made
+  non-vacuous either.
+
 - Phase 5 — dormancy and archiving (ADR-007), version 2026090603. Tier 3 gains two groups
   that are not categories. **Dormant** gathers the courses gone quiet — no access for
   `dormant_months` (new setting, default 12, calendar months), or never opened and enrolled

@@ -97,6 +97,9 @@ class block implements renderable, templatable {
             'favouritesenabled' => config::favourites_enabled(),
             'showsearch' => config::search_enabled(),
             'showindex' => config::index_shown(),
+            // Without the title bar core renders no h3 for the block, and the client's own
+            // headings move one rung up to take its place (ADR-008, decision 3; heading.ts).
+            'titlehidden' => config::hide_block_title(),
             'view' => self::view(),
         ];
 

@@ -28,6 +28,10 @@
  * brings: the image, and progress. Its category is the group it sits in, so nothing new
  * travels for that either.
  *
+ * The title's level comes from heading.ts, on the same rung as a tier 1 card's: one under
+ * the panel title, which is one under core's block title when that renders (ADR-008,
+ * decision 3). The h6 class keeps the size.
+ *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -36,6 +40,7 @@
 import {useEffect, useRef} from 'react';
 import Archive from './Archive';
 import Progress from './Progress';
+import {titleTag} from './heading';
 import {relativeTime} from './filter';
 import {fill} from './str';
 import type {BlockConfig, InventoryRow, RowDetail} from './types';
@@ -66,6 +71,7 @@ const RowCard = ({
     row, category, config, now, lang, detail, waiting, observe, archived, onArchive, busy,
 }: RowCardProps) => {
     const {labels, icons} = config;
+    const Title = titleTag(config.titlehidden);
     const opened = row.opened || 0;
     const url = `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
     const element = useRef<HTMLDivElement>(null);
@@ -97,11 +103,11 @@ const RowCard = ({
             {row.new && <span className="compass-badge-new badge bg-primary text-white">{labels.badge_new}</span>}
             <div className="card-body d-flex flex-column">
                 {category && <span className="compass-card-category small text-muted">{category}</span>}
-                <h4 className="compass-rowcard-title h6 mb-1">
+                <Title className="compass-rowcard-title h6 mb-1">
                     <a href={url} className="compass-row-link stretched-link text-reset text-decoration-none">
                         {row.name}
                     </a>
-                </h4>
+                </Title>
                 <p className="compass-card-meta small text-muted mb-2">
                     {opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened}
                 </p>

@@ -1,4 +1,4 @@
-@block @block_compass @javascript
+@block @block_compass @javascript @accessibility
 Feature: The Compass block puts the courses that need attention first
   In order to get back to the course I am working on
   As a student
@@ -34,10 +34,19 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Course 1" in the "Compass" "block"
     And I should see "New enrolments" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
+    # The audit is a gate, not a document (ADR-008, decision 1): core's axe step, scoped to this
+    # block, rides inside each scenario at the point where the most is on screen. The feature
+    # carries @accessibility, which the step demands, and axe is on by default in the run config.
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
 
   Scenario: The courses that do not fit the strips are counted, not listed
+    # Without its title bar the block has no h3 of core's, so the plugin's own headings move
+    # one rung up (ADR-008, decision 3) - and this is the one scenario that measures that
+    # configuration with axe. The block is still found by "Compass": core puts the plugin
+    # name in the section's aria-label when the title is empty (blocks/moodleblock.class.php).
     Given the following config values are set as admin:
-      | attention_max | 1 | block_compass |
+      | attention_max    | 1 | block_compass |
+      | hide_block_title | 1 | block_compass |
     And I am on the "C1" "Course" page logged in as "student1"
     And I follow "Dashboard"
     And I turn editing mode on
@@ -45,6 +54,7 @@ Feature: The Compass block puts the courses that need attention first
     And I turn editing mode off
     Then I should see "Course 1" in the "Compass" "block"
     And I should see "other courses" in the "Compass" "block"
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
 
   @javascript
   Scenario: The ghost card opens the grouped course list and the search box filters it in place
@@ -78,6 +88,9 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
+    # With tier 3 open: the index, both groups and their rows are all on screen here, which is
+    # the most this scenario ever shows (a settled search narrows the list to its hits).
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
     When I set the field "Search my courses" to "Course 4"
     # The count settles the race before the negative assertion runs. Searching is debounced,
     # and "should not see" fails the instant it finds the text rather than waiting for it to
@@ -137,6 +150,9 @@ Feature: The Compass block puts the courses that need attention first
     When I follow "Dashboard"
     And I click on "Explore all" "button"
     And I click on "Archived" "text" in the "Compass" "block"
+    # With the Archived group open: axe cannot see inside a closed details, so this is the one
+    # point in the feature where its rows and their controls are measured.
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
     And I click on "Unarchive Course 2" "button" in the "Compass" "block"
     # The announcement is made only after the write has been awaited, so waiting for it is
     # waiting for the row to be gone - navigating away on the click would race the write.

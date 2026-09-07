@@ -20,6 +20,10 @@
  * instead of last access, deadline, and a filled Start button instead of an outlined
  * Continue one.
  *
+ * The title's level comes from heading.ts: one rung under the strip's, which is itself one
+ * under core's block title when that renders (ADR-008, decision 3). The h6 class keeps the
+ * size.
+ *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -27,6 +31,7 @@
 
 import Progress from './Progress';
 import Star from './Star';
+import {titleTag} from './heading';
 import type {BlockConfig, CourseCard} from './types';
 
 type CardProps = {
@@ -72,6 +77,7 @@ const completion = (card: CourseCard, labels: Record<string, string>) => {
  */
 const Card = ({card, config, onToggleFavourite}: CardProps) => {
     const {labels} = config;
+    const Title = titleTag(config.titlehidden);
     const meta = card.isnew
         ? [card.enrolledtext, card.deadlinetext].filter(Boolean).join(' · ')
         : card.lastaccesstext;
@@ -84,11 +90,11 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
             {card.isnew && <span className="compass-badge-new badge bg-primary text-white">{labels.badge_new}</span>}
             <div className="card-body d-flex flex-column">
                 {card.category && <span className="compass-card-category small text-muted">{card.category}</span>}
-                <h4 className="compass-card-title h6 mb-1">
+                <Title className="compass-card-title h6 mb-1">
                     <a href={card.url} className="compass-card-link stretched-link text-reset text-decoration-none">
                         {card.fullname}
                     </a>
-                </h4>
+                </Title>
                 <p className="compass-card-meta small text-muted mb-2">{meta}</p>
                 {completion(card, labels)}
                 <div className="compass-card-actions mt-auto d-flex align-items-center justify-content-between">

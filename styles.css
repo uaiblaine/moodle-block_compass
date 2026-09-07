@@ -8,9 +8,21 @@
 .block_compass,
 .compass-dialogue {
     --block_compass-brand: var(--bs-primary, #0f6cbf);
+    --block_compass-brand-text: var(--bs-primary, #0f6cbf);
     --block_compass-line: var(--bs-border-color, #dee2e6);
     --block_compass-muted: var(--bs-secondary-color, #6a737b);
     --block_compass-surface: var(--bs-body-bg, #fff);
+}
+
+/* Brand TEXT needs its own token: the brand on Boost's dark body is 3.02:1, under the
+   4.5:1 floor (ADR-008, decision 3), and Bootstrap's dark emphasis tint of the brand is
+   not safe either - a navy brand tints to 3.28:1 (measured). Body text is the one colour
+   dark mode guarantees readable. One selector, because 5.2 has one dark mechanism - the
+   attribute Bootstrap 5.3 moves its tokens under; nothing on 5.2 emits a .theme-dark class.
+   Anchored at the root: Boost Union sets the same attribute on its navbar alone. */
+:root[data-bs-theme="dark"] .block_compass,
+:root[data-bs-theme="dark"] .compass-dialogue {
+    --block_compass-brand-text: var(--bs-body-color, #dee2e6);
 }
 
 .block_compass .compass-status,
@@ -72,11 +84,14 @@
     line-height: 1.3;
 }
 
-/* The star sits above the stretched link, or the link would swallow its clicks. */
+/* The star sits above the stretched link, or the link would swallow its clicks. Its glyph is
+   painted with the text token rather than left to btn-link: Boost paints btn-link with the
+   brand itself, which on the dark body measured 1.10:1 on a navy brand (ADR-008). */
 .block_compass .compass-star {
     position: relative;
     z-index: 2;
     line-height: 1;
+    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-star:focus-visible {
@@ -124,7 +139,7 @@
 }
 
 .block_compass .compass-ghost-cta {
-    color: var(--block_compass-brand);
+    color: var(--block_compass-brand-text);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -173,6 +188,13 @@
     list-style: none;
 }
 
+/* Every other control here states its own ring; the summary relied on the browser
+   default alone (ADR-008, decision 3, finding 5). */
+.block_compass .compass-group-summary:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
 .block_compass .compass-group-summary::-webkit-details-marker {
     display: none;
 }
@@ -201,7 +223,11 @@
     border-radius: 0;
 }
 
+/* A row wraps once its parts no longer fit on one line - the name first, then the date, the
+   progress and the controls below it. Measured at 375 CSS px: the unwrapped row overflowed
+   the block by 19 px, which is a horizontal scroll at 320 (WCAG 1.4.10, ADR-008). */
 .block_compass .compass-row {
+    flex-wrap: wrap;
     padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--block_compass-line);
 }
@@ -215,8 +241,16 @@
     text-decoration: underline;
 }
 
+/* The underline above marks the name; this marks the link, which is what a keyboard user
+   is actually on - a stretched link covers the whole row or card (ADR-008, decision 3). */
+.block_compass .compass-row-link:focus-visible,
+.block_compass .compass-card-link:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
 .block_compass .compass-row-star {
-    color: var(--block_compass-brand);
+    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-ghost {
@@ -308,15 +342,23 @@
 }
 
 /* Archiving (ADR-007): one icon-only control per row, on the row's own line, and above the
-   card's stretched link so the click is the button's and not the card's. */
+   card's stretched link so the click is the button's and not the card's.
+   btn-link btn-sm p-0 computes to about 23 px tall, one under the 24 px minimum of WCAG
+   2.2 2.5.8 (ADR-008, decision 3), so the box is stated here rather than by dropping p-0:
+   the icon keeps the size it has and only the target grows around it. */
 .block_compass .compass-archive {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
     line-height: 1;
     color: var(--block_compass-muted);
 }
 
 .block_compass .compass-archive:hover,
 .block_compass .compass-archive:focus-visible {
-    color: var(--block_compass-brand);
+    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-card-action {

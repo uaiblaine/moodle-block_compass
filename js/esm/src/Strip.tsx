@@ -20,6 +20,10 @@
  * announces "list, N items" once and the ghost that closes the strip is a proper
  * item of it.
  *
+ * The heading's level comes from heading.ts: an h4 under core's own block title, which
+ * is the h3 (lib/templates/block.mustache), and an h3 when hide_block_title has removed
+ * it (ADR-008, decision 3). Only the level moves - the h6 class keeps the size.
+ *
  * @module     block_compass/Strip
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -29,6 +33,7 @@ import {useId} from 'react';
 import Card from './Card';
 import Ghost from './Ghost';
 import type {GhostKind} from './Ghost';
+import {sectionTag} from './heading';
 import type {BlockConfig, CourseCard} from './types';
 
 type StripProps = {
@@ -50,6 +55,7 @@ type StripProps = {
  */
 const Strip = ({title, name, cards, ghost, config, onToggleFavourite, onExplore}: StripProps) => {
     const headingid = useId();
+    const Heading = sectionTag(config.titlehidden);
 
     if (!cards.length) {
         return null;
@@ -57,7 +63,7 @@ const Strip = ({title, name, cards, ghost, config, onToggleFavourite, onExplore}
 
     return (
         <section className="compass-strip" data-strip={name} aria-labelledby={headingid}>
-            <h3 className="compass-strip-title h6 text-uppercase text-muted" id={headingid}>{title}</h3>
+            <Heading className="compass-strip-title h6 text-uppercase text-muted" id={headingid}>{title}</Heading>
             <div className="compass-cards">
                 <div className="compass-cards-list" role="list">
                     {cards.map((card) => (
