@@ -186,7 +186,12 @@ entries. Hence two layers with different keys and different invalidation.
 
 Store: **Redis recommended for all four** (documented in the README with the
 MUC mapping; `mdl redis m502` maps the local stack). One user with 2 000
-enrolments is about 60 KB of serialised `inventory`, which is acceptable.
+enrolments is **272 KB** of serialised `inventory` on a default store and
+**122 KB** with igbinary selected — the MUC Redis store serialises with PHP's
+`serialize()` unless the administrator picks igbinary on the store instance
+(`docs/perf/2026-09-04-bench-postgres17.md:63-74`, measured 2026-09-04 on
+PHP 8.4). PLAN.md §6.2's 60 KB was an estimate, 4.5× low, and this file repeated
+it as fact until Phase 7.
 **Never invalidate `inventory` or `details` from course events** — the rule
 that makes the design hold. Names — of courses and categories alike — are
 formatted at **response time**: the
@@ -410,7 +415,9 @@ between visits.
 Not one of these is optional, and "the tests pass" covers only the first.
 
 - [ ] `mdl ci moodle-block_compass --matrix --behat` green (phplint, phpcs,
-      phpdoc, mustache, grunt, PHPUnit, Behat) with no warnings anywhere.
+      phpdoc, mustache, grunt, PHPUnit, Behat) with no warnings anywhere. The
+      Behat run includes core's axe step in every scenario (ADR-008), so a
+      green Behat leg is also the accessibility verdict.
 - [ ] Budget tests (§6.6) passing for every endpoint the phase touched; a
       mutation check (`mdl mutate`) shows each guard reddening exactly one test.
 - [ ] `lang/en` and `lang/pt_br` complete and in lockstep.
@@ -438,7 +445,8 @@ alternatives rejected and why.
 **The agent writes the ADR before writing the phase's code, as `Proposed`, and
 stops for the maintainer's review.** Implementation starts only against an
 accepted record; the status flips to `Accepted` in the commit that lands the
-implementation. The plan mandates four:
+implementation. The plan mandates four; the table has grown past them as later
+phases raised decisions of their own:
 
 | ADR | Decision | Written before | Status |
 |---|---|---|---|
@@ -448,6 +456,8 @@ implementation. The plan mandates four:
 | ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
 | ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04), implemented in R4 with one deviation recorded in the record itself |
 | ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1–R4 implemented — the AMD tree is gone |
+| ADR-007 | dormancy and archiving: the two tier 3 groups that are not categories (`-1` dormant, `-2` archived), the archive written to the Course overview block's own preferences through core's router endpoint, the fourth Behat scenario | Phase 5 | Accepted (2026-09-06), implemented in Phase 5 |
+| ADR-008 | the accessibility audit is a **gate**, not a document: core's axe step inside the four scenarios plus a static rules test; the documentation is English only; `v5.2-r1` ships at `MATURITY_BETA` | Phase 7 | Accepted (2026-09-07), implemented in Phase 7 |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -523,7 +533,9 @@ js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since
                              amd (the RequireJS bridge — the only file that knows about it),
                              filter (normalise, match, relative time, chips — the PHP twin of the
                              first two is classes/local/matcher.php and the pair is pinned by a
-                             fixture), str (placeholder substitution), types (the payload shapes)
+                             fixture), heading (the section and card heading levels, chosen from
+                             the titlehidden prop — no component writes a heading tag itself,
+                             ADR-008), str (placeholder substitution), types (the payload shapes)
 js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src
 templates/                   block — the only one left: a React mount point, its fallback, and the
                              noscript. Every card, row, group and toolbar is a component
@@ -810,6 +822,24 @@ things about writing them here are not obvious and were paid for in R1:
   `className="…"` since R1 — and a computed `className={…}` defeats it, so the
   construct is banned outright and a test asserts the ban. Anything conditional
   picks between whole literals.
+- **A heading tag is never written literally in a component.** `js/esm/src/heading.ts`
+  exports `sectionTag()` and `titleTag()`, both a function of the `titlehidden` prop the
+  shell exports: under core's own block-title `<h3>` sections are `<h4>` and card titles
+  `<h5>`, and with `hide_block_title` on — when core renders no heading at all
+  (`lib/classes/output/core_renderer.php:1492`) — each moves one rung up. A literal
+  `<h1>`–`<h6>` anywhere in `js/esm/src` is banned outright and
+  `accessibility_rules_test` enforces the ban both ways (no literal tag outside
+  `heading.ts`; the two ladders pinned inside it), because a fixed level is correct in
+  exactly one of the two configurations (ADR-008, decision 3 and its first amendment).
+- **Brand-coloured TEXT is painted with `--block_compass-brand-text`**, never with
+  `--block_compass-brand` itself. The text token is overridden under
+  `:root[data-bs-theme="dark"]` to `--bs-body-color`, the one colour dark mode
+  guarantees readable: Boost's own brand on its dark body is 3.02:1 against the
+  4.5:1 floor, and Bootstrap's dark emphasis tint of a brand is no safer — a navy
+  brand measured 3.28:1. Outlines, borders and backgrounds keep the plain token and
+  clear their own 3:1. The dark selector is `:root[data-bs-theme="dark"]` and nothing
+  else — **never `.theme-dark`**, which nothing in the 5.2 checkout, in Boost Union
+  or in its children emits (ADR-008 amendments, 2026-09-07).
 - **There is no React eslint plugin either.** Core registers neither
   `eslint-plugin-react` nor `eslint-plugin-react-hooks`, so `rules-of-hooks`,
   `exhaustive-deps`, `jsx-key` and `no-danger` do not exist — and an
@@ -998,6 +1028,16 @@ the following defaults flip, deliberately:
   cross-plugin and browser-only; it reaches the archived course through core's
   own "Removed from view" filter, which is what proves the row is core's. Logic
   stays in PHPUnit. Read the lang string before writing a step's label.
+  **Every scenario carries core's axe step** — `the "Compass" "block" should meet
+  accessibility standards with "best-practice" extra tests` — scoped to this block
+  and placed where the most is on screen; the feature carries `@accessibility`,
+  which the step demands, and axe is on by default in the Behat run config, so
+  nothing has to be switched on (ADR-008, decision 1). Scenario 2 runs with
+  `hide_block_title` on, so the other heading ladder is measured too.
+  `tests/local/accessibility_rules_test.php` is the static half — ten rules over
+  `js/esm/src`, `templates/` and `styles.css`, each with the vacuity guard its
+  sibling `bootstrap_compat_test` carries — because axe reads a rendered page and
+  cannot see a rule that no scenario happens to render.
 - Re-run `mdl phpunit-init m502` when any mounted `version.php` moved, including
   another session's. A CSS change is invisible to Behat until `mdl behat-init`
   re-runs — the behat site serves theme CSS built at init time

@@ -74,6 +74,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Phase 7, second half — the documentation for the first release (ADR-008). The README
+  gains a **Sizing** section built only from numbers already measured, each naming where
+  and when: what one cached inventory occupies (40.9 KB at 300 enrolments, 272 KB at
+  2 000, 408 KB at 3 000 on a default store, and 18.4 / 122 / 183 KB with igbinary,
+  `docs/perf/2026-09-04-bench-postgres17.md`), the database time behind a first paint
+  (under 6 ms for an ordinary user, about 140 ms for the heaviest user measured, on
+  PostgreSQL 17 with 1 075 000 enrolment rows), the per-endpoint read and payload budgets
+  the tests enforce, what a page and a search cost in paged mode, and the plan's own
+  dimensioning scenario named as a scenario rather than as a measurement. It gains a
+  **Redis walk-through** in the admin UI's own words — *Add instance* on the Redis store,
+  *Server(s)*, *Key prefix*, *Use serializer*, then *Edit mappings* on each of the four
+  definitions or the store set under *Stores used when no mapping is present* — an
+  **Accessibility** section stating the bar, the gate and what neither reaches (a real
+  screen reader, forced-colors mode), a **Testing** section (265 tests over 25 files, four
+  Behat scenarios each carrying the axe step, 52 mutation gates, the PHP × database
+  matrix), and the two screenshots the plugins directory expects. What it loses is every
+  claim that had gone stale: PHP 8.2 where Moodle 5.2 requires 8.3.0
+  (`admin/environment.xml:5124`), a status frozen at Phase 3 while archiving was already
+  described two screens below it, a privacy paragraph older than R4 that still said the
+  plugin stores nothing of its own, a settings list missing `dormant_months` and
+  `default_view` entirely — naming `hide_block_title` only as "whether the block title is
+  hidden", with no default and no word of what it does to the headings — and closing on a
+  promise dormancy had already kept, and a cache-store section that never said how to
+  create the store. The lang string
+  `cachestores_desc` counted **three** definitions in both packs while `db/caches.php`
+  declares four — an administrator following it verbatim left `categorymeta` on the file
+  store, which is the degraded case the notice exists to prevent — and is corrected in
+  lockstep. `.gitattributes` loses a verification hint that could not answer the question
+  it was written for: `git check-attr export-ignore` reports `unspecified` for a file
+  inside an excluded directory, so only listing the archive proves what ships.
+  `CLAUDE.md` takes the same discipline: the 2 000-enrolment entry is the measured
+  272 KB rather than PLAN.md's 60 KB estimate, 4.5× low, which that file had been
+  repeating as fact; ADR-007 and ADR-008 join the record table; the client-side rules
+  gain the two ADR-008 added — headings come from `heading.ts` and no component writes a
+  heading tag of its own, and brand-coloured text is painted with
+  `--block_compass-brand-text`, overridden under `:root[data-bs-theme="dark"]` and never
+  under `.theme-dark`, which nothing on 5.2 emits; the Behat note records the axe step and
+  the static half beside it; and the definition of done says that a green Behat leg is now
+  also the accessibility verdict. No version bump: nothing served changes, and the release
+  commit carries the bump.
+
 - A tier 3 card inside a category group no longer prints that category, version
   2026090602. ADR-005 has a card take its category from the enclosing group, and the flat
   views still do — but inside the group itself that repeats the header one line above every
