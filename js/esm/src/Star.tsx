@@ -77,7 +77,10 @@ const Star = ({courseid, fullname, favourite, config, onToggle}: StarProps) => {
             aria-label={favourite ? labels.removefromfavourites : labels.addtofavourites}
             onClick={click}
         >
-            <span dangerouslySetInnerHTML={{__html: favourite ? icons.staron : icons.staroff}} />
+            {/* Core's .icon carries a right margin meant for a glyph before a label
+                (theme/boost/scss/moodle/icons.scss); inside an icon-only control it pushes
+                the glyph off centre, and icon-no-margin is core's own way to drop it. */}
+            <span className="icon-no-margin" dangerouslySetInnerHTML={{__html: favourite ? icons.staron : icons.staroff}} />
         </button>
     );
 };

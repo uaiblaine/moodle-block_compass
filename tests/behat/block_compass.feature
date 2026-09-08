@@ -195,6 +195,28 @@ Feature: The Compass block puts the courses that need attention first
     # With the Archived group open: axe cannot see inside a closed details, so this is the one
     # point in the feature where its rows and their controls are measured.
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
+    # The archive's rows are held once fetched and filtered in the browser like every other
+    # group's (ADR-007, amendment 3): a query nothing archived matches empties the group, and
+    # clearing it brings the row back. The first version fetched the archive with the toolbar
+    # of that moment as server parameters and never looked at the rows again, so after a search
+    # the group stayed empty for the rest of the page's life.
+    When I set the field "Search my courses" to "zzz"
+    Then I should see "0 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    # And a query the archived course does match keeps it: the name map the matcher reads must
+    # know the archive's rows too, or they would match nothing whatever their name.
+    When I set the field "Search my courses" to "Course 2"
+    Then I should see "1 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    And I should see "Course 2" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    When I set the field "Search my courses" to ""
+    # Clearing the search puts the groups above back the way they were, 150 ms later, and the
+    # page shifts under the next click: the button is located, the groups reopen, and the click
+    # lands on a course link that has moved into its place (measured: the page went to Course 1).
+    # The announced count is the one thing that changes only once the cleared query has been
+    # applied - three listed courses plus the archived one, held and counted - so waiting for it
+    # is waiting for the layout to settle.
+    Then I should see "4 courses shown" in the "Compass" "block"
+    And I should see "1 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    And I should see "Course 2" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     And I click on "Unarchive Course 2" "button" in the "Compass" "block"
     # The announcement is made only after the write has been awaited, so waiting for it is
     # waiting for the row to be gone - navigating away on the click would race the write.

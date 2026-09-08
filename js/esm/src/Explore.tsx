@@ -383,7 +383,19 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         groupseq.current[id] = mine;
         setPages((current) => ({...current, [id]: {...(current[id] || EMPTY_PAGE), loading: true}}));
         try {
-            const page = await getInventoryRows(id, before.after, chip, sort === 'recent' ? 'recent' : 'name', filters);
+            // Full mode holds the rows it filters, the archive's included once they are here
+            // (ADR-007, amendment 3): the page asks for the whole archive, name-ordered, and the
+            // chip, the selection and the query are applied in groupview() the way every other
+            // group's are - so a change narrows it and a cleared search brings the rows back.
+            // Paged mode holds nothing and sends them as parameters. The first version sent the
+            // toolbar of the moment in both modes and never looked at the rows again.
+            const page = await getInventoryRows(
+                id,
+                before.after,
+                paged ? chip : 'all',
+                paged && sort === 'recent' ? 'recent' : 'name',
+                paged ? filters : []
+            );
             if (groupseq.current[id] !== mine) {
                 // The group was reset while the page travelled: this answer is stale.
                 return;
@@ -420,7 +432,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                 }));
             }
         }
-    }, [chip, filters, pages, sort]);
+    }, [chip, filters, paged, pages, sort]);
 
     /**
      * Paged mode: drop every loaded group's rows and refetch the open ones.
@@ -454,7 +466,10 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     const pagedgroup = useCallback((id: number): boolean => paged || id === GROUP_ARCHIVED, [paged]);
 
     // An open group that pages and has no rows needs a page, whether it was just opened or
-    // just reset. One effect covers every such group, so no call site can be forgotten.
+    // just reset. One effect covers every such group, so no call site can be forgotten. In
+    // full mode the archive is fetched page after page until it is all here - full mode holds
+    // what it filters, and a filter over half an archive would say "0 courses" of a course
+    // that exists (ADR-007, amendment 3); paged mode fetches one page and offers "Show more".
     useEffect(() => {
         if (!data) {
             return;
@@ -464,11 +479,14 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                 return;
             }
             const page = pages[group.id] || EMPTY_PAGE;
-            if (open[group.id] && !page.loaded && !page.loading && !page.failed) {
+            if (!open[group.id] || page.loading || page.failed) {
+                return;
+            }
+            if (!page.loaded || (!paged && group.id === GROUP_ARCHIVED && page.hasmore)) {
                 loadPage(group.id);
             }
         });
-    }, [data, open, pages, loadPage, pagedgroup]);
+    }, [data, open, pages, paged, loadPage, pagedgroup]);
 
     // Paged mode: the search is the server's, and a query it would refuse is not sent.
     useEffect(() => {
@@ -521,13 +539,17 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         labels.loaderror]);
 
     // Full mode: matching is over the normalised name, so normalise each once rather
-    // than on every keystroke.
+    // than on every keystroke. The archive's rows, held once fetched (ADR-007, amendment 3),
+    // are in the map too, keyed on their own array so a page's loading flag does not rebuild
+    // it: a row the map does not know would match nothing, whatever its name.
+    const archivedrows = pages[GROUP_ARCHIVED]?.rows;
     const normalised = useMemo(() => {
         const map = new Map<number, string>();
         data?.groups.forEach((group) => group.courses.forEach((row) => map.set(row.id, normalise(row.name))));
+        archivedrows?.forEach((row) => map.set(row.id, normalise(row.name)));
 
         return map;
-    }, [data]);
+    }, [data, archivedrows]);
 
     /**
      * The facts a row is judged by, under the get_inventory row keys.
@@ -546,23 +568,34 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
 
     // Full mode: which rows survive the chip, the custom-field selection and the query, group
     // by group. No request is made for any of it: the rows are already here (non-negotiable 5).
+    /**
+     * Full mode's one filter: whether a row passes the chip, the field selection and the query.
+     *
+     * The same predicate for the rows the payload carried and for the archive's once fetched,
+     * so the two cannot narrow differently (ADR-009, decision 4; ADR-007, amendment 3).
+     *
+     * @param {object} row The row.
+     * @returns {boolean} Whether it is shown.
+     */
+    const passesRow = useCallback((row: InventoryRow): boolean => {
+        const facts = factsof(row);
+
+        return passesChip(chip, facts)
+            && passesSelection(facts.cf, fieldkeys, selection)
+            && (applied === '' || matches(facts.name, applied));
+    }, [chip, selection, fieldkeys, applied, factsof]);
+
     const visible = useMemo(() => {
         const map = new Map<number, InventoryRow[]>();
         if (!data || paged) {
             return map;
         }
         data.groups.forEach((group) => {
-            map.set(group.id, group.courses.filter((row) => {
-                const facts = factsof(row);
-
-                return passesChip(chip, facts)
-                    && passesSelection(facts.cf, fieldkeys, selection)
-                    && (applied === '' || matches(facts.name, applied));
-            }));
+            map.set(group.id, group.courses.filter(passesRow));
         });
 
         return map;
-    }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
+    }, [data, paged, passesRow]);
 
     /**
      * Full mode: how many rows each chip would keep, given everything ELSE that is pressed.
@@ -615,9 +648,24 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         return {status, fields: perfield};
     }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
 
+    // The archive's rows that pass the same filter, once they are here (ADR-007, amendment 3);
+    // none in paged mode, where the rows are not held, and none while a page is still due.
+    const archivedvisible = useMemo(() => {
+        const page = pages[GROUP_ARCHIVED];
+        if (paged || !page || !page.loaded || page.hasmore) {
+            return [];
+        }
+
+        return page.rows.filter(passesRow);
+    }, [paged, pages, passesRow]);
+
+    // What the filter keeps, the archive's matching rows included once they are here: what the
+    // live region announces and what decides "No course matches." - the chips' own numbers
+    // count the listed courses only, because the archive is not part of the population they
+    // are over (ADR-007, decision 2).
     const shown = useMemo(
-        () => Array.from(visible.values()).reduce((total, rows) => total + rows.length, 0),
-        [visible]
+        () => Array.from(visible.values()).reduce((total, rows) => total + rows.length, 0) + archivedvisible.length,
+        [visible, archivedvisible]
     );
 
     // Full mode: the count the live region announces follows every filter change.
@@ -1125,11 +1173,18 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             return {rows, count: rows.length, show: rows.length > 0};
         }
         const page = pages[id] || EMPTY_PAGE;
-        // In full mode a search or a chip hides every group with no matching row; the archived
-        // group holds no rows locally to match, so it stays - closed - while the rest is
-        // filtered. It is not part of the population the filter is over, and hiding it would
-        // make the archive unreachable for as long as a query is typed (ADR-007, decision 2).
-        // Review caught the first version of this line doing the opposite of this comment.
+        if (!paged) {
+            // The archived group in full mode: fetched page after page on first open until it is
+            // all here, then held and filtered like every other group's rows, so a chip, a
+            // selection or a query narrows it and clearing them brings the rows back (ADR-007,
+            // amendment 3). Until the rows are all here the count is the server's total - there
+            // is nothing complete to narrow yet - and the group stays, closed, whatever the
+            // filter: it is not part of the population the filter is over, and hiding it would
+            // make the archive unreachable for as long as a query is typed (ADR-007, decision 2).
+            const complete = page.loaded && !page.hasmore;
+
+            return {rows: archivedvisible, count: complete ? archivedvisible.length : total, show: true};
+        }
 
         return {rows: page.rows, count: page.loaded ? page.rows.length : total, show: true};
     };
@@ -1250,7 +1305,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                                     open={isopen}
                                     loading={page.loading}
                                     failed={page.failed}
-                                    hasmore={pagedgroup(group.id) && page.hasmore}
+                                    hasmore={paged && page.hasmore}
                                     config={config}
                                     now={now.current}
                                     lang={lang}

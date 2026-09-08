@@ -66,7 +66,11 @@ const Archive = ({courseid, name, archived, busy, config, onArchive}: ArchivePro
         >
             {/* A box, closed to archive and opened to bring back, from the plugin's own icon map: the
                 eye core lent this control read as "open this course" (ADR-010, decision 2). */}
-            <span aria-hidden="true" dangerouslySetInnerHTML={{__html: archived ? icons.unarchive : icons.archive}} />
+            <span
+                className="icon-no-margin"
+                aria-hidden="true"
+                dangerouslySetInnerHTML={{__html: archived ? icons.unarchive : icons.archive}}
+            />
         </button>
     );
 };

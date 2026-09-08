@@ -423,3 +423,33 @@ are decisions this record had not made and now does.
 Two more were the record's own tests list being honoured: the budget test for opening the
 archived group (one paged read, the same resolve() as any page) and the budget test proving
 dormancy and the archived header add no read to a build. Both now exist and pass.
+
+**2026-09-08, after Phase 9, the third amendment: in full mode the archive is held and filtered,
+not fetched with the toolbar.** Decision 2 has the archived group page on first open in both
+modes, and the first implementation sent the toolbar of that moment — the chip, the field
+selection, the sort — as the page's server parameters in both modes too, and never looked at the
+rows again. In paged mode that is right: nothing is held, and a chip or sort change resets every
+group and refetches the open ones. In full mode it was wrong three ways, all found by the
+maintainer on 2026-09-08: the search, which full mode applies in the browser, never reached the
+archive's rows; a chip or a selection pressed after the fetch never reached them either; and a
+page fetched while a chip was pressed held only what that chip kept — so an archive opened under
+the Favourites chip, or under a search, came back with nothing and stayed empty for the rest of
+the page's life, the rows never being asked for again. (The maintainer's account had the
+Favourites chip remembered from a driven pass of Phase 9, with the panel closed; the symptom read
+as the search's doing, and the search alone would have produced the first of the three.)
+
+So, from version 2026090801, full mode fetches the archive page after page on first open until
+it is all here — `loadPage()` with chip `all`, no filters, name order, one request per
+`explore::PAGE_SIZE` rows, driven by the fetch-on-open effect while `hasmore` is set, and no
+"Show more" on the group — and `groupview()` shows the held rows filtered by the same predicate
+every other group's rows go through (`passesRow()`: the chip, the selection, the query), so a
+change narrows the archive and clearing it brings the rows back. A filter over half an archive
+would have said "0 courses" of a course that exists, which is why every page is fetched before
+any of them is judged. The header count is still the server's total until every page is here, as
+decision 2 has it, and the group still stays on screen, closed, whatever the filter, because
+hiding it would make the archive unreachable for as long as a query is typed. The archive's
+matching rows count in the announced "N courses shown" and in "No course matches." — a matching
+archived row beside that line would be a contradiction — but not in the chips' own numbers,
+which count the listed population the chips are over. Scenario 4 now searches with the archive open and clears the search, which is
+the executable form of this amendment; the fourth Behat scenario was again the only test that
+could have seen it, and this time it had not, because it never searched.

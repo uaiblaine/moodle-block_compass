@@ -321,8 +321,13 @@
 
 /* The accordion's chevron is core's own pair, shown and hidden by core's icons-collapse-expand
    rule the way a course section's is, with less padding around the glyph (ADR-010, decision 7).
-   Painted with the text token: core paints its own with the brand, through btn-icon. */
+   Painted with the text token: core paints its own with the brand, through btn-icon. Core's rule
+   also makes the span a block-level flex box (theme/boost/scss/moodle/icons.scss, .icons-collapse-
+   expand), which breaks the line and drops the group name under the glyph; inline-flex keeps the
+   show/hide of the two icons inside and flows with the name. Scoped here, never on the class. */
 .block_compass .compass-group-chevron {
+    display: inline-flex;
+    align-items: center;
     margin-right: 0.25rem;
     vertical-align: middle;
     color: var(--block_compass-brand-text);

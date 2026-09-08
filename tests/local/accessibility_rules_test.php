@@ -556,6 +556,60 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
+     * An icon-only control wraps its glyph in core's icon-no-margin, so the glyph sits centred.
+     *
+     * Core's .icon carries a right margin for a glyph before a label (theme/boost/scss/moodle/
+     * icons.scss), and icon-no-margin is core's own way to drop it inside a control that has no
+     * label. The four icon-only controls are read; the Filter button keeps the margin on purpose,
+     * because its glyph precedes a word. Vacuity guard: each file must render a glyph span.
+     *
+     * @return void
+     */
+    public function test_the_icon_only_glyphs_carry_no_margin(): void {
+        $files = ['js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/Reload.tsx'];
+        foreach ($files as $file) {
+            $spans = array_filter(
+                $this->tags($this->sources()[$file], 'span'),
+                static fn(string $tag): bool => str_contains($tag, 'dangerouslySetInnerHTML')
+            );
+            $this->assertNotEmpty($spans, "{$file} renders no glyph span, so the rule is about nothing");
+            foreach ($spans as $span) {
+                $this->assertStringContainsString(
+                    'icon-no-margin',
+                    $span,
+                    "{$file}: a glyph span without icon-no-margin inherits core's .icon right margin"
+                );
+            }
+        }
+    }
+
+    /**
+     * The accordion's chevron flows inline with the group name.
+     *
+     * Core's icons-collapse-expand rule makes its element a block-level flex box
+     * (theme/boost/scss/moodle/icons.scss), which breaks the line inside the summary and drops
+     * the name under the glyph. The block's own rule, scoped to its class, says inline-flex; the
+     * vacuity guard is the rule itself.
+     *
+     * @return void
+     */
+    public function test_the_chevron_flows_inline(): void {
+        $body = null;
+        foreach ($this->rules() as $rule) {
+            [$selector, $candidate] = $rule;
+            if (preg_match('/\.compass-group-chevron(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+                $body = $candidate;
+            }
+        }
+        $this->assertNotNull($body, 'no .compass-group-chevron rule found in styles.css');
+        $this->assertMatchesRegularExpression(
+            '/\bdisplay\s*:\s*inline-flex\b/',
+            $body,
+            'the chevron is not inline-flex, so core\'s display: flex breaks the summary line'
+        );
+    }
+
+    /**
      * A control that triggers its own busy state is aria-disabled while busy, never disabled.
      *
      * The disabled attribute is applied in the render the control's own click causes, and a

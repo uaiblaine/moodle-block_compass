@@ -1,0 +1,1 @@
+s/<span className="icon-no-margin" dangerouslySetInnerHTML=\{\{__html: favourite \? icons\.staron : icons\.staroff\}\} \/>/<span dangerouslySetInnerHTML={{__html: favourite ? icons.staron : icons.staroff}} \/>/;

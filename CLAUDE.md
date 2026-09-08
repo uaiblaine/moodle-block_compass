@@ -938,7 +938,13 @@ Tier 3, whose behaviour is the most intricate thing here:
   the row's `dorm` flag, because the never-opened clause needs the enrolment date the
   row does not carry. Archived pages on first open **in both modes**: `pagedgroup()` in
   `Explore.tsx` is the one place that knows, and `groupview()`, the fetch-on-open effect
-  and `hasmore` all go through it. After any archive action both tiers reload
+  and `hasmore` all go through it. **In full mode the archive is fetched page after page on first open until it
+  is all here — chip `all`, no filters, name order, no "Show more" — and its rows are then held
+  and filtered by `passesRow()` (`archivedvisible`) like every other group's**, so a chip, a
+  selection or a query narrows it and clearing them brings the rows back; only paged mode sends
+  the toolbar as parameters (ADR-007, amendment 3). The header count is the server's total until
+  every page is here; the matching rows count in `shown` (the announcement and "No course
+  matches.") but not in the chips' numbers. After any archive action both tiers reload
   (`reloadBoth()` and Block's `load(true)`), because the strips and the ghost counts are
   the server's decision; a paged-mode search is re-run too, because its hits are state of
   their own; and the keyboard is put back deliberately (`keepFocus()`), because the row

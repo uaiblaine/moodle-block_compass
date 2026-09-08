@@ -66,7 +66,9 @@ const Reload = ({busy, config, onReload}: ReloadProps) => {
             }}
         >
             <span
-                className={busy ? 'compass-reload-glyph compass-reload-spin' : 'compass-reload-glyph'}
+                className={busy
+                    ? 'compass-reload-glyph compass-reload-spin icon-no-margin'
+                    : 'compass-reload-glyph icon-no-margin'}
                 aria-hidden="true"
                 dangerouslySetInnerHTML={{__html: icons.reload}}
             />

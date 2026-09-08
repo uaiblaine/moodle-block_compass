@@ -1,4 +1,4 @@
-import{fill as p}from"./str";import{jsx as a}from"react/jsx-runtime";var u=({courseid:l,name:e,archived:o,busy:s,config:c,onArchive:b})=>{let{labels:n,icons:r}=c,t=p(o?n.unarchive:n.archive,e);return a("button",{type:"button",className:"compass-archive btn btn-link btn-sm p-0","aria-label":t,title:t,disabled:s,onClick:i=>{i.preventDefault(),i.stopPropagation(),b(l,e,!o)},children:a("span",{"aria-hidden":"true",dangerouslySetInnerHTML:{__html:o?r.unarchive:r.archive}})})},m=u;export{m as default};
+import{fill as p}from"./str";import{jsx as a}from"react/jsx-runtime";var u=({courseid:l,name:e,archived:o,busy:s,config:c,onArchive:b})=>{let{labels:n,icons:i}=c,r=p(o?n.unarchive:n.archive,e);return a("button",{type:"button",className:"compass-archive btn btn-link btn-sm p-0","aria-label":r,title:r,disabled:s,onClick:t=>{t.preventDefault(),t.stopPropagation(),b(l,e,!o)},children:a("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:{__html:o?i.unarchive:i.archive}})})},h=u;export{h as default};
 /**
  * The one control that archives a course or brings it back (ADR-007, decision 4).
  *

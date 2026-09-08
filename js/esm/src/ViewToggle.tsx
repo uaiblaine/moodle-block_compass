@@ -53,7 +53,7 @@ const ViewToggle = ({view, config, onChoose}: ViewToggleProps) => {
                 aria-label={labels.view_list}
                 onClick={() => onChoose('list')}
             >
-                <span aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.list}} />
+                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.list}} />
             </button>
             <button
                 type="button"
@@ -62,7 +62,7 @@ const ViewToggle = ({view, config, onChoose}: ViewToggleProps) => {
                 aria-label={labels.view_cards}
                 onClick={() => onChoose('cards')}
             >
-                <span aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.grid}} />
+                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.grid}} />
             </button>
         </div>
     );

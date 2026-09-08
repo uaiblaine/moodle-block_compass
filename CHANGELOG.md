@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+- Three things the maintainer found after Phase 9, version 2026090801. **The archived group in
+  full mode is now held and filtered like every other group**: its first open fetches the archive
+  page after page (100 rows a request) until it is all here, name-ordered and unfiltered, and the
+  chip, the field selection and the search narrow the held rows in the browser, so a query
+  nothing archived matches empties the group and clearing it brings the rows back; there is no
+  "Show more" on it in full mode any more. Its matching rows count in the announced "N courses
+  shown" and in "No course matches." once they are here; the chips' own numbers still count the
+  listed courses only. Before, the page was fetched with the toolbar of that moment as server parameters
+  and never looked at again: a search left the group empty for the rest of the page's life, and
+  a chip pressed afterwards never reached it (ADR-007, amendment 3). The header count stays the
+  server's total until the rows arrive, as ADR-007 decided. **Icon-only controls carry core's
+  `icon-no-margin`** on their glyph — the star, the archive box, the list/cards toggle and the
+  reload control — because core's `.icon` rule adds a right margin meant for a glyph before a
+  label, which pushed each glyph off centre; the Filter button keeps it, its glyph preceding a
+  word. **The accordion's chevron is `inline-flex`**, scoped to the block: core's
+  `icons-collapse-expand` rule makes the span a block-level flex box, which broke the summary
+  line and dropped the group name under the glyph. Both fixes are rules over the block's own
+  markup and stylesheet, never over core's classes, and two static rules and two mutation gates
+  hold them. Scenario 4 now searches with the archive open and clears the search.
+
 ### Added
 
 - Phase 9 — UX polish, a remembered toolbar, a teacher-only notice, and resilience (ADR-010),
