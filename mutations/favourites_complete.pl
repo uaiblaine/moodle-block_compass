@@ -1,0 +1,1 @@
+s/\$favourites = \$this->without_hidden\(\$this->favourite_rows\(\$this->max \+ \$margin\)\);/\$favourites = \$this->without_hidden(\$this->favourite_rows(\$this->max + \$margin));\n        foreach (array_merge(array_keys(\$continue), array_keys(\$new)) as \$shownid) {\n            unset(\$favourites[\$shownid]);\n        }/;

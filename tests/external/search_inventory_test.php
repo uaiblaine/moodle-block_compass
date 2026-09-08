@@ -278,6 +278,52 @@ final class search_inventory_test extends advanced_testcase {
     }
 
     /**
+     * The custom-field filters narrow the hits, and one outside the allowlist is refused (ADR-009).
+     *
+     * A search in paged mode is over the same population as the pages, and a filter the browser
+     * cannot apply is not one it may skip. The control is the unfiltered search over the same
+     * fixture, which finds all three.
+     *
+     * @return void
+     */
+    public function test_the_filters_narrow_the_hits_and_an_invalid_one_is_refused(): void {
+        $this->resetAfterTest();
+        [$user, $courses] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $field = $plugin->course_field('select', 'modality', ['options' => "Online\nOn campus"]);
+        $plugin->field_value($field, (int) $courses['alpha']->id, 1);
+        $plugin->field_value($field, (int) $courses['gamma']->id, 1);
+        $plugin->field_value($field, (int) $courses['beta']->id, 2);
+        set_config('filter_fields', 'modality', 'block_compass');
+        $this->setUser($user);
+
+        $this->assertCount(3, $this->call('course')['rows']);
+        $_POST['sesskey'] = sesskey();
+        $result = external_api::call_external_function(
+            'block_compass_search_inventory',
+            ['query' => 'course', 'filters' => [['field' => 'modality', 'value' => 1]]],
+            true
+        );
+        $this->assertFalse($result['error'], json_encode($result['exception'] ?? null));
+        $data = external_api::clean_returnvalue(search_inventory::execute_returns(), $result['data']);
+        $expected = [(int) $courses['alpha']->id, (int) $courses['gamma']->id];
+        $found = array_column($data['rows'], 'id');
+        sort($expected);
+        sort($found);
+        $this->assertSame($expected, $found);
+        $this->assertSame([0, 1], $data['rows'][0]['cf']);
+
+        $_POST['sesskey'] = sesskey();
+        $refused = external_api::call_external_function(
+            'block_compass_search_inventory',
+            ['query' => 'course', 'filters' => [['field' => 'campus', 'value' => 1]]],
+            true
+        );
+        $this->assertTrue($refused['error']);
+        $this->assertSame('invalidparameter', (string) $refused['exception']->errorcode);
+    }
+
+    /**
      * A query shorter than two characters is answered empty, without an error.
      *
      * @return void

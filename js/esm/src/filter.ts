@@ -42,7 +42,12 @@ export type RowFacts = {
     opened: number,
     new: boolean,
     fav: boolean,
+    pend: boolean,
+    cf: number[],
 };
+
+/** The chips pressed in the custom-field groups: field key => value key (ADR-009, decision 4). */
+export type Selection = Record<string, number>;
 
 /**
  * Lower-case, accent-free form of a string, for accent-insensitive matching.
@@ -101,7 +106,11 @@ export const relativeTime = (timestamp: number, now: number, lang: string): stri
 /**
  * Whether a row passes the chip filter.
  *
- * @param {string} chip all, new or favourites.
+ * The favourites chip excludes an application awaiting approval: its star may be lit, but a
+ * course the learner cannot enter is reachable through All or through its own chip only. The
+ * PHP twin is explore::passes_chip() (ADR-009, decision 3).
+ *
+ * @param {string} chip all, new, favourites or pending.
  * @param {object} row The row facts, under the get_inventory row keys.
  * @returns {boolean} Whether it passes.
  */
@@ -110,8 +119,40 @@ export const passesChip = (chip: string, row: RowFacts): boolean => {
         return row.new;
     }
     if (chip === 'favourites') {
-        return row.fav;
+        return row.fav && !row.pend;
+    }
+    if (chip === 'pending') {
+        return row.pend;
     }
 
     return true;
 };
+
+/**
+ * The value a row holds for one custom-field group, read out of its cf pairs.
+ *
+ * @param {number[]} cf The row's cf list: field index, value key, field index, value key...
+ * @param {number} index The field's index in the payload's fields array.
+ * @returns {number|null} The value key, or null when the row holds none for that field.
+ */
+export const valueOf = (cf: number[], index: number): number | null => {
+    for (let at = 0; at + 1 < cf.length; at += 2) {
+        if (cf[at] === index) {
+            return cf[at + 1];
+        }
+    }
+
+    return null;
+};
+
+/**
+ * Whether a row passes every pressed custom-field chip: groups combine with AND, an empty
+ * selection constrains nothing, and a row with no value for a selected field is excluded.
+ *
+ * @param {number[]} cf The row's cf list.
+ * @param {string[]} keys The field keys of the payload's fields array, in order.
+ * @param {object} selection Field key => value key.
+ * @returns {boolean} Whether it passes.
+ */
+export const passesSelection = (cf: number[], keys: string[], selection: Selection): boolean =>
+    Object.entries(selection).every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value);

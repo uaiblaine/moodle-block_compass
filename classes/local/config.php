@@ -180,6 +180,69 @@ final class config {
     }
 
     /**
+     * @var int The most course custom fields offered as chip groups (ADR-009, decision 5).
+     *
+     * A measurement, not an estimate: 250 rows each carrying three fields and every row an
+     * application encode to 34 172 bytes against the 40 000 ceiling, and a fourth field would
+     * spend a sixth of that margin to add a fourth group to a panel three already fill.
+     */
+    public const FILTER_FIELDS_MAX = 3;
+
+    /**
+     * The shortnames of the course custom fields chosen as filters, in the stored order.
+     *
+     * Clamped at FILTER_FIELDS_MAX in the shape attention_max() has — the setting itself
+     * stores whatever was ticked — and cleaned to the shortname alphabet, so a stored value
+     * from an upgrade or a hand-edited table cannot reach a query. Whether a name still
+     * exists is filter_fields::configured()'s question, not this accessor's.
+     *
+     * @return string[] At most FILTER_FIELDS_MAX distinct shortnames.
+     */
+    public static function filter_fields(): array {
+        $stored = (string) get_config('block_compass', 'filter_fields');
+        $shortnames = [];
+        foreach (explode(',', $stored) as $shortname) {
+            $shortname = clean_param(trim($shortname), PARAM_ALPHANUMEXT);
+            if ($shortname !== '' && !in_array($shortname, $shortnames, true)) {
+                $shortnames[] = $shortname;
+            }
+        }
+
+        return array_slice($shortnames, 0, self::FILTER_FIELDS_MAX);
+    }
+
+    /**
+     * Whether enrolment applications awaiting approval are shown (ADR-009, decisions 3 and 7).
+     *
+     * Two conditions, and both must hold: the setting is on — never set means off, like
+     * enable_prewarm — and the enrol_apply plugin is present, because without it there is no
+     * apply instance for an application to sit on and the setting cannot be on. The presence
+     * is injectable so that the tests can exercise both branches on a site that has the plugin
+     * and on the CI runtime that does not.
+     *
+     * @param bool|null $pluginpresent Whether enrol_apply is installed; null to ask the plugin manager.
+     * @return bool
+     */
+    public static function pending_enabled(?bool $pluginpresent = null): bool {
+        $present = $pluginpresent ?? self::pending_plugin_present();
+
+        return $present && (int) get_config('block_compass', 'enable_pending') === 1;
+    }
+
+    /**
+     * Whether the enrol_apply plugin is installed on this site.
+     *
+     * Read through the plugin manager rather than enrol_get_plugin(), which include_onces the
+     * plugin's lib.php as a side effect (lib/enrollib.php:142-166); get_plugin_info() answers
+     * null for a plugin that is not there (lib/classes/plugin_manager.php:671-679).
+     *
+     * @return bool
+     */
+    public static function pending_plugin_present(): bool {
+        return \core\plugin_manager::instance()->get_plugin_info('enrol_' . pending::METHOD) !== null;
+    }
+
+    /**
      * Whether the warm_active_users task does anything. Never set means OFF (ADR-003): the task
      * is always scheduled and this single switch gates it.
      *

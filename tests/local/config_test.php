@@ -56,7 +56,7 @@ final class config_test extends advanced_testcase {
             'attention_max', 'new_days', 'group_depth',
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
-            'default_view', 'dormant_months',
+            'default_view', 'dormant_months', 'filter_fields', 'enable_pending',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -89,6 +89,64 @@ final class config_test extends advanced_testcase {
         $this->assertSame(7, config::prewarm_days());
         $this->assertSame(config::DEFAULT_PREWARM_BUDGET_SECONDS, config::prewarm_budget_seconds());
         $this->assertSame(600, config::prewarm_budget_seconds());
+        $this->assertSame([], config::filter_fields());
+        $this->assertFalse(config::pending_enabled(true));
+    }
+
+    /**
+     * filter_fields is at most FILTER_FIELDS_MAX distinct shortnames, cleaned to the shortname
+     * alphabet, in the stored order (ADR-009, decision 5).
+     *
+     * The control is a stored list of three, which comes back whole: without it a clamp that
+     * always answered the empty list would pass.
+     *
+     * @return void
+     */
+    public function test_filter_fields_is_clamped_cleaned_and_kept_in_order(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertSame(3, config::FILTER_FIELDS_MAX);
+        set_config('filter_fields', 'modality,level,campus', 'block_compass');
+        $this->assertSame(['modality', 'level', 'campus'], config::filter_fields());
+
+        set_config('filter_fields', 'modality,level,campus,period', 'block_compass');
+        $this->assertSame(['modality', 'level', 'campus'], config::filter_fields(), 'the fourth is dropped');
+
+        // Duplicates and empties are dropped, a space is outside the alphabet and is stripped, and
+        // the clamp applies after: four survivors, three kept. Whether a survivor still names a
+        // field is filter_fields::configured()'s question.
+        set_config('filter_fields', ' modality , modality,,bad name,x_y,level', 'block_compass');
+        $this->assertSame(['modality', 'badname', 'x_y'], config::filter_fields());
+
+        set_config('filter_fields', '', 'block_compass');
+        $this->assertSame([], config::filter_fields());
+    }
+
+    /**
+     * Applications awaiting approval are shown only when the setting is on AND enrol_apply is present.
+     *
+     * The presence is injected so both branches run on every site: the CI runtime has no
+     * enrol_apply, the development stack does. A stored one with the plugin absent is off — the
+     * forced-off of ADR-009 decision 7 — and never set is off whatever is installed.
+     *
+     * @return void
+     */
+    public function test_pending_is_on_only_with_the_setting_and_the_plugin_together(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertFalse(config::pending_enabled(true));
+        $this->assertFalse(config::pending_enabled(false));
+
+        set_config('enable_pending', 1, 'block_compass');
+        $this->assertTrue(config::pending_enabled(true));
+        $this->assertFalse(config::pending_enabled(false), 'without enrol_apply the setting cannot be on');
+        // The default argument asks the plugin manager, and agrees with whichever answer it gives.
+        $this->assertSame(config::pending_plugin_present(), config::pending_enabled());
+
+        set_config('enable_pending', 0, 'block_compass');
+        $this->assertFalse(config::pending_enabled(true));
     }
 
     /**

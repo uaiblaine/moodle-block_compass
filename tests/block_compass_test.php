@@ -133,6 +133,13 @@ final class block_compass_test extends advanced_testcase {
         // The icons are server-rendered markup because there is no pix helper for ESM.
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
+        // The tier 3 toolbar's icon-only controls (ADR-009): list, grid and filter glyphs.
+        foreach (['list', 'grid', 'filter'] as $icon) {
+            $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
+        }
+        // Both surfaces of an application awaiting approval hang off this flag; off by default.
+        $this->assertFalse($props['pendingenabled']);
+        $this->assertSame(get_string('chip_pending', 'block_compass'), $props['labels']['chip_pending']);
 
         // Since R3 the shell carries ONE mount point and nothing else of the block's own:
         // tier 3 renders from the component, so the region it used to need is gone.

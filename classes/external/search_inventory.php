@@ -25,6 +25,7 @@
 namespace block_compass\external;
 
 use block_compass\local\explore;
+use block_compass\local\filter_fields;
 use core\context\user as context_user;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -64,6 +65,7 @@ class search_inventory extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'query' => new external_value(PARAM_RAW, 'Words to find in course names; normalised server-side'),
+            'filters' => get_inventory_rows::filters_parameter(),
         ]);
     }
 
@@ -71,13 +73,16 @@ class search_inventory extends external_api {
      * Search the current user's courses by name.
      *
      * @param string $query The words to find.
+     * @param array $filters Custom-field filters: list of ['field' => shortname, 'value' => int].
      * @return array rows (each the full-mode row plus groupid), truncated.
+     * @throws \invalid_parameter_exception On a filter outside the allowlist.
      * @throws \moodle_exception For the guest user.
      */
-    public static function execute(string $query): array {
+    public static function execute(string $query, array $filters = []): array {
         global $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['query' => $query]);
+        $params = self::validate_parameters(self::execute_parameters(), ['query' => $query, 'filters' => $filters]);
+        get_inventory_rows::check_filters_shape($params['filters']);
 
         require_login();
         if (isguestuser()) {
@@ -86,11 +91,14 @@ class search_inventory extends external_api {
         $userid = (int) $USER->id;
         self::validate_context(context_user::instance($userid));
 
+        // The allowlist half of the filter check, before the population is resolved (ADR-009).
+        filter_fields::validate($params['filters']);
+
         // Bound the input before the domain normalises it: core_text::substr($text, $start, $len)
         // counts characters, not bytes (lib/classes/text.php:169).
         $query = core_text::substr($params['query'], 0, self::QUERY_MAX_LENGTH);
 
-        return explore::search($userid, time(), $query);
+        return explore::search($userid, time(), $query, $params['filters']);
     }
 
     /**

@@ -1,1 +1,1 @@
-s/return " AND c\.id \{\$insql\}";/return '';/;
+s/return " AND \{\$alias\}\.id \{\$insql\}";/return '';/;

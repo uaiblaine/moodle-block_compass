@@ -103,10 +103,11 @@ final class attention_test extends advanced_testcase {
      *
      * @param int $max Cards per strip.
      * @param int $newdays Days of the "new" window.
+     * @param bool $pending Whether applications awaiting approval are counted (ADR-009).
      * @return array attention::build()'s result.
      */
-    private function build(int $max = 3, int $newdays = 30): array {
-        return (new attention($this->userid, self::NOW, $max, $newdays))->build();
+    private function build(int $max = 3, int $newdays = 30, bool $pending = false): array {
+        return (new attention($this->userid, self::NOW, $max, $newdays, $pending))->build();
     }
 
     /**
@@ -157,15 +158,17 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
-     * A course sits in exactly one strip, and Favourites refills past the ones shown elsewhere.
+     * Continue and New stay exclusive between themselves; the favourites strip lists every
+     * favourite, the ones already shown in Continue or New included (ADR-009, decision 1).
      *
-     * Control for the refill: with max = 2 and two courses already shown, a naive
-     * "LIMIT max" over the stars would fetch only the two shown ones and leave the
-     * strip empty. It has to fetch max + shown to come back with two.
+     * Two controls. A favourite that sits in neither Continue nor New ("CCC") must appear exactly
+     * once, in the favourites strip, so the test is not satisfied by a strip that merely copies
+     * the other two. And the strip is capped at max and backfills in name order: with max = 3 and
+     * five favourites, the three first names are shown and two are left for the heading link.
      *
      * @return void
      */
-    public function test_a_course_appears_in_one_strip_only_and_favourites_refill(): void {
+    public function test_continue_and_new_stay_exclusive_and_the_favourites_strip_lists_every_favourite(): void {
         $continue = $this->course('AAA continue and starred');
         $new = $this->course('BBB new and starred');
         $first = $this->course('CCC starred one');
@@ -180,15 +183,111 @@ final class attention_test extends advanced_testcase {
             $this->plugingen->favourite($this->userid, (int) $course->id);
         }
 
-        $tier = $this->build(2);
+        $tier = $this->build(3);
 
         $this->assertSame([(int) $continue->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $new->id], $this->ids($tier['new']));
-        $this->assertSame([(int) $first->id, (int) $second->id], $this->ids($tier['favourites']));
-        // The star is lit on the rows of the strips that won the course.
+        // Repetition is deliberate: the two courses shown above are favourites and are listed here too.
+        $this->assertSame([(int) $continue->id, (int) $new->id, (int) $first->id], $this->ids($tier['favourites']));
+        $this->assertArrayNotHasKey((int) $first->id, $tier['continue']);
+        $this->assertArrayNotHasKey((int) $first->id, $tier['new']);
+        // The star is lit wherever the course is drawn.
         $this->assertSame(1, (int) $tier['continue'][(int) $continue->id]->isfavourite);
         $this->assertSame(1, (int) $tier['new'][(int) $new->id]->isfavourite);
-        $this->assertSame(['total' => 5, 'new' => 1, 'favourites' => 5], $tier['counts']);
+        $this->assertSame(1, (int) $tier['favourites'][(int) $continue->id]->isfavourite);
+        // The counts are the true totals and do not move with the strips: five favourites, three shown.
+        $this->assertSame(['total' => 5, 'new' => 1, 'favourites' => 5, 'pending' => 0], $tier['counts']);
+
+        // The strip hides only when there is no favourite at all: a smaller cap still lists.
+        $this->assertSame([(int) $continue->id], $this->ids($this->build(1)['favourites']));
+    }
+
+    /**
+     * The count of enrolment applications awaiting approval is enrol_apply's own rule and it
+     * leaves the three other counts alone (ADR-009, decision 3).
+     *
+     * Counted: an application as submitted, at ENROL_USER_SUSPENDED — what apply() writes and
+     * where every application stays until a manager acts — and one deferred to the waiting list
+     * (status 2). Not counted: an apply row whose period has passed (the re-suspended,
+     * once-approved enrolment), a suspended row on another method, an active row on an apply
+     * instance (a course the learner can enter), a course where an active manual enrolment sits
+     * beside a pending application (the active enrolment wins), and an archived course's
+     * application. The control that stops the whole test being vacuous: total, new and
+     * favourites are identical with the feature on and off, which is the whole reason the count
+     * is a scalar subquery and not a fourth aggregate.
+     *
+     * @return void
+     */
+    public function test_the_pending_count_is_enrol_applys_rule_and_leaves_the_other_counts_alone(): void {
+        $submitted = $this->course('Submitted application');
+        $deferred = $this->course('Deferred application');
+        $expired = $this->course('Expired application');
+        $manual = $this->course('Suspended manual enrolment');
+        $approved = $this->course('Approved application');
+        $both = $this->course('Active and applied');
+        $archived = $this->course('Archived application');
+        $control = $this->course('Fresh control');
+        $this->plugingen->apply_at($this->userid, (int) $submitted->id, self::NOW - DAYSECS);
+        $this->plugingen->apply_at($this->userid, (int) $deferred->id, self::NOW - DAYSECS, 2);
+        $this->plugingen->apply_at(
+            $this->userid,
+            (int) $expired->id,
+            self::NOW - 100 * DAYSECS,
+            ENROL_USER_SUSPENDED,
+            self::NOW - DAYSECS
+        );
+        $this->plugingen->enrol_at($this->userid, (int) $manual->id, self::NOW - DAYSECS, 'manual', ENROL_USER_SUSPENDED);
+        $this->plugingen->apply_at($this->userid, (int) $approved->id, self::NOW - DAYSECS, ENROL_USER_ACTIVE);
+        $this->plugingen->enrol_at($this->userid, (int) $both->id, self::NOW - 2 * DAYSECS);
+        $this->plugingen->apply_at($this->userid, (int) $both->id, self::NOW - DAYSECS);
+        $this->plugingen->apply_at($this->userid, (int) $archived->id, self::NOW - DAYSECS);
+        $this->plugingen->hide($this->userid, (int) $archived->id);
+        $this->plugingen->enrol_at($this->userid, (int) $control->id, self::NOW - 2 * DAYSECS);
+        $this->plugingen->favourite($this->userid, (int) $control->id);
+
+        $on = $this->build(5, 30, true);
+        $off = $this->build(5, 30, false);
+
+        $this->assertSame(2, $on['counts']['pending'], 'the submitted and the deferred application, and nothing else');
+        $this->assertSame(0, $off['counts']['pending'], 'the feature off reports none');
+        // The control: the three other counts are the same statement's, and do not move.
+        $this->assertSame(['total' => 3, 'new' => 3, 'favourites' => 1], array_slice($on['counts'], 0, 3));
+        $this->assertSame(array_slice($on['counts'], 0, 3), array_slice($off['counts'], 0, 3));
+        // An application is not an active enrolment: it is in no strip.
+        $expected = [(int) $approved->id, (int) $both->id, (int) $control->id];
+        sort($expected);
+        $shown = $this->ids($on['new']);
+        sort($shown);
+        $this->assertSame($expected, $shown);
+        $this->assertSame([], $this->ids($on['continue']));
+    }
+
+    /**
+     * The pending count rides inside the counts statement and adds no read (ADR-009, decision 3).
+     *
+     * Same protocol as the four-read budget below, with the feature on and a fixture that makes
+     * the count non-zero — a cheap statement that skipped the subquery would pass a read bound
+     * while answering 0.
+     *
+     * @return void
+     */
+    public function test_the_pending_count_adds_no_read_to_the_four(): void {
+        $accessed = $this->course('AAA accessed course');
+        $applied = $this->course('BBB applied course');
+        $this->plugingen->enrol_at($this->userid, (int) $accessed->id, self::NOW - 200 * DAYSECS);
+        $this->plugingen->access_at($this->userid, (int) $accessed->id, self::NOW - HOURSECS);
+        $this->plugingen->apply_at($this->userid, (int) $applied->id, self::NOW - DAYSECS);
+        $attention = new attention($this->userid, self::NOW, 3, 30, true);
+        $attention->build();
+        get_user_preferences(null, null, $this->userid);
+
+        $meter = budget::start();
+        $tier = $attention->build();
+        $reads = $meter->reads();
+
+        $this->assertSame([(int) $accessed->id], $this->ids($tier['continue']));
+        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 1], $tier['counts']);
+        $this->assertSame(4, $reads, "attention::build() with the pending count cost {$reads} reads; the budget is 4.");
     }
 
     /**
@@ -330,9 +429,10 @@ final class attention_test extends advanced_testcase {
 
         $this->assertSame([(int) $accessed['control']->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $fresh['control']->id], $this->ids($tier['new']));
-        // The only active star is on a course New already shows, so Favourites is empty.
-        $this->assertSame([], $this->ids($tier['favourites']));
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1], $tier['counts']);
+        // The only active star is on the course New shows, and the favourites strip lists it too
+        // (ADR-009, decision 1); the three inactive stars are on courses the strip must not reach.
+        $this->assertSame([(int) $fresh['control']->id], $this->ids($tier['favourites']));
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0], $tier['counts']);
     }
 
     /**
@@ -418,7 +518,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $continue->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $new->id], $this->ids($tier['new']));
         $this->assertSame([], $this->ids($tier['favourites']));
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0], $tier['counts']);
 
         // With the last access gone the site course is a candidate for New instead, and
         // is refused there too; the control is still returned, so the query did run.
@@ -457,7 +557,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $fresh->id], $this->ids($tier['new']));
         $this->assertSame([], $this->ids($tier['favourites']));
         // The one star in the fixture is on an archived course, so it counts for nothing.
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0], $tier['counts']);
     }
 
     /**
@@ -503,7 +603,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $control->id], $this->ids($tier['continue']));
         $this->assertArrayNotHasKey((int) $archived->id, $tier['continue']);
         // Two active courses, one archived: the chunked subtraction leaves exactly one.
-        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0], $tier['counts']);
+        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 0], $tier['counts']);
     }
 
     /**
@@ -534,7 +634,7 @@ final class attention_test extends advanced_testcase {
 
         $this->assertSame([(int) $newest->id, (int) $middle->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $oldest->id], $this->ids($tier['favourites']));
-        $this->assertSame(['total' => 3, 'new' => 0, 'favourites' => 1], $tier['counts']);
+        $this->assertSame(['total' => 3, 'new' => 0, 'favourites' => 1, 'pending' => 0], $tier['counts']);
     }
 
     /**
@@ -573,7 +673,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $twice->id], $this->ids($tier['new']));
         $this->assertSame('self', $tier['new'][(int) $twice->id]->enrol);
         $this->assertSame(self::NOW - 5 * DAYSECS, (int) $tier['new'][(int) $twice->id]->timecreated);
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0], $tier['counts']);
     }
 
     /**
@@ -605,7 +705,7 @@ final class attention_test extends advanced_testcase {
 
         $tier = $this->build(5);
 
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0], $tier['counts']);
         // Control: the one star that counts is the one the strips can also reach.
         $this->assertSame([(int) $fresh->id], $this->ids($tier['new']));
     }

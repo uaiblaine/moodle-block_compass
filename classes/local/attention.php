@@ -69,6 +69,9 @@ final class attention {
     /** @var bool Whether the user may see courses with visible = 0 (system-context capability, evaluated once). */
     private bool $seehidden;
 
+    /** @var bool Whether enrolment applications awaiting approval are counted (ADR-009, decision 3). */
+    private bool $pending;
+
     /**
      * Constructor.
      *
@@ -76,12 +79,20 @@ final class attention {
      * @param int|null $now Unix time to treat as now; null for time().
      * @param int|null $max Cards per strip; null for the setting.
      * @param int|null $newdays Days of the "new" window; null for the setting.
+     * @param bool|null $pending Whether applications awaiting approval are counted; null for the setting.
      */
-    public function __construct(int $userid, ?int $now = null, ?int $max = null, ?int $newdays = null) {
+    public function __construct(
+        int $userid,
+        ?int $now = null,
+        ?int $max = null,
+        ?int $newdays = null,
+        ?bool $pending = null
+    ) {
         $this->userid = $userid;
         $this->now = $now ?? time();
         $this->max = $max ?? config::attention_max();
         $this->newwindow = ($newdays ?? config::new_days()) * DAYSECS;
+        $this->pending = $pending ?? config::pending_enabled();
         $this->hidden = hidden_courses::ids($userid);
         $this->hiddeninsql = count($this->hidden) <= hidden_courses::SQL_LIMIT;
         $this->seehidden = has_capability('moodle/course:viewhiddencourses', context_system::instance(), $userid);
@@ -90,27 +101,23 @@ final class attention {
     /**
      * The three strips and the counts.
      *
-     * A course appears in exactly one strip, priority Continue › New › Favourites
-     * (Continue and New are disjoint by construction: one needs a last access,
-     * the other its absence). Rows are stdClass objects carrying
-     * course_meta::select_sql()'s columns, isfavourite, and the strip's own
-     * columns (timeaccess; timecreated, timeend, enrol, enrolenddate).
+     * Continue and New are exclusive between themselves, priority Continue › New (they are
+     * disjoint by construction: one needs a last access, the other its absence). The
+     * favourites strip lists every favourite, whether or not the course also sits in Continue
+     * or New — repetition is deliberate (ADR-009, decision 1), which is why no id shown above
+     * is removed from it and why it is fetched at max plus the hidden margin alone. Rows are
+     * stdClass objects carrying course_meta::select_sql()'s columns, isfavourite, and the
+     * strip's own columns (timeaccess; timecreated, timeend, enrol, enrolenddate).
      *
      * @return array continue, new, favourites (rows keyed by course id) and counts
-     *               (total, new, favourites).
+     *               (total, new, favourites, pending).
      */
     public function build(): array {
         $margin = $this->hiddeninsql ? 0 : count($this->hidden);
 
-        // Slice BEFORE deciding what is shown: on the PHP fallback path the strips are
-        // over-fetched, and a favourite sitting in the unshown tail must stay a favourite.
         $continue = array_slice($this->without_hidden($this->continue_rows($this->max + $margin)), 0, $this->max, true);
         $new = array_slice($this->without_hidden($this->new_rows($this->max + $margin)), 0, $this->max, true);
-        $shown = array_merge(array_keys($continue), array_keys($new));
-        $favourites = $this->without_hidden($this->favourite_rows($this->max + count($shown) + $margin));
-        foreach ($shown as $courseid) {
-            unset($favourites[$courseid]);
-        }
+        $favourites = $this->without_hidden($this->favourite_rows($this->max + $margin));
 
         return [
             'continue' => $continue,
@@ -274,14 +281,21 @@ final class attention {
     }
 
     /**
-     * Counts in one statement: active courses, new-and-never-accessed, favourited.
+     * Counts in one statement: active courses, new-and-never-accessed, favourited, and the
+     * enrolment applications awaiting approval.
      *
      * The derived table has one row per course (earliest timecreated), so a
      * course with two methods counts once; the LEFT JOIN to favourite matches
      * at most one row thanks to its unique index and the single course-context
      * write path of the core star. Index: user_enrolments (userid).
      *
-     * @return array total, new, favourites — all int.
+     * The pending count is NOT subtracted on the chunked path below (ADR-009, decision 3): a
+     * course that is both archived and applied to is a state Compass cannot produce — a pending
+     * row carries no archive control — so past hidden_courses::SQL_LIMIT the count is reported
+     * unrestricted, bounded by what the learner archived in the Course overview block and then
+     * applied to, rather than paying a second statement for it.
+     *
+     * @return array total, new, favourites, pending — all int.
      */
     private function counts(): array {
         $counts = $this->count_courses();
@@ -294,6 +308,9 @@ final class attention {
         foreach (array_chunk($this->hidden, hidden_courses::SQL_LIMIT) as $chunk) {
             $hidden = $this->count_courses($chunk);
             foreach ($counts as $key => $value) {
+                if ($key === 'pending') {
+                    continue;
+                }
                 $counts[$key] = max(0, $value - $hidden[$key]);
             }
         }
@@ -305,8 +322,15 @@ final class attention {
      * One counting statement over the user's active, visible courses, optionally restricted
      * to a list of course ids (used to count the archived subset).
      *
+     * The applications awaiting approval travel as a scalar subquery beside the three
+     * aggregates and NOT as a fourth SUM(CASE …) over the derived table (ADR-009, decision 3):
+     * per_course_enrolments_sql() binds the active status, so a pending row is not in that
+     * table at all, and widening its predicate to reach one would silently grow total, newcount
+     * and favcount by every application. The subquery leaves all three provably untouched. It
+     * is 0 when the feature is off and on the restricted (chunk) path, where counts() ignores it.
+     *
      * @param int[]|null $onlycourses Restrict to these course ids; null for all.
-     * @return array total, new, favourites — all int.
+     * @return array total, new, favourites, pending — all int.
      */
     private function count_courses(?array $onlycourses = null): array {
         global $DB;
@@ -321,9 +345,11 @@ final class attention {
             $params += $inparams;
             $restrict = " AND c.id {$insql}";
         }
+        $pendingsql = $this->pending && $onlycourses === null ? $this->pending_count_sql($params) : '0';
         $sql = "SELECT COUNT(*) AS total,
                        SUM(CASE WHEN x.timecreated > :since AND la.id IS NULL THEN 1 ELSE 0 END) AS newcount,
-                       SUM(CASE WHEN ffa.id IS NULL THEN 0 ELSE 1 END) AS favcount
+                       SUM(CASE WHEN ffa.id IS NULL THEN 0 ELSE 1 END) AS favcount,
+                       {$pendingsql} AS pendingcount
                   FROM ("
                     . $this->per_course_enrolments_sql('MIN(uex.timecreated) AS timecreated', 'x', $params, true, $restrict)
                     . ") x
@@ -335,7 +361,35 @@ final class attention {
             'total' => (int) ($row->total ?? 0),
             'new' => (int) ($row->newcount ?? 0),
             'favourites' => (int) ($row->favcount ?? 0),
+            'pending' => (int) ($row->pendingcount ?? 0),
         ];
+    }
+
+    /**
+     * Scalar subquery: how many distinct courses the user holds an enrolment application in.
+     *
+     * pending::where_sql() is the rule — enrol_apply's own, verbatim: on an apply instance, not
+     * active, period still open — under the same site, visibility and hidden-set clauses as the
+     * aggregates beside it, and excluding any course where the user also holds an ACTIVE
+     * enrolment on another method, because that is a course they can enter and the active
+     * enrolment wins (inventory::pending() applies the same exclusion at read time). Index:
+     * user_enrolments (userid) foreign key; enrol primary key; course primary key.
+     *
+     * @param array $params Placeholders, extended in place.
+     * @return string A parenthesised scalar subquery.
+     */
+    private function pending_count_sql(array &$params): string {
+        $params['pu'] = $this->userid;
+        $params['psite'] = SITEID;
+        $where = pending::where_sql('uep', 'ep', 'p', $params, $this->now);
+
+        return "(SELECT COUNT(DISTINCT ep.courseid)
+                   FROM {user_enrolments} uep
+                   JOIN {enrol} ep ON ep.id = uep.enrolid
+                   JOIN {course} cp ON cp.id = ep.courseid
+                  WHERE uep.userid = :pu AND {$where} AND cp.id <> :psite"
+                    . $this->visible_sql('cp') . $this->not_hidden_sql('hp', $params, 'cp') . "
+                    AND NOT " . $this->active_enrolment_sql('cp.id', 'pa', $params) . ")";
     }
 
     /**
@@ -436,10 +490,11 @@ final class attention {
      * Visibility rule (ADR-000, decision 12): hidden courses only for the
      * system-context capability holder.
      *
+     * @param string $alias Alias of {course} in the statement.
      * @return string Empty, or an AND clause.
      */
-    private function visible_sql(): string {
-        return $this->seehidden ? '' : ' AND c.visible = 1';
+    private function visible_sql(string $alias = 'c'): string {
+        return $this->seehidden ? '' : " AND {$alias}.visible = 1";
     }
 
     /**
@@ -447,9 +502,10 @@ final class attention {
      *
      * @param string $prefix Placeholder prefix, unique within the statement.
      * @param array $params Placeholders, extended in place.
-     * @return string Empty, or an AND clause on c.id.
+     * @param string $alias Alias of {course} in the statement.
+     * @return string Empty, or an AND clause on the course id.
      */
-    private function not_hidden_sql(string $prefix, array &$params): string {
+    private function not_hidden_sql(string $prefix, array &$params, string $alias = 'c'): string {
         global $DB;
 
         if (!$this->hiddeninsql || empty($this->hidden)) {
@@ -458,6 +514,6 @@ final class attention {
         [$insql, $inparams] = $DB->get_in_or_equal($this->hidden, SQL_PARAMS_NAMED, $prefix, false);
         $params += $inparams;
 
-        return " AND c.id {$insql}";
+        return " AND {$alias}.id {$insql}";
     }
 }

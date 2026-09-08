@@ -1,1 +1,0 @@
-s/unset\(\$favourites\[\$courseid\]\);//;

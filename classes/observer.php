@@ -25,8 +25,10 @@
 namespace block_compass;
 
 use block_compass\local\category_meta;
+use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
+use block_compass\local\filter_fields;
 use core\event\course_category_deleted;
 use core\event\course_category_updated;
 use core\event\course_deleted;
@@ -48,6 +50,9 @@ final class observer {
      */
     public static function course_updated(course_updated $event): void {
         course_meta::delete((int) $event->objectid);
+        // The custom field values are committed before this event fires (course/lib.php:2017-2026),
+        // so one delete keeps the sibling layer honest too (ADR-009, decision 5).
+        course_fields::delete((int) $event->objectid);
     }
 
     /**
@@ -58,6 +63,24 @@ final class observer {
      */
     public static function course_deleted(course_deleted $event): void {
         course_meta::delete((int) $event->objectid);
+        course_fields::delete((int) $event->objectid);
+    }
+
+    /**
+     * A custom field definition or category changed: created, updated or deleted.
+     *
+     * The vocabulary of the filter panel is one entry for the whole site and is dropped whole.
+     * The per-course values go with it, because the set of ELIGIBLE fields may have changed —
+     * a new field, or one made visible to everyone — and no existing entry can carry a field it
+     * was written without. Both are rare administrator events (ADR-009, decision 5).
+     *
+     * @param \core\event\base $event One of core_customfield's field_created, field_updated,
+     *     field_deleted or category_deleted events.
+     * @return void
+     */
+    public static function customfield_changed(\core\event\base $event): void {
+        filter_fields::purge();
+        course_fields::purge();
     }
 
     /**

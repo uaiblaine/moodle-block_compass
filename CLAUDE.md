@@ -167,9 +167,13 @@ ghosts. Progress comes from the `details` cache and the image from core's own
 `course_image` cache: `get_attention` returns the progress of cards whose `details` entry is
 cached and marks the others `pending`, and the client fetches those through
 `get_card_details` — first paint stays one request inside the budget with the
-plugin caches cold (ADR-000, decision 10). Exclusivity: a course appears in
-exactly one strip, priority Continue › New › Favourite (a new favourite sits in
-New with the star lit).
+plugin caches cold (ADR-000, decision 10). Exclusivity holds between Continue
+and New only, priority Continue › New; the favourites strip lists **every**
+favourite, the ones already shown above included (ADR-009, decision 1 — a new
+favourite sits in New with the star lit AND in the favourites strip). What did
+not fit a strip is a link in its heading; one ghost card, the tier 2 one, ends
+the last strip (decision 2). The counts statement also carries, as a scalar
+subquery, the number of enrolment applications awaiting approval (decision 3).
 
 ### Two-layer cache (§6.2, *ADR-001*)
 
@@ -183,8 +187,10 @@ entries. Hence two layers with different keys and different invalidation.
 | `categorymeta` | application | `categoryid` | raw `name`, `path`, `depth`, the six preload columns of the **category** context — nothing formatted | per-key `delete()` in observers of `\core\event\course_category_updated` (plus the descendants' keys: a move rewrites their paths and the event cannot tell a move from a rename — one `LIKE` over the category table, from the observer) and `course_category_deleted`; shared by every user; no TTL |
 | `inventory` | application | `userid` | the seven-field stamp plus one row per **enrolment** keyed by `user_enrolments.id` (ten integers, ADR-002) — **no course data**; "active" is decided at read time | stamp validation (§6.3); safety TTL 24 h |
 | `details` | application | `<userid>_<courseid>` (no `:` in MUC keys) | progress percentage as int, or `null` = "no completion" (a cached value; a miss is `false`) | per-key `delete()` in observers of the user's `course_module_completion_updated` and `course_completed`; TTL 1 h bounds criteria changes and deletions |
+| `coursefields` | application | `courseid` | field id => stored `intvalue` of every ELIGIBLE course custom field the course has a row for; `[]` is a value (ADR-009) — a sibling of `coursemeta`, never a key inside it, because `cards.php` writes that layer from tier 1 rows that carry no field columns | per-key `delete()` in `course_updated` and `course_deleted`; purged whole by the four `core_customfield` observers |
+| `filterfields` | application | one key | every eligible course custom field (select and checkbox, visible to everyone) with raw name, raw options and default — the whole eligible set, so a `filter_fields` change invalidates nothing | purged by `core_customfield`'s `field_created`, `field_updated`, `field_deleted`, `category_deleted` |
 
-Store: **Redis recommended for all four** (documented in the README with the
+Store: **Redis recommended for all six** (documented in the README with the
 MUC mapping; `mdl redis m502` maps the local stack). One user with 2 000
 enrolments is **272 KB** of serialised `inventory` on a default store and
 **122 KB** with igbinary selected — the MUC Redis store serialises with PHP's
@@ -458,6 +464,7 @@ phases raised decisions of their own:
 | ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1–R4 implemented — the AMD tree is gone |
 | ADR-007 | dormancy and archiving: the two tier 3 groups that are not categories (`-1` dormant, `-2` archived), the archive written to the Course overview block's own preferences through core's router endpoint, the fourth Behat scenario | Phase 5 | Accepted (2026-09-06), implemented in Phase 5 |
 | ADR-008 | the accessibility audit is a **gate**, not a document: core's axe step inside the four scenarios plus a static rules test; the documentation is English only; `v5.2-r1` ships at `MATURITY_BETA` | Phase 7 | Accepted (2026-09-07), implemented in Phase 7 |
+| ADR-009 | complete favourites (exclusivity superseded for that strip), one ghost card with heading overflow links, enrol_apply applications awaiting approval as tier 3 rows plus a notice (never a card; the plugin's own predicate, not `status = 2`), the toolbar as a sort platter, an icon toggle and a filter panel, course custom fields as chip groups with two sibling caches, two settings (`filter_fields`, `enable_pending`), a two-line name clamp with a tooltip; Phase 8 ships inside `v5.2-r1` | Phase 8 | Accepted (2026-09-07), implemented in Phase 8 |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -475,9 +482,11 @@ sessions (`local_quiz_summary_option` does this well).
 block_compass.php            Shell: title, applicable_formats, has_config, can_block_be_added,
                              get_content() renders output\block — no data access here, ever
 settings.php                 §8 settings: attention_max, new_days, dormant_months, group_depth,
-                             inventory_max, enable_favourites, enable_pending, enable_prewarm,
-                             prewarm_days, prewarm_budget_seconds, default_view, enable_search,
-                             hide_block_title, show_index (ints via configtext+PARAM_INT,
+                             inventory_max, enable_favourites, enable_pending (enrol_apply
+                             applications, ADR-009 — NOT the calendar events PLAN.md §8 once meant),
+                             filter_fields (multiselect of eligible course custom fields, ADR-009),
+                             enable_prewarm, prewarm_days, prewarm_budget_seconds, default_view,
+                             enable_search, hide_block_title, show_index (ints via configtext+PARAM_INT,
                              vocabularies via configselect — never a free-text field for an enum)
 version.php                  requires 2026042000, supported [502, 502]
 lib.php                      block_compass_user_preferences(): block_compass_view, with its choices
@@ -515,6 +524,13 @@ classes/
                              config, budget between users, warm one user = fill + shared layers (Phase 3)
     dormancy.php             the dormancy rule and the two reserved group ids, -1 dormant and -2
                              archived; zero reads, both inputs are in the inventory row (Phase 5, ADR-007)
+    pending.php              enrol_apply's "awaiting a decision" rule in one place — not active, period
+                             open, on an apply instance — as PHP over the row and as SQL for the counts
+                             statement; never names enrol_apply's constant (Phase 8, ADR-009)
+    filter_fields.php        filterfields cache wrapper: the eligible course custom fields, the configured
+                             subset, the chips' value keys, the payload and the filters allowlist (Phase 8)
+    course_fields.php        coursefields cache wrapper: per-course values of the eligible fields, one
+                             fill over the unique index, a sibling of coursemeta (Phase 8)
   observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
                              category events in Phase 2)
   task/warm_active_users.php scheduled task, always registered, gated by enable_prewarm; a thin caller
@@ -524,8 +540,13 @@ classes/
                              block_compass_view alone (favourites and hidden-course preferences
                              are core's and are exported and deleted by core)
 js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since R3:
-                             Block (the block: tiers 1 and 2, and tier 3 once opened), Strip, Card,
-                             Progress, Star, Ghost; Explore (tier 3, both modes), Group, RowList
+                             Block (the block: tiers 1 and 2, and tier 3 once opened), Strip (with its
+                             heading overflow link and, on the last one, the ghost), Card,
+                             Progress, Star, Ghost; Explore (tier 3, both modes), Platter (the pill
+                             platter: masked scroller, sliding indicator, paddles, arrow keys — the
+                             sort and every chip group, Phase 8), ViewToggle and FilterToggle (the
+                             icon-only controls, each a file of its own so the static rule reads them),
+                             FilterPanel (Status and one group per custom field), Group, RowList
                              (the one place that knows there are two views), Row, RowCard,
                              Archive (the one control that archives or brings back, Phase 5);
                              rowdetails (the viewport observer and the batching behind it, R4);
@@ -539,8 +560,9 @@ js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since
 js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src
 templates/                   block — the only one left: a React mount point, its fallback, and the
                              noscript. Every card, row, group and toolbar is a component
-db/                          access.php, services.php (five read functions), caches.php (four
-                             definitions), events.php, tasks.php (warm_active_users, 04:00, random
+db/                          access.php, services.php (five read functions), caches.php (six
+                             definitions), events.php (six course/category/completion observers plus
+                             four core_customfield ones), tasks.php (warm_active_users, 04:00, random
                              minute; Phase 3). NO install.xml, NO upgrade.php with schema steps, and
                              no uninstall.php purge: the plugin owns no rows outside MUC and the
                              three prewarm_* plugin-config rows, which core's uninstall removes
@@ -641,8 +663,8 @@ core rejects a preferences write for any family no callback declares.
 ### Caches are wrapped, never called raw
 
 Each definition in `db/caches.php` has exactly one wrapper class in
-`classes/local/` (four definitions, four wrappers: `course_meta`,
-`category_meta`, `inventory`, `details`) exposing `get_many()`, `set()` and `invalidate()`; callers
+`classes/local/` (six definitions, six wrappers: `course_meta`,
+`category_meta`, `inventory`, `details`, `course_fields`, `filter_fields`) exposing `get_many()`, `set()` and `invalidate()`; callers
 never `\core_cache\cache::make()` themselves. That is where the stamp
 validation, the TTL choices and the "no course data inside `inventory`"
 invariant live, and where a test can assert them. Cache keys carry no `:`
@@ -905,6 +927,18 @@ Tier 3, whose behaviour is the most intricate thing here:
   the server's decision; a paged-mode search is re-run too, because its hits are state of
   their own; and the keyboard is put back deliberately (`keepFocus()`), because the row
   that held the control has left the page — the R3 "Show more" lesson again.
+- **The toolbar is a platter, a toggle and a panel (ADR-009, Phase 8).** `Platter.tsx` is
+  `local_dimensions`' filter tabs rewritten as a component — read as a specification, never
+  imported (ADR-006): masked scroller, sliding indicator under the pressed pill, paddles that
+  are `aria-hidden` with `tabIndex={-1}`, arrow keys with wrap-around, a `ResizeObserver` that
+  also makes the first paint right after a hidden panel is shown. One value per group, groups
+  AND together; the Status group's *All* chip releases it and a field group is released by
+  pressing its pressed chip. Full mode filters and counts the rows it holds; paged mode sends
+  the selection as the `filters` parameter of both paging services and resets the groups.
+  The panel is a plain block toggled with the `hidden` property, never a Bootstrap collapse.
+  A row with `pend` links to `enrol/index.php?id=<courseid>`, carries the badge inside its
+  link, and has no star, no archive control, no progress and no details registration. Every
+  course name carries `.compass-clamp` (two lines, ellipsis) and a `title` with the whole name.
 - **Two views, one payload.** `RowList` picks between `Row` and `RowCard`; switching
   costs no request, because the rows and their details are held in state and only the
   rendering changes. The choice is the `block_compass_view` preference, written through
@@ -1060,6 +1094,14 @@ the following defaults flip, deliberately:
   `assertInstanceOf` never matches. `resetAfterTest()` does not restore
   `$_GET`, `$_POST` or `$SCRIPT`; save and restore by hand or tests pass by run
   order.
+- **A test that lists eligible custom fields asserts about the fields it created**, never about
+  the whole list: the development stack's test site carries course custom fields other plugins
+  install (`hotsite_modelo`, `modalidade` on m502), the CI runtime carries none, and an exact
+  key-set assertion passes on one and fails on the other. `array_intersect` against the test's
+  own shortnames keeps the order and ignores the rest.
+- **A "before any work" zero-read assertion on the domain warms the config bundle first.** The
+  first `get_config()` of a test costs one read for the plugin's config bundle, which every real
+  request has paid already; one valid call before the meter is what makes the refusal measure 0.
 - `mutations/gates.conf` ships from Phase 0 with its first two guards —
   `budget_never_throws` (red test: `test_assert_reads_at_most_throws_when_exceeded`)
   and `guest_gate` (red test: `test_a_guest_gets_nothing`) — and grows one entry

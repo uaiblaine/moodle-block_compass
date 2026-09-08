@@ -27,8 +27,10 @@ namespace block_compass;
 
 use advanced_testcase;
 use block_compass\local\category_meta;
+use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
+use block_compass\local\filter_fields;
 use completion_completion;
 use completion_info;
 use core\context\course as context_course;
@@ -87,6 +89,55 @@ final class observer_test extends advanced_testcase {
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
+        cache::make('block_compass', 'coursefields')->purge();
+        cache::make('block_compass', 'filterfields')->purge();
+    }
+
+    /**
+     * The raw course-fields layer, for asserting absence without refilling it.
+     *
+     * @return cache
+     */
+    private function coursefields(): cache {
+        return cache::make('block_compass', 'coursefields');
+    }
+
+    /**
+     * A select custom field with its first option on the given courses, and both field layers warm.
+     *
+     * @param int[] $courseids The courses to give the first option to.
+     * @return int The field id.
+     */
+    private function seed_fields(array $courseids): int {
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $field = $plugin->course_field('select', 'modality', ['options' => "Online\nOn campus"]);
+        foreach ($courseids as $courseid) {
+            $plugin->field_value($field, $courseid, 1);
+        }
+        $fieldid = (int) $field->get('id');
+        $this->warm_fields($courseids, $fieldid);
+
+        return $fieldid;
+    }
+
+    /**
+     * Fill both field layers for the given courses and prove every entry is there.
+     *
+     * The precondition is load-bearing, as seed_categories()' is: an observer that purges
+     * nothing passes an absence check against an entry that was never stored.
+     *
+     * @param int[] $courseids The courses.
+     * @param int $fieldid The seeded field.
+     * @return void
+     */
+    private function warm_fields(array $courseids, int $fieldid): void {
+        $this->assertArrayHasKey('modality', filter_fields::eligible());
+        $values = course_fields::get_many($courseids, [$fieldid]);
+        foreach ($courseids as $courseid) {
+            $this->assertSame([$fieldid => 1], $values[$courseid]);
+            $this->assertNotFalse($this->coursefields()->get($courseid), "course {$courseid} was not seeded");
+        }
+        $this->assertNotFalse(cache::make('block_compass', 'filterfields')->get('fields'));
     }
 
     /**
@@ -190,6 +241,105 @@ final class observer_test extends advanced_testcase {
         $this->assertFalse($this->coursemeta()->get($renamedid));
         $this->assertNotFalse($this->coursemeta()->get($untouchedid));
         $this->assertSame(42, details::get_many($userid, [$renamedid])[$renamedid]);
+    }
+
+    /**
+     * A course update drops that course from the course-fields layer too, and no other (ADR-009).
+     *
+     * The real path again: update_course() commits the custom field values before it raises
+     * course_updated (course/lib.php:2017-2026), which is what makes one delete enough. The
+     * control that the observer reads the NEW value: the course's value is changed in the same
+     * update, and the next read returns it.
+     *
+     * @return void
+     */
+    public function test_course_updated_drops_only_that_course_from_the_course_fields_layer(): void {
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $changed = (int) $gen->create_course()->id;
+        $untouched = (int) $gen->create_course()->id;
+        $fieldid = $this->seed_fields([$changed, $untouched]);
+
+        update_course((object) ['id' => $changed, 'customfield_modality' => 2]);
+
+        $this->assertFalse($this->coursefields()->get($changed));
+        $this->assertNotFalse($this->coursefields()->get($untouched));
+        $this->assertSame([$fieldid => 2], course_fields::get_many([$changed], [$fieldid])[$changed]);
+        $this->assertSame([$fieldid => 1], course_fields::get_many([$untouched], [$fieldid])[$untouched]);
+    }
+
+    /**
+     * A course deletion drops that course from the course-fields layer, and leaves the others alone.
+     *
+     * @return void
+     */
+    public function test_course_deleted_drops_only_that_course_from_the_course_fields_layer(): void {
+        $gen = $this->getDataGenerator();
+        $doomed = $gen->create_course();
+        $untouched = (int) $gen->create_course()->id;
+        $this->seed_fields([(int) $doomed->id, $untouched]);
+
+        delete_course($doomed, false);
+
+        $this->assertFalse($this->coursefields()->get((int) $doomed->id));
+        $this->assertNotFalse($this->coursefields()->get($untouched));
+    }
+
+    /**
+     * A custom field created, updated or deleted, or its category deleted, drops the whole
+     * vocabulary and every course's values (ADR-009, decision 5).
+     *
+     * Each of the four events is raised through core's own path — save_field_configuration() for
+     * created and updated (customfield/classes/api.php), delete_field_configuration() and
+     * delete_category() — so the case proves the db/events.php registrations as much as the
+     * observer. The control on each: the layers are seeded and non-empty before the event, and
+     * the vocabulary read after it reflects the change.
+     *
+     * @return void
+     */
+    public function test_a_custom_field_change_drops_the_vocabulary_and_every_courses_values(): void {
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $courseid = (int) $gen->create_course()->id;
+        $fieldid = $this->seed_fields([$courseid]);
+        $handler = \core_course\customfield\course_handler::create();
+        $vocabulary = cache::make('block_compass', 'filterfields');
+
+        // Created: a second field appears in the vocabulary.
+        $second = $plugin->course_field('checkbox', 'certified');
+        $this->assertFalse($vocabulary->get('fields'), 'field_created must drop the vocabulary');
+        $this->assertFalse($this->coursefields()->get($courseid), 'field_created must drop the values');
+        $this->assertArrayHasKey('certified', filter_fields::eligible());
+        $this->warm_fields([$courseid], $fieldid);
+
+        // Updated: the option list changes, and the vocabulary follows.
+        $field = \core_customfield\field_controller::create($fieldid);
+        $record = $field->to_record();
+        $record->configdata = json_decode($record->configdata, true);
+        $record->configdata['options'] = "Online\nOn campus\nHybrid";
+        $record->configdata = json_encode($record->configdata);
+        $handler->save_field_configuration($field, $record);
+        $this->assertFalse($vocabulary->get('fields'), 'field_updated must drop the vocabulary');
+        $this->assertFalse($this->coursefields()->get($courseid), 'field_updated must drop the values');
+        $this->assertSame([1 => 'Online', 2 => 'On campus', 3 => 'Hybrid'], filter_fields::eligible()['modality']['options']);
+        $this->warm_fields([$courseid], $fieldid);
+
+        // Deleted: the second field leaves the vocabulary.
+        $handler->delete_field_configuration(\core_customfield\field_controller::create((int) $second->get('id')));
+        $this->assertFalse($vocabulary->get('fields'), 'field_deleted must drop the vocabulary');
+        $this->assertFalse($this->coursefields()->get($courseid), 'field_deleted must drop the values');
+        $this->assertArrayNotHasKey('certified', filter_fields::eligible());
+        $this->warm_fields([$courseid], $fieldid);
+
+        // Category deleted: everything in it goes.
+        $categoryid = (int) $field->get('categoryid');
+        $handler->delete_category(\core_customfield\category_controller::create($categoryid));
+        $this->assertFalse($vocabulary->get('fields'), 'category_deleted must drop the vocabulary');
+        $this->assertFalse($this->coursefields()->get($courseid), 'category_deleted must drop the values');
+        // The site may carry fields of its own; this test's are gone with their category.
+        $this->assertArrayNotHasKey('modality', filter_fields::eligible());
+        $this->assertArrayNotHasKey('certified', filter_fields::eligible());
     }
 
     /**

@@ -16,14 +16,19 @@ what I was doing, what just arrived, what I marked as mine.
 - **Tier 1 — attention.** Full cards (image, progress, button) for the courses
   the learner most likely wants right now: *Continue* (most recently accessed),
   *New enrolments* (enrolled in the last N days, never opened) and *Favourites*
-  (the same star as the Course overview block). A few cards per strip, loaded in
-  one request on first paint.
-- **Tier 2 — frontier.** A ghost card carrying only a count: "+87 other courses".
-  Counting is cheap; rendering is not.
+  (the same star as the Course overview block, every favourite listed — a course
+  may sit in Continue and in Favourites at once). A few cards per strip, loaded
+  in one request on first paint; what did not fit a strip is a link in its
+  heading, "+4 new".
+- **Tier 2 — frontier.** One ghost card carrying only a count, closing tier 1:
+  "+87 other courses". Counting is cheap; rendering is not.
 - **Tier 3 — exploration.** A light list grouped by category, with a side index,
-  instant filtering and rows that fetch their own details as they come into
-  view, fetched only when the learner asks for it. Dormant courses are collapsed,
-  and archiving them hides them in the Course overview block as well.
+  a filter panel — status chips, and one chip group per course custom field the
+  administrator chose — a search box, and rows that fetch their own details as
+  they come into view, fetched only when the learner asks for it. Dormant courses
+  are collapsed, archiving them hides them in the Course overview block as well,
+  and, with the *Enrolment on application* plugin, the learner's applications
+  still awaiting approval are listed with a badge and a chip of their own.
 
 Design philosophy: **no tables of its own** (favourites through core, caches
 through MUC, per-user state through user preferences), **the server ships a
@@ -37,10 +42,12 @@ built (ADR-003); tier 3 rows fetch their progress and course image only once
 somebody can see them, and render as a compact list or as cards, remembered per
 viewer (ADR-005); courses that have gone quiet gather in a Dormant group and
 archived ones in an Archived group, with the archive shared with the Course
-overview block (ADR-007); and the accessibility audit is an executable gate
-rather than a document (ADR-008). The one planned piece not built is Phase 6 —
-calendar action events on the cards — which the plan itself marks optional. The
-current version is 2026090701. The first release, `v5.2-r1`, will declare
+overview block (ADR-007); the accessibility audit is an executable gate
+rather than a document (ADR-008); and the favourites strip is complete, the
+filter panel offers course custom fields as chips, and enrolment applications
+awaiting approval have a row and a notice of their own (ADR-009). The one planned
+piece not built is Phase 6 — calendar action events on the cards — which the plan
+itself marks optional. The current version is 2026090702. The first release, `v5.2-r1`, will declare
 `MATURITY_BETA`, "feature complete, ready for preview and testing": the release
 commit sets it, and the version in the repository still declares
 `MATURITY_ALPHA`.
@@ -77,16 +84,18 @@ page*.
 Cache stores (read this before a large rollout)
 -----------------------------------------------
 
-Compass keeps four MUC application caches, declared in `db/caches.php`:
+Compass keeps six MUC application caches, declared in `db/caches.php`:
 
 | Definition     | Key            | Content                                            |
 |----------------|----------------|----------------------------------------------------|
 | `coursemeta`   | course id      | raw name, category id, visibility, completion flag, context columns (no image: core caches it) |
 | `categorymeta` | category id    | raw category name, path, depth, context columns (core's own category cache lasts one request) |
+| `coursefields` | course id      | the course's values for the filterable custom fields (a sibling of `coursemeta` on purpose: tier 1 writes that layer from rows that carry no field columns) |
+| `filterfields` | one entry      | the course custom fields that can be offered as filters, with their options; core's own read of them is two recordsets plus one query per shared category |
 | `inventory`    | user id        | one row per enrolment plus the validity stamp, without course data |
 | `details`      | user + course  | progress percentage                                |
 
-Map all four to a **shared in-memory store, Redis by preference**. A plugin
+Map all six to a **shared in-memory store, Redis by preference**. A plugin
 cannot choose a store for you; it can only tell you what it needs.
 
 **Setting one up.** Go to *Site administration > Plugins > Caching >
@@ -203,6 +212,8 @@ Blocks > Compass*, in this order:
 | Months before a course is dormant (`dormant_months`) | 12 | A course not opened for this many calendar months — or never opened and enrolled longer ago than that — is gathered into the Dormant group instead of padding its category. |
 | Default view for the full course list (`default_view`) | list | Which view the full list opens in for a viewer who has never chosen: the compact list, or cards with the course image. Each viewer's own choice overrides it. |
 | Hide the block title (`hide_block_title`) | off | Render the block without its title bar. Core then renders no block heading at all, so the plugin's own headings move one level up to keep the document's heading ladder unbroken (ADR-008). |
+| Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
+| Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision: a row with an "Awaiting approval" badge in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Does nothing without that plugin (ADR-009). |
 | Pre-warm active users (`enable_prewarm`) | off | Run the nightly sweep at all. Never set means off. |
 | Pre-warm users active in the last (`prewarm_days`) | 7 | Only users whose last access falls within this many days are warmed. |
 | Pre-warming time budget (`prewarm_budget_seconds`) | 10 minutes (600 s, minimum 60) | How long each run may work; it stops between users when the budget is reached and resumes from the same place the next night. |
@@ -213,17 +224,30 @@ it that is not a setting.
 **Learners** see the block on their Dashboard. *Continue where you left off*
 lists the most recently opened courses (completed ones leave the strip), *New
 enrolments* the courses they were enrolled in recently and never opened, with
-the enrolment method and any deadline, and *My favourites* the starred courses.
-Each strip shows up to `attention_max` cards; whatever does not fit is counted on
-a ghost card, and pressing it opens *All courses* in place.
+the enrolment method and any deadline, and *My favourites* every starred course —
+a favourite that is also in Continue or New is listed twice, on purpose: the
+strip is where what the learner marked as theirs is visible (ADR-009). Each strip
+shows up to `attention_max` cards; what did not fit a strip is a link in its
+heading ("+4 new", "+2 favourites") opening *All courses* on the matching chip,
+and one ghost card closes the last strip, counting every course not represented
+above; pressing it opens *All courses* in place. A course name is at most two
+lines, ending in an ellipsis, with the whole name shown on hover.
 
 ![All courses open, grouped by category, with the search box, the toolbars and the category index](docs/screenshots/explore.png)
 
-*All courses* lists every active course grouped by category (at the depth the
-administrator chose), with a side index on wide screens, a search box, sorting by
-category, name or last opened, and chips for new enrolments and favourites.
-Two of its groups are not categories and come after the ones that are, both
-closed:
+*All courses* lists every course grouped by category (at the depth the
+administrator chose), with a side index on wide screens; a toolbar with the
+sort — by category, name or last opened — and the list/cards toggle; a search
+box; and a **Filter** button opening a panel of chip groups: *Status* (All, New,
+Favourites and, when enabled, Awaiting approval), then one group per course
+custom field the administrator chose. One chip per group, groups combine, and
+in full mode every chip carries the number of courses it would keep. When
+`enable_pending` is on and the learner has applied for a course through
+`enrol_apply`, the application is a row in its category with an *Awaiting
+approval* badge — no star, no archive control, no progress, and a link to the
+course's enrolment page rather than into the course — and a line under *New
+enrolments* says how many are waiting. Two of its groups are not categories and
+come after the ones that are, both closed:
 
 - **Dormant** gathers the courses that have gone quiet — not opened for
   `dormant_months`, or never opened and enrolled longer ago than that — so they
@@ -317,7 +341,7 @@ why it is off by default.
 
 **Multi-node sites without a shared cache store.** The task writes to whatever
 cache store the cron node uses. Without Redis (or another shared in-memory
-store) mapped to the four definitions, that is the cron node's own file store,
+store) mapped to the six definitions, that is the cron node's own file store,
 which the web nodes never read — pre-warming then warms nothing for anyone. Map
 the stores first (see *Cache stores* above).
 
@@ -338,14 +362,17 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   accessible name, the run reddened with three `button-name` violations, and went
   green again when the name was restored.
 - **`tests/local/accessibility_rules_test.php` reads what axe cannot**, scanning
-  the client sources and the stylesheet for ten rules: that the scan found its
+  the client sources and the stylesheet for eleven rules: that the scan found its
   sources at all, that every image states an `alt` attribute, that no positive
   `tabindex` exists anywhere, that the stylesheet never removes an outline
-  without replacing it, that both icon-only buttons name themselves, that every
-  `role="group"` carries a name, that the heading ladder follows the block title,
-  that brand-coloured text goes through the paired token, that the archive
-  control declares a minimum target box, and that a list row wraps instead of
-  overflowing. Each rule carries a guard asserting it had something to check.
+  without replacing it, that every icon-only button names itself (the archive
+  control, the star, the list/cards toggle and the Filter button), that every
+  `role="group"` carries a name (the platters included), that the heading ladder
+  follows the block title, that brand-coloured text goes through the paired
+  token, that the archive control declares a minimum target box, that a list
+  row wraps instead of overflowing, and that every course name is clamped to
+  two lines with the whole name in a `title` attribute. Each rule carries a guard
+  asserting it had something to check.
 - **Headings sit under core's block title.** Core renders the block title as an
   `<h3>`, so the plugin's section titles are `<h4>` and its card titles `<h5>`;
   when `hide_block_title` is on core renders no heading at all and each moves one
@@ -389,15 +416,18 @@ user id), callable over AJAX after login and never by the guest account:
 
 | Function                             | Purpose                                                                                                                  |
 |--------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `block_compass_get_attention`        | Tier 1: the three strips and the ghost counts.                                                                           |
-| `block_compass_get_inventory`        | Tier 3: every active course grouped by category (`mode: full`), or the group headers with counts alone (`mode: paged`); dormant courses gather in a group of their own (id `-1`) and archived ones travel as a header alone (id `-2`). |
-| `block_compass_get_inventory_rows`   | Paged mode: one page of up to 100 courses of one group, by cursor, under a chip (`all`, `new`, `favourites`) and a sort (`name`, `recent`). |
-| `block_compass_search_inventory`     | Paged mode: up to 50 courses whose name contains every word of the query, each with its group.                          |
+| `block_compass_get_attention`        | Tier 1: the three strips, the ghost and heading-link counts, and the number of enrolment applications awaiting approval. |
+| `block_compass_get_inventory`        | Tier 3: every listed course grouped by category (`mode: full`), or the group headers with counts alone (`mode: paged`), plus the custom-field chip groups (`fields`); dormant courses gather in a group of their own (id `-1`) and archived ones travel as a header alone (id `-2`). |
+| `block_compass_get_inventory_rows`   | Paged mode: one page of up to 100 courses of one group, by cursor, under a chip (`all`, `new`, `favourites`, `pending`), a sort (`name`, `recent`) and the custom-field `filters`. |
+| `block_compass_search_inventory`     | Paged mode: up to 50 courses whose name contains every word of the query, under the same `filters`, each with its group. |
 | `block_compass_get_card_details`     | Progress and the course image for a batch of up to 24 courses on screen.                                                |
 
 A tier 3 row is the same six fields in all three of the functions that return
 one — `id`, `name`, `opened` (the last access timestamp, or null), `new`, `fav`
-and `dorm` (whether the course has gone quiet) — with `search_inventory` adding
+and `dorm` (whether the course has gone quiet) — plus two that are present only
+when they apply: `pend`, on an enrolment application awaiting approval, and
+`cf`, the row's custom-field values as a flat list of pairs (the field's index in
+`fields`, then the value key) — with `search_inventory` adding
 `groupid`, since its hits arrive outside their groups.
 
 Writes go to core's own services — the star through
@@ -471,7 +501,7 @@ Troubleshooting
   output while `enable_prewarm` is unset. Switch the setting on; the schedule
   needs no change.
 - **Pre-warming runs but the morning Dashboards are no faster.** On a multi-node
-  site check the four definitions are mapped to a shared store; the cron node's
+  site check the six definitions are mapped to a shared store; the cron node's
   file store is invisible to the web nodes. On a small site there may simply be
   nothing to gain — see *Pre-warming*.
 

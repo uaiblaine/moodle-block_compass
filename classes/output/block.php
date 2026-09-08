@@ -57,13 +57,16 @@ class block implements renderable, templatable {
      */
     public function export_for_template(renderer_base $output): array {
         $keys = [
-            'ghost_more', 'ghost_more_new', 'ghost_more_favourites', 'ghost_explore',
+            'ghost_more', 'ghost_explore', 'strip_more_new', 'strip_more_new_label',
+            'strip_more_favourites', 'strip_more_favourites_label',
             'addtofavourites', 'removefromfavourites', 'favouriteadded', 'favouriteremoved',
             'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
             'lastopened', 'resultsshown', 'noresults', 'coursesingroup',
             'searchtooshort', 'searchtruncated', 'loadingrows', 'pagednote', 'filterupdated',
-            'badge_new', 'progressloading', 'progresserror', 'progresspercent', 'completed', 'retry',
-            'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'filterby',
+            'badge_new', 'badge_pending', 'progressloading', 'progresserror', 'progresspercent', 'completed', 'retry',
+            'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'chip_pending', 'filterby',
+            'filter', 'filteractive', 'filterpanel', 'clearfilters', 'status',
+            'pendingmeta', 'pendingnotice', 'pendingnoticelabel', 'pendingnoticeview',
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
             'sort_category', 'sort_name', 'sort_recent',
             'viewas', 'view_cards', 'view_list', 'viewerror',
@@ -88,6 +91,11 @@ class block implements renderable, templatable {
                 // core's hide and show, through the theme's icon map like the stars (ADR-007).
                 'hide' => $output->render(new pix_icon('t/hide', '')),
                 'show' => $output->render(new pix_icon('t/show', '')),
+                // The tier 3 toolbar's icon-only controls (ADR-009, decisions 4 and 6): core's own
+                // list and grid glyphs, the ones the file picker's view switch uses, and its filter.
+                'list' => $output->render(new pix_icon('a/view_list_active', '')),
+                'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
+                'filter' => $output->render(new pix_icon('i/filter', '')),
             ],
             'strips' => [
                 ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
@@ -95,6 +103,9 @@ class block implements renderable, templatable {
                 ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
             ],
             'favouritesenabled' => config::favourites_enabled(),
+            // Both surfaces of an application awaiting approval hang off this one flag: the chip
+            // in the filter panel and the notice under New enrolments (ADR-009, decision 7).
+            'pendingenabled' => config::pending_enabled(),
             'showsearch' => config::search_enabled(),
             'showindex' => config::index_shown(),
             // Without the title bar core renders no h3 for the block, and the client's own

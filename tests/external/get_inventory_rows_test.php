@@ -210,7 +210,7 @@ final class get_inventory_rows_test extends advanced_testcase {
      */
     public function test_a_chip_outside_the_vocabulary_is_refused_before_any_work(): void {
         $this->resetAfterTest();
-        [$user, $courses, $cata] = $this->fixture();
+        [$user, , $cata] = $this->fixture();
         $this->setUser($user);
 
         $meter = budget::start();
@@ -223,7 +223,99 @@ final class get_inventory_rows_test extends advanced_testcase {
         $this->assertSame(0, $meter->reads(), 'a refused chip must cost nothing');
 
         $this->assertSame('invalidparameter', $this->failing_call(['groupid' => (int) $cata->id, 'chip' => 'bogus']));
-        $this->assertSame(['all', 'new', 'favourites'], get_inventory_rows::CHIPS);
+        $this->assertSame(['all', 'new', 'favourites', 'pending'], get_inventory_rows::CHIPS);
+    }
+
+    /**
+     * A filter outside the allowlist is refused before any work, at both layers (ADR-009, decision 5).
+     *
+     * The shape half — a field named twice — costs nothing at all. The membership half — a field
+     * that is not configured, a value that is not one of its chips — needs the vocabulary, one
+     * cache read when warm, and is refused before the population is resolved. The good case is
+     * the control: a valid filter narrows the page to the one course carrying the value.
+     *
+     * @return void
+     */
+    public function test_a_filter_outside_the_allowlist_is_refused_before_any_work(): void {
+        $this->resetAfterTest();
+        [$user, $courses, $cata] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $field = $plugin->course_field('select', 'modality', ['options' => "Online\nOn campus"]);
+        $plugin->field_value($field, (int) $courses['alpha']->id, 1);
+        $plugin->field_value($field, (int) $courses['beta']->id, 2);
+        set_config('filter_fields', 'modality', 'block_compass');
+        $this->setUser($user);
+        $groupid = (int) $cata->id;
+
+        // The control: a valid filter reaches the domain and narrows the page.
+        $page = $this->call(['groupid' => $groupid, 'filters' => [['field' => 'modality', 'value' => 2]]]);
+        $this->assertSame([(int) $courses['beta']->id], array_column($page['rows'], 'id'));
+        $this->assertSame([0, 2], $page['rows'][0]['cf'], 'the row carries the field index and the value key');
+
+        // The vocabulary is made cold on purpose: a shape refusal must not need it, and a check that
+        // reached the vocabulary would pay core's handler here and fail the zero-read assertion.
+        cache::make('block_compass', 'filterfields')->purge();
+        $meter = budget::start();
+        try {
+            get_inventory_rows::execute($groupid, 0, 'all', 'name', [
+                ['field' => 'modality', 'value' => 1],
+                ['field' => 'modality', 'value' => 2],
+            ]);
+            $this->fail('a field named twice must be refused');
+        } catch (invalid_parameter_exception $e) {
+            $this->assertStringContainsString('filters', $e->getMessage());
+        }
+        $this->assertSame(0, $meter->reads(), 'a refused shape must cost nothing');
+
+        $this->assertSame(
+            'invalidparameter',
+            $this->failing_call(['groupid' => $groupid, 'filters' => [['field' => 'campus', 'value' => 1]]])
+        );
+        $this->assertSame(
+            'invalidparameter',
+            $this->failing_call(['groupid' => $groupid, 'filters' => [['field' => 'modality', 'value' => 9]]])
+        );
+        // A value the shortname alphabet rejects never reaches the check: PARAM_ALPHANUMEXT strips
+        // it and what is left is not a configured field either.
+        $this->assertSame(
+            'invalidparameter',
+            $this->failing_call(['groupid' => $groupid, 'filters' => [['field' => 'mod ality', 'value' => 1]]])
+        );
+    }
+
+    /**
+     * pend and cf survive the allowlist and are OMITTED where they do not apply (ADR-009, fact 15).
+     *
+     * The omission is the zero-cost shape on the wire and a tested property, not a hope: a row
+     * that is not an application has no pend key at all, and a row with no field value has no cf
+     * key. No row carries an enrol instance id, because the link needs nothing from it.
+     *
+     * @return void
+     */
+    public function test_pend_and_cf_survive_the_allowlist_and_are_omitted_where_they_do_not_apply(): void {
+        $this->resetAfterTest();
+        [$user, $courses, $cata] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $field = $plugin->course_field('checkbox', 'certified');
+        $plugin->field_value($field, (int) $courses['alpha']->id, 1);
+        set_config('filter_fields', 'certified', 'block_compass');
+        $this->setUser($user);
+
+        $page = $this->call(['groupid' => (int) $cata->id]);
+
+        $rows = array_column($page['rows'], null, 'id');
+        $alpha = $rows[(int) $courses['alpha']->id];
+        $beta = $rows[(int) $courses['beta']->id];
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'cf'], array_keys($alpha));
+        $this->assertSame([0, 1], $alpha['cf']);
+        // A checkbox with no stored value takes its default, as core displays it: "No", key 0.
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'cf'], array_keys($beta));
+        $this->assertSame([0, 0], $beta['cf']);
+        foreach ($rows as $row) {
+            $this->assertArrayNotHasKey('pend', $row, 'a row that is not an application carries no pend key');
+            $this->assertArrayNotHasKey('pendinstance', $row);
+            $this->assertArrayNotHasKey('url', $row);
+        }
     }
 
     /**
@@ -262,7 +354,7 @@ final class get_inventory_rows_test extends advanced_testcase {
      */
     public function test_a_sort_outside_the_vocabulary_is_refused_before_any_work(): void {
         $this->resetAfterTest();
-        [$user, $courses, $cata] = $this->fixture();
+        [$user, , $cata] = $this->fixture();
         $this->setUser($user);
 
         $meter = budget::start();
@@ -375,7 +467,7 @@ final class get_inventory_rows_test extends advanced_testcase {
      */
     public function test_a_cursor_from_another_users_course_restarts_the_page_and_leaks_nothing(): void {
         $this->resetAfterTest();
-        [$user, $courses, $cata] = $this->fixture();
+        [$user, , $cata] = $this->fixture();
         $gen = $this->getDataGenerator();
         $other = $gen->create_user();
         $foreign = $gen->create_course(['fullname' => 'Foreign course', 'shortname' => 'compassforeign', 'category' => $cata->id]);

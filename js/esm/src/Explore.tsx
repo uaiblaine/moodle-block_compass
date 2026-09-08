@@ -35,16 +35,25 @@
  */
 
 import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
+import FilterPanel from './FilterPanel';
+import type {Facets} from './FilterPanel';
+import FilterToggle from './FilterToggle';
 import Group from './Group';
+import Platter from './Platter';
 import RowList from './RowList';
+import ViewToggle from './ViewToggle';
 import {amd} from './amd';
-import {matches, normalise, passesChip} from './filter';
+import {matches, normalise, passesChip, passesSelection} from './filter';
+import type {RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
 import {fill} from './str';
 import {getInventory, getInventoryRows, searchInventory, setArchived, setViewPreference} from './repository';
 import {useRowDetails} from './rowdetails';
 import {GROUP_ARCHIVED, GROUP_DORMANT} from './types';
-import type {BlockConfig, Inventory, InventoryRow, SearchRow} from './types';
+import type {BlockConfig, FilterParam, Inventory, InventoryRow, SearchRow} from './types';
+
+/** The status chips, in the order the panel draws them; the pending one only when the feature is on. */
+const STATUS_CHIPS = ['all', 'new', 'favourites', 'pending'];
 
 /** Full mode: the browser answers a keystroke, so it may answer it soon. */
 const DEBOUNCE_MS = 150;
@@ -120,12 +129,19 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     const {labels} = config;
     const titleid = useId();
     const searchid = useId();
+    const panelid = useId();
 
     const [data, setData] = useState<Inventory | null>(null);
     const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState('');
     const [applied, setApplied] = useState('');
     const [chip, setChip] = useState(initialchip);
+    // The pressed chip of each custom-field group (ADR-009, decision 4): one value per group,
+    // groups combine with AND. In full mode a change re-renders; in paged mode it travels.
+    const [selection, setSelection] = useState<Selection>({});
+    // The filter panel is open at first render, as the mockup has it, so its platters are on
+    // screen when axe reads the block (ADR-009, decision 8).
+    const [panelopen, setPanelopen] = useState(true);
     const [sort, setSort] = useState('category');
     const [open, setOpen] = useState<Record<number, boolean>>({});
     const [pages, setPages] = useState<Record<number, PageState>>({});
@@ -166,6 +182,14 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     const lang = document.documentElement.lang || 'en';
 
     const paged = data?.mode === 'paged';
+    const fields = data?.fields ?? [];
+    const fieldkeys = useMemo(() => fields.map((field) => field.key), [fields]);
+    // The selection as the two paging services take it; memoised so an unchanged selection is
+    // the same array and the effects keyed on it do not fire again.
+    const filters = useMemo(
+        (): FilterParam[] => Object.entries(selection).map(([field, value]) => ({field, value})),
+        [selection]
+    );
 
     /**
      * Say something through the polite live region, even when it repeats.
@@ -261,7 +285,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         groupseq.current[id] = mine;
         setPages((current) => ({...current, [id]: {...(current[id] || EMPTY_PAGE), loading: true}}));
         try {
-            const page = await getInventoryRows(id, before.after, chip, sort === 'recent' ? 'recent' : 'name');
+            const page = await getInventoryRows(id, before.after, chip, sort === 'recent' ? 'recent' : 'name', filters);
             if (groupseq.current[id] !== mine) {
                 // The group was reset while the page travelled: this answer is stale.
                 return;
@@ -298,7 +322,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                 await notify(labels.loaderror || '');
             }
         }
-    }, [chip, labels.loaderror, pages, sort]);
+    }, [chip, filters, labels.loaderror, pages, sort]);
 
     /**
      * Paged mode: drop every loaded group's rows and refetch the open ones.
@@ -378,7 +402,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         }
         (async() => {
             try {
-                const answer = await searchInventory(applied);
+                const answer = await searchInventory(applied, filters);
                 if (searchseq.current !== mine) {
                     return;
                 }
@@ -393,7 +417,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                 }
             }
         })();
-    }, [applied, paged, searchgen, announce, labels.searchtooshort, labels.resultsshown, labels.searchtruncated,
+    }, [applied, paged, searchgen, filters, announce, labels.searchtooshort, labels.resultsshown, labels.searchtruncated,
         labels.loaderror]);
 
     // Full mode: matching is over the normalised name, so normalise each once rather
@@ -405,7 +429,23 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         return map;
     }, [data]);
 
-    // Full mode: which rows survive the chip and the query, group by group.
+    /**
+     * The facts a row is judged by, under the get_inventory row keys.
+     *
+     * @param {object} row The row.
+     * @returns {object} Its facts.
+     */
+    const factsof = useCallback((row: InventoryRow): RowFacts => ({
+        name: normalised.get(row.id) || '',
+        opened: row.opened || 0,
+        "new": row.new,
+        fav: row.fav,
+        pend: !!row.pend,
+        cf: row.cf ?? [],
+    }), [normalised]);
+
+    // Full mode: which rows survive the chip, the custom-field selection and the query, group
+    // by group. No request is made for any of it: the rows are already here (non-negotiable 5).
     const visible = useMemo(() => {
         const map = new Map<number, InventoryRow[]>();
         if (!data || paged) {
@@ -413,14 +453,67 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         }
         data.groups.forEach((group) => {
             map.set(group.id, group.courses.filter((row) => {
-                const facts = {name: normalised.get(row.id) || '', opened: row.opened || 0, "new": row.new, fav: row.fav};
+                const facts = factsof(row);
 
-                return passesChip(chip, facts) && (applied === '' || matches(facts.name, applied));
+                return passesChip(chip, facts)
+                    && passesSelection(facts.cf, fieldkeys, selection)
+                    && (applied === '' || matches(facts.name, applied));
             }));
         });
 
         return map;
-    }, [data, paged, chip, applied, normalised]);
+    }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
+
+    /**
+     * Full mode: how many rows each chip would keep, given everything ELSE that is pressed.
+     *
+     * A status chip is counted over the rows passing the selection and the query; a field chip
+     * over the rows passing the status chip, the query and the other groups' selections - the
+     * usual faceted count, so a number never promises rows the press would not show. Paged mode
+     * holds no rows to count and carries no numbers (ADR-009, decision 5).
+     */
+    const facets = useMemo((): Facets => {
+        if (!data || paged) {
+            return {status: null, fields: null};
+        }
+        const status: Record<string, number> = {};
+        STATUS_CHIPS.forEach((key) => {
+            status[key] = 0;
+        });
+        const perfield = new Map<string, Map<number, number>>();
+        fieldkeys.forEach((key) => perfield.set(key, new Map()));
+        data.groups.forEach((group) => group.courses.forEach((row) => {
+            const facts = factsof(row);
+            if (applied !== '' && !matches(facts.name, applied)) {
+                return;
+            }
+            if (passesSelection(facts.cf, fieldkeys, selection)) {
+                STATUS_CHIPS.forEach((key) => {
+                    if (passesChip(key, facts)) {
+                        status[key] += 1;
+                    }
+                });
+            }
+            if (!passesChip(chip, facts)) {
+                return;
+            }
+            fieldkeys.forEach((key, index) => {
+                const others = {...selection};
+                delete others[key];
+                if (!passesSelection(facts.cf, fieldkeys, others)) {
+                    return;
+                }
+                for (let at = 0; at + 1 < facts.cf.length; at += 2) {
+                    if (facts.cf[at] === index) {
+                        const counts = perfield.get(key) as Map<number, number>;
+                        counts.set(facts.cf[at + 1], (counts.get(facts.cf[at + 1]) ?? 0) + 1);
+                    }
+                }
+            });
+        }));
+
+        return {status, fields: perfield};
+    }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
 
     const shown = useMemo(
         () => Array.from(visible.values()).reduce((total, rows) => total + rows.length, 0),
@@ -452,7 +545,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     /**
      * Change the chip, and in paged mode make it a parameter of the next fetches.
      *
-     * @param {string} value all, new or favourites.
+     * @param {string} value all, new, favourites or pending.
      * @returns {void}
      */
     const chooseChip = useCallback((value: string): void => {
@@ -464,6 +557,51 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
             return value;
         });
     }, [paged, resetGroups]);
+
+    /**
+     * Press or release one custom-field chip, and in paged mode refetch with the new selection.
+     *
+     * @param {string} field The field's key.
+     * @param {number|null} value The value key pressed, or null to release the group.
+     * @returns {void}
+     */
+    const chooseSelection = useCallback((field: string, value: number | null): void => {
+        setSelection((current) => {
+            if ((current[field] ?? null) === value) {
+                return current;
+            }
+            const next = {...current};
+            if (value === null) {
+                delete next[field];
+            } else {
+                next[field] = value;
+            }
+            if (paged) {
+                resetGroups();
+            }
+
+            return next;
+        });
+    }, [paged, resetGroups]);
+
+    /**
+     * Release every group at once: the status chip back to All, no field chip pressed.
+     *
+     * @returns {void}
+     */
+    const clearFilters = useCallback((): void => {
+        const changed = chip !== 'all' || Object.keys(selection).length > 0;
+        setChip('all');
+        setSelection({});
+        if (changed && paged) {
+            resetGroups();
+        }
+    }, [chip, selection, paged, resetGroups]);
+
+    // The status chip a ghost or a heading link opened on may be one the panel does not draw -
+    // pending, with the feature off - and then it means All.
+    const statuschips = config.pendingenabled ? STATUS_CHIPS : STATUS_CHIPS.filter((key) => key !== 'pending');
+    const pressedcount = (chip !== 'all' && statuschips.includes(chip) ? 1 : 0) + Object.keys(selection).length;
 
     /*
      * The chip arrives as a prop because a ghost card decides it, and a ghost can be pressed
@@ -735,63 +873,53 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
             <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </Heading>
-            <div className="compass-toolbar d-flex flex-wrap align-items-center gap-2 mb-3">
-                {config.showsearch && (
-                    <div className="compass-search flex-grow-1">
-                        <label className="visually-hidden" htmlFor={searchid}>{labels.searchcourses}</label>
-                        <input
-                            type="search"
-                            className="form-control form-control-sm"
-                            id={searchid}
-                            placeholder={labels.searchplaceholder}
-                            autoComplete="off"
-                            value={query}
-                            onChange={(event) => setQuery(event.target.value)}
-                        />
-                    </div>
-                )}
-                <div className="compass-sort btn-group btn-group-sm" role="group" aria-label={labels.sortby}>
-                    {[['category', labels.sort_category], ['name', labels.sort_name],
-                        ['recent', labels.sort_recent]].map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            className={`btn btn-outline-secondary${sort === value ? ' active' : ''}`}
-                            aria-pressed={sort === value}
-                            onClick={() => chooseSort(value)}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-                <div className="compass-views btn-group btn-group-sm" role="group" aria-label={labels.viewas}>
-                    {[['list', labels.view_list], ['cards', labels.view_cards]].map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            className={`btn btn-outline-secondary${view === value ? ' active' : ''}`}
-                            aria-pressed={view === value}
-                            onClick={() => chooseView(value)}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-                <div className="compass-chips d-flex gap-1" role="group" aria-label={labels.filterby}>
-                    {[['all', labels.chip_all], ['new', labels.chip_new],
-                        ['favourites', labels.chip_favourites]].map(([value, label]) => (
-                        <button
-                            key={value}
-                            type="button"
-                            className={`btn btn-sm rounded-pill btn-outline-secondary${chip === value ? ' active' : ''}`}
-                            aria-pressed={chip === value}
-                            onClick={() => chooseChip(value)}
-                        >
-                            {label}
-                        </button>
-                    ))}
+            {/* The toolbar in the shape local_dimensions gives its own (ADR-009, decision 4): the
+                sort platter and the view toggle on one row, the search box and the Filter button on
+                the next, and the chips inside the panel that button opens. */}
+            <div className="compass-toolbar">
+                <Platter
+                    label={labels.sortby}
+                    items={[['category', labels.sort_category], ['name', labels.sort_name],
+                        ['recent', labels.sort_recent]].map(([value, label]) => ({key: value, label, pressed: sort === value}))}
+                    onPress={chooseSort}
+                />
+                <ViewToggle view={view} config={config} onChoose={chooseView} />
+                <div className="compass-toolbar-row">
+                    {config.showsearch && (
+                        <div className="compass-search flex-grow-1">
+                            <label className="visually-hidden" htmlFor={searchid}>{labels.searchcourses}</label>
+                            <input
+                                type="search"
+                                className="form-control form-control-sm"
+                                id={searchid}
+                                placeholder={labels.searchplaceholder}
+                                autoComplete="off"
+                                value={query}
+                                onChange={(event) => setQuery(event.target.value)}
+                            />
+                        </div>
+                    )}
+                    <FilterToggle
+                        count={pressedcount}
+                        open={panelopen}
+                        controls={panelid}
+                        config={config}
+                        onToggle={() => setPanelopen((current) => !current)}
+                    />
                 </div>
             </div>
+            <FilterPanel
+                id={panelid}
+                hidden={!panelopen}
+                config={config}
+                chip={chip}
+                fields={fields}
+                selection={selection}
+                facets={facets}
+                onChip={chooseChip}
+                onSelect={chooseSelection}
+                onClear={clearFilters}
+            />
             <div className="compass-explore-body">
                 {showindex && (
                     <nav className="compass-index" aria-label={labels.categoryindex}>

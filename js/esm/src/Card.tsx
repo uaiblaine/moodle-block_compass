@@ -22,7 +22,8 @@
  *
  * The title's level comes from heading.ts: one rung under the strip's, which is itself one
  * under core's block title when that renders (ADR-008, decision 3). The h6 class keeps the
- * size.
+ * size. The title is clamped to two lines with the whole name in its title attribute (ADR-009,
+ * decision 10): the clamp is visual only, so the link's accessible name is the full name.
  *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine
@@ -87,10 +88,10 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
             {card.hasimage
                 ? <img className="compass-card-img card-img-top" src={card.imageurl} alt="" loading="lazy" />
                 : <div className="compass-card-img compass-card-img-empty card-img-top" aria-hidden="true"></div>}
-            {card.isnew && <span className="compass-badge-new badge bg-primary text-white">{labels.badge_new}</span>}
+            {card.isnew && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
             <div className="card-body d-flex flex-column">
                 {card.category && <span className="compass-card-category small text-muted">{card.category}</span>}
-                <Title className="compass-card-title h6 mb-1">
+                <Title className="compass-card-title compass-clamp h6 mb-1" title={card.fullname}>
                     <a href={card.url} className="compass-card-link stretched-link text-reset text-decoration-none">
                         {card.fullname}
                     </a>

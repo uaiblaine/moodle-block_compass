@@ -28,8 +28,10 @@ namespace block_compass\external;
 use advanced_testcase;
 use block_compass\local\budget;
 use block_compass\local\category_meta;
+use block_compass\local\config;
 use block_compass\local\course_meta;
 use block_compass\local\details;
+use block_compass\local\explore;
 use block_compass\local\inventory;
 use core_cache\cache;
 use core_external\external_api;
@@ -206,9 +208,10 @@ final class get_inventory_test extends advanced_testcase {
 
         $data = $this->call();
 
-        $this->assertSame(['mode', 'total', 'groups'], array_keys($data));
+        $this->assertSame(['mode', 'total', 'fields', 'groups'], array_keys($data));
         $this->assertSame('full', $data['mode']);
         $this->assertSame(3, $data['total']);
+        $this->assertSame([], $data['fields'], 'no filter field configured, no chip group');
         $this->assertCount(2, $data['groups']);
 
         [$first, $second] = $data['groups'];
@@ -243,6 +246,150 @@ final class get_inventory_test extends advanced_testcase {
         $this->assertSame((int) $courses['gamma']->id, $gamma['id']);
         $this->assertNull($gamma['opened']);
         $this->assertFalse($gamma['new']);
+    }
+
+    /**
+     * fields, cf and pend survive the allowlist, and pend is OMITTED on every row that is not an
+     * application (ADR-009, decision 5 and fact 15).
+     *
+     * The field half runs on every site. The pending half follows the site the way get_attention's
+     * does: with enrol_apply present the application is a row with pend; on a runtime without it
+     * the stored setting is forced off and the application is absent, as today. Both branches
+     * assert that no active row carries a pend key — the omission that makes the zero-cost shape a
+     * tested property — and that no row carries an enrol instance id.
+     *
+     * @return void
+     */
+    public function test_fields_cf_and_pend_survive_the_allowlist_and_pend_is_omitted_elsewhere(): void {
+        $this->resetAfterTest();
+        [$user, $courses, $cata] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $field = $plugin->course_field('select', 'modality', ['options' => "Online\nOn campus"], 'Modality');
+        $plugin->field_value($field, (int) $courses['alpha']->id, 2);
+        set_config('filter_fields', 'modality', 'block_compass');
+        set_config('enable_pending', 1, 'block_compass');
+        $applied = $this->getDataGenerator()->create_course(['fullname' => 'Applied course', 'category' => $cata->id]);
+        $plugin->apply_at((int) $user->id, (int) $applied->id, time() - DAYSECS);
+        $this->setUser($user);
+
+        $data = $this->call();
+
+        $this->assertSame([[
+            'key' => 'modality',
+            'label' => 'Modality',
+            'values' => [['key' => 1, 'label' => 'Online'], ['key' => 2, 'label' => 'On campus']],
+        ]], $data['fields']);
+        $rows = [];
+        foreach ($data['groups'] as $group) {
+            foreach ($group['courses'] as $row) {
+                $rows[$row['id']] = $row;
+            }
+        }
+        $this->assertSame([0, 2], $rows[(int) $courses['alpha']->id]['cf']);
+        $this->assertArrayNotHasKey('cf', $rows[(int) $courses['beta']->id], 'no value, no cf key');
+        foreach ([(int) $courses['alpha']->id, (int) $courses['beta']->id, (int) $courses['gamma']->id] as $courseid) {
+            $this->assertArrayNotHasKey('pend', $rows[$courseid], 'an active row carries no pend key at all');
+            $this->assertArrayNotHasKey('pendinstance', $rows[$courseid]);
+        }
+        if (config::pending_plugin_present()) {
+            $this->assertTrue($rows[(int) $applied->id]['pend']);
+            $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'pend'], array_keys($rows[(int) $applied->id]));
+            $this->assertSame(4, $data['total']);
+        } else {
+            $this->assertArrayNotHasKey((int) $applied->id, $rows, 'without enrol_apply the setting is forced off');
+            $this->assertSame(3, $data['total']);
+        }
+    }
+
+    /**
+     * The worst case the feature can produce stays under the 40 KB ceiling (ADR-009, decision 5).
+     *
+     * 250 courses in 6 groups — the inventory_max threshold — with FILTER_FIELDS_MAX fields set
+     * on EVERY row and EVERY row an application: what an enrolment drive looks like under decision
+     * 3's rule, and the saturation of both additions at once. The response is cleaned through
+     * execute_returns() and encoded the way lib/ajax/service.php encodes it — json_encode() at
+     * default flags — and measured in bytes. Names are 18 characters, the development site's
+     * measured average; ADR-009 recorded 34 172 bytes for this shape, and the total moves by about
+     * 250 bytes per character of average name length, so the number is stated in the message
+     * rather than only the pass. The controls: 250 rows, every one carrying pend and three pairs.
+     * The domain is called with the feature injected on, so the measurement does not depend on
+     * enrol_apply being installed; the rows are the same rows the service ships.
+     *
+     * @return void
+     */
+    public function test_the_saturated_payload_stays_under_the_ceiling(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $user = $gen->create_user();
+        $userid = (int) $user->id;
+        $fields = [];
+        $shortnames = [];
+        for ($i = 1; $i <= config::FILTER_FIELDS_MAX; $i++) {
+            $fields[] = $plugin->course_field('select', "field{$i}", ['options' => "Alpha\nBravo\nCharlie"]);
+            $shortnames[] = "field{$i}";
+        }
+        $categories = [];
+        for ($i = 1; $i <= 6; $i++) {
+            $categories[] = (int) $gen->create_category(['name' => "Categ {$i}"])->id;
+        }
+        $now = time();
+        $data = [];
+        for ($i = 1; $i <= 250; $i++) {
+            $course = $gen->create_course([
+                'fullname' => sprintf('Course number %04d', $i),
+                'shortname' => "compass{$i}",
+                'category' => $categories[$i % 6],
+            ]);
+            $plugin->apply_at($userid, (int) $course->id, $now - DAYSECS);
+            foreach ($fields as $at => $field) {
+                $data[] = [
+                    'fieldid' => (int) $field->get('id'),
+                    'instanceid' => (int) $course->id,
+                    'intvalue' => ($i + $at) % 3 + 1,
+                    'value' => (string) (($i + $at) % 3 + 1),
+                    'valueformat' => 0,
+                    'valuetrust' => 0,
+                    'timecreated' => $now,
+                    'timemodified' => $now,
+                    'contextid' => \core\context\course::instance((int) $course->id)->id,
+                    'component' => 'core_course',
+                    'area' => 'course',
+                    'itemid' => 0,
+                ];
+            }
+        }
+        // The 750 value rows go straight to the table: the shape is core's own, and the data
+        // controller would cost a second per row for a fixture whose only job is to be large.
+        $DB->insert_records('customfield_data', $data);
+        $this->setUser($user);
+
+        $payload = external_api::clean_returnvalue(
+            get_inventory::execute_returns(),
+            explore::build($userid, $now, 1, 30, 250, null, true, $shortnames)
+        );
+        $bytes = strlen(json_encode($payload));
+
+        $this->assertSame('full', $payload['mode']);
+        $this->assertSame(250, $payload['total']);
+        $this->assertCount(6, $payload['groups']);
+        $this->assertCount(3, $payload['fields']);
+        $rows = 0;
+        foreach ($payload['groups'] as $group) {
+            foreach ($group['courses'] as $row) {
+                $rows++;
+                $this->assertTrue($row['pend']);
+                $this->assertCount(6, $row['cf'], 'three fields, three pairs');
+            }
+        }
+        $this->assertSame(250, $rows);
+        $this->assertLessThanOrEqual(
+            40000,
+            $bytes,
+            "the saturated 250-row response measures {$bytes} bytes; the ceiling is 40 000 (ADR-009 recorded 34 172)"
+        );
     }
 
     /**

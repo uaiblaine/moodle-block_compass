@@ -39,6 +39,44 @@
     letter-spacing: 0.04em;
 }
 
+/* A strip's heading row: the title and, when the strip overflowed, the link to the rest of it
+   in tier 3 (ADR-009, decision 2). The link is text, so it is painted with the text token. */
+.block_compass .compass-strip-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.block_compass .compass-strip-more,
+.block_compass .compass-linkbtn {
+    color: var(--block_compass-brand-text);
+    font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-strip-more:focus-visible,
+.block_compass .compass-linkbtn:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+/* The one notice an enrolment application gets in tier 1, under New enrolments (ADR-009). */
+.block_compass .compass-strip-note {
+    margin: -0.5rem 0 1.25rem;
+}
+
+/* A course name is at most two lines, ellipsis and all - Boost's own .clamp-2 pattern
+   (theme/boost/scss/moodle/core.scss) - and the whole name rides in the element's title
+   attribute (ADR-009, decision 10). Visual only: the text stays whole in the DOM. */
+.block_compass .compass-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+
 /* Cards: as many columns as fit, none narrower than 13rem, the ghost among them. */
 .block_compass .compass-cards-list {
     display: grid;
@@ -73,7 +111,8 @@
     opacity: 0.6;
 }
 
-.block_compass .compass-badge-new {
+/* The badge in a card's corner: New on a new enrolment, Awaiting approval on an application. */
+.block_compass .compass-card-badge {
     position: absolute;
     top: 0.5rem;
     right: 0.5rem;
@@ -236,6 +275,19 @@
     border-bottom: 0;
 }
 
+/* The clamped name is a block, so the link lays its name and its badges out as a row. */
+.block_compass .compass-row .compass-row-link {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.block_compass .compass-row-name {
+    min-width: 0;
+}
+
 .block_compass .compass-row-link:hover .compass-row-name,
 .block_compass .compass-row-link:focus-visible .compass-row-name {
     text-decoration: underline;
@@ -370,4 +422,250 @@
 .block_compass .compass-archiveall {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--block_compass-line);
+}
+
+/* Tier 3 toolbar (ADR-009, decision 4): the sort platter and the view toggle on one line, the
+   search box and the Filter button on a second, full-basis line. Painted with the theme's
+   secondary and tertiary surfaces, which dark mode moves like every other --bs-* token. */
+.block_compass .compass-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.6rem;
+    margin-bottom: 0.75rem;
+    border-radius: 1rem;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+}
+
+.block_compass .compass-toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-basis: 100%;
+    min-width: 0;
+}
+
+/* A platter: pills on an inset track, the pressed one raised by the sliding indicator. The
+   mask scrolls when the pills overflow and hides its scrollbar; the paddles appear then. */
+.block_compass .compass-platter {
+    position: relative;
+    display: flex;
+    align-items: center;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.block_compass .compass-platter-mask {
+    min-width: 0;
+    padding: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-radius: 999px;
+    background: var(--bs-secondary-bg, #e9ecef);
+}
+
+.block_compass .compass-platter-mask::-webkit-scrollbar {
+    display: none;
+}
+
+.block_compass .compass-platter-items {
+    position: relative;
+    display: inline-flex;
+}
+
+.block_compass .compass-platter-indicator {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 999px;
+    background: var(--block_compass-surface);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    transition: left 200ms ease, width 200ms ease;
+    pointer-events: none;
+}
+
+.block_compass .compass-platter-indicator-hidden {
+    opacity: 0;
+}
+
+.block_compass .compass-chip {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-height: 1.75rem;
+    padding: 0.3rem 0.8rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.block_compass .compass-chip[aria-pressed="true"] {
+    color: var(--block_compass-brand-text);
+}
+
+/* Inset, because an outward ring is clipped by the mask the pill scrolls inside. */
+.block_compass .compass-chip:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: -2px;
+}
+
+.block_compass .compass-chip-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.375rem;
+    border-radius: 999px;
+    background: var(--block_compass-surface);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-chip[aria-pressed="true"] .compass-chip-count {
+    background: var(--bs-secondary-bg, #e9ecef);
+}
+
+/* The scroll paddles: decorative, mouse-only (aria-hidden, tabindex -1), drawn only while
+   the pills overflow the mask and disabled at the edge they cannot scroll past. */
+.block_compass .compass-paddle {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--block_compass-surface);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    color: var(--block_compass-muted);
+    line-height: 1;
+    transform: translateY(-50%);
+}
+
+.block_compass .compass-paddle-left {
+    left: 2px;
+}
+
+.block_compass .compass-paddle-right {
+    right: 2px;
+}
+
+.block_compass .compass-paddle:disabled,
+.block_compass .compass-paddle-hidden {
+    display: none;
+}
+
+/* The list/cards switch: two icon-only buttons on a small platter, pushed to the row's end. */
+.block_compass .compass-views {
+    display: inline-flex;
+    margin-left: auto;
+    padding: 3px;
+    border-radius: 0.5rem;
+    background: var(--bs-secondary-bg, #e9ecef);
+}
+
+.block_compass .compass-viewbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 1.75rem;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: transparent;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-viewbtn[aria-pressed="true"] {
+    background: var(--block_compass-surface);
+    color: var(--block_compass-brand-text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.block_compass .compass-viewbtn:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+/* The Filter button, with the count of pressed chips; brand-edged while the panel is open. */
+.block_compass .compass-filterbtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex: none;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.5rem;
+    background: var(--block_compass-surface);
+    color: inherit;
+}
+
+.block_compass .compass-filterbtn[aria-expanded="true"] {
+    border-color: var(--block_compass-brand);
+    color: var(--block_compass-brand-text);
+}
+
+.block_compass .compass-filterbtn:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+.block_compass .compass-filtercount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.375rem;
+    border-radius: 999px;
+    background: var(--bs-secondary-bg, #e9ecef);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The filter panel: a plain block the hidden property toggles - never a Bootstrap collapse,
+   whose display utilities are !important and would defeat [hidden]. The layout is stated
+   under :not([hidden]) for the same reason the error region's is. */
+.block_compass .compass-fpanel:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.9rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.5rem;
+    background: var(--block_compass-surface);
+}
+
+.block_compass .compass-chipgroup {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.block_compass .compass-chiplabel {
+    min-width: 5.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-platter-indicator {
+        transition: none;
+    }
 }

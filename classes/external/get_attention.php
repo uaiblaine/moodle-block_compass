@@ -42,6 +42,8 @@ use core_external\external_value;
  * fully cold (one categorymeta fill; coursemeta is filled from the strip rows)
  * — plus the one read validate_context() costs here, the user context, since
  * the context cache starts empty every request. Asserted by its budget tests.
+ * The count of enrolment applications awaiting approval rides inside the counts
+ * statement as a scalar subquery (ADR-009, decision 3) and adds no read.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -86,15 +88,17 @@ class get_attention extends external_api {
             'favourites' => $tier['favourites'],
         ], $now);
 
-        $shown = count($strips['continue']) + count($strips['new']) + count($strips['favourites']);
-        $favouritesshown = 0;
+        // A favourite may also sit in Continue or New (ADR-009, decision 1), so what tier 1 shows is
+        // the DISTINCT courses across the three strips, and the ghost answers "how many courses are
+        // not represented up here" rather than "how many cards did I draw". The favourites overflow
+        // is the true total minus the strip's own size, since the strip now lists every favourite.
+        $shownids = [];
         foreach ($strips as $cardsofstrip) {
             foreach ($cardsofstrip as $card) {
-                if ($card['isfavourite']) {
-                    $favouritesshown++;
-                }
+                $shownids[$card['id']] = true;
             }
         }
+        $shown = count($shownids);
         $counts = $tier['counts'];
 
         return [
@@ -106,7 +110,8 @@ class get_attention extends external_api {
                 'shown' => $shown,
                 'more' => max(0, $counts['total'] - $shown),
                 'newmore' => max(0, $counts['new'] - count($strips['new'])),
-                'favouritesmore' => $favouritesenabled ? max(0, $counts['favourites'] - $favouritesshown) : 0,
+                'favouritesmore' => $favouritesenabled ? max(0, $counts['favourites'] - count($strips['favourites'])) : 0,
+                'pending' => $counts['pending'],
             ],
             'favouritesenabled' => $favouritesenabled,
         ];
@@ -155,10 +160,15 @@ class get_attention extends external_api {
             'favourites' => new external_multiple_structure(self::card_structure(), 'Favourites strip'),
             'counts' => new external_single_structure([
                 'total' => new external_value(PARAM_INT, 'Active, visible, not hidden courses'),
-                'shown' => new external_value(PARAM_INT, 'Cards in tier 1'),
-                'more' => new external_value(PARAM_INT, 'Courses not shown in tier 1 (the ghost)'),
+                'shown' => new external_value(PARAM_INT, 'Distinct courses drawn in tier 1, a favourite that repeats counted once'),
+                'more' => new external_value(PARAM_INT, 'Courses not represented in tier 1 (the ghost)'),
                 'newmore' => new external_value(PARAM_INT, 'New enrolments not shown in the strip'),
-                'favouritesmore' => new external_value(PARAM_INT, 'Favourites not shown anywhere in tier 1'),
+                'favouritesmore' => new external_value(PARAM_INT, 'Favourites not shown in the favourites strip'),
+                'pending' => new external_value(
+                    PARAM_INT,
+                    'Enrolment applications awaiting approval (0 when the feature is off; past 500 archived '
+                        . 'courses the archived subset is not subtracted from it)'
+                ),
             ]),
             'favouritesenabled' => new external_value(PARAM_BOOL, 'Whether the favourites feature is on'),
         ]);

@@ -152,7 +152,10 @@ final class accessibility_rules_test extends basic_testcase {
     public function test_the_scan_covers_the_client_sources_and_the_stylesheet(): void {
         $files = $this->sources();
 
-        foreach (['Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore'] as $component) {
+        $components = [
+            'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
+        ];
+        foreach ($components as $component) {
             $this->assertArrayHasKey("js/esm/src/{$component}.tsx", $files);
         }
         $this->assertArrayHasKey('styles.css', $files);
@@ -250,18 +253,21 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * The two icon-only buttons name themselves.
+     * The icon-only buttons name themselves.
      *
      * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
      * without an aria-label a screen reader announces "button" and the user is told to
-     * press something unnamed. Both files render exactly one control, which is why every
-     * button tag in them must carry the attribute.
+     * press something unnamed. Since ADR-009 the list/cards switch (ViewToggle) is two such
+     * buttons and the Filter button (FilterToggle) hides its own text and count from the
+     * accessibility tree to say them as one sentence. Every button tag in these four files
+     * must carry the attribute.
      *
      * @return void
      */
     public function test_the_icon_only_buttons_name_themselves(): void {
         $files = $this->sources();
-        foreach (['js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx'] as $file) {
+        $iconfiles = ['js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx'];
+        foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
             $tags = $this->tags($files[$file], 'button');
             // Vacuity guard: this file's whole purpose is one button, so finding none is the bug.
@@ -469,6 +475,51 @@ final class accessibility_rules_test extends basic_testcase {
                 ".compass-archive declares a {$property} of {$matches[1]}{$matches[2]}, under the 24 px minimum"
             );
         }
+    }
+
+    /**
+     * A course name is at most two lines, and the whole name rides in a title attribute.
+     *
+     * ADR-009, decision 10, the maintainer's own note: a name of several lines breaks the layout,
+     * and the concern is the layout and not the payload. The clamp is Boost's own .clamp-2 pattern
+     * under this plugin's .compass-clamp, and every element carrying that class also carries a
+     * title, so hovering a clamped name shows it in full. axe reads neither: nothing in a
+     * scenario renders a name long enough to clamp.
+     *
+     * @return void
+     */
+    public function test_course_names_are_clamped_to_two_lines_with_the_whole_name_in_a_title(): void {
+        $body = null;
+        foreach ($this->rules() as $rule) {
+            [$selector, $rulebody] = $rule;
+            if (preg_match('/\.compass-clamp(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+                $body = $rulebody;
+            }
+        }
+        // Vacuity guard: without the rule block there is nothing to read the clamp out of.
+        $this->assertNotNull($body, 'no .compass-clamp rule found in styles.css');
+        $this->assertMatchesRegularExpression('/(?<![\w-])-webkit-line-clamp\s*:\s*2\b/', $body, 'two lines, prefixed');
+        $this->assertMatchesRegularExpression('/(?<![\w-])line-clamp\s*:\s*2\b/', $body, 'two lines, standard');
+        $this->assertMatchesRegularExpression('/\boverflow\s*:\s*hidden\b/', $body, 'the third line is cut, not shown');
+
+        $clamped = 0;
+        foreach ($this->reactsources() as $file => $contents) {
+            preg_match_all('/<[a-zA-Z][^>]*>/s', $contents, $matches);
+            foreach ($matches[0] as $tag) {
+                if (!preg_match('/\bcompass-clamp\b/', $tag)) {
+                    continue;
+                }
+                $clamped++;
+                $this->assertMatchesRegularExpression(
+                    '/\btitle=\{/',
+                    $tag,
+                    "{$file}: a clamped name without the whole name in a title attribute: " . trim($tag)
+                );
+            }
+        }
+        // Vacuity guard: the three places a course name is drawn - the tier 1 card title, the tier 3
+        // row name and the tier 3 card title.
+        $this->assertGreaterThanOrEqual(3, $clamped, 'fewer than three clamped names: has a component stopped clamping?');
     }
 
     /**

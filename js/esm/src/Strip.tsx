@@ -14,11 +14,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * One strip of tier 1: a heading and the cards under it.
+ * One strip of tier 1: a heading, an optional overflow link beside it, and the cards under it.
  *
  * The list role lives on the grid rather than on each card, so a screen reader
- * announces "list, N items" once and the ghost that closes the strip is a proper
+ * announces "list, N items" once and the ghost that closes the last strip is a proper
  * item of it.
+ *
+ * Since ADR-009 a strip's overflow - the new enrolments or favourites that did not fit -
+ * is a link in its heading, "+N new", opening tier 3 on the matching chip, and not a
+ * ghost card of its own: a ghost answers "how much more is there", the link answers
+ * "where did the rest of this strip go". The one ghost card left is the tier 2 one, and
+ * Block hands it to whichever strip renders last so that it closes tier 1's card grid.
  *
  * The heading's level comes from heading.ts: an h4 under core's own block title, which
  * is the h3 (lib/templates/block.mustache), and an h3 when hide_block_title has removed
@@ -36,11 +42,18 @@ import type {GhostKind} from './Ghost';
 import {sectionTag} from './heading';
 import type {BlockConfig, CourseCard} from './types';
 
+/** The tier 2 ghost, when this strip is the last one and there is more below. */
+export type StripGhost = {count: number, text: string, cta: string};
+
+/** The strip's own overflow: how many did not fit, the link text, and its accessible name. */
+export type StripOverflow = {count: number, kind: GhostKind, text: string, label: string};
+
 type StripProps = {
     title: string,
     name: string,
     cards: CourseCard[],
-    ghost: {count: number, text: string, kind: GhostKind} | null,
+    ghost: StripGhost | null,
+    overflow: StripOverflow | null,
     config: BlockConfig,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
     onExplore: (kind: GhostKind) => Promise<void>,
@@ -49,21 +62,35 @@ type StripProps = {
 /**
  * The strip.
  *
- * @param {object} props The heading, the cards, an optional closing ghost, the config
- *     and the two callbacks; see StripProps.
+ * @param {object} props The heading, the cards, the optional closing ghost, the optional
+ *     overflow link, the config and the two callbacks; see StripProps.
  * @returns {object} The rendered section, or nothing when the strip is empty.
  */
-const Strip = ({title, name, cards, ghost, config, onToggleFavourite, onExplore}: StripProps) => {
+const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, onExplore}: StripProps) => {
     const headingid = useId();
     const Heading = sectionTag(config.titlehidden);
 
+    // A strip with no cards renders nothing, link included: an overflow link over an empty strip
+    // would point at rows the strip itself is not showing (ADR-009, decision 2).
     if (!cards.length) {
         return null;
     }
 
     return (
         <section className="compass-strip" data-strip={name} aria-labelledby={headingid}>
-            <Heading className="compass-strip-title h6 text-uppercase text-muted" id={headingid}>{title}</Heading>
+            <div className="compass-strip-head">
+                <Heading className="compass-strip-title h6 text-uppercase text-muted mb-0" id={headingid}>{title}</Heading>
+                {overflow && (
+                    <button
+                        type="button"
+                        className="btn btn-link btn-sm p-0 compass-strip-more"
+                        aria-label={overflow.label}
+                        onClick={() => onExplore(overflow.kind)}
+                    >
+                        {overflow.text}
+                    </button>
+                )}
+            </div>
             <div className="compass-cards">
                 <div className="compass-cards-list" role="list">
                     {cards.map((card) => (
@@ -73,7 +100,7 @@ const Strip = ({title, name, cards, ghost, config, onToggleFavourite, onExplore}
                     ))}
                     {ghost && (
                         <div className="compass-cards-item" role="listitem">
-                            <Ghost count={ghost.count} text={ghost.text} kind={ghost.kind} onExplore={onExplore} />
+                            <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={onExplore} />
                         </div>
                     )}
                 </div>

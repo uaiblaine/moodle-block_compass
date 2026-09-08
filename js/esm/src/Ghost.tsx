@@ -16,9 +16,11 @@
 /**
  * The ghost card: a count, not a load (PLAN.md section 2, tier 2).
  *
- * A button, because pressing it opens tier 3 in place; it navigates nowhere. Three
- * of them exist: one per strip for what did not fit, and the tier 2 one for every
- * course outside tier 1 altogether. The kind decides which chip tier 3 opens on.
+ * A button, because pressing it opens tier 3 in place; it navigates nowhere. Since
+ * ADR-009 there is ONE ghost card - the tier 2 one, the last item of tier 1's last
+ * strip, standing for every course not represented above - and what did not fit a
+ * strip is a link in that strip's heading instead. The kind still decides which chip
+ * tier 3 opens on, and the heading links and the pending notice reuse it.
  *
  * In phase R1 this component found the block root and its configuration by walking
  * the DOM, because it was mounted alone from a Mustache template. Phase R2 renders
@@ -32,8 +34,8 @@
 
 import {useState} from 'react';
 
-/** Which ghost this is; the chip tier 3 opens on follows from it. */
-export type GhostKind = 'tier2' | 'new' | 'favourites';
+/** What opened tier 3; the chip it opens on follows from it. */
+export type GhostKind = 'tier2' | 'new' | 'favourites' | 'pending';
 
 type GhostProps = {
     count: number,

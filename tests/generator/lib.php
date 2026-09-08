@@ -37,6 +37,19 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block_compass_generator extends testing_block_generator {
+    /** @var int|null The custom field category course_field() creates once per test. */
+    private ?int $fieldcategoryid = null;
+
+    /**
+     * Forget the per-test state; core resets the generator between tests through this.
+     *
+     * @return void
+     */
+    public function reset() {
+        $this->fieldcategoryid = null;
+        parent::reset();
+    }
+
     /**
      * Enrol a user with an explicit creation time, status, window and method.
      *
@@ -67,6 +80,99 @@ class block_compass_generator extends testing_block_generator {
         $DB->set_field('user_enrolments', 'timemodified', $timecreated, ['id' => $ue->id]);
 
         return (int) $ue->id;
+    }
+
+    /**
+     * An enrolment application awaiting approval, as enrol_apply writes one (ADR-009, decision 3).
+     *
+     * A {user_enrolments} row that is NOT active, with no period, on an instance of the "apply"
+     * method — which is what apply() creates (enrol/apply/lib.php:309,323), at
+     * ENROL_USER_SUSPENDED; a manager's "wait" action later writes 2. Both rows go straight to
+     * the tables: the fixture needs no enrol_apply installed, because the CI matrix installs
+     * only declared dependencies and this block declares none. The instance is created enabled
+     * and reused by every later application in the same course.
+     *
+     * @param int $userid The applicant.
+     * @param int $courseid The course.
+     * @param int $timecreated user_enrolments.timecreated.
+     * @param int $status ENROL_USER_SUSPENDED as submitted, or 2 once deferred to the waiting list.
+     * @param int $timeend Enrolment end, 0 for none — the re-suspended, once-approved case sets a past one.
+     * @return int The user_enrolments id.
+     */
+    public function apply_at(
+        int $userid,
+        int $courseid,
+        int $timecreated,
+        int $status = ENROL_USER_SUSPENDED,
+        int $timeend = 0
+    ): int {
+        global $DB;
+
+        $instanceid = $DB->get_field('enrol', 'id', ['courseid' => $courseid, 'enrol' => \block_compass\local\pending::METHOD]);
+        if (!$instanceid) {
+            $instanceid = $DB->insert_record('enrol', (object) [
+                'enrol' => \block_compass\local\pending::METHOD,
+                'status' => ENROL_INSTANCE_ENABLED,
+                'courseid' => $courseid,
+                'sortorder' => 0,
+                'timecreated' => $timecreated,
+                'timemodified' => $timecreated,
+            ]);
+        }
+
+        return (int) $DB->insert_record('user_enrolments', (object) [
+            'status' => $status,
+            'enrolid' => (int) $instanceid,
+            'userid' => $userid,
+            'timestart' => 0,
+            'timeend' => $timeend,
+            'modifierid' => 0,
+            'timecreated' => $timecreated,
+            'timemodified' => $timecreated,
+        ]);
+    }
+
+    /**
+     * A course custom field, through core's own generator, in a category of this generator's.
+     *
+     * @param string $type select, checkbox, text...
+     * @param string $shortname The shortname; the key the filter panel uses.
+     * @param array $configdata Configuration to merge over core's defaults: for a select, 'options'
+     *     as one option per line; 'visibility' (2 everyone, 1 teachers, 0 nobody); 'defaultvalue';
+     *     'checkbydefault'.
+     * @param string|null $name The display name; null for the shortname.
+     * @return \core_customfield\field_controller
+     */
+    public function course_field(
+        string $type,
+        string $shortname,
+        array $configdata = [],
+        ?string $name = null
+    ): \core_customfield\field_controller {
+        $generator = $this->datagenerator->get_plugin_generator('core_customfield');
+        if ($this->fieldcategoryid === null) {
+            $this->fieldcategoryid = (int) $generator->create_category(['name' => 'Compass fields'])->get('id');
+        }
+
+        return $generator->create_field([
+            'categoryid' => $this->fieldcategoryid,
+            'type' => $type,
+            'shortname' => $shortname,
+            'name' => $name ?? $shortname,
+            'configdata' => $configdata,
+        ]);
+    }
+
+    /**
+     * Give a course a value for a custom field, through core's own data controller.
+     *
+     * @param \core_customfield\field_controller $field The field.
+     * @param int $courseid The course.
+     * @param mixed $value For a select the option's 1-based index; for a checkbox 1 or 0.
+     * @return void
+     */
+    public function field_value(\core_customfield\field_controller $field, int $courseid, $value): void {
+        $this->datagenerator->get_plugin_generator('core_customfield')->add_instance_data($field, $courseid, $value);
     }
 
     /**

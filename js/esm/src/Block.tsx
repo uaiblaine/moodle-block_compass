@@ -17,8 +17,8 @@
  * Tier 1: one request on first paint, then the strips.
  *
  * Everything the block shows is rendered from here: the loading and error states,
- * the three strips, the cards, the ghost cards, the empty state, the live region -
- * and, once a ghost has been pressed, tier 3. Until phase R3 tier 3 was an AMD
+ * the three strips, the cards, the one ghost card, the pending notice, the empty state,
+ * the live region - and, once a ghost or a heading link has been pressed, tier 3. Until phase R3 tier 3 was an AMD
  * module writing into a region beside this tree; it is a component now, so opening
  * it is a state change and no code outside React touches the block's DOM.
  *
@@ -27,8 +27,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {Fragment, useCallback, useEffect, useRef, useState} from 'react';
 import Strip from './Strip';
+import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
 import Explore from './Explore';
 import type {GhostKind} from './Ghost';
@@ -37,11 +38,12 @@ import {fill} from './str';
 import {getAttention, getCardDetails, setFavourite} from './repository';
 import type {Attention, BlockConfig, CourseCard} from './types';
 
-/** The chip tier 3 opens on, per kind of ghost. */
+/** The chip tier 3 opens on, per kind of control that opened it. */
 const CHIP_OF_KIND: Record<GhostKind, string> = {
     tier2: 'all',
     'new': 'new',
     favourites: 'favourites',
+    pending: 'pending',
 };
 
 /** Get_card_details refuses more than this many ids, so the client batches. */
@@ -52,11 +54,11 @@ type NotificationModule = {
 };
 
 /**
- * Apply a change to whichever strip holds a course.
+ * Apply a change to every strip that holds a course.
  *
- * A course appears in exactly one strip (ADR-000: Continue, then New, then
- * Favourite), so this rewrites at most one card - but it walks all three rather
- * than assuming which, because the strip a course sits in is the server's decision.
+ * Since ADR-009 a favourite may sit in Continue or New AND in the favourites strip, so
+ * a change to a course can touch two cards; the map over all three strips is what keeps
+ * them agreeing, and which strips hold the course stays the server's decision.
  *
  * @param {object} data The payload.
  * @param {number} courseid The course to change.
@@ -238,13 +240,14 @@ const Block = (config: BlockConfig) => {
     }, [labels]);
 
     /**
-     * Open tier 3 on the chip the pressed ghost implies.
+     * Open tier 3 on the chip the pressed control implies.
      *
      * Until phase R3 this reached an AMD module through the bridge and tier 3 rendered
      * into a region beside React's tree. It is a component now, so opening it is a state
      * change and nothing outside this tree is touched.
      *
-     * @param {string} kind Which ghost was pressed; it decides the chip.
+     * @param {string} kind What was pressed - the ghost, a heading link or the pending
+     *     notice; it decides the chip.
      * @returns {Promise} Resolves once tier 3 is open.
      */
     const explore = useCallback(async(kind: GhostKind): Promise<void> => {
@@ -252,24 +255,42 @@ const Block = (config: BlockConfig) => {
     }, []);
 
     /**
-     * The ghost that closes a strip, when the server counted more than it sent.
+     * The link a strip's heading carries when the server counted more than it sent.
      *
-     * @param {string} kind Which strip.
+     * @param {string} kind Which strip: new or favourites.
      * @param {number} count How many did not fit.
-     * @returns {object} The ghost description, or null when everything fitted.
+     * @returns {object} The link description, or null when everything fitted.
      */
-    const stripghost = (kind: GhostKind, count: number) => (count > 0
-        ? {count, text: kind === 'new' ? labels.ghost_more_new : labels.ghost_more_favourites, kind}
-        : null);
+    const stripoverflow = (kind: GhostKind, count: number): StripOverflow | null => {
+        if (count <= 0) {
+            return null;
+        }
+        const text = kind === 'new' ? labels.strip_more_new : labels.strip_more_favourites;
+        const label = kind === 'new' ? labels.strip_more_new_label : labels.strip_more_favourites_label;
+
+        return {count, kind, text: fill(text, String(count)), label: fill(label, String(count))};
+    };
 
     const shown = data ? data.continue.length + data.new.length + data.favourites.length : 0;
-    const ghosts: Record<string, {count: number, text: string, kind: GhostKind} | null> = data
+    const overflows: Record<string, StripOverflow | null> = data
         ? {
             'continue': null,
-            'new': stripghost('new', data.counts.newmore),
-            favourites: stripghost('favourites', data.counts.favouritesmore),
+            'new': stripoverflow('new', data.counts.newmore),
+            favourites: stripoverflow('favourites', data.counts.favouritesmore),
         }
         : {};
+    /*
+     * One ghost card, the last item of the last strip that has cards, standing for tier 2 as it
+     * always did (ADR-009, decision 2): only its position moved, out of a region of its own and
+     * into tier 1's grid. It hides once tier 3 is open, because then it has nothing left to open.
+     */
+    const ghost: StripGhost | null = data && data.counts.more > 0 && exploring === null
+        ? {count: data.counts.more, text: labels.ghost_more, cta: labels.ghost_explore}
+        : null;
+    const laststrip = data
+        ? [...config.strips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
+        : null;
+    const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
 
     return (
         <div>
@@ -287,26 +308,41 @@ const Block = (config: BlockConfig) => {
                 </div>
             )}
             {data && config.strips.map((strip) => (
-                <Strip
-                    key={strip.name}
-                    name={strip.name}
-                    title={strip.title}
-                    cards={data[strip.name]}
-                    ghost={ghosts[strip.name] || null}
-                    config={config}
-                    onToggleFavourite={toggleFavourite}
-                    onExplore={explore}
-                />
-            ))}
-            {data && data.counts.more > 0 && exploring === null && (
-                <div className="compass-ghost-wrap">
-                    <Ghost
-                        count={data.counts.more}
-                        text={labels.ghost_more}
-                        cta={labels.ghost_explore}
-                        kind="tier2"
+                <Fragment key={strip.name}>
+                    <Strip
+                        name={strip.name}
+                        title={strip.title}
+                        cards={data[strip.name]}
+                        ghost={strip.name === laststrip ? ghost : null}
+                        overflow={overflows[strip.name] || null}
+                        config={config}
+                        onToggleFavourite={toggleFavourite}
                         onExplore={explore}
                     />
+                    {/* The one notice an application gets in tier 1 (ADR-009, decision 3): a line
+                        under New enrolments - or where that strip would be - and a link-styled
+                        button, because it acts on the page and navigates nowhere. */}
+                    {strip.name === 'new' && pendingcount > 0 && (
+                        <p className="compass-strip-note small text-muted" data-region="pending-notice">
+                            {fill(labels.pendingnotice, String(pendingcount))}
+                            {' · '}
+                            <button
+                                type="button"
+                                className="btn btn-link btn-sm p-0 align-baseline compass-linkbtn"
+                                aria-label={labels.pendingnoticelabel}
+                                onClick={() => explore('pending')}
+                            >
+                                {labels.pendingnoticeview}
+                            </button>
+                        </p>
+                    )}
+                </Fragment>
+            ))}
+            {/* No strip has cards, yet there are courses: the ghost has no grid to close and
+                stands alone, as it did before ADR-009 moved it into the strips. */}
+            {ghost && laststrip === null && (
+                <div className="compass-ghost-wrap">
+                    <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />
                 </div>
             )}
             {data && shown === 0 && (

@@ -175,7 +175,7 @@ final class inventory_test extends advanced_testcase {
     }
 
     /**
-     * The entry holds one row per enrolment, ten integers in the documented order, and a
+     * The entry holds one row per enrolment, eleven integers in the documented order, and a
      * stamp identical to the one the statement produces.
      *
      * Three controls carry the case. The doubly enrolled course proves the rows are keyed
@@ -237,8 +237,9 @@ final class inventory_test extends advanced_testcase {
             inventory::EMODIFIED,
             inventory::TIMEACCESS,
             inventory::ISFAVOURITE,
+            inventory::APPLYINSTANCE,
         ];
-        $this->assertSame(range(0, 9), $documentedorder, 'the row fields are the first ten integers, in order');
+        $this->assertSame(range(0, 10), $documentedorder, 'the row fields are the first eleven integers, in order');
         $this->assertSame($documentedorder, array_keys($entry['rows'][$openedue]));
 
         $emodified = (int) $this->enrol_instance((int) $opened->id)->timemodified;
@@ -253,6 +254,7 @@ final class inventory_test extends advanced_testcase {
             inventory::EMODIFIED => $emodified,
             inventory::TIMEACCESS => self::NOW - HOURSECS,
             inventory::ISFAVOURITE => 0,
+            inventory::APPLYINSTANCE => 0,
         ];
         $this->assertSame($expectedrow, $entry['rows'][$openedue]);
         $this->assertSame(1, $entry['rows'][$starredue][inventory::ISFAVOURITE]);
@@ -776,6 +778,97 @@ final class inventory_test extends advanced_testcase {
         $this->assertSame(self::NOW - HOURSECS, $courses[(int) $starred->id]['timeaccess']);
         $this->assertFalse($courses[(int) $plain->id]['isfavourite']);
         $this->assertSame(0, $courses[(int) $plain->id]['timeaccess']);
+    }
+
+    /**
+     * The eleventh integer is the enrol instance id on an "apply" instance and 0 on every other
+     * method, on the same fill (ADR-009, decision 3).
+     *
+     * @return void
+     */
+    public function test_the_eleventh_integer_is_the_apply_instance_id_and_zero_elsewhere(): void {
+        global $DB;
+
+        $applied = $this->course('Applied course');
+        $manual = $this->course('Manual course');
+        $applyue = $this->plugingen->apply_at($this->userid, (int) $applied->id, self::NOW - DAYSECS);
+        $manualue = $this->plugingen->enrol_at($this->userid, (int) $manual->id, self::NOW - DAYSECS);
+        $this->purge_plugin_caches();
+
+        $entry = inventory::fill($this->userid);
+
+        $instanceid = (int) $DB->get_field('enrol', 'id', ['courseid' => $applied->id, 'enrol' => pending::METHOD], MUST_EXIST);
+        $this->assertGreaterThan(0, $instanceid);
+        $this->assertSame($instanceid, $entry['rows'][$applyue][inventory::APPLYINSTANCE]);
+        $this->assertSame(0, $entry['rows'][$manualue][inventory::APPLYINSTANCE]);
+        // Control: the row is otherwise an ordinary suspended row, which courses() leaves out.
+        $this->assertSame(ENROL_USER_SUSPENDED, $entry['rows'][$applyue][inventory::UESTATUS]);
+        $this->assertSame([(int) $manual->id], array_keys(inventory::courses($entry, self::NOW)));
+    }
+
+    /**
+     * pending() lists the applications awaiting a decision and nothing else (ADR-009, decision 3).
+     *
+     * Listed: an application as submitted (ENROL_USER_SUSPENDED) and one deferred (2), both with
+     * the period open. Not listed: an apply row past its timeend (re-suspended after approval), a
+     * suspended manual row (another method), an active apply row (an active course — courses()
+     * lists it), a course where an active manual enrolment sits beside an application (the
+     * active pass's ids are excluded, and the control that it is the EXCLUSION doing it is the
+     * same pass run without them), an archived application (the hidden set), and a row written
+     * before the eleventh integer existed, which reads as 0.
+     *
+     * @return void
+     */
+    public function test_pending_lists_applications_awaiting_a_decision_and_nothing_else(): void {
+        $submitted = (int) $this->course('Submitted')->id;
+        $deferred = (int) $this->course('Deferred')->id;
+        $expired = (int) $this->course('Expired')->id;
+        $manual = (int) $this->course('Suspended manual')->id;
+        $approved = (int) $this->course('Approved')->id;
+        $both = (int) $this->course('Active and applied')->id;
+        $archived = (int) $this->course('Archived application')->id;
+        $submittedue = $this->plugingen->apply_at($this->userid, $submitted, self::NOW - DAYSECS);
+        $this->plugingen->apply_at($this->userid, $deferred, self::NOW - DAYSECS, 2);
+        $this->plugingen->apply_at($this->userid, $expired, self::NOW - 100 * DAYSECS, ENROL_USER_SUSPENDED, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $manual, self::NOW - DAYSECS, 'manual', ENROL_USER_SUSPENDED);
+        $this->plugingen->apply_at($this->userid, $approved, self::NOW - DAYSECS, ENROL_USER_ACTIVE);
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - 2 * DAYSECS);
+        $this->plugingen->apply_at($this->userid, $both, self::NOW - DAYSECS);
+        $this->plugingen->apply_at($this->userid, $archived, self::NOW - DAYSECS);
+        $this->purge_plugin_caches();
+
+        $entry = inventory::get($this->userid);
+        $active = inventory::courses($entry, self::NOW, [$archived]);
+        $pending = inventory::pending($entry, self::NOW, [$archived], array_keys($active));
+
+        $expectedactive = [$approved, $both];
+        sort($expectedactive);
+        $actualactive = array_keys($active);
+        sort($actualactive);
+        $this->assertSame($expectedactive, $actualactive);
+        $expectedpending = [$submitted, $deferred];
+        sort($expectedpending);
+        $actualpending = array_keys($pending);
+        sort($actualpending);
+        $this->assertSame($expectedpending, $actualpending);
+        $this->assertSame($submittedue, $pending[$submitted]['ueid']);
+        $this->assertFalse($pending[$submitted]['isfavourite']);
+
+        // Control: run without the active ids, the same pass DOES return the doubly enrolled
+        // course, so it is the exclusion that removes it and not the fixture.
+        $this->assertArrayHasKey($both, inventory::pending($entry, self::NOW, [$archived], []));
+        // And without the hidden set the archived application is back.
+        $this->assertArrayHasKey($archived, inventory::pending($entry, self::NOW, [], array_keys($active)));
+
+        // A row from an entry written before the field existed: ten integers, never pending.
+        $legacy = $entry;
+        foreach ($legacy['rows'] as &$row) {
+            unset($row[inventory::APPLYINSTANCE]);
+        }
+        unset($row);
+        $this->assertSame([], inventory::pending($legacy, self::NOW, [], []));
+        $this->assertFalse(pending::is_pending($legacy['rows'][$submittedue], self::NOW));
+        $this->assertTrue(pending::is_pending($entry['rows'][$submittedue], self::NOW));
     }
 
     /**

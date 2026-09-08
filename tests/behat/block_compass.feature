@@ -57,19 +57,32 @@ Feature: The Compass block puts the courses that need attention first
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
 
   @javascript
-  Scenario: The ghost card opens the grouped course list and the search box filters it in place
+  Scenario: The ghost card opens the grouped course list, the panel filters it by a course field and the search box filters it in place
     Given the following config values are set as admin:
-      | attention_max | 1 | block_compass |
+      | attention_max | 1        | block_compass |
+      | filter_fields | delivery | block_compass |
+    # A select course custom field, visible to everyone, is what the filter panel draws a chip
+    # group for (ADR-009, decision 5); seeded with core's own generators, and the value with the
+    # course, the way create_course() saves custom fields.
+    And the following "custom field categories" exist:
+      | name        | component   | area   | itemid |
+      | Course tags | core_course | course | 0      |
+    And the following "custom fields" exist:
+      | name     | category    | type   | shortname | configdata                                    |
+      | Delivery | Course tags | select | delivery  | {"options":"Online\nOn campus","visibility":2} |
     And the following "courses" exist:
-      | fullname | shortname | category |
-      | Course 4 | C4        | CATB     |
+      | fullname | shortname | category | customfield_delivery |
+      | Course 4 | C4        | CATB     | 1                    |
+      | Course 5 | C5        | CATB     | 2                    |
     And the following "course enrolments" exist:
       | user     | course | role    |
       | student1 | C4     | student |
+      | student1 | C5     | student |
     # Seeded so that tier 1 is decided rather than guessed: with one card per strip, Continue is
-    # Course 1 (opened last, in the step below) and New is Course 4, the only course never opened.
-    # Courses 2 and 3 are therefore absent from tier 1, which is what makes the search assertion
-    # at the end about tier 3 and nothing else.
+    # Course 1 (opened last, in the step below) and New shows Course 4 - Courses 4 and 5 are the
+    # two never opened, enrolled in the same second, so the name breaks the tie - with a "+1 new"
+    # link in its heading for Course 5 (ADR-009, decision 2). Courses 2 and 3 are therefore absent
+    # from tier 1, which is what makes the search assertion below about tier 3 and nothing else.
     And the following "last access times" exist:
       | user     | course | lastaccess     |
       | student1 | C2     | ##3 days ago## |
@@ -84,13 +97,25 @@ Feature: The Compass block puts the courses that need attention first
     # count and is a div with no call to action, so "Explore all" exists as a button only
     # once the component is running. A failed import is silent everywhere else.
     When I click on "Explore all" "button"
-    Then I should see "All courses (4)" in the "Compass" "block"
+    Then I should see "All courses (5)" in the "Compass" "block"
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
-    # With tier 3 open: the index, both groups and their rows are all on screen here, which is
-    # the most this scenario ever shows (a settled search narrows the list to its hits).
+    # The filter panel is open at first render, so its platters and chips are on screen too.
+    And I should see "Delivery" in the "Compass" "block"
+    # With tier 3 open: the index, both groups and their rows, the toolbar and the panel are all
+    # on screen here, which is the most this scenario ever shows (a settled search narrows the
+    # list to its hits).
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
+    # A field chip narrows the list to the one course carrying the option, in the browser: the
+    # live region announces the count, which is what settles the re-render before the negative
+    # assertion runs (Course 5 is not in tier 1, so its absence is tier 3's).
+    When I click on "Online" "button" in the "Compass" "block"
+    Then I should see "1 courses shown" in the "Compass" "block"
+    And I should see "Course 4" in the "Compass" "block"
+    And I should not see "Course 5" in the "Compass" "block"
+    When I click on "Clear filters" "button" in the "Compass" "block"
+    Then I should see "5 courses shown" in the "Compass" "block"
     When I set the field "Search my courses" to "Course 4"
     # The count settles the race before the negative assertion runs. Searching is debounced,
     # and "should not see" fails the instant it finds the text rather than waiting for it to
@@ -105,12 +130,17 @@ Feature: The Compass block puts the courses that need attention first
     # unmounts the whole block rather than drawing a broken card - so this is the only place
     # that would notice. The reload is what proves the choice was WRITTEN: it goes through
     # core's own preferences endpoint, a route nothing else in this plugin uses, and a client
-    # that failed to persist it would look perfectly correct until the next page load.
+    # that failed to persist it would look perfectly correct until the next page load. The
+    # switch is an icon-only button now, found by the aria-label carrying the word (ADR-009).
     When I click on "Cards" "button" in the "Compass" "block"
     Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
     When I reload the page
-    And I click on "Explore all" "button"
-    Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
+    # The strip's heading link is the second way into tier 3 (ADR-009, decision 2): it opens on
+    # the New chip, so the two never-opened courses are what is counted, and the cards view
+    # written before the reload is what draws them.
+    And I click on "+1 new" "button" in the "Compass" "block"
+    Then I should see "2 courses shown" in the "Compass" "block"
+    And ".compass-rowcard" "css_element" should exist in the "Compass" "block"
 
   @javascript
   Scenario: Archiving in Compass removes the course from the Course overview block, and unarchiving brings it back

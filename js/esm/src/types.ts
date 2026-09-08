@@ -51,13 +51,14 @@ export type CourseCard = {
     actiontext: string,
 };
 
-/** The counts that decide the ghost cards. */
+/** The counts that decide the ghost card, the strip overflow links and the pending notice. */
 export type Counts = {
     total: number,
     shown: number,
     more: number,
     newmore: number,
     favouritesmore: number,
+    pending: number,
 };
 
 /** The whole tier 1 payload. */
@@ -106,9 +107,10 @@ export type Strip = {
  */
 export type BlockConfig = {
     labels: Record<string, string>,
-    icons: {staron: string, staroff: string, hide: string, show: string},
+    icons: {staron: string, staroff: string, hide: string, show: string, list: string, grid: string, filter: string},
     strips: Strip[],
     favouritesenabled: boolean,
+    pendingenabled: boolean,
     showsearch: boolean,
     showindex: boolean,
     titlehidden: boolean,
@@ -125,7 +127,14 @@ export type BlockConfig = {
 export const GROUP_DORMANT = -1;
 export const GROUP_ARCHIVED = -2;
 
-/** One tier 3 row, as get_inventory and its two paging services return it. */
+/**
+ * One tier 3 row, as get_inventory and its two paging services return it.
+ *
+ * pend is present, and true, only on an enrolment application awaiting approval; cf is
+ * present only when the row holds a custom-field value, as a flat list read in pairs — the
+ * field's index in the payload's fields array, then the value key (ADR-009). Both are omitted
+ * rather than sent false or empty, because omission is the zero-cost shape on the wire.
+ */
 export type InventoryRow = {
     id: number,
     name: string,
@@ -133,6 +142,27 @@ export type InventoryRow = {
     new: boolean,
     fav: boolean,
     dorm: boolean,
+    pend?: boolean,
+    cf?: number[],
+};
+
+/** One chip of a custom-field group: the stored value key and its label. */
+export type FilterValue = {
+    key: number,
+    label: string,
+};
+
+/** One custom-field chip group, as get_inventory's fields array names it (ADR-009, decision 5). */
+export type FilterField = {
+    key: string,
+    label: string,
+    values: FilterValue[],
+};
+
+/** One custom-field filter as the two paging services take it. */
+export type FilterParam = {
+    field: string,
+    value: number,
 };
 
 /** A search hit is a row that also says which group it belongs to. */
@@ -150,6 +180,7 @@ export type InventoryGroup = {
 export type Inventory = {
     total: number,
     mode: 'full' | 'paged',
+    fields: FilterField[],
     groups: InventoryGroup[],
 };
 

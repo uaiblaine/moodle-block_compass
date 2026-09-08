@@ -64,11 +64,42 @@ $definitions = [
         'staticaccelerationsize' => 20,
     ],
 
+    // Course custom field values (ADR-009, decision 5). Key: courseid. Value: field id =>
+    // stored intvalue for the filterable fields the course has a data row for; an empty array
+    // is a value. A SIBLING of coursemeta on purpose: cards.php writes coursemeta from tier 1's
+    // strip rows, which carry no field columns, so folding the values into that entry would let
+    // tier 1 write field-less entries that tier 3 reads as hits. Deleted per key by the
+    // course_updated and course_deleted observers; purged whole by the four core_customfield
+    // observers, since a field created or made eligible is one no existing entry knows about.
+    'coursefields' => [
+        'mode' => \core_cache\store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 50,
+    ],
+
+    // The filter panel's vocabulary (ADR-009, decision 5). One entry for the whole site: every
+    // ELIGIBLE course custom field — select and checkbox, visible to everyone — with its raw
+    // name, its raw option list and its default. Filled through core's handler, whose fill is
+    // two recordsets plus one query per shared category (three reads each on PostgreSQL), which
+    // is exactly why it is cached. Dropped by the four core_customfield observers; a change to
+    // the filter_fields setting needs no invalidation, because the configured subset is read
+    // out of the whole eligible set.
+    'filterfields' => [
+        'mode' => \core_cache\store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1,
+    ],
+
     // User layer (ADR-002). Key: userid. Value: the seven-field stamp plus one row per
     // ENROLMENT keyed by user_enrolments id — [courseid, timecreated, timestart, timeend,
-    // uestatus, estatus, uemodified, emodified, timeaccess, isfavourite], ten integers, no
-    // course data; "active" is decided at read time. Validity is decided by the stamp, one
-    // statement of seven userid-indexed aggregates; the TTL is a safety net, never the rule.
+    // uestatus, estatus, uemodified, emodified, timeaccess, isfavourite, applyinstance], eleven
+    // integers, no course data; "active" and "awaiting approval" are decided at read time.
+    // Validity is decided by the stamp, one statement of seven userid-indexed aggregates; the
+    // TTL is a safety net, never the rule.
     'inventory' => [
         'mode' => \core_cache\store::MODE_APPLICATION,
         'simplekeys' => true,

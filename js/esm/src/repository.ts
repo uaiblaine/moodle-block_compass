@@ -27,7 +27,7 @@
  */
 
 import {amd} from './amd';
-import type {Attention, CardDetail, Inventory, RowPage, SearchHits} from './types';
+import type {Attention, CardDetail, FilterParam, Inventory, RowPage, SearchHits} from './types';
 
 type AjaxRequest = {methodname: string, args: Record<string, unknown>};
 
@@ -102,23 +102,34 @@ export const getInventory = (): Promise<Inventory> =>
 /**
  * One page of one group of tier 3, in paged mode (ADR-004).
  *
+ * The chip, the sort and the custom-field filters are parameters because the browser does not
+ * hold the group's rows to filter or reorder them itself (ADR-009, decision 5).
+ *
  * @param {number} groupid The group (a category id).
  * @param {number} after Id of the last row the client holds; 0 for the first page.
- * @param {string} chip all, new or favourites.
+ * @param {string} chip all, new, favourites or pending.
  * @param {string} sort name or recent.
+ * @param {object[]} filters The pressed custom-field chips, one per field.
  * @returns {Promise} The rows, whether more remain, and the cursor to send back.
  */
-export const getInventoryRows = (groupid: number, after: number, chip: string, sort: string): Promise<RowPage> =>
-    call<RowPage>('block_compass_get_inventory_rows', {groupid, after, chip, sort});
+export const getInventoryRows = (
+    groupid: number,
+    after: number,
+    chip: string,
+    sort: string,
+    filters: FilterParam[],
+): Promise<RowPage> =>
+    call<RowPage>('block_compass_get_inventory_rows', {groupid, after, chip, sort, filters});
 
 /**
  * Server-side search over the current user's courses, in paged mode (ADR-004).
  *
  * @param {string} query The raw query; the server normalises it the way filter.ts does.
+ * @param {object[]} filters The pressed custom-field chips, one per field.
  * @returns {Promise} The rows, each carrying its groupid, and whether the list was cut.
  */
-export const searchInventory = (query: string): Promise<SearchHits> =>
-    call<SearchHits>('block_compass_search_inventory', {query});
+export const searchInventory = (query: string, filters: FilterParam[]): Promise<SearchHits> =>
+    call<SearchHits>('block_compass_search_inventory', {query, filters});
 
 /**
  * Persist the viewer's choice of tier 3 view, through core's own preference route.

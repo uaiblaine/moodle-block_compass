@@ -27,6 +27,9 @@ Wireframe: `docs/wireframe-meus-cursos-3-andares.html`.
 
 **Regra de exclusividade**: cada curso aparece em uma única faixa do andar 1, prioridade
 Continuar › Novo › Favorito. Novo + favorito fica em Novo com a estrela marcada.
+*(Superada em 2026-09-07 pela ADR-009, decisão 1, só para a faixa de favoritos: ela lista
+todos os favoritos, repetindo os que já estão em Continuar ou Novo; Continuar e Novo seguem
+exclusivas entre si.)*
 
 ## 3. Princípios (herdados do block_dimensions)
 
@@ -200,7 +203,9 @@ completo no navegador:
 ## 8. Settings
 
 `attention_max`, `new_days`, `dormant_months`, `group_depth`, `inventory_max`,
-`enable_favourites`, `enable_pending`, `enable_prewarm`, `prewarm_days`,
+`enable_favourites`, `enable_pending` *(desde a ADR-009: solicitações de inscrição do
+enrol_apply aguardando aprovação, não os action events do calendário da Fase 6 — que, se um dia
+for construída, precisa de outra chave)*, `enable_prewarm`, `prewarm_days`,
 `prewarm_budget_seconds`, `default_view` (list|cards), `enable_search`, `hide_block_title`,
 `show_index`.
 
@@ -249,7 +254,9 @@ Redis, CHANGELOG, submissão ao diretório.
 
 - Substituir o `block_myoverview` (convive; admin pode removê-lo do layout padrão).
 - Visão de gestor, relatórios, cursos de outros usuários.
-- Tags/custom fields de curso como filtro (v2).
+- Tags/custom fields de curso como filtro (v2). *(Campos customizados dos tipos lista de
+  seleção e caixa de seleção entraram na v1 pela ADR-009, decisão 5 — Fase 8; tags continuam
+  fora.)*
 - Integração com planos de aprendizagem (papel do block_dimensions).
 
 ## 11. Definição de pronto (toda fase)

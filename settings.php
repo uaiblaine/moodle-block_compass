@@ -109,6 +109,46 @@ if ($ADMIN->fulltree) {
         0
     ));
 
+    // The filter panel of the full course list (ADR-009, decisions 5 and 7). The choices are the
+    // site's own eligible course custom fields — select and checkbox, visible to everyone — read
+    // from the filterfields layer, and admin_setting_configmultiselect drops any submitted value
+    // absent from them (lib/adminlib.php:3687-3728). Not during install or upgrade, when the
+    // custom field tables may not be there to ask; the default is empty either way.
+    $filterchoices = [];
+    if (!during_initial_install() && empty($CFG->upgraderunning)) {
+        foreach (\block_compass\local\filter_fields::eligible() as $shortname => $field) {
+            $filterchoices[$shortname] = format_string(
+                $field['name'],
+                true,
+                ['context' => \core\context\system::instance()]
+            ) . " ({$shortname})";
+        }
+    }
+    if (empty($filterchoices)) {
+        $notice = new \core\output\notification(
+            get_string('filter_fields_none', 'block_compass'),
+            \core\output\notification::NOTIFY_INFO
+        );
+        $settings->add(new admin_setting_heading('block_compass/filter_fields_none', '', $OUTPUT->render($notice)));
+        $filterchoices = ['' => ''];
+    }
+    $settings->add(new admin_setting_configmultiselect(
+        'block_compass/filter_fields',
+        get_string('filter_fields', 'block_compass'),
+        get_string('filter_fields_desc', 'block_compass', \block_compass\local\config::FILTER_FIELDS_MAX),
+        [],
+        $filterchoices
+    ));
+
+    // Applications awaiting approval (ADR-009, decision 3): off by default, and forced off without
+    // the enrol_apply plugin, which is what the accessor checks (config::pending_enabled()).
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/enable_pending',
+        get_string('enable_pending', 'block_compass'),
+        get_string('enable_pending_desc', 'block_compass'),
+        0
+    ));
+
     // Pre-warming (ADR-003): the scheduled task is always registered and gated by this switch.
     $settings->add(new admin_setting_heading(
         'block_compass/prewarm',

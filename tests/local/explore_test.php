@@ -97,6 +97,8 @@ final class explore_test extends advanced_testcase {
         cache::make('block_compass', 'inventory')->purge();
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
+        cache::make('block_compass', 'coursefields')->purge();
+        cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'details')->purge();
         course_meta::reset();
         category_meta::reset();
@@ -810,7 +812,7 @@ final class explore_test extends advanced_testcase {
      * @return array explore::rows()'s answer.
      */
     private function rows(int $groupid, int $after = 0, string $chip = 'all', string $sort = 'name', ?int $pagesize = null): array {
-        return explore::rows($this->userid, self::NOW, $groupid, $after, $chip, $sort, $pagesize, 1, 30);
+        return explore::rows($this->userid, self::NOW, $groupid, $after, $chip, $sort, [], $pagesize, 1, 30);
     }
 
     /**
@@ -821,7 +823,7 @@ final class explore_test extends advanced_testcase {
      * @return array explore::search()'s answer.
      */
     private function search(string $query, ?int $limit = null): array {
-        return explore::search($this->userid, self::NOW, $query, $limit, 1, 30);
+        return explore::search($this->userid, self::NOW, $query, [], $limit, 1, 30);
     }
 
     /**
@@ -1363,6 +1365,370 @@ final class explore_test extends advanced_testcase {
         $this->assertSame([(int) $course->id], $this->row_ids($this->search('al')));
         $this->assertSame([(int) $course->id], $this->row_ids($this->search('ál')));
         $this->assertSame(2, explore::SEARCH_MIN_LENGTH);
+    }
+
+    /**
+     * Build tier 3 with applications awaiting approval listed, and the named fields as filters.
+     *
+     * @param bool $pending Whether applications are listed.
+     * @param string[] $filterfields Shortnames of the custom fields offered as filters.
+     * @param int|null $inventorymax Courses full mode ships at most; null for the setting.
+     * @return array explore::build()'s payload.
+     */
+    private function build_with(bool $pending, array $filterfields = [], ?int $inventorymax = null): array {
+        return explore::build($this->userid, self::NOW, 1, 30, $inventorymax, null, $pending, $filterfields);
+    }
+
+    /**
+     * An application awaiting approval is a tier 3 row in its own category, carrying pend and
+     * nothing that an active course carries (ADR-009, decision 3) — and it is derived every way.
+     *
+     * Listed with pend: an application as submitted (status 1) and a deferred one (2), both new
+     * enough and never opened, so a rule that read them as "new" or as "dormant" would show. Not
+     * listed: an apply row past its timeend, a suspended row on another method — both exactly as
+     * today — and a course holding an active manual enrolment beside an application, which is one
+     * NORMAL row, with the control that the pending pass alone over the same entry does return the
+     * course, so it is the exclusion and not the fixture. The favourites chip excludes a starred
+     * application; the pending chip keeps only applications; the group and the headline count them;
+     * and with the feature off every application is absent from every answer, which is the setting
+     * gate of decision 7.
+     *
+     * @return void
+     */
+    public function test_an_application_awaiting_approval_is_a_row_with_pend_and_nothing_else(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $zeta = (int) $tree['zeta']->id;
+        $threshold = dormancy::threshold(self::NOW, 12);
+        $active = (int) $this->course_in($alpha, 'Active course')->id;
+        $submitted = (int) $this->course_in($alpha, 'Submitted application')->id;
+        $deferred = (int) $this->course_in($zeta, 'Deferred application')->id;
+        $old = (int) $this->course_in($zeta, 'Old application')->id;
+        $expired = (int) $this->course_in($alpha, 'Expired application')->id;
+        $manual = (int) $this->course_in($alpha, 'Suspended manual')->id;
+        $both = (int) $this->course_in($alpha, 'Active and applied')->id;
+        $this->plugingen->enrol_at($this->userid, $active, self::NOW - 100 * DAYSECS);
+        $this->plugingen->access_at($this->userid, $active, self::NOW - DAYSECS);
+        $this->plugingen->apply_at($this->userid, $submitted, self::NOW - 2 * DAYSECS);
+        $this->plugingen->favourite($this->userid, $submitted);
+        $this->plugingen->apply_at($this->userid, $deferred, self::NOW - 2 * DAYSECS, 2);
+        $this->plugingen->apply_at($this->userid, $old, $threshold - 10 * DAYSECS);
+        $this->plugingen->apply_at($this->userid, $expired, self::NOW - 100 * DAYSECS, ENROL_USER_SUSPENDED, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $manual, self::NOW - 2 * DAYSECS, 'manual', ENROL_USER_SUSPENDED);
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - 2 * DAYSECS);
+        $this->plugingen->apply_at($this->userid, $both, self::NOW - DAYSECS);
+
+        $payload = $this->build_with(true);
+        $rows = $this->rows_by_id($payload);
+
+        // Grouped by category, counted in the group and in the headline; the two other groups absent.
+        $this->assertSame(['Alpha faculty', 'Zeta faculty'], $this->group_names($payload));
+        $this->assertSame([3, 2], array_column($payload['groups'], 'count'));
+        $this->assertSame(5, $payload['total']);
+        $this->assertSame(
+            ['Active and applied', 'Active course', 'Submitted application'],
+            $this->course_names($payload['groups'][0])
+        );
+        $this->assertSame(['Deferred application', 'Old application'], $this->course_names($payload['groups'][1]));
+        $this->assertArrayNotHasKey($expired, $rows);
+        $this->assertArrayNotHasKey($manual, $rows);
+
+        // The application rows: pend, never new, never dormant, the star kept truthful.
+        foreach ([$submitted, $deferred, $old] as $courseid) {
+            $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'pend'], array_keys($rows[$courseid]));
+            $this->assertTrue($rows[$courseid]['pend']);
+            $this->assertFalse($rows[$courseid]['new'], 'an application is never new');
+            $this->assertFalse($rows[$courseid]['dorm'], 'an application is never dormant');
+            $this->assertNull($rows[$courseid]['opened']);
+        }
+        $this->assertTrue($rows[$submitted]['fav']);
+        // The active rows carry no pend key at all: omission is the zero-cost shape.
+        foreach ([$active, $both] as $courseid) {
+            $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm'], array_keys($rows[$courseid]));
+        }
+        $this->assertTrue($rows[$both]['new'], 'the active enrolment wins, and it is a fresh one');
+        // Control: the pending pass alone does return the doubly enrolled course.
+        $entry = inventory::get($this->userid);
+        $this->assertArrayHasKey($both, inventory::pending($entry, self::NOW, [], []));
+
+        // The chips, in paged mode: favourites excludes the starred application, pending keeps applications.
+        $this->assertSame([], $this->row_ids($this->rows_with(true, $alpha, 'favourites')));
+        $this->assertSame([$submitted], $this->row_ids($this->rows_with(true, $alpha, 'pending')));
+        $this->assertSame([$deferred, $old], $this->row_ids($this->rows_with(true, $zeta, 'pending')));
+        $this->assertSame([$both], $this->row_ids($this->rows_with(true, $alpha, 'new')), 'only the fresh active enrolment is new');
+        $paged = $this->rows_with(true, $alpha, 'all');
+        $this->assertTrue(array_column($paged['rows'], null, 'id')[$submitted]['pend']);
+        // And the search finds an application by name, with its group.
+        $found = $this->row_ids($this->search_with(true, 'application'));
+        sort($found);
+        $expectedhits = [$submitted, $deferred, $old];
+        sort($expectedhits);
+        $this->assertSame($expectedhits, $found);
+
+        // The setting gate: off, every application is absent from every answer, as today.
+        $off = $this->build_with(false);
+        $this->assertSame(['Alpha faculty'], $this->group_names($off));
+        $this->assertSame(2, $off['total']);
+        $offids = array_keys($this->rows_by_id($off));
+        sort($offids);
+        $expectedoff = [$active, $both];
+        sort($expectedoff);
+        $this->assertSame($expectedoff, $offids);
+        $this->assertSame([], $this->row_ids($this->rows_with(false, $alpha, 'pending')));
+        $pageids = $this->row_ids($this->rows_with(false, $alpha));
+        sort($pageids);
+        $this->assertSame($expectedoff, $pageids);
+        $this->assertSame([], $this->row_ids($this->search_with(false, 'application')));
+    }
+
+    /**
+     * One page of one group with applications listed, at depth 1 and a 30-day window.
+     *
+     * @param bool $pending Whether applications are listed.
+     * @param int $groupid The group.
+     * @param string $chip all, new, favourites or pending.
+     * @param array $filters The custom-field filters.
+     * @param string[] $filterfields The custom fields offered as filters.
+     * @return array explore::rows()'s answer.
+     */
+    private function rows_with(
+        bool $pending,
+        int $groupid,
+        string $chip = 'all',
+        array $filters = [],
+        array $filterfields = []
+    ): array {
+        return explore::rows(
+            $this->userid,
+            self::NOW,
+            $groupid,
+            0,
+            $chip,
+            'name',
+            $filters,
+            null,
+            1,
+            30,
+            null,
+            $pending,
+            $filterfields
+        );
+    }
+
+    /**
+     * A search with applications listed, at depth 1 and a 30-day window.
+     *
+     * @param bool $pending Whether applications are listed.
+     * @param string $query The raw query.
+     * @param array $filters The custom-field filters.
+     * @param string[] $filterfields The custom fields offered as filters.
+     * @return array explore::search()'s answer.
+     */
+    private function search_with(bool $pending, string $query, array $filters = [], array $filterfields = []): array {
+        return explore::search($this->userid, self::NOW, $query, $filters, null, 1, 30, null, $pending, $filterfields);
+    }
+
+    /**
+     * Two custom fields and five courses, with the values that make every filtering case decidable.
+     *
+     * modality (select: Online, On campus, Hybrid) and certified (checkbox). Alfa is Online and
+     * certified; Bravo is On campus and certified; Charlie is Online, not certified; Delta has NO
+     * modality and is certified; Echo has neither value. A third field, level, exists and is
+     * eligible but not configured, and a text field never is.
+     *
+     * @return array The five course ids keyed by name, the field ids keyed by shortname, and the category id.
+     */
+    private function field_fixture(): array {
+        $alpha = (int) $this->tree()['alpha']->id;
+        $modality = $this->plugingen->course_field('select', 'modality', ['options' => "Online\nOn campus\nHybrid"]);
+        $certified = $this->plugingen->course_field('checkbox', 'certified');
+        $level = $this->plugingen->course_field('select', 'level', ['options' => "Basic\nAdvanced"]);
+        $this->plugingen->course_field('text', 'code');
+        $courses = [];
+        foreach (['Alfa', 'Bravo', 'Charlie', 'Delta', 'Echo'] as $name) {
+            $courses[$name] = (int) $this->course_in($alpha, $name . ' course')->id;
+            $this->plugingen->enrol_at($this->userid, $courses[$name], self::NOW - 100 * DAYSECS);
+        }
+        $this->plugingen->field_value($modality, $courses['Alfa'], 1);
+        $this->plugingen->field_value($certified, $courses['Alfa'], 1);
+        $this->plugingen->field_value($modality, $courses['Bravo'], 2);
+        $this->plugingen->field_value($certified, $courses['Bravo'], 1);
+        $this->plugingen->field_value($modality, $courses['Charlie'], 1);
+        $this->plugingen->field_value($certified, $courses['Charlie'], 0);
+        $this->plugingen->field_value($certified, $courses['Delta'], 1);
+        $this->plugingen->field_value($level, $courses['Alfa'], 2);
+        cache::make('block_compass', 'coursefields')->purge();
+        cache::make('block_compass', 'filterfields')->purge();
+
+        return [$courses, ['modality' => (int) $modality->get('id'), 'certified' => (int) $certified->get('id')], $alpha];
+    }
+
+    /**
+     * Full mode ships the fields and each row's cf; paged mode applies the same selection and
+     * returns the same course ids (ADR-009, decision 5) — the parity that keeps the two modes
+     * from drifting, the way the matcher fixture pins the search rule.
+     *
+     * The expectation is computed from full mode's own cf pairs, the way the client would filter
+     * them, and compared with rows() and search() under the same selection. Two groups combine
+     * with AND; an empty selection constrains nothing; a course with no stored value for the
+     * select is excluded by every chip of that group and included by the other group's chips;
+     * a checkbox with no stored value takes its default, No, as core displays it.
+     *
+     * @return void
+     */
+    public function test_custom_field_filters_agree_between_full_and_paged_mode(): void {
+        [$courses, , $alpha] = $this->field_fixture();
+        $fields = ['modality', 'certified'];
+
+        $payload = $this->build_with(false, $fields);
+
+        // The vocabulary travels once, in the configured order, with core's own keys.
+        $this->assertSame(['mode', 'total', 'fields', 'groups'], array_keys($payload));
+        $this->assertSame(['modality', 'certified'], array_column($payload['fields'], 'key'));
+        $this->assertSame([1, 2, 3], array_column($payload['fields'][0]['values'], 'key'));
+        $this->assertSame(['Online', 'On campus', 'Hybrid'], array_column($payload['fields'][0]['values'], 'label'));
+        $this->assertSame([1, 0], array_column($payload['fields'][1]['values'], 'key'));
+        $this->assertSame([get_string('yes'), get_string('no')], array_column($payload['fields'][1]['values'], 'label'));
+
+        // Each row's cf: field index then value key, defaults applied, the empty slot left out.
+        $rows = $this->rows_by_id($payload);
+        $this->assertSame([0, 1, 1, 1], $rows[$courses['Alfa']]['cf']);
+        $this->assertSame([0, 2, 1, 1], $rows[$courses['Bravo']]['cf']);
+        $this->assertSame([0, 1, 1, 0], $rows[$courses['Charlie']]['cf']);
+        $this->assertSame([1, 1], $rows[$courses['Delta']]['cf'], 'no modality: the empty slot is no chip, the checkbox travels');
+        $this->assertSame([1, 0], $rows[$courses['Echo']]['cf'], 'a checkbox with no value is No, as core displays it');
+
+        // The client's rule over those pairs, applied here, against what the server answers.
+        $selections = [
+            'one select chip' => [['field' => 'modality', 'value' => 1]],
+            'the other select chip' => [['field' => 'modality', 'value' => 2]],
+            'a chip nobody carries' => [['field' => 'modality', 'value' => 3]],
+            'the checkbox yes' => [['field' => 'certified', 'value' => 1]],
+            'the checkbox no' => [['field' => 'certified', 'value' => 0]],
+            'two groups AND' => [['field' => 'modality', 'value' => 1], ['field' => 'certified', 'value' => 1]],
+            'nothing pressed' => [],
+        ];
+        foreach ($selections as $case => $filters) {
+            $expected = [];
+            foreach ($rows as $courseid => $row) {
+                $keep = true;
+                foreach ($filters as $filter) {
+                    $index = array_search($filter['field'], $fields, true);
+                    $value = null;
+                    for ($at = 0; $at + 1 < count($row['cf']); $at += 2) {
+                        if ($row['cf'][$at] === $index) {
+                            $value = $row['cf'][$at + 1];
+                        }
+                    }
+                    $keep = $keep && $value === $filter['value'];
+                }
+                if ($keep) {
+                    $expected[] = $courseid;
+                }
+            }
+            sort($expected);
+            $page = $this->row_ids($this->rows_with(false, $alpha, 'all', $filters, $fields));
+            sort($page);
+            $this->assertSame($expected, $page, "rows(): {$case}");
+            $hits = $this->row_ids($this->search_with(false, 'course', $filters, $fields));
+            sort($hits);
+            $this->assertSame($expected, $hits, "search(): {$case}");
+        }
+        // The cases are not vacuous: they separate the five courses in more than one way.
+        $online = $this->rows_with(false, $alpha, 'all', $selections['one select chip'], $fields);
+        $this->assertSame([$courses['Alfa'], $courses['Charlie']], $this->row_ids($online));
+        $both = $this->rows_with(false, $alpha, 'all', $selections['two groups AND'], $fields);
+        $this->assertSame([$courses['Alfa']], $this->row_ids($both));
+        $nobody = $this->rows_with(false, $alpha, 'all', $selections['a chip nobody carries'], $fields);
+        $this->assertSame([], $this->row_ids($nobody));
+        $this->assertCount(5, $this->rows_with(false, $alpha, 'all', [], $fields)['rows']);
+
+        // With no field configured no row carries cf and the fields array is empty.
+        $bare = $this->build_with(false, []);
+        $this->assertSame([], $bare['fields']);
+        foreach ($this->rows_by_id($bare) as $row) {
+            $this->assertArrayNotHasKey('cf', $row);
+        }
+        // A configured shortname that is not eligible is dropped, not answered with an empty group.
+        $this->assertSame(['certified'], array_column($this->build_with(false, ['code', 'gone', 'certified'])['fields'], 'key'));
+    }
+
+    /**
+     * A filter outside the allowlist is refused before any work, at the domain layer too.
+     *
+     * @return void
+     */
+    public function test_an_invalid_filter_is_refused_by_the_domain(): void {
+        [, , $alpha] = $this->field_fixture();
+        $fields = ['modality', 'certified'];
+        // Warm what a request would have warm - the plugin's config bundle and the vocabulary - with
+        // one valid call, whose answer is also the control that the fixture filters at all.
+        $this->assertCount(2, $this->rows_with(false, $alpha, 'all', [['field' => 'certified', 'value' => 0]], $fields)['rows']);
+        $this->assertCount(2, $this->search_with(false, 'course', [['field' => 'certified', 'value' => 0]], $fields)['rows']);
+
+        $refused = [
+            'a field that is not configured' => [['field' => 'level', 'value' => 1]],
+            'a text field' => [['field' => 'code', 'value' => 1]],
+            'a value outside the options' => [['field' => 'modality', 'value' => 4]],
+            'a duplicated field' => [['field' => 'certified', 'value' => 1], ['field' => 'certified', 'value' => 0]],
+        ];
+        foreach ($refused as $case => $filters) {
+            $meter = budget::start();
+            try {
+                $this->rows_with(false, $alpha, 'all', $filters, $fields);
+                $this->fail("rows(): {$case} must be refused");
+            } catch (\core\exception\invalid_parameter_exception $e) {
+                $this->assertSame(0, $meter->reads(), "rows(): {$case} must be refused before any work");
+            }
+            try {
+                $this->search_with(false, 'course', $filters, $fields);
+                $this->fail("search(): {$case} must be refused");
+            } catch (\core\exception\invalid_parameter_exception $e) {
+                $this->assertSame(0, $meter->reads(), "search(): {$case} must be refused before any work");
+            }
+        }
+    }
+
+    /**
+     * The field values and the applications add no read to a build with the shared layers warm
+     * (ADR-009, decisions 3 and 5), and the two new layers each cost one read when cold.
+     *
+     * Same protocol as the plain build budget, over a fixture that exercises both additions: two
+     * fields configured with values on every row, and one application. Warm, the bound is the
+     * three of ADR-004; the payload is asserted too, or a cheap call that skipped the values or
+     * the application would pass the bound.
+     *
+     * @return void
+     */
+    public function test_field_values_and_applications_add_no_read_to_a_warm_build(): void {
+        [$courses, , $alpha] = $this->field_fixture();
+        $applied = (int) $this->course_in($alpha, 'Foxtrot application')->id;
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+        $fields = ['modality', 'certified'];
+        $this->setUser($this->user);
+
+        $warm = $this->build_with(true, $fields);
+        $this->plugingen->simulate_new_request();
+
+        $meter = budget::start();
+        $hit = $this->build_with(true, $fields);
+        $reads = $meter->reads();
+
+        $this->assertSame($warm, $hit);
+        $this->assertSame(6, $hit['total']);
+        $rows = $this->rows_by_id($hit);
+        $this->assertTrue($rows[$applied]['pend']);
+        $this->assertSame([0, 1, 1, 1], $rows[$courses['Alfa']]['cf']);
+        $this->assertLessThanOrEqual(3, $reads, "a warm build with fields and an application cost {$reads} reads; the budget is 3");
+
+        // Cold: the coursefields fill is exactly one read more; the vocabulary is core's handler.
+        cache::make('block_compass', 'coursefields')->purge();
+        $this->plugingen->simulate_new_request();
+        $meter = budget::start();
+        $cold = $this->build_with(true, $fields);
+        $coldreads = $meter->reads();
+        $this->assertSame($warm, $cold);
+        $this->assertLessThanOrEqual(4, $coldreads, "a build with the values cold cost {$coldreads} reads; the budget is 3 + 1");
     }
 
     /**

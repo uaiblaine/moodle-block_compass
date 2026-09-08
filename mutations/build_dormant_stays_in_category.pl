@@ -1,1 +1,1 @@
-s/            if \(dormancy::is_dormant\(\$course, \$threshold\)\) \{\n                if \(!\$paged\) \{\n                    \$dormant\['courses'\]\[\] = self::row\(/            if (false) {\n                if (!\$paged) {\n                    \$dormant['courses'][] = self::row(/;
+s/            if \(self::is_dormant\(\$course, \$threshold\)\) \{\n                if \(!\$paged\) \{\n                    \$dormant\['courses'\]\[\] = self::row\(/            if (false) {\n                if (!\$paged) {\n                    \$dormant['courses'][] = self::row(/;

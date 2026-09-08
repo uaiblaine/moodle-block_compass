@@ -49,4 +49,23 @@ $observers = [
         'eventname' => '\core\event\course_completed',
         'callback' => '\block_compass\observer::completion_updated',
     ],
+    // The filter panel's vocabulary (ADR-009, decision 5): a field definition or an option list
+    // changes through the field configuration form, never through update_course(), so these
+    // four are what keep the filterfields and coursefields layers honest.
+    [
+        'eventname' => '\core_customfield\event\field_created',
+        'callback' => '\block_compass\observer::customfield_changed',
+    ],
+    [
+        'eventname' => '\core_customfield\event\field_updated',
+        'callback' => '\block_compass\observer::customfield_changed',
+    ],
+    [
+        'eventname' => '\core_customfield\event\field_deleted',
+        'callback' => '\block_compass\observer::customfield_changed',
+    ],
+    [
+        'eventname' => '\core_customfield\event\category_deleted',
+        'callback' => '\block_compass\observer::customfield_changed',
+    ],
 ];

@@ -8,6 +8,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase 8 — complete favourites, one ghost, a filter panel, and applications awaiting approval
+  (ADR-009), version 2026090702. Four things change what tier 1 and tier 3 show, and most of it
+  is subtraction. The **favourites strip lists every favourite**, the ones already in Continue or
+  New included: the exclusivity rule of PLAN.md §2 is superseded for that strip only, because
+  favouriting is a statement the learner makes about what is theirs and the strip is where it is
+  visible — on the maintainer's own Dashboard it had never rendered, both favourites having been
+  claimed by the other two strips. The ghost arithmetic follows: `shown` counts distinct courses,
+  `favouritesmore` is the true total minus the strip's own size. **One ghost card** ends tier 1 —
+  the tier 2 card, unchanged in meaning and on the wire, moved into the last strip's grid — and
+  each strip's overflow becomes a link in its heading, "+4 new", opening tier 3 on the matching
+  chip. **An enrolment application awaiting approval** (`enrol_apply`) is a tier 3 row in its own
+  category with an "Awaiting approval" badge, no star, no archive control and no progress, linking
+  to the course's own enrolment page rather than into the course, plus one notice line under New
+  enrolments; never a card, at the maintainer's request, because approval is not guaranteed and a
+  card that can vanish breeds anxiety. The rule is `enrol_apply`'s own — not active, period still
+  open, on an `apply` instance — and **not** `status = 2`, which names only the deferred subset;
+  it costs one more integer per inventory row, `APPLYINSTANCE`, which never leaves the server, and
+  one scalar subquery beside the three aggregates of the counts statement, which adds no read and
+  leaves the other three counts provably untouched. Off by default (`enable_pending`), and forced
+  off without the plugin. **The toolbar** is a sort platter, an icon-only list/cards toggle, the
+  search box and a Filter button opening a panel of chip groups — Status first, then one group per
+  **course custom field** the administrator chose (`filter_fields`, select and checkbox types
+  visible to everyone, at most 3): one value per group, groups combine with AND, counts on the
+  chips in full mode, and the selection a parameter of the two paging services in paged mode. The
+  values live in two new caches — `coursefields`, per course, a sibling of `coursemeta` because tier
+  1 writes that layer from rows that carry no field columns, and `filterfields`, one entry for the
+  whole site — dropped by the course events and by four new `core_customfield` observers. On the
+  wire a row gains `pend` and `cf` only when they apply — omission is the zero-cost shape — and the
+  saturated 250-row response, every row an application carrying three fields, measures 34 172
+  bytes against the 40 000 ceiling, which the payload test now confirms. And, from the maintainer's
+  note on acceptance, **a course name is at most two lines**, ellipsis and all, with the whole
+  name as a tooltip. The static accessibility rules gain the clamp, the two new icon-only
+  components and the platters' named groups; Behat stays at four scenarios, the third gaining the
+  field chip and the heading link. Twenty-nine mutation gates are added, one per guard, and one is
+  retired — the strip-exclusivity gate, whose rule this phase supersedes for the favourites strip.
+
 - Phase 7, first half — the accessibility audit is a gate (ADR-008), version 2026090701.
   The audit rides inside the scenarios that already existed rather than being written
   down: the feature carries `@accessibility` and each of the four scenarios gains one of

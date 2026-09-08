@@ -30,7 +30,12 @@
  *
  * The title's level comes from heading.ts, on the same rung as a tier 1 card's: one under
  * the panel title, which is one under core's block title when that renders (ADR-008,
- * decision 3). The h6 class keeps the size.
+ * decision 3). The h6 class keeps the size, and the title is clamped to two lines with the
+ * whole name in its title attribute (ADR-009, decision 10).
+ *
+ * An enrolment application awaiting approval (ADR-009, decision 3) links to the course's
+ * enrolment page, carries the "Awaiting approval" badge where a new card carries "New", and
+ * has no star, no archive control and no progress; it registers for no details either.
  *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
@@ -73,17 +78,20 @@ const RowCard = ({
     const {labels, icons} = config;
     const Title = titleTag(config.titlehidden);
     const opened = row.opened || 0;
-    const url = `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
+    const pending = !!row.pend;
+    const url = pending
+        ? `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`
+        : `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
     const element = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const node = element.current;
-        if (!node) {
+        if (!node || pending) {
             return undefined;
         }
 
         return observe(row.id, node);
-    }, [observe, row.id]);
+    }, [observe, row.id, pending]);
 
     /*
      * The image keeps loading="lazy", so the file is never requested while the element is
@@ -98,27 +106,36 @@ const RowCard = ({
     }
 
     return (
-        <div className="compass-rowcard card h-100" data-course-id={row.id} ref={element}>
+        <div
+            className={`compass-rowcard card h-100${pending ? ' compass-row-pending' : ''}`}
+            data-course-id={row.id}
+            ref={element}
+        >
             {image}
-            {row.new && <span className="compass-badge-new badge bg-primary text-white">{labels.badge_new}</span>}
+            {row.new && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
+            {pending && <span className="compass-card-badge badge bg-warning text-dark">{labels.badge_pending}</span>}
             <div className="card-body d-flex flex-column">
                 {category && <span className="compass-card-category small text-muted">{category}</span>}
-                <Title className="compass-rowcard-title h6 mb-1">
+                <Title className="compass-rowcard-title compass-clamp h6 mb-1" title={row.name}>
                     <a href={url} className="compass-row-link stretched-link text-reset text-decoration-none">
                         {row.name}
+                        {pending && <span className="visually-hidden">{` · ${labels.badge_pending}`}</span>}
                     </a>
                 </Title>
                 <p className="compass-card-meta small text-muted mb-2">
-                    {opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened}
+                    {pending && labels.pendingmeta}
+                    {!pending && (opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened)}
                 </p>
                 <div className="compass-rowcard-foot mt-auto d-flex align-items-center justify-content-between gap-2">
                     <div className="compass-row-progress flex-grow-1">
-                        {waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
-                        {!waiting && detail?.hascompletion && detail.progress !== null && (
+                        {!pending && waiting && (
+                            <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>
+                        )}
+                        {!pending && !waiting && detail?.hascompletion && detail.progress !== null && (
                             <Progress progress={detail.progress} labels={labels} />
                         )}
                     </div>
-                    {row.fav && (
+                    {!pending && row.fav && (
                         <>
                             {/* A tier 3 star states a fact; the one that toggles is tier 1's,
                                 where the card carries the course it would change. */}
@@ -131,16 +148,18 @@ const RowCard = ({
                         </>
                     )}
                     {/* Above the stretched link, or the card would swallow the click. */}
-                    <span className="compass-card-action">
-                        <Archive
-                            courseid={row.id}
-                            name={row.name}
-                            archived={archived}
-                            busy={busy}
-                            config={config}
-                            onArchive={onArchive}
-                        />
-                    </span>
+                    {!pending && (
+                        <span className="compass-card-action">
+                            <Archive
+                                courseid={row.id}
+                                name={row.name}
+                                archived={archived}
+                                busy={busy}
+                                config={config}
+                                onArchive={onArchive}
+                            />
+                        </span>
+                    )}
                 </div>
             </div>
         </div>

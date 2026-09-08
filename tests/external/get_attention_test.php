@@ -28,6 +28,7 @@ namespace block_compass\external;
 use advanced_testcase;
 use block_compass\local\budget;
 use block_compass\local\category_meta;
+use block_compass\local\config;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use core_cache\cache;
@@ -142,7 +143,10 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * Each course lands in exactly one strip, priority Continue, New, Favourites, and the counts add up.
+     * Continue and New are exclusive, the favourites strip lists the favourites, and the counts add up.
+     *
+     * The fixture's one favourite sits in neither Continue nor New, so every count is a plain
+     * total here; the repetition case is the next test's.
      *
      * @return void
      */
@@ -168,7 +172,86 @@ final class get_attention_test extends advanced_testcase {
         $this->assertSame(2, $data['counts']['more']);
         $this->assertSame(0, $data['counts']['newmore']);
         $this->assertSame(0, $data['counts']['favouritesmore']);
+        $this->assertSame(0, $data['counts']['pending']);
+        $this->assertSame(['total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending'], array_keys($data['counts']));
         $this->assertTrue($data['favouritesenabled']);
+    }
+
+    /**
+     * A favourite that also sits in Continue is drawn twice and counted once (ADR-009, decisions 1 and 2).
+     *
+     * Four favourites, one of them the most recently opened course: the favourites strip lists
+     * the first three by name, so the fourth is the heading link's count — the true total minus
+     * the strip's size, not the total minus every lit star on screen, which the old walk over all
+     * three strips would have made 0. And shown is the DISTINCT courses, so the ghost does not
+     * shrink by the repeat: recent, older, brandnew and three favourites, one of them recent
+     * again — five distinct of six, one for the ghost.
+     *
+     * @return void
+     */
+    public function test_a_favourite_in_continue_is_drawn_twice_and_counted_once(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        [$user, $courses] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        foreach (['recent', 'plain1', 'plain2'] as $key) {
+            $plugin->favourite((int) $user->id, (int) $courses[$key]->id);
+        }
+        $this->setUser($user);
+
+        $data = $this->call();
+
+        $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $continue = $ids($data['continue']);
+        $favourites = $ids($data['favourites']);
+        $this->assertSame([(int) $courses['recent']->id, (int) $courses['older']->id], $continue);
+        $this->assertCount(3, $favourites, 'three of the four favourites fit the strip');
+        $repeated = array_intersect($favourites, $continue);
+        $this->assertNotEmpty($repeated, 'a favourite in Continue is listed in the favourites strip too');
+        $this->assertSame(6, $data['counts']['total']);
+        $this->assertSame(1, $data['counts']['favouritesmore'], 'the true total minus the strip, not minus every lit star');
+        $this->assertSame(count(array_unique(array_merge($continue, $ids($data['new']), $favourites))), $data['counts']['shown']);
+        $this->assertSame($data['counts']['total'] - $data['counts']['shown'], $data['counts']['more']);
+        $this->assertLessThan(6, $data['counts']['shown'], 'a repeat is counted once');
+    }
+
+    /**
+     * The pending count travels through the allowlist, and it is what the setting and the plugin allow.
+     *
+     * The service reads the setting and the plugin's presence for itself, so the assertion
+     * follows the site: with enrol_apply installed the two applications are counted; on a runtime
+     * without it — the CI matrix installs only declared dependencies — the stored setting is
+     * forced off and the count is 0 over the same fixture, which is decision 7's rule and not a
+     * skipped test. Both branches assert that the three other counts are untouched.
+     *
+     * @return void
+     */
+    public function test_the_pending_count_follows_the_setting_and_the_plugins_presence(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        [$user] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $now = time();
+        $applied = $this->getDataGenerator()->create_course();
+        $deferred = $this->getDataGenerator()->create_course();
+        $plugin->apply_at((int) $user->id, (int) $applied->id, $now - DAYSECS);
+        $plugin->apply_at((int) $user->id, (int) $deferred->id, $now - DAYSECS, 2);
+        $this->setUser($user);
+
+        $off = $this->call();
+        set_config('enable_pending', 1, 'block_compass');
+        $on = $this->call();
+
+        $this->assertSame(0, $off['counts']['pending']);
+        $this->assertSame(config::pending_plugin_present() ? 2 : 0, $on['counts']['pending']);
+        foreach (['total', 'shown', 'more', 'newmore', 'favouritesmore'] as $key) {
+            $this->assertSame($off['counts'][$key], $on['counts'][$key], "{$key} must not move with the pending count");
+        }
+        // An application is not an active enrolment: no strip shows it either way.
+        $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $shown = array_merge($ids($on['continue']), $ids($on['new']), $ids($on['favourites']));
+        $this->assertNotContains((int) $applied->id, $shown);
+        $this->assertNotContains((int) $deferred->id, $shown);
     }
 
     /**

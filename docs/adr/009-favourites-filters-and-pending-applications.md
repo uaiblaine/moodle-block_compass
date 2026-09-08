@@ -1177,6 +1177,70 @@ the class also carries a `title`, with the usual vacuity guard over the count.
 | Give applications a reserved group of their own, after Dormant and Archived | It answers "what did I apply for" and loses "what did I ask for in Polícia Militar", which is where the learner went looking. The chip isolates them without moving them, and a group would also want a *Cancel application* control — the plugin's first write outside core's own services. |
 | Name the pending setting something other than `enable_pending` | The maintainer named it, and the key is free: PLAN.md's Phase 6 has never been built. The collision is recorded in decision 7 so the calendar feature picks a different key rather than discovering the clash at install time. |
 
+## Amendments (2026-09-07, during Phase 8)
+
+Implementation notes that depart from, or sharpen, the text above. Each is a fact the code
+now carries, recorded here rather than left to be inferred from a diff, as ADR-008's were.
+
+- **`coursefields` holds every eligible field's value, not only the configured ones.** Decision 5
+  says an entry carries "at most three small integers"; the entry carries one integer per eligible
+  field the course has a data row for. The reason is the same one the record gives `filterfields`:
+  a change to `filter_fields` then invalidates nothing and simply reads fewer values out of the
+  entry, where a configured-only entry would have gone stale on the first setting change with no
+  event to notice it. The four `core_customfield` observers therefore purge **both** layers — a
+  field created or made visible to everyone is one no existing per-course entry knows about — and
+  `course_updated` still deletes one course. The fill is one `get_records_sql` over the unique
+  index either way, and the entry is still the cheapest thing in the cache.
+- **A course with no stored value takes the field's default, as core displays it.** Core's own
+  data controllers answer a missing row with the field's default
+  (`customfield/field/select/classes/data_controller.php:51-60`, checkbox `:73-75`), so a checkbox
+  never ticked reads as *No* and a select with a configured default reads as that option; the
+  filter and the chip counts agree with what a learner sees on the course page. A select whose
+  default is core's empty first slot carries no chip for that field, which is what decision 5's
+  "a course with no value ... is excluded by that field's chip" means in the code. The vocabulary
+  entry therefore stores each field's `default`.
+- **The pending count also excludes a course where the learner holds an active enrolment on another
+  method.** Decision 3 states the rule for the classification (the active enrolment wins) and the
+  scalar subquery now applies the same rule with a `NOT EXISTS` over the active predicate, so the
+  notice's number and the chip's rows agree; `pending_count_active_wins` is the gate.
+- **`enable_pending` off is the whole feature off**, not only its two surfaces: the third pass of
+  `inventory::courses()` is not run, so an application is absent from every tier 3 answer exactly
+  as it is today, and the count is 0. Decision 7's "off hides both" is what that means in the
+  code, and `pending_setting_gate` and `pending_count_setting` are the gates.
+- **`config::filter_fields()` clamps and cleans; `filter_fields::configured()` drops what no longer
+  exists.** Decision 5 gives both jobs to the accessor. They are split because the second needs
+  the vocabulary and the accessor reads only `get_config()`, which keeps it free of cache reads;
+  `filter_fields_cap` gates the clamp and the vocabulary test gates the drop.
+- **The `filters` parameter is checked twice, and the split is deliberate.** The shape check — a
+  field named twice — costs nothing and runs in the external function before `require_login()`, as
+  `chip` and `sort` do; the membership check — a configured field, one of its chips — needs the
+  vocabulary and runs in `filter_fields::validate()`, once in the external function before the
+  population is resolved and once more inside `explore::rows()` and `explore::search()`, so the
+  domain refuses on its own whatever calls it. The rows test purges the vocabulary before asserting
+  the zero-read refusal, so a shape check that reached the vocabulary would fail it.
+- **The toolbar's icon-only controls are components of their own** — `ViewToggle.tsx` and
+  `FilterToggle.tsx` — so that the static rule of ADR-008 ("every button in these files carries an
+  `aria-label`") reads them the way it reads `Archive.tsx` and `Star.tsx`; the platter is
+  `Platter.tsx`, the panel `FilterPanel.tsx`. The Filter button hides its own text and count from
+  the accessibility tree and names itself with both in one sentence.
+- **The sort platter is a `role="group"` of `aria-pressed` buttons**, not a `radiogroup`: it is the
+  same construct the chips are, one component draws both, and it is what the toolbar already was.
+- **Decision 10's `title` sits on the heading or the name span, never on the link.** A `title` on a
+  link becomes its accessible description and would be read twice; on the element that clamps, it
+  is the tooltip and nothing else.
+- **The pending row registers for no details.** `get_card_details` declines a course the learner is
+  not actively enrolled in, so observing the row would spend a batch slot to learn nothing; the
+  row shows no progress and the card its placeholder image, by construction.
+- **The payload test builds its 250 rows through the domain with the feature injected on**, and
+  cleans them through `get_inventory::execute_returns()`, so it measures what the service ships
+  without depending on `enrol_apply` being installed on the runtime; its value rows go straight to
+  `{customfield_data}` in core's own shape, because the data controller would cost a second a row
+  for a fixture whose only job is to be large.
+- **Where a web service test cannot inject the plugin's presence**, it follows the site: with
+  `enrol_apply` installed the application is counted and listed, and on a runtime without it the
+  same fixture under the same stored setting yields 0 and no row — decision 7's forced-off,
+  asserted rather than skipped.
+
 ## Questions for the maintainer
 
 None. Every question of the first draft was answered on 2026-09-07 or resolved by measurement, as
