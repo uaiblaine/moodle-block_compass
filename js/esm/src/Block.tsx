@@ -22,6 +22,10 @@
  * module writing into a region beside this tree; it is a component now, so opening
  * it is a state change and no code outside React touches the block's DOM.
  *
+ * Since ADR-010 the block also owns the reload control at the content's top-right, the
+ * "Reconnecting…" line the repository's bounded retry reports through, and the amber notice
+ * with a way back from a failed first paint (decision 12).
+ *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -32,15 +36,23 @@ import Strip from './Strip';
 import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
 import Explore from './Explore';
+import Reload from './Reload';
+import RetryNotice from './RetryNotice';
 import type {GhostKind} from './Ghost';
 import {amd} from './amd';
-import {fill} from './str';
-import {getAttention, getCardDetails, setFavourite} from './repository';
-import type {Attention, BlockConfig, CourseCard} from './types';
+import {fill, fillObject} from './str';
+import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
+import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting} from './types';
 
-/** The chip tier 3 opens on, per kind of control that opened it. */
-const CHIP_OF_KIND: Record<GhostKind, string> = {
-    tier2: 'all',
+/**
+ * The chip tier 3 opens on, per kind of control that opened it.
+ *
+ * The ghost carries none: "Explore all" opens tier 3 as the reader left it, which is what
+ * remembering the toolbar is for (ADR-010, decisions 1 and 9). The heading links and the
+ * pending notice press their chip over the remembered one.
+ */
+const CHIP_OF_KIND: Record<GhostKind, string | null> = {
+    tier2: null,
     'new': 'new',
     favourites: 'favourites',
     pending: 'pending',
@@ -94,11 +106,25 @@ const withCard = (data: Attention, courseid: number, change: (card: CourseCard) 
 const Block = (config: BlockConfig) => {
     const [data, setData] = useState<Attention | null>(null);
     // The message to show, or null. It carries the text rather than a boolean because the
-    // two failures are different statements: tier 1 did not load, or it did and some of
-    // its progress did not. Saying the first when the cards are on screen is untrue.
+    // failures are different statements: the network dropped, tier 1 did not load, or it did
+    // and some of its progress did not. Saying the first when the cards are on screen is untrue.
     const [error, setError] = useState<string | null>(null);
-    // Tier 3 is open once a ghost has been pressed, on the chip that ghost implies.
-    const [exploring, setExploring] = useState<string | null>(null);
+    // Tier 3 is open once a ghost, a heading link or the pending notice has been pressed.
+    const [exploring, setExploring] = useState(false);
+    // The chip the last press implies, or null for "as the reader left it" (the ghost).
+    const [chip, setChip] = useState<string | null>(null);
+    // Bumped by every press that opens or re-aims tier 3, so a tier 3 that is already open
+    // scrolls into view again; never by a render (ADR-010, decision 1).
+    const [reveal, setReveal] = useState(0);
+    // Bumped by the reload control: tier 3 remounts under it, a fresh open (decision 12).
+    const [reloadkey, setReloadkey] = useState(0);
+    const [reloading, setReloading] = useState(false);
+    // Which attempt the repository's bounded retry is on, while it is; null otherwise.
+    const [reconnecting, setReconnecting] = useState<Reconnecting | null>(null);
+    // Tier 3's toolbar as it is now, and the JSON last read or written for it: a reload remounts
+    // Explore under a new key, and a remount seeded from the props - parsed once, at page load -
+    // would revert a sort, chip, selection or view changed since (ADR-010, amendment 9).
+    const kept = useRef<KeptToolbar | null>(null);
     // The counter is what makes a repeat announceable: React writes nothing when the text
     // is identical, so a screen reader would hear the first "X added to favourites" and
     // not the second. Keying the region on it remounts the node, which is an announcement.
@@ -115,6 +141,16 @@ const Block = (config: BlockConfig) => {
      */
     const announce = useCallback((text: string): void => {
         setAnnouncement((current) => ({text, at: current.at + 1}));
+    }, []);
+
+    // The one listener the repository's retries report to: shown as a line at the top of the
+    // content, so a first paint over a link that is not up yet reads as work in progress, and
+    // handed to tier 3 for its own loading region. Attempt 0 is the settle: the last read that
+    // was retrying answered or gave up, whichever caller's it was, and the line goes.
+    useEffect(() => {
+        onRetry((attempt, attempts) => setReconnecting(attempt === 0 ? null : {attempt, attempts}));
+
+        return () => onRetry(null);
     }, []);
 
     /**
@@ -144,7 +180,8 @@ const Block = (config: BlockConfig) => {
             payload = await getAttention();
         } catch (e) {
             if (seq.current === mine) {
-                setError(labels.loaderror || '');
+                // A transport failure says so; a server that answered gets the generic line.
+                setError((isTransportFailure(e) ? labels.connectionlost : labels.loaderror) || '');
             }
 
             return;
@@ -195,6 +232,7 @@ const Block = (config: BlockConfig) => {
                         hascompletion: detail.hascompletion,
                         progress: detail.progress,
                         nodata: detail.progress === null,
+                        teacher: detail.teacher,
                     })),
                     current
                 )
@@ -206,6 +244,26 @@ const Block = (config: BlockConfig) => {
         load();
     }, [load]);
 
+    // When the browser comes back online and tier 1 is in its error state, one retry the reader
+    // should never have to ask for (ADR-010, decision 12). Listening always and deciding in the
+    // handler, as Explore does: a listener attached only once the error is set would miss an
+    // online event fired while the wrapper's own attempts were still running.
+    useEffect(() => {
+        /**
+         * Load again, once, on the online event, if tier 1 is in its error state.
+         *
+         * @returns {void}
+         */
+        const again = (): void => {
+            if (error !== null) {
+                load();
+            }
+        };
+        window.addEventListener('online', again);
+
+        return () => window.removeEventListener('online', again);
+    }, [error, load]);
+
     /**
      * Tier 3 changed which courses exist for this user, so tier 1 is stale (ADR-007,
      * decision 3): the strips and all three ghost counts are the server's decision, and the
@@ -214,6 +272,25 @@ const Block = (config: BlockConfig) => {
      * @returns {Promise} Resolves when tier 1 has been fetched again.
      */
     const refreshAttention = useCallback((): Promise<void> => load(true), [load]);
+
+    /**
+     * Everything the page holds, again: tier 1 through load, tier 3 as a fresh open under a
+     * new key when it is open (ADR-010, decision 12) - with the toolbar as it is now, from the
+     * kept ref, and without the scroll and focus a press would bring: the reveal counter goes
+     * back to zero, because a reload is not a gesture towards tier 3 (decision 1).
+     *
+     * @returns {Promise} Resolves when tier 1 has been fetched again.
+     */
+    const reloadAll = useCallback(async(): Promise<void> => {
+        setReloading(true);
+        setReveal(0);
+        setReloadkey((current) => current + 1);
+        try {
+            await load(true);
+        } finally {
+            setReloading(false);
+        }
+    }, [load]);
 
     /**
      * Toggle the core course star of one course.
@@ -240,18 +317,21 @@ const Block = (config: BlockConfig) => {
     }, [labels]);
 
     /**
-     * Open tier 3 on the chip the pressed control implies.
+     * Open tier 3, or re-aim it, on the chip the pressed control implies.
      *
      * Until phase R3 this reached an AMD module through the bridge and tier 3 rendered
      * into a region beside React's tree. It is a component now, so opening it is a state
-     * change and nothing outside this tree is touched.
+     * change and nothing outside this tree is touched. The reveal counter is what makes the
+     * press scroll tier 3 into view and hand it the keyboard, every time (ADR-010, decision 1).
      *
      * @param {string} kind What was pressed - the ghost, a heading link or the pending
      *     notice; it decides the chip.
      * @returns {Promise} Resolves once tier 3 is open.
      */
     const explore = useCallback(async(kind: GhostKind): Promise<void> => {
-        setExploring(CHIP_OF_KIND[kind]);
+        setChip(CHIP_OF_KIND[kind]);
+        setExploring(true);
+        setReveal((current) => current + 1);
     }, []);
 
     /**
@@ -284,7 +364,7 @@ const Block = (config: BlockConfig) => {
      * always did (ADR-009, decision 2): only its position moved, out of a region of its own and
      * into tier 1's grid. It hides once tier 3 is open, because then it has nothing left to open.
      */
-    const ghost: StripGhost | null = data && data.counts.more > 0 && exploring === null
+    const ghost: StripGhost | null = data && data.counts.more > 0 && !exploring
         ? {count: data.counts.more, text: labels.ghost_more, cta: labels.ghost_explore}
         : null;
     const laststrip = data
@@ -294,18 +374,26 @@ const Block = (config: BlockConfig) => {
 
     return (
         <div>
-            {!data && error === null && (
+            {/* The block's own top-right corner: the title bar beside it is core's, so the reload
+                control sits on the first row of the content (ADR-010, decision 12). */}
+            <div className="compass-content-head">
+                <Reload busy={reloading} config={config} onReload={reloadAll} />
+            </div>
+            {reconnecting !== null && (
+                <div className="compass-status compass-reconnecting text-muted small" role="status" aria-live="polite">
+                    {fillObject(labels.reconnecting, {
+                        attempt: String(reconnecting.attempt),
+                        attempts: String(reconnecting.attempts),
+                    })}
+                </div>
+            )}
+            {!data && error === null && reconnecting === null && (
                 <div className="compass-status text-muted small" role="status" aria-live="polite">
                     {labels.loading}
                 </div>
             )}
             {error !== null && (
-                <div className="alert alert-warning compass-error" role="alert">
-                    <span>{error}</span>
-                    <button type="button" className="btn btn-sm btn-outline-secondary ms-auto" onClick={() => load()}>
-                        {labels.retry}
-                    </button>
-                </div>
+                <RetryNotice message={error} retrying={false} config={config} onRetry={() => load()} />
             )}
             {data && config.strips.map((strip) => (
                 <Fragment key={strip.name}>
@@ -350,9 +438,18 @@ const Block = (config: BlockConfig) => {
                     {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
                 </p>
             )}
-            {exploring !== null && (
+            {exploring && (
                 <div className="compass-explore-wrap mt-3">
-                    <Explore config={config} chip={exploring} announce={announce} onChanged={refreshAttention} />
+                    <Explore
+                        key={reloadkey}
+                        config={config}
+                        chip={chip}
+                        reveal={reveal}
+                        reconnecting={reconnecting}
+                        kept={kept}
+                        announce={announce}
+                        onChanged={refreshAttention}
+                    />
                 </div>
             )}
             {/* Always in the DOM: a live region added at the moment of the change is

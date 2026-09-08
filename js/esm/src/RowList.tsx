@@ -14,11 +14,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * A set of tier 3 rows, drawn the way the viewer asked for (ADR-005, decision 4).
+ * The rows of one group, or of the flat list, in the view the reader chose (ADR-005).
  *
- * The one place that knows there are two views, so a group, the flat sort and the search
- * results cannot drift apart - and so that switching view is a re-render of the rows
- * already held rather than anything that travels.
+ * The one place that knows there are two views. The cards view is a grid whose column
+ * count the caller decides - three without the category index, two with it, one under 640 px
+ * of section width - so a lone card on the last line keeps its column (ADR-010, decision 4).
  *
  * @module     block_compass/RowList
  * @copyright  2026 Anderson Blaine
@@ -33,6 +33,7 @@ import type {BlockConfig, InventoryRow} from './types';
 type RowListProps = {
     rows: InventoryRow[],
     view: string,
+    columns: number,
     categoryof: (row: InventoryRow) => string,
     config: BlockConfig,
     now: number,
@@ -40,23 +41,26 @@ type RowListProps = {
     details: RowDetails,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
+    onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
     busy: boolean,
 };
 
 /**
  * The rows.
  *
- * @param {object} props The rows, the view, how to name a row's category, the block config,
- *     the instant "ago" is measured from, the page language, the details store and the archive
- *     action; see RowListProps.
+ * @param {object} props The rows, the view, the column count, how to name a row's category,
+ *     the block config, the instant "ago" is measured from, the page language, the details
+ *     store and the archive and star actions; see RowListProps.
  * @returns {object} The rendered list.
  */
-const RowList = ({rows, view, categoryof, config, now, lang, details, archived, onArchive, busy}: RowListProps) => {
+const RowList = ({
+    rows, view, columns, categoryof, config, now, lang, details, archived, onArchive, onToggleFavourite, busy,
+}: RowListProps) => {
     const {records, waiting, observe} = details;
 
     if (view === 'cards') {
         return (
-            <div className="compass-rowcards d-flex flex-wrap" role="list">
+            <div className={`compass-rowcards compass-rowcards-${columns}`} role="list">
                 {rows.map((row) => (
                     <div className="compass-rowcards-item" role="listitem" key={row.id}>
                         <RowCard
@@ -70,6 +74,7 @@ const RowList = ({rows, view, categoryof, config, now, lang, details, archived, 
                             observe={observe}
                             archived={archived}
                             onArchive={onArchive}
+                            onToggleFavourite={onToggleFavourite}
                             busy={busy}
                         />
                     </div>
@@ -92,6 +97,7 @@ const RowList = ({rows, view, categoryof, config, now, lang, details, archived, 
                         observe={observe}
                         archived={archived}
                         onArchive={onArchive}
+                        onToggleFavourite={onToggleFavourite}
                         busy={busy}
                     />
                 </div>

@@ -25,6 +25,7 @@
 namespace block_compass\output;
 
 use block_compass\local\config;
+use block_compass\local\explore_preference;
 use core\output\pix_icon;
 use core\output\renderable;
 use core\output\renderer_base;
@@ -72,6 +73,7 @@ class block implements renderable, templatable {
             'viewas', 'view_cards', 'view_list', 'viewerror',
             'archive', 'archiveall', 'archiveallconfirm', 'archived', 'archiveerror', 'archivenone', 'archiving',
             'coursearchived', 'courseunarchived', 'dormant', 'unarchive', 'unarchiveerror',
+            'reload', 'reloading', 'reconnecting', 'connectionlost', 'reloadpage',
         ];
         $labels = [];
         foreach ($keys as $key) {
@@ -82,20 +84,28 @@ class block implements renderable, templatable {
         $labels['confirm'] = get_string('confirm');
         $labels['cancel'] = get_string('cancel');
 
+        $pendingenabled = config::pending_enabled();
         $props = [
             'labels' => $labels,
             'icons' => [
                 'staron' => $output->render(new pix_icon('i/star', '')),
                 'staroff' => $output->render(new pix_icon('i/star-o', '')),
-                // Archiving is the Course overview block's "remove from view", so its icons are
-                // core's hide and show, through the theme's icon map like the stars (ADR-007).
-                'hide' => $output->render(new pix_icon('t/hide', '')),
-                'show' => $output->render(new pix_icon('t/show', '')),
+                // Archiving is a box, from the plugin's own icon map (ADR-010, decision 2): the eye
+                // core lent it read as "open this course". Bring back is the box opened.
+                'archive' => $output->render(new pix_icon('archive', '', 'block_compass')),
+                'unarchive' => $output->render(new pix_icon('unarchive', '', 'block_compass')),
                 // The tier 3 toolbar's icon-only controls (ADR-009, decisions 4 and 6): core's own
                 // list and grid glyphs, the ones the file picker's view switch uses, and its filter.
                 'list' => $output->render(new pix_icon('a/view_list_active', '')),
                 'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
                 'filter' => $output->render(new pix_icon('i/filter', '')),
+                // The accordion's chevrons are the two a course section header draws, shown and
+                // hidden by core's own icons-collapse-expand rule (ADR-010, decision 7).
+                'expanded' => $output->render(new pix_icon('t/expandedchevron', '')),
+                'collapsed' => $output->render(new pix_icon('t/collapsedchevron', '')),
+                'collapsedrtl' => $output->render(new pix_icon('t/collapsedchevron_rtl', '')),
+                // The reload control at the content's top-right (ADR-010, decision 12).
+                'reload' => $output->render(new pix_icon('a/refresh', '')),
             ],
             'strips' => [
                 ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
@@ -105,13 +115,21 @@ class block implements renderable, templatable {
             'favouritesenabled' => config::favourites_enabled(),
             // Both surfaces of an application awaiting approval hang off this one flag: the chip
             // in the filter panel and the notice under New enrolments (ADR-009, decision 7).
-            'pendingenabled' => config::pending_enabled(),
+            'pendingenabled' => $pendingenabled,
             'showsearch' => config::search_enabled(),
             'showindex' => config::index_shown(),
+            // The category line on cards is a setting (ADR-010, decision 11).
+            'showcategory' => config::category_shown(),
             // Without the title bar core renders no h3 for the block, and the client's own
             // headings move one rung up to take its place (ADR-008, decision 3; heading.ts).
             'titlehidden' => config::hide_block_title(),
             'view' => self::view(),
+            // The tier 3 toolbar as the viewer left it, validated on read (ADR-010, decision 9). An
+            // empty field selection reaches the client as [] whatever is encoded here: core's react
+            // helper decodes the template's JSON block associatively and encodes it again
+            // (lib/classes/output/mustache_react_helper.php:158), so a cast to object would not
+            // survive it. The client normalises the shape where it reads it (Explore.tsx).
+            'explore' => explore_preference::read($pendingenabled),
         ];
 
         return [

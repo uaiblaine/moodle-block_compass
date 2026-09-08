@@ -29,28 +29,41 @@
  * rows that actually reach the viewport (ADR-005). Neither knows about the mode, because a
  * row is a row however it arrived.
  *
+ * Since ADR-010: the section is scrolled into view and given the keyboard on every press that
+ * opens or re-aims it (decision 1); the toolbar starts as the viewer left it and is remembered
+ * in one preference the shell validates (decision 9); the star toggles here too, patching the
+ * row and refreshing tier 1 (decision 6); the cards grid carries a column count (decision 4);
+ * and every failure has a way back (decision 12).
+ *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
+import type {RefObject} from 'react';
 import FilterPanel from './FilterPanel';
 import type {Facets} from './FilterPanel';
 import FilterToggle from './FilterToggle';
 import Group from './Group';
 import Platter from './Platter';
+import RetryNotice from './RetryNotice';
 import RowList from './RowList';
 import ViewToggle from './ViewToggle';
 import {amd} from './amd';
 import {matches, normalise, passesChip, passesSelection} from './filter';
 import type {RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
-import {fill} from './str';
-import {getInventory, getInventoryRows, searchInventory, setArchived, setViewPreference} from './repository';
+import {fill, fillObject} from './str';
+import {
+    getInventory, getInventoryRows, isTransportFailure, searchInventory, setArchived, setExplorePreference, setFavourite,
+    setViewPreference,
+} from './repository';
 import {useRowDetails} from './rowdetails';
 import {GROUP_ARCHIVED, GROUP_DORMANT} from './types';
-import type {BlockConfig, FilterParam, Inventory, InventoryRow, SearchRow} from './types';
+import type {
+    BlockConfig, ExploreState, FilterField, FilterParam, Inventory, InventoryRow, KeptToolbar, Reconnecting, SearchRow,
+} from './types';
 
 /** The status chips, in the order the panel draws them; the pending one only when the feature is on. */
 const STATUS_CHIPS = ['all', 'new', 'favourites', 'pending'];
@@ -64,6 +77,9 @@ const PAGE_DEBOUNCE_MS = 300;
 /** Shorter than this, normalised, and the server would refuse it anyway. */
 const SEARCH_MIN_LENGTH = 2;
 
+/** A toolbar change is remembered once it has settled for this long (ADR-010, decision 9). */
+const REMEMBER_MS = 500;
+
 /**
  * Below this width of the section itself the category index is hidden.
  *
@@ -74,9 +90,65 @@ const NARROW_PX = 640;
 
 type ExploreProps = {
     config: BlockConfig,
-    chip: string,
+    chip: string | null,
+    reveal: number,
+    reconnecting: Reconnecting | null,
+    kept: RefObject<KeptToolbar | null>,
     announce: (text: string) => void,
     onChanged: () => Promise<void>,
+};
+
+/** Why the inventory could not be loaded: the network dropped, or the server answered with an error. */
+type Failure = 'transport' | 'server';
+
+/**
+ * The remembered field selection as a map, whatever shape it arrived in.
+ *
+ * The shell reads it as a PHP array and an empty one encodes as a list, so an empty selection
+ * reaches the props as [] and not {}: core's react helper decodes the template's JSON block
+ * associatively and encodes it again (lib/classes/output/mustache_react_helper.php:158), which
+ * flattens an empty object the shell could have sent. The JSON the client writes back carries
+ * {}, so the map is normalised here, before the state and the remembered copy are built from it,
+ * or the first comparison would differ over nothing and write the same state once per mount.
+ *
+ * @param {object|Array} cf The selection as shipped.
+ * @returns {object} Field key => value key.
+ */
+const shippedSelection = (cf: Selection | unknown[]): Selection => (Array.isArray(cf) ? {} : cf);
+
+/**
+ * Keep of a remembered field selection what the payload's fields can draw (ADR-010, decision 9).
+ *
+ * The shell validated the shape; whether a field is still configured, and whether its value is
+ * still one of the field's keys, is only known here, when the inventory arrives.
+ *
+ * @param {object} selection Field key => value key, as remembered.
+ * @param {object[]} fields The payload's fields.
+ * @returns {object} The selection the panel can draw.
+ */
+const knownSelection = (selection: Selection, fields: FilterField[]): Selection => {
+    const next: Selection = {};
+    Object.entries(selection).forEach(([key, value]) => {
+        const field = fields.find((candidate) => candidate.key === key);
+        if (field && field.values.some((candidate) => candidate.key === value)) {
+            next[key] = value;
+        }
+    });
+
+    return next;
+};
+
+/**
+ * Whether the section should scroll without easing: the reader asked for less motion, or a
+ * Behat run is driving the page and a click must not land on a moving element (decision 1).
+ *
+ * @returns {string} auto or smooth.
+ */
+const scrollBehavior = (): 'auto' | 'smooth' => {
+    const reduced = typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    return reduced || document.body.classList.contains('behat-site') ? 'auto' : 'smooth';
 };
 
 type NotificationModule = {
@@ -125,24 +197,39 @@ const notify = async(message: string): Promise<void> => {
  *     region and the callback that refetches tier 1; see ExploreProps.
  * @returns {object} The rendered section.
  */
-const Explore = ({config, chip: initialchip, announce: alert, onChanged}: ExploreProps) => {
+const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
     const {labels} = config;
     const titleid = useId();
     const searchid = useId();
     const panelid = useId();
+    // Where the toolbar starts: as the viewer left it before a reload remounted this component,
+    // or - on the first mount - as the shell read it (ADR-010, decision 9 and amendment 9).
+    const seed = useRef<KeptToolbar>(kept.current ?? {
+        explore: {...config.explore, cf: shippedSelection(config.explore.cf)},
+        view: config.view === 'cards' ? 'cards' : 'list',
+        remembered: JSON.stringify({
+            sort: config.explore.sort,
+            chip: config.explore.chip,
+            cf: shippedSelection(config.explore.cf),
+            panel: config.explore.panel,
+        }),
+    }).current;
 
     const [data, setData] = useState<Inventory | null>(null);
-    const [failed, setFailed] = useState(false);
+    const [failed, setFailed] = useState<Failure | null>(null);
+    const [searchfailed, setSearchfailed] = useState(false);
     const [query, setQuery] = useState('');
     const [applied, setApplied] = useState('');
-    const [chip, setChip] = useState(initialchip);
+    // The toolbar starts as the viewer left it (ADR-010, decision 9); a heading link's chip is
+    // pressed over the remembered one by the reveal effect below.
+    const [chip, setChip] = useState(seed.explore.chip);
     // The pressed chip of each custom-field group (ADR-009, decision 4): one value per group,
     // groups combine with AND. In full mode a change re-renders; in paged mode it travels.
-    const [selection, setSelection] = useState<Selection>({});
-    // The filter panel is open at first render, as the mockup has it, so its platters are on
-    // screen when axe reads the block (ADR-009, decision 8).
-    const [panelopen, setPanelopen] = useState(true);
-    const [sort, setSort] = useState('category');
+    const [selection, setSelection] = useState<Selection>(seed.explore.cf);
+    // The filter panel is open at first render for a viewer who never closed it, so its
+    // platters are on screen when axe reads the block (ADR-009, decision 8).
+    const [panelopen, setPanelopen] = useState(seed.explore.panel);
+    const [sort, setSort] = useState(seed.explore.sort);
     const [open, setOpen] = useState<Record<number, boolean>>({});
     const [pages, setPages] = useState<Record<number, PageState>>({});
     const [hits, setHits] = useState<{rows: SearchRow[], truncated: boolean} | null>(null);
@@ -150,7 +237,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     const [narrow, setNarrow] = useState(false);
     const [focusmore, setFocusmore] = useState<{id: number, from: number} | null>(null);
     // The shell resolved this: the viewer's own preference, or the site default (ADR-005).
-    const [view, setView] = useState(config.view === 'cards' ? 'cards' : 'list');
+    const [view, setView] = useState(seed.view);
     // An archive write is out. Every archive control is disabled while it is, because a
     // second write racing the first would be racing a batch the route may abandon midway.
     const [busy, setBusy] = useState(false);
@@ -171,6 +258,9 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     const details = useRowDetails(detailsfailed);
 
     const section = useRef<HTMLElement>(null);
+    // The toolbar state as last read or written, so the mount - where React runs every effect
+    // once whatever the values - and a chip pressed back to where it was write nothing.
+    const remembered = useRef(seed.remembered);
     // The open state of every group when the current search began, put back when it ends.
     const openbefore = useRef<Record<number, boolean> | null>(null);
     // Sequence numbers: an answer to a superseded request is dropped rather than shown.
@@ -221,6 +311,14 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
             }
             now.current = Math.floor(Date.now() / 1000);
             setData(payload);
+            setFailed(null);
+            // A remembered field that is no longer configured, or a value the field no longer
+            // has, is dropped here: the shell could only check the shape (decision 9).
+            setSelection((current) => {
+                const known = knownSelection(current, payload.fields);
+
+                return Object.keys(known).length === Object.keys(current).length ? current : known;
+            });
             if (!first) {
                 return;
             }
@@ -235,7 +333,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
             }
         } catch (e) {
             if (loadseq.current === mine) {
-                setFailed(true);
+                setFailed(isTransportFailure(e) ? 'transport' : 'server');
             }
         }
     }, [announce, labels.pagednote]);
@@ -315,14 +413,14 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
             setFocusmore(focus ? {id, from: restarted ? 0 : before.rows.length} : null);
         } catch (e) {
             if (groupseq.current[id] === mine) {
+                // The group shows the way back inside itself (ADR-010, decision 12).
                 setPages((current) => ({
                     ...current,
                     [id]: {...(current[id] || EMPTY_PAGE), loading: false, failed: true},
                 }));
-                await notify(labels.loaderror || '');
             }
         }
-    }, [chip, filters, labels.loaderror, pages, sort]);
+    }, [chip, filters, pages, sort]);
 
     /**
      * Paged mode: drop every loaded group's rows and refetch the open ones.
@@ -407,13 +505,15 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                     return;
                 }
                 setHits({rows: answer.rows, truncated: answer.truncated});
+                setSearchfailed(false);
                 const shown = fill(labels.resultsshown, String(answer.rows.length));
                 announce(answer.truncated
                     ? `${shown} ${fill(labels.searchtruncated, String(answer.rows.length))}`
                     : shown);
             } catch (e) {
                 if (searchseq.current === mine) {
-                    await notify(labels.loaderror || '');
+                    // The notice takes the hits' place, with the way back (ADR-010, decision 12).
+                    setSearchfailed(true);
                 }
             }
         })();
@@ -604,13 +704,93 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     const pressedcount = (chip !== 'all' && statuschips.includes(chip) ? 1 : 0) + Object.keys(selection).length;
 
     /*
-     * The chip arrives as a prop because a ghost card decides it, and a ghost can be pressed
-     * again while tier 3 is already open - the per-strip ones stay on screen. Seeding state
-     * from the prop would answer only the first press; this answers every one.
+     * Every press that opens or re-aims tier 3 (ADR-010, decision 1): the chip the press implies,
+     * when it implies one - the ghost restores the remembered one instead - then the section is
+     * scrolled to the top of the viewport and given the keyboard, so a screen reader announces
+     * its name before anything inside it. Keyed on the counter rather than on the chip, so a
+     * remembered chip survives the mount and a second press of the same link scrolls again. A
+     * tier 3 that would open on its own has no press and moves nothing.
      */
     useEffect(() => {
-        chooseChip(initialchip);
-    }, [initialchip, chooseChip]);
+        if (reveal === 0) {
+            return;
+        }
+        if (pressedchip !== null) {
+            chooseChip(pressedchip);
+        }
+        const element = section.current;
+        if (!element) {
+            return;
+        }
+        element.scrollIntoView({block: 'start', behavior: scrollBehavior()});
+        element.focus({preventScroll: true});
+    }, [reveal, pressedchip, chooseChip]);
+
+    // The toolbar is remembered once a change has settled (ADR-010, decision 9): one write per
+    // half-second of quiet, never for a render and never for a value equal to what was read.
+    useEffect(() => {
+        const state: ExploreState = {sort, chip, cf: selection, panel: panelopen};
+        const json = JSON.stringify(state);
+        if (json === remembered.current) {
+            return undefined;
+        }
+        const timer = window.setTimeout(() => {
+            remembered.current = json;
+            if (kept.current) {
+                kept.current.remembered = json;
+            }
+            setExplorePreference(state).catch(() => notify(labels.viewerror || ''));
+        }, REMEMBER_MS);
+
+        return () => window.clearTimeout(timer);
+    }, [sort, chip, selection, panelopen, labels.viewerror, kept]);
+
+    // The toolbar as it is now, for Block to hand back after a reload's remount (amendment 9):
+    // the live values, and the JSON last read or written, which a change made under the debounce
+    // above is still ahead of - so the remounted effect writes it rather than losing it.
+    useEffect(() => {
+        kept.current = {
+            explore: {sort, chip, cf: selection, panel: panelopen},
+            view,
+            remembered: remembered.current,
+        };
+    }, [sort, chip, selection, panelopen, view, kept]);
+
+    // When the browser comes back online, whatever failed is asked for once more on its own
+    // (ADR-010, decision 12): the inventory, the search, and every group whose page failed.
+    useEffect(() => {
+        /**
+         * Retry what is in an error state.
+         *
+         * @returns {void}
+         */
+        const again = (): void => {
+            if (failed !== null) {
+                loadInventory(true);
+            }
+            if (searchfailed) {
+                setSearchgen((current) => current + 1);
+            }
+            setPages((current) => {
+                const next: Record<number, PageState> = {};
+                let touched = false;
+                Object.keys(current).forEach((key) => {
+                    const id = Number(key);
+                    if (current[id].failed) {
+                        next[id] = EMPTY_PAGE;
+                        touched = true;
+                    } else {
+                        next[id] = current[id];
+                    }
+                });
+
+                return touched ? next : current;
+            });
+        };
+        window.addEventListener('online', again);
+
+        return () => window.removeEventListener('online', again);
+    }, [failed, searchfailed, loadInventory]);
 
     /**
      * Change the sort. Paged mode never flattens: category and A-Z are one server order.
@@ -650,6 +830,76 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         setSearchgen((current) => current + 1);
         await Promise.all([loadInventory(false), onChanged()]);
     }, [loadInventory, onChanged]);
+
+    /**
+     * Apply a change to one row wherever it is held: the full-mode groups, the paged-mode
+     * pages, the search hits (ADR-010, decision 6). The twin of Block's withCard.
+     *
+     * @param {number} courseid The course.
+     * @param {Function} change What to do to the row.
+     * @returns {void}
+     */
+    const withRow = useCallback((courseid: number, change: (row: InventoryRow) => InventoryRow): void => {
+        setData((current) => (current
+            ? {
+                ...current,
+                groups: current.groups.map((group) => ({
+                    ...group,
+                    courses: group.courses.map((row) => (row.id === courseid ? change(row) : row)),
+                })),
+            }
+            : current));
+        setPages((current) => {
+            const next: Record<number, PageState> = {};
+            let touched = false;
+            Object.keys(current).forEach((key) => {
+                const id = Number(key);
+                const page = current[id];
+                if (page.rows.some((row) => row.id === courseid)) {
+                    next[id] = {...page, rows: page.rows.map((row) => (row.id === courseid ? change(row) : row))};
+                    touched = true;
+                } else {
+                    next[id] = page;
+                }
+            });
+
+            return touched ? next : current;
+        });
+        setHits((current) => (current && current.rows.some((row) => row.id === courseid)
+            ? {
+                ...current,
+                // A hit keeps its group id: the change touches the row's own facts only.
+                rows: current.rows.map((row) => (row.id === courseid ? {...change(row), groupid: row.groupid} : row)),
+            }
+            : current));
+    }, []);
+
+    /**
+     * Toggle the core course star of one row (ADR-010, decision 6).
+     *
+     * The same call tier 1 makes. After the write tier 3 patches itself - the star, the
+     * Favourites chip's count and the facets follow with no request - and tier 1 reloads,
+     * because the favourites strip and the ghost count are the server's decision (ADR-009,
+     * decision 1). The confirmation goes through the block's assertive region, as tier 1's
+     * does; the row does not leave the page, so the keyboard stays on the star.
+     *
+     * @param {number} courseid The course.
+     * @param {boolean} favourite The state it becomes.
+     * @param {string} name The course name, for the announcement.
+     * @returns {Promise} Resolves when the write has been answered and tier 1 asked for.
+     */
+    const toggleFavourite = useCallback(async(courseid: number, favourite: boolean, name: string): Promise<void> => {
+        try {
+            await setFavourite(courseid, favourite);
+        } catch (e) {
+            await notify(labels.favouriteerror || '');
+
+            return;
+        }
+        withRow(courseid, (row) => ({...row, fav: favourite}));
+        alert(fill(favourite ? labels.favouriteadded : labels.favouriteremoved, name));
+        await onChanged();
+    }, [withRow, alert, onChanged, labels.favouriteerror, labels.favouriteadded, labels.favouriteremoved]);
 
     /**
      * Where the keyboard goes once the control it was on has left the page.
@@ -821,19 +1071,40 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
         return rows;
     }, [visible, sort, normalised]);
 
-    if (failed) {
+    if (failed !== null) {
         return (
-            <div className="alert alert-warning compass-error" role="alert">{labels.loaderror}</div>
+            <section className="compass-explore" ref={section} tabIndex={-1}>
+                <RetryNotice
+                    message={failed === 'transport' ? labels.connectionlost : labels.loaderror}
+                    retrying={false}
+                    config={config}
+                    onRetry={() => loadInventory(true)}
+                />
+            </section>
         );
     }
     if (!data) {
+        // The wrapper's retry is said here too (decision 12, amendment 8): the section sits at
+        // the top of the viewport after a press, where Block's own line is off screen.
         return (
-            <div className="compass-status text-muted small" role="status" aria-live="polite">{labels.loading}</div>
+            <section className="compass-explore" ref={section} tabIndex={-1}>
+                <div className="compass-status text-muted small" role="status" aria-live="polite">
+                    {reconnecting
+                        ? fillObject(labels.reconnecting, {
+                            attempt: String(reconnecting.attempt),
+                            attempts: String(reconnecting.attempts),
+                        })
+                        : labels.loading}
+                </div>
+            </section>
         );
     }
 
     const grouped = paged ? hits === null : sort === 'category';
     const showindex = config.showindex && grouped && !narrow;
+    // The cards grid's column count (ADR-010, decision 4): three without the index, two with
+    // it, one while the section is narrow.
+    const columns = narrow ? 1 : (showindex ? 2 : 3);
     const flat = paged ? (hits?.rows ?? []) : flatrows;
     const noresults = paged ? hits !== null && hits.rows.length === 0 : shown === 0;
 
@@ -869,7 +1140,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
     const Heading = sectionTag(config.titlehidden);
 
     return (
-        <section className="compass-explore" ref={section} aria-labelledby={titleid}>
+        <section className="compass-explore" ref={section} tabIndex={-1} aria-labelledby={titleid}>
             <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </Heading>
@@ -978,11 +1249,13 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                                     rows={slice.rows}
                                     open={isopen}
                                     loading={page.loading}
+                                    failed={page.failed}
                                     hasmore={pagedgroup(group.id) && page.hasmore}
                                     config={config}
                                     now={now.current}
                                     lang={lang}
                                     view={view}
+                                    columns={columns}
                                     details={details}
                                     onToggle={(id, value) => {
                                         setOpen((c) => ({...c, [id]: value}));
@@ -992,10 +1265,12 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                                         }
                                     }}
                                     onShowMore={(id) => loadPage(id, true)}
+                                    onRetry={(id) => setPages((c) => ({...c, [id]: EMPTY_PAGE}))}
                                     focusfrom={focusmore?.id === group.id ? focusmore.from : null}
                                     anchor={`${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
                                     archived={isarchived}
                                     onArchive={archive}
+                                    onToggleFavourite={toggleFavourite}
                                     busy={busy}
                                     toolbar={isdormant && slice.rows.length > 0 ? (
                                         <div className="compass-archiveall">
@@ -1016,9 +1291,18 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                 )}
                 {!grouped && (
                     <div className="compass-flat flex-grow-1">
+                        {searchfailed && (
+                            <RetryNotice
+                                message={labels.connectionlost}
+                                retrying={false}
+                                config={config}
+                                onRetry={() => setSearchgen((current) => current + 1)}
+                            />
+                        )}
                         <RowList
                             rows={flat}
                             view={view}
+                            columns={columns}
                             categoryof={categoryof}
                             config={config}
                             now={now.current}
@@ -1026,6 +1310,7 @@ const Explore = ({config, chip: initialchip, announce: alert, onChanged}: Explor
                             details={details}
                             archived={false}
                             onArchive={archive}
+                            onToggleFavourite={toggleFavourite}
                             busy={busy}
                         />
                     </div>

@@ -23,7 +23,6 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-
 $string['action_continue'] = 'Continue';
 $string['action_open'] = 'Open';
 $string['action_review'] = 'Review';
@@ -57,6 +56,7 @@ $string['chip_pending'] = 'Awaiting approval';
 $string['clearfilters'] = 'Clear filters';
 $string['compass:myaddinstance'] = 'Add a new Compass block to Dashboard';
 $string['completed'] = 'Completed';
+$string['connectionlost'] = 'Connection lost. Check your internet and try again.';
 $string['coursearchived'] = '{$a} archived';
 $string['coursesingroup'] = '{$a} courses';
 $string['courseunarchived'] = '{$a} brought back';
@@ -120,10 +120,15 @@ $string['prewarm_budget_seconds_desc'] = 'How long each run of the pre-warming t
 $string['prewarm_days'] = 'Pre-warm users active in the last';
 $string['prewarm_days_desc'] = 'Number of days: only users who logged in within this window are pre-warmed. Default 7.';
 $string['prewarm_desc'] = 'Optionally fill the caches of recently active users off-peak, so their first Dashboard visit of the day costs what every later one does.';
+$string['privacy:metadata:preference:block_compass_explore'] = 'How the full course list was left: the sort order, the status chip, the course field chips and whether the filter panel was open.';
 $string['privacy:metadata:preference:block_compass_view'] = 'The viewer\'s choice between the list and the cards view of the full course list.';
 $string['progresserror'] = 'Some progress could not be loaded.';
 $string['progressloading'] = 'Loading progress';
 $string['progresspercent'] = '{$a}% complete';
+$string['reconnecting'] = 'Reconnecting… (attempt {$a->attempt} of {$a->attempts})';
+$string['reload'] = 'Reload courses';
+$string['reloading'] = 'Reloading…';
+$string['reloadpage'] = 'Reload page';
 $string['removefromfavourites'] = 'Remove from favourites';
 $string['resultsshown'] = '{$a} courses shown';
 $string['retry'] = 'Try again';
@@ -131,6 +136,8 @@ $string['searchcourses'] = 'Search my courses';
 $string['searchplaceholder'] = 'Filter by name…';
 $string['searchtooshort'] = 'Type at least {$a} characters';
 $string['searchtruncated'] = 'Showing the first {$a} matches';
+$string['show_category'] = 'Show the category on cards';
+$string['show_category_desc'] = 'Print the course category on the cards of the first tier and on the cards of the flat course list (A–Z, Recent, a search). A card inside a category group never prints it: the group heading already says it.';
 $string['show_index'] = 'Show the category index';
 $string['show_index_desc'] = 'Show the side index of categories beside the full course list on wide screens.';
 $string['showmore'] = 'Show more';

@@ -56,7 +56,7 @@ final class config_test extends advanced_testcase {
             'attention_max', 'new_days', 'group_depth',
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
-            'default_view', 'dormant_months', 'filter_fields', 'enable_pending',
+            'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -269,6 +269,29 @@ final class config_test extends advanced_testcase {
 
         set_config('enable_favourites', 1, 'block_compass');
         $this->assertTrue(config::favourites_enabled());
+    }
+
+    /**
+     * The category line on cards is shown unless an explicit zero says otherwise (ADR-010, decision 11).
+     *
+     * The same three states as the favourites rule, and the same trap: a site that never
+     * opened the settings page has nothing stored, and a plain cast of that "nothing" would
+     * strip the category from every card on every such site.
+     *
+     * @return void
+     */
+    public function test_the_category_is_hidden_only_when_an_explicit_zero_is_stored(): void {
+        $this->resetAfterTest();
+
+        unset_config('show_category', 'block_compass');
+        $this->assertTrue(config::category_shown());
+
+        set_config('show_category', 0, 'block_compass');
+        $this->assertSame('0', get_config('block_compass', 'show_category'));
+        $this->assertFalse(config::category_shown());
+
+        set_config('show_category', 1, 'block_compass');
+        $this->assertTrue(config::category_shown());
     }
 
     /**

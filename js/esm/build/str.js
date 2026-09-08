@@ -1,4 +1,4 @@
-var i=(n,e)=>(n||"").replace("{$a}",()=>e);export{i as fill};
+var s=(e,n)=>(e||"").replace("{$a}",()=>n),c=(e,n)=>Object.entries(n).reduce((t,[i,r])=>t.split(`{$a->${i}}`).join(r),e||"");export{s as fill,c as fillObject};
 /**
  * Substituting into a language string that carries a placeholder.
  *

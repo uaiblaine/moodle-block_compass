@@ -713,3 +713,70 @@ bold heading, the star beside the archive box in the list row, the remembered to
 zero chips, the reload control, the "Reconnecting…" state and the amber notice — is
 `docs/mockup-cards-grid-and-resilience.html`, drawn on the maintainer's request after acceptance,
 the way ADR-009's was; its legend D1–D12 states each decision in the maintainer's language.
+
+## Amendments (2026-09-08, at implementation)
+
+Nine things the implementation settled that the decisions above left open or stated differently.
+None changes a decision; each is where the record was less precise than the code had to be.
+
+1. **Decision 9 splits validation in two.** The shell validates the **shape** of the stored value
+   (`classes/local/explore_preference.php::validate()`: the sort and chip vocabularies, the pending
+   chip only while `enable_pending` is on, field keys that survive `clean_param(PARAM_ALPHANUMEXT)`
+   with non-negative integer values) and the client decides **membership** when the inventory's
+   fields arrive (`Explore.tsx::knownSelection()`), because only the payload knows which fields are
+   still configured and which value keys each still has. The record's "validated on read" meant
+   both; the shell cannot do the second without the read the shell is forbidden.
+2. **An empty selection ships as `[]`, not `{}`.** Core's react helper decodes the template's JSON
+   block associatively and encodes it again (`lib/classes/output/mustache_react_helper.php:158`),
+   so a PHP cast to object does not survive the trip. The client normalises the value on the two
+   lines that read it (`shippedSelection()`), and `block_compass_test` pins those lines, because
+   the alternative — the client's JSON differing from the shell's over nothing — is one write of
+   the same state on every mount, silent and paid by everyone.
+3. **The star in tier 3 announces through tier 1's region.** `Explore` takes Block's `announce`
+   as a prop and speaks the favourite toggle through the block's assertive live region, the one
+   tier 1 already uses for the same message; a second assertive region would have two speakers for
+   one event. `onChanged` then reloads tier 1 so the strip agrees with the row.
+4. **The notice of decision 12 lives inside a failed group.** A page that fails renders
+   `RetryNotice` in the group's body, under its header, rather than marking the group failed and
+   leaving the retry to a reopen: the reader is looking at the group, and the retry belongs where
+   the failure is. The same component serves tier 1, the inventory and a failed search.
+5. **The grid of decision 4 is three classes, not a computed style.** `.compass-rowcards-1`,
+   `-2` and `-3` each draw `repeat(N, minmax(0, 1fr))`, and `RowList` picks one from the count it
+   is handed (`columns = narrow ? 1 : (showindex ? 2 : 3)`); the static rule reads the three from
+   the stylesheet and the pick from the component, which a computed `style` would have hidden.
+6. **The teacher check of decision 10 is measured, not asserted, at zero reads.** `cards_test`
+   warms what core keeps across requests, simulates a new request, pays what every request pays
+   (the strips and the cards' filter preload), and measures a build with the check running: it adds
+   nothing, because `has_capability()` with `$doanything` false answers from the viewer's access
+   data on the context the cache rebuilds. The one read the first draft of that test saw was the
+   filter preload, the build's own per-request cost, which the protocol now pays before the meter.
+   This supersedes the Consequences bullet and the tests-to-ship bullet that put the zero-read
+   assertion in `get_attention_test` and `get_card_details_test`: those two files assert the
+   flag's presence for a teacher and its absence for a learner through the web-service layer, and
+   the meter lives only in `cards_test`, at the domain layer, where the check is.
+7. **The Behat scenario measures the narrow rule of decision 4, not the two-column one.** The
+   record's test plan asserted `.compass-rowcards-2` after the switch to cards. On the Behat
+   Dashboard the block sits in the block drawer, about 315 px wide — under the 640 px the index
+   needs — so the client draws `.compass-rowcards-1` and no index, which is exactly decision 4's
+   rule for that width; the first run failed on the record's assertion, and the faildump showed
+   the one-column class. The scenario now asserts `-1` with the reason beside it, and the two-
+   and three-column rules are pinned by the static test, which reads them from the stylesheet
+   and the component rather than from a page whose width the scenario does not choose.
+8. **One listener, one line, shown in two places.** Decision 12 said "Block and Explore show
+   'Reconnecting…'"; the repository holds one module-level listener and Block is the component
+   that registers it. Block keeps the state and shows the line above the strips, and hands it to
+   Explore as a prop so tier 3's loading region shows the same text — which matters because
+   decision 1 scrolls the section to the top of the viewport, where Block's line is off screen
+   exactly when a tier 3 read is the one retrying. The wrapper also reports the settle (attempt 0)
+   on success and on the final failure, so a retry driven by a tier 3 read clears the line the way
+   a tier 1 read does; the first implementation cleared it only from tier 1's own load path and
+   left the line on screen for ever after a tier 3 retry.
+9. **A reload is a fresh open with the toolbar as it is now, not as it was at page load.** The
+   props are parsed once, so a remount seeded from them would revert a sort, chip, selection or
+   view the viewer changed since — silently, and against the stored preference. Block keeps the
+   live toolbar in a ref that survives the remount and Explore seeds from it; the reload also
+   resets the reveal counter, so remounting does not scroll and focus tier 3 as a gesture would.
+   And the controls that trigger a reload or a retry keep the keyboard: the reload button is
+   `aria-disabled` while busy rather than `disabled` (a disabled element drops focus to the body),
+   and the shared notice puts focus on a sensible target when its own button leaves the page —
+   the same rule "Show more" learned in R3 and the archive control in Phase 5.

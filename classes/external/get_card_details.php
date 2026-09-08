@@ -96,6 +96,12 @@ class get_card_details extends external_api {
                 'id' => new external_value(PARAM_INT, 'Course id'),
                 'hascompletion' => new external_value(PARAM_BOOL, 'Whether completion is tracked for this course'),
                 'progress' => new external_value(PARAM_INT, 'Progress percentage', VALUE_OPTIONAL, null, NULL_ALLOWED),
+                'teacher' => new external_value(
+                    PARAM_BOOL,
+                    'Present, and true, only when completion is off and the viewer is not a learner of the course '
+                        . '(ADR-010, decision 10)',
+                    VALUE_OPTIONAL
+                ),
                 'imageurl' => new external_value(PARAM_URL, 'Course image URL, empty when the course has none'),
                 'hasimage' => new external_value(PARAM_BOOL, 'Whether imageurl is set'),
             ]), 'One entry per course the user is actively enrolled in'),

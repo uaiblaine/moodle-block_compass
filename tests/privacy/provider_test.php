@@ -45,17 +45,46 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(provider::class)]
 final class provider_test extends \core_privacy\tests\provider_testcase {
     /**
-     * The metadata names the preference and nothing else.
+     * The metadata names the two preferences and nothing else.
      *
      * @return void
      */
-    public function test_the_view_preference_is_the_only_thing_declared(): void {
+    public function test_the_two_preferences_are_the_only_things_declared(): void {
         $this->resetAfterTest();
 
         $items = provider::get_metadata(new collection('block_compass'))->get_collection();
 
-        $this->assertCount(1, $items);
+        $this->assertCount(2, $items);
         $this->assertSame('block_compass_view', $items[0]->get_name());
+        $this->assertSame('block_compass_explore', $items[1]->get_name());
+    }
+
+    /**
+     * The remembered toolbar is exported as the JSON the viewer's own browser wrote (ADR-010, decision 9).
+     *
+     * The first half is the control: a viewer who never opened tier 3 has nothing to export.
+     *
+     * @return void
+     */
+    public function test_a_stored_toolbar_is_exported_as_it_stands_and_an_unset_one_is_not(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+
+        provider::export_user_preferences((int) $user->id);
+        $this->assertFalse(writer::with_context(\context_system::instance())->has_any_data());
+
+        $json = '{"sort":"recent","chip":"new","cf":{},"panel":false}';
+        set_user_preference('block_compass_explore', $json, $user);
+        provider::export_user_preferences((int) $user->id);
+        $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');
+
+        $this->assertSame($json, $exported->block_compass_explore->value);
+        $this->assertSame(
+            get_string('privacy:metadata:preference:block_compass_explore', 'block_compass'),
+            $exported->block_compass_explore->description
+        );
+        // The view, unset, is not invented alongside it.
+        $this->assertObjectNotHasProperty('block_compass_view', $exported);
     }
 
     /**

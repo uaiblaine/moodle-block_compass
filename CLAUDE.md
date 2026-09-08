@@ -26,7 +26,8 @@ Supports **Moodle 5.2 only** (`$plugin->requires = 2026042000`,
 sibling plugin: data comes from core (`core_course`, `core_completion`,
 `core_favourites`, `core_user` preferences, `core_cache`; `core_calendar` in v2).
 It owns **no database tables** and persists only three things of its own: MUC
-cache entries, the user preference `block_compass_view`, and the three
+cache entries, two user preferences (`block_compass_view` and, since ADR-010,
+`block_compass_explore`, the tier 3 toolbar as one JSON value), and the three
 plugin-config rows the pre-warming task keeps as its resume state
 (`prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep`; ADR-003). Favourites are the
 core course star (component `core_course`, itemtype `courses`, course context,
@@ -465,6 +466,8 @@ phases raised decisions of their own:
 | ADR-007 | dormancy and archiving: the two tier 3 groups that are not categories (`-1` dormant, `-2` archived), the archive written to the Course overview block's own preferences through core's router endpoint, the fourth Behat scenario | Phase 5 | Accepted (2026-09-06), implemented in Phase 5 |
 | ADR-008 | the accessibility audit is a **gate**, not a document: core's axe step inside the four scenarios plus a static rules test; the documentation is English only; `v5.2-r1` ships at `MATURITY_BETA` | Phase 7 | Accepted (2026-09-07), implemented in Phase 7 |
 | ADR-009 | complete favourites (exclusivity superseded for that strip), one ghost card with heading overflow links, enrol_apply applications awaiting approval as tier 3 rows plus a notice (never a card; the plugin's own predicate, not `status = 2`), the toolbar as a sort platter, an icon toggle and a filter panel, course custom fields as chip groups with two sibling caches, two settings (`filter_fields`, `enable_pending`), a two-line name clamp with a tooltip; Phase 8 ships inside `v5.2-r1` | Phase 8 | Accepted (2026-09-07), implemented in Phase 8 |
+| ADR-010 | twelve decisions from the maintainer's list: scroll and focus into tier 3, the archive box glyphs, zero chips hidden, a column-counted cards grid, the star and badge corners, the star in tier 3, core's chevrons, no uppercase, the remembered toolbar (`block_compass_explore`), the teacher-only completion notice, `show_category`, and resilience (reload control, bounded retry, amber notice in every error state) | Phase 9 | Accepted (2026-09-08), implemented in Phase 9 |
+| ADR-011 | client delivery: one bundle through a generic moodle-dev build step opted in by `js/esm/bundle.json`, seven `modulepreload` hints from a head hook on the Dashboard, and two batched reads (`course_image` `get_many`, one `uncategorised` string) — the answer to the cold-load waterfall measured against core's timeline service | Phase 10 | Accepted (2026-09-08), to be implemented in Phase 10 |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -486,11 +489,15 @@ settings.php                 §8 settings: attention_max, new_days, dormant_mont
                              applications, ADR-009 — NOT the calendar events PLAN.md §8 once meant),
                              filter_fields (multiselect of eligible course custom fields, ADR-009),
                              enable_prewarm, prewarm_days, prewarm_budget_seconds, default_view,
-                             enable_search, hide_block_title, show_index (ints via configtext+PARAM_INT,
-                             vocabularies via configselect — never a free-text field for an enum)
+                             enable_search, hide_block_title, show_index, show_category (the category
+                             line on cards, ADR-010) (ints via configtext+PARAM_INT, vocabularies via
+                             configselect — never a free-text field for an enum)
 version.php                  requires 2026042000, supported [502, 502]
 lib.php                      block_compass_user_preferences(): block_compass_view, with its choices
-                             vocabulary and the is_current_user permission callback (Phase R4)
+                             vocabulary and the is_current_user permission callback (Phase R4), and
+                             block_compass_explore, PARAM_RAW and nullable, validated by its own
+                             reader (Phase 9); block_compass_get_fontawesome_icon_map(): the two
+                             archive boxes (ADR-010, decision 2)
 classes/
   external/                  READ functions only, one class per file, all in the USER context, none
                              accepting a userid. Writes go to core's own services from the browser:
@@ -531,14 +538,19 @@ classes/
                              subset, the chips' value keys, the payload and the filters allowlist (Phase 8)
     course_fields.php        coursefields cache wrapper: per-course values of the eligible fields, one
                              fill over the unique index, a sibling of coursemeta (Phase 8)
+    explore_preference.php   the remembered toolbar's reader: defaults, the allowlist over sort, chip
+                             (pending only while the feature is on), field keys as shortnames with
+                             integer values, and the panel flag — the guard, since the value is
+                             PARAM_RAW and core cleans it not at all (Phase 9, ADR-010)
   observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
                              category events in Phase 2)
   task/warm_active_users.php scheduled task, always registered, gated by enable_prewarm; a thin caller
                              of local\prewarm::run() that mtraces one summary line (Phase 3)
   output/                    renderable+templatable shells only (block.php)
   privacy/provider.php       metadata provider + user_preference_provider since R4, for
-                             block_compass_view alone (favourites and hidden-course preferences
-                             are core's and are exported and deleted by core)
+                             block_compass_view and, since Phase 9, block_compass_explore
+                             (favourites and hidden-course preferences are core's and are
+                             exported and deleted by core)
 js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since R3:
                              Block (the block: tiers 1 and 2, and tier 3 once opened), Strip (with its
                              heading overflow link and, on the last one, the ghost), Card,
@@ -548,9 +560,13 @@ js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since
                              icon-only controls, each a file of its own so the static rule reads them),
                              FilterPanel (Status and one group per custom field), Group, RowList
                              (the one place that knows there are two views), Row, RowCard,
-                             Archive (the one control that archives or brings back, Phase 5);
-                             rowdetails (the viewport observer and the batching behind it, R4);
-                             repository (every web service, through the bridge to core/ajax),
+                             Archive (the one control that archives or brings back, Phase 5),
+                             Reload (the icon-only control at the content's top-right, Phase 9),
+                             RetryNotice (the amber notice with Try again and Reload page that every
+                             error state renders, Phase 9); rowdetails (the viewport observer and
+                             the batching behind it, R4);
+                             repository (every web service, through the bridge to core/ajax, with
+                             the bounded retry over reads that fail in transit, Phase 9),
                              amd (the RequireJS bridge — the only file that knows about it),
                              filter (normalise, match, relative time, chips — the PHP twin of the
                              first two is classes/local/matcher.php and the pair is pinned by a
@@ -939,6 +955,46 @@ Tier 3, whose behaviour is the most intricate thing here:
   A row with `pend` links to `enrol/index.php?id=<courseid>`, carries the badge inside its
   link, and has no star, no archive control, no progress and no details registration. Every
   course name carries `.compass-clamp` (two lines, ellipsis) and a `title` with the whole name.
+- **The toolbar is remembered, and the shape of an empty selection is core's doing (ADR-010,
+  decision 9).** `Explore.tsx` starts from `config.explore` and writes `{sort, chip, cf, panel}`
+  through core's preferences endpoint 500 ms after a change settles, comparing the JSON it would
+  write with the JSON it last read or wrote so a mount and a chip pressed back write nothing. The
+  shell validates the **shape** (`explore_preference::validate()`: vocabularies, pending only while
+  the feature is on, field keys as shortnames with non-negative integer values) and the client
+  decides **membership** when the inventory's fields arrive (`knownSelection()`), because only
+  the payload knows which fields are still configured. An empty selection reaches the client as
+  `[]` whatever the shell encodes — core's react helper decodes the template's JSON block
+  associatively and encodes it again (`lib/classes/output/mustache_react_helper.php:158`), so a
+  PHP cast to object cannot survive it — and `shippedSelection()` normalises it on the two lines
+  that read it; `block_compass_test` pins those lines because nothing runs the client.
+- **Opening tier 3 moves the reader there (ADR-010, decision 1).** The ghost and every heading
+  link bump a `reveal` counter; `Explore.tsx` scrolls the section into view and focuses it with
+  `preventScroll`, without easing under `prefers-reduced-motion` or on a `behat-site` body, where
+  a click must not land on a moving element. The ghost restores the remembered chip
+  (`CHIP_OF_KIND.tier2 = null`); a heading link presses its own.
+- **Resilience is three things, each in one place (ADR-010, decision 12).** `repository.ts`
+  retries a read that failed in transit — a rejection without an `errorcode`, or one made while
+  `navigator.onLine` is false — after 1 s and 3 s plus up to 500 ms of jitter, telling the one
+  `onRetry` listener (Block's) which attempt it is and, with attempt 0, that the read settled;
+  Block shows the line above the strips and hands it to Explore for tier 3's loading region; `RetryNotice.tsx` is the amber alert with *Try again* and *Reload page* that
+  every error state renders, a failed group page and a failed search included (ADR-005's "prints
+  nothing" and ADR-007's "reopen is the retry" are superseded there); `Reload.tsx` at the content's
+  top-right remounts tier 3 through a `key` and reloads tier 1 — seeding the remount from the
+  toolbar Block keeps in a ref (`KeptToolbar`: the live state and the JSON last read or written),
+  because a remount seeded from the props would revert whatever changed since page load, and
+  resetting the reveal counter so the remount does not scroll and focus tier 3 like a press.
+  The reload button and every *Try again* are `aria-disabled` while busy, never `disabled` (a
+  focused element that becomes disabled drops the keyboard to the body — a static rule reads the
+  two files), and the shared notice puts focus on the group's summary or the reload control when
+  its own button leaves the page. An `online` event retries whatever was waiting; tier 1 listens
+  always and decides in the handler. Writes are never retried: a favourite or an archive that
+  failed reloads instead.
+- **"No completion configured" is addressed to the teacher (ADR-010, decision 10).** `cards.php`
+  sets `teacher` on a card or detail when completion is off and the viewer holds no
+  `moodle/course:isincompletionreports` in the course — `has_capability()` with `$doanything`
+  false, so an administrator without a role is not a learner of every course — on the context
+  the cache rebuilds, for no read once the request is up (`cards_test` measures it). A learner
+  sees a bar or nothing. The flag is `VALUE_OPTIONAL` in both services' returns.
 - **Two views, one payload.** `RowList` picks between `Row` and `RowCard`; switching
   costs no request, because the rows and their details are held in state and only the
   rendering changes. The choice is the `block_compass_view` preference, written through
@@ -1068,7 +1124,7 @@ the following defaults flip, deliberately:
   which the step demands, and axe is on by default in the Behat run config, so
   nothing has to be switched on (ADR-008, decision 1). Scenario 2 runs with
   `hide_block_title` on, so the other heading ladder is measured too.
-  `tests/local/accessibility_rules_test.php` is the static half — ten rules over
+  `tests/local/accessibility_rules_test.php` is the static half — fourteen rules over
   `js/esm/src`, `templates/` and `styles.css`, each with the vacuity guard its
   sibling `bootstrap_compat_test` carries — because axe reads a rendered page and
   cannot see a rule that no scenario happens to render.

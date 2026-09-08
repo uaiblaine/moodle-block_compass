@@ -109,6 +109,11 @@ final class cards {
                 }
                 $hascompletion = in_array($courseid, $withcompletion, true);
                 $cached = $hascompletion ? (array_key_exists($courseid, $progress) ? $progress[$courseid] : false) : null;
+                // The "No completion configured" notice is said only to a viewer who is not a learner of
+                // the course, and only when completion is off (ADR-010, decision 10): the capability core's
+                // own completion report goes by, checked without the administrator's blanket allow, on the
+                // context rebuilt from the cached columns - an in-memory lookup once the request is up.
+                $teacher = !$hascompletion && !self::is_learner($userid, $context);
 
                 $card = [
                     'id' => $courseid,
@@ -138,6 +143,10 @@ final class cards {
                 }
                 if ($strip === 'new') {
                     self::add_enrolment_fields($card, $row, $now);
+                }
+                if ($teacher) {
+                    // Present only when true: omission is the zero-cost shape on the wire (ADR-009).
+                    $card['teacher'] = true;
                 }
                 $result[$strip][] = $card;
             }
@@ -204,6 +213,25 @@ final class cards {
         }
 
         return get_string('action_open', 'block_compass');
+    }
+
+    /**
+     * Whether the viewer is a learner of a course: someone core's completion report counts.
+     *
+     * The line core itself draws - completion_info::is_tracked_user() is is_enrolled() with
+     * moodle/course:isincompletionreports, whose only archetype is student
+     * (lib/completionlib.php:1402-1404, lib/db/access.php:1152-1158). Every teacher, editing or
+     * not, and every manager fails it; the administrator's blanket allow is ignored so that one
+     * without a role in the course is a teacher here too. Cost: none on 5.2 once the request is
+     * up - the access data is loaded once per request and role definitions come from a
+     * per-request array and then MUC (lib/accesslib.php:570-582, :303-329).
+     *
+     * @param int $userid The viewer.
+     * @param \core\context $context The course context.
+     * @return bool
+     */
+    private static function is_learner(int $userid, \core\context $context): bool {
+        return has_capability('moodle/course:isincompletionreports', $context, $userid, false);
     }
 
     /**
@@ -315,7 +343,11 @@ final class cards {
                 continue;
             }
             if (!in_array($courseid, $tracked, true)) {
-                $result[] = ['id' => $courseid, 'hascompletion' => false, 'progress' => null];
+                $detail = ['id' => $courseid, 'hascompletion' => false, 'progress' => null];
+                if (!self::is_learner($userid, course_meta::context_of($meta[$courseid]))) {
+                    $detail['teacher'] = true;
+                }
+                $result[] = $detail;
                 continue;
             }
             if (array_key_exists($courseid, $cached) && $cached[$courseid] !== false) {

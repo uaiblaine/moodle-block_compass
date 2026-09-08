@@ -23,7 +23,6 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-
 $string['action_continue'] = 'Continuar';
 $string['action_open'] = 'Acessar';
 $string['action_review'] = 'Rever';
@@ -57,6 +56,7 @@ $string['chip_pending'] = 'Aguardando aprovação';
 $string['clearfilters'] = 'Limpar filtros';
 $string['compass:myaddinstance'] = 'Adicionar um novo bloco Compass ao Painel';
 $string['completed'] = 'Concluído';
+$string['connectionlost'] = 'Conexão perdida. Verifique sua internet e tente de novo.';
 $string['coursearchived'] = '{$a} arquivado';
 $string['coursesingroup'] = '{$a} cursos';
 $string['courseunarchived'] = '{$a} trazido de volta';
@@ -120,10 +120,15 @@ $string['prewarm_budget_seconds_desc'] = 'Por quanto tempo cada execução da ta
 $string['prewarm_days'] = 'Pré-aquecer usuários ativos nos últimos';
 $string['prewarm_days_desc'] = 'Número de dias: apenas usuários que entraram dentro desta janela são pré-aquecidos. Padrão 7.';
 $string['prewarm_desc'] = 'Opcionalmente preenche os caches dos usuários ativos recentemente fora do horário de pico, para que a primeira visita ao Painel do dia custe o mesmo que as seguintes.';
+$string['privacy:metadata:preference:block_compass_explore'] = 'Como a lista completa de cursos foi deixada: a ordenação, o chip de situação, os chips de campo de curso e se o painel de filtros estava aberto.';
 $string['privacy:metadata:preference:block_compass_view'] = 'A escolha de quem usa o bloco entre a visão em lista e a visão em cartões da lista completa de cursos.';
 $string['progresserror'] = 'Não foi possível carregar parte do progresso.';
 $string['progressloading'] = 'Carregando progresso';
 $string['progresspercent'] = '{$a}% concluído';
+$string['reconnecting'] = 'Reconectando… (tentativa {$a->attempt} de {$a->attempts})';
+$string['reload'] = 'Recarregar cursos';
+$string['reloading'] = 'Recarregando…';
+$string['reloadpage'] = 'Recarregar página';
 $string['removefromfavourites'] = 'Remover dos favoritos';
 $string['resultsshown'] = '{$a} cursos exibidos';
 $string['retry'] = 'Tentar novamente';
@@ -131,6 +136,8 @@ $string['searchcourses'] = 'Buscar nos meus cursos';
 $string['searchplaceholder'] = 'Filtrar por nome…';
 $string['searchtooshort'] = 'Digite pelo menos {$a} caracteres';
 $string['searchtruncated'] = 'Mostrando as primeiras {$a} correspondências';
+$string['show_category'] = 'Mostrar a categoria nos cartões';
+$string['show_category_desc'] = 'Imprime a categoria do curso nos cartões do primeiro andar e nos cartões da lista plana (A–Z, Recentes, busca). Um cartão dentro de um grupo de categoria nunca a imprime: o cabeçalho do grupo já a diz.';
 $string['show_index'] = 'Mostrar o índice de categorias';
 $string['show_index_desc'] = 'Mostra o índice lateral de categorias ao lado da lista completa de cursos em telas largas.';
 $string['showmore'] = 'Mostrar mais';

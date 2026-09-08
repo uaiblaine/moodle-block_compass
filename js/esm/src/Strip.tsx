@@ -79,7 +79,9 @@ const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, 
     return (
         <section className="compass-strip" data-strip={name} aria-labelledby={headingid}>
             <div className="compass-strip-head">
-                <Heading className="compass-strip-title h6 text-uppercase text-muted mb-0" id={headingid}>{title}</Heading>
+                {/* Weight, never case: a heading is emphasised with fw-bold and nothing is written in
+                    capitals anywhere in the block (ADR-010, decision 8, and a static rule). */}
+                <Heading className="compass-strip-title h6 fw-bold text-muted mb-0" id={headingid}>{title}</Heading>
                 {overflow && (
                     <button
                         type="button"

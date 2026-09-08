@@ -69,7 +69,7 @@ Feature: The Compass block puts the courses that need attention first
       | Course tags | core_course | course | 0      |
     And the following "custom fields" exist:
       | name     | category    | type   | shortname | configdata                                    |
-      | Delivery | Course tags | select | delivery  | {"options":"Online\nOn campus","visibility":2} |
+      | Delivery | Course tags | select | delivery  | {"options":"Online\nOn campus\nHybrid","visibility":2} |
     And the following "courses" exist:
       | fullname | shortname | category | customfield_delivery |
       | Course 4 | C4        | CATB     | 1                    |
@@ -101,8 +101,12 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
-    # The filter panel is open at first render, so its platters and chips are on screen too.
+    # The filter panel is open at first render, so its platters and chips are on screen too - all
+    # but the chip nobody's course carries: a chip that would show nothing is not drawn (ADR-010,
+    # decision 3). Hybrid is the third option of the field and no course has it.
     And I should see "Delivery" in the "Compass" "block"
+    And I should see "On campus" in the "Compass" "block"
+    And I should not see "Hybrid" in the "Compass" "block"
     # With tier 3 open: the index, both groups and their rows, the toolbar and the panel are all
     # on screen here, which is the most this scenario ever shows (a settled search narrows the
     # list to its hits).
@@ -134,6 +138,11 @@ Feature: The Compass block puts the courses that need attention first
     # switch is an icon-only button now, found by the aria-label carrying the word (ADR-009).
     When I click on "Cards" "button" in the "Compass" "block"
     Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
+    # The cards are a grid whose column count the client sets from the width it has (ADR-010,
+    # decision 4). Here the block sits in the Dashboard's block drawer, about 315 px wide and
+    # under the 640 px the index needs, so the narrow rule is what this page measures: one
+    # column, and no index. The two- and three-column rules are pinned by the static test.
+    And ".compass-rowcards-1" "css_element" should exist in the "Compass" "block"
     When I reload the page
     # The strip's heading link is the second way into tier 3 (ADR-009, decision 2): it opens on
     # the New chip, so the two never-opened courses are what is counted, and the cards view
@@ -141,6 +150,9 @@ Feature: The Compass block puts the courses that need attention first
     And I click on "+1 new" "button" in the "Compass" "block"
     Then I should see "2 courses shown" in the "Compass" "block"
     And ".compass-rowcard" "css_element" should exist in the "Compass" "block"
+    # A gesture that opens tier 3 also moves the keyboard there (ADR-010, decision 1): the section
+    # takes focus, so the next Tab lands on its toolbar and not back at the top of the block.
+    And the focused element is ".compass-explore" "css_element"
 
   @javascript
   Scenario: Archiving in Compass removes the course from the Course overview block, and unarchiving brings it back

@@ -180,6 +180,20 @@ final class config {
     }
 
     /**
+     * Whether a card prints its category (ADR-010, decision 11). Never set means shown.
+     *
+     * A client switch and nothing more: the category still travels, on a tier 1 card as the
+     * formatted name and on a tier 3 row as its group, so the payload does not move.
+     *
+     * @return bool
+     */
+    public static function category_shown(): bool {
+        $value = get_config('block_compass', 'show_category');
+
+        return $value === false || $value === '' || (int) $value === 1;
+    }
+
+    /**
      * @var int The most course custom fields offered as chip groups (ADR-009, decision 5).
      *
      * A measurement, not an estimate: 250 rows each carrying three fields and every row an

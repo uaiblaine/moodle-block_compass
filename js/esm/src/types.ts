@@ -49,6 +49,9 @@ export type CourseCard = {
     deadline: number | null,
     deadlinetext: string,
     actiontext: string,
+    // Present, and true, only when completion is off and the viewer is not a learner of the
+    // course: the one reader "No completion configured" is said to (ADR-010, decision 10).
+    teacher?: boolean,
 };
 
 /** The counts that decide the ghost card, the strip overflow links and the pending notice. */
@@ -75,6 +78,7 @@ export type CardDetail = {
     id: number,
     hascompletion: boolean,
     progress: number | null,
+    teacher?: boolean,
     imageurl: string,
     hasimage: boolean,
 };
@@ -88,8 +92,31 @@ export type CardDetail = {
 export type RowDetail = {
     hascompletion: boolean,
     progress: number | null,
+    teacher?: boolean,
     imageurl: string,
     hasimage: boolean,
+};
+
+/**
+ * The tier 3 toolbar as the viewer left it (ADR-010, decision 9): the shell reads the
+ * block_compass_explore preference, validates its shape, and ships the survivors. Whether a
+ * field in cf is still configured is decided when the inventory's fields array arrives.
+ */
+/** Which attempt the repository's bounded retry is on (ADR-010, decision 12). */
+export type Reconnecting = {attempt: number, attempts: number};
+
+/**
+ * Tier 3's toolbar as it is now, kept by Block across a reload's remount, and the JSON of the
+ * state last read from or written to the preference, so the remounted Explore neither reverts
+ * a change nor writes a state that is already stored (ADR-010, amendment 9).
+ */
+export type KeptToolbar = {explore: ExploreState, view: string, remembered: string};
+
+export type ExploreState = {
+    sort: string,
+    chip: string,
+    cf: Record<string, number>,
+    panel: boolean,
 };
 
 /** One strip of tier 1: its payload key and its heading. */
@@ -107,14 +134,28 @@ export type Strip = {
  */
 export type BlockConfig = {
     labels: Record<string, string>,
-    icons: {staron: string, staroff: string, hide: string, show: string, list: string, grid: string, filter: string},
+    icons: {
+        staron: string,
+        staroff: string,
+        archive: string,
+        unarchive: string,
+        list: string,
+        grid: string,
+        filter: string,
+        expanded: string,
+        collapsed: string,
+        collapsedrtl: string,
+        reload: string,
+    },
     strips: Strip[],
     favouritesenabled: boolean,
     pendingenabled: boolean,
     showsearch: boolean,
     showindex: boolean,
+    showcategory: boolean,
     titlehidden: boolean,
     view: string,
+    explore: ExploreState,
 };
 
 /**

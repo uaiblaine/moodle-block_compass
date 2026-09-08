@@ -35,8 +35,64 @@
     margin-bottom: 1.25rem;
 }
 
-.block_compass .compass-strip-title {
-    letter-spacing: 0.04em;
+/* The block's own top-right corner (ADR-010, decision 12): the title bar beside it is core's, so
+   the reload control sits on the first row of the content, pushed to the right. */
+.block_compass .compass-content-head {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.block_compass .compass-reload {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    line-height: 1;
+}
+
+.block_compass .compass-reload:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+.block_compass .compass-reload-glyph {
+    display: inline-flex;
+}
+
+.block_compass .compass-reload-spin {
+    animation: block_compass-spin 1000ms linear infinite;
+}
+
+@keyframes block_compass-spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-reload-spin {
+        animation: none;
+    }
+}
+
+/* The way back from a failure (ADR-010, decision 12): the message, then Try again and Reload
+   page pushed to the end of the line; the amber is Bootstrap's own warning alert. */
+.block_compass .compass-retry-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.block_compass .compass-group-retry {
+    padding: 0.5rem 0.75rem 0;
 }
 
 /* A strip's heading row: the title and, when the strip overflowed, the link to the rest of it
@@ -111,11 +167,12 @@
     opacity: 0.6;
 }
 
-/* The badge in a card's corner: New on a new enrolment, Awaiting approval on an application. */
+/* The badge in a card's top-LEFT corner - New on a new enrolment, Awaiting approval on an
+   application - and the star in the top-right (ADR-010, decision 5). */
 .block_compass .compass-card-badge {
     position: absolute;
     top: 0.5rem;
-    right: 0.5rem;
+    left: 0.5rem;
     z-index: 2;
 }
 
@@ -125,12 +182,36 @@
 
 /* The star sits above the stretched link, or the link would swallow its clicks. Its glyph is
    painted with the text token rather than left to btn-link: Boost paints btn-link with the
-   brand itself, which on the dark body measured 1.10:1 on a navy brand (ADR-008). */
+   brand itself, which on the dark body measured 1.10:1 on a navy brand (ADR-008). On a card it
+   takes the image's top-right corner on a surface disc with a line border, so the control keeps
+   3:1 over any photograph, light or dark (ADR-010, decision 5); in a list row it is inline. */
 .block_compass .compass-star {
     position: relative;
     z-index: 2;
     line-height: 1;
     color: var(--block_compass-brand-text);
+}
+
+.block_compass .compass-card .compass-star,
+.block_compass .compass-rowcard .compass-star {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 50%;
+    background: var(--block_compass-surface);
+}
+
+.block_compass .compass-row .compass-star {
+    min-width: 1.5rem;
+    min-height: 1.5rem;
 }
 
 .block_compass .compass-star:focus-visible {
@@ -238,14 +319,13 @@
     display: none;
 }
 
-.block_compass .compass-group-summary::before {
-    content: "\25B8";
-    margin-right: 0.5rem;
-    color: var(--block_compass-muted);
-}
-
-.block_compass .compass-group[open] > .compass-group-summary::before {
-    content: "\25BE";
+/* The accordion's chevron is core's own pair, shown and hidden by core's icons-collapse-expand
+   rule the way a course section's is, with less padding around the glyph (ADR-010, decision 7).
+   Painted with the text token: core paints its own with the brand, through btn-icon. */
+.block_compass .compass-group-chevron {
+    margin-right: 0.25rem;
+    vertical-align: middle;
+    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-rows {
@@ -326,17 +406,31 @@
     background: var(--block_compass-surface);
 }
 
-/* Tier 3 cards (ADR-005): two columns at most, and a floor that keeps one usable. Flex
-   over a percentage basis rather than a grid - three items of 45% cannot share a row,
-   while repeat(auto-fill, minmax()) silently packs a third into a wide block. */
+/* Tier 3 cards (ADR-010, decision 4): a grid whose column count the client sets - three
+   without the category index, two with it, one under 640 px of section width - so a lone card
+   on the last line keeps its column. An integer count from a class rather than auto-fill, which
+   packs a third card into a wide block, and rather than a container query, which the lint
+   rejects; minmax(0, 1fr) keeps a long name from widening a column. */
 .block_compass .compass-rowcards {
+    display: grid;
     gap: 0.75rem;
     padding: 0.75rem;
 }
 
+.block_compass .compass-rowcards-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.block_compass .compass-rowcards-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.block_compass .compass-rowcards-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .block_compass .compass-rowcards-item {
-    flex: 1 1 45%;
-    min-width: 13rem;
+    min-width: 0;
 }
 
 .block_compass .compass-rowcard {
@@ -344,6 +438,10 @@
     height: 100%;
     border-color: var(--block_compass-line);
     background: var(--block_compass-surface);
+}
+
+.block_compass .compass-row-nocompletion {
+    white-space: nowrap;
 }
 
 /* The list keeps the bar alone, at the width its skeleton stands in for; the card has

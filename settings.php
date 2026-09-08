@@ -109,6 +109,15 @@ if ($ADMIN->fulltree) {
         0
     ));
 
+    // The category line on cards (ADR-010, decision 11): on unless explicitly off, the shape of
+    // enable_favourites; a client switch, so the payload does not move either way.
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/show_category',
+        get_string('show_category', 'block_compass'),
+        get_string('show_category_desc', 'block_compass'),
+        1
+    ));
+
     // The filter panel of the full course list (ADR-009, decisions 5 and 7). The choices are the
     // site's own eligible course custom fields — select and checkbox, visible to everyone — read
     // from the filterfields layer, and admin_setting_configmultiselect drops any submitted value

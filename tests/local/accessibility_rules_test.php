@@ -154,6 +154,7 @@ final class accessibility_rules_test extends basic_testcase {
 
         $components = [
             'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
+            'Reload', 'RetryNotice', 'RowList', 'Row', 'Group',
         ];
         foreach ($components as $component) {
             $this->assertArrayHasKey("js/esm/src/{$component}.tsx", $files);
@@ -266,7 +267,10 @@ final class accessibility_rules_test extends basic_testcase {
      */
     public function test_the_icon_only_buttons_name_themselves(): void {
         $files = $this->sources();
-        $iconfiles = ['js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx'];
+        $iconfiles = [
+            'js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
+            'js/esm/src/Reload.tsx',
+        ];
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
             $tags = $this->tags($files[$file], 'button');
@@ -549,5 +553,158 @@ final class accessibility_rules_test extends basic_testcase {
             $body,
             '.compass-row does not wrap: at 320 px its parts overflow the block sideways'
         );
+    }
+
+    /**
+     * A control that triggers its own busy state is aria-disabled while busy, never disabled.
+     *
+     * The disabled attribute is applied in the render the control's own click causes, and a
+     * focused element that becomes disabled drops the keyboard to the body: the "Reloading…"
+     * label is then announced to nobody, and the next Tab starts at the top of the page
+     * (ADR-010, amendment 9). The two components that render such a control are read; "Show
+     * more" in Group.tsx keeps its disabled attribute on purpose, because Explore moves focus
+     * after a page deliberately (R3). The vacuity guard is the button tag itself, in each file.
+     *
+     * @return void
+     */
+    public function test_the_busy_controls_stay_focusable(): void {
+        foreach (['js/esm/src/Reload.tsx', 'js/esm/src/RetryNotice.tsx'] as $file) {
+            $tags = $this->tags($this->sources()[$file], 'button');
+            $this->assertNotEmpty($tags, "{$file} renders no button, so the rule is about nothing");
+            $ariadisabled = 0;
+            foreach ($tags as $tag) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/\sdisabled=/',
+                    $tag,
+                    "{$file}: a disabled attribute on a control that disables itself drops focus to the body"
+                );
+                if (preg_match('/\saria-disabled=/', $tag)) {
+                    $ariadisabled++;
+                }
+            }
+            $this->assertGreaterThan(0, $ariadisabled, "{$file}: no button says aria-disabled while busy");
+        }
+    }
+
+    /**
+     * Nothing is written in capitals: a heading is emphasised with weight, never with case.
+     *
+     * The maintainer's rule (ADR-010, decision 8), general on purpose. Bootstrap's text-uppercase
+     * and a text-transform declaration are the two ways to shout, and the strip heading - the
+     * one place that used to - is the vacuity guard: it must exist and carry a weight class.
+     *
+     * @return void
+     */
+    public function test_nothing_is_uppercase(): void {
+        foreach ($this->reactsources() as $file => $contents) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/\btext-uppercase\b/',
+                $contents,
+                "{$file}: text-uppercase shouts; emphasise with fw-bold instead (ADR-010, decision 8)"
+            );
+        }
+        $this->assertDoesNotMatchRegularExpression(
+            '/text-transform\s*:\s*uppercase/',
+            $this->css(),
+            'styles.css: text-transform: uppercase shouts; emphasise with weight instead'
+        );
+
+        $strip = $this->sources()['js/esm/src/Strip.tsx'];
+        $headings = array_filter(
+            $this->tags($strip, 'Heading'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-strip-title')
+        );
+        // Vacuity guard: the strip heading is the tag this rule was written over.
+        $this->assertCount(1, $headings, 'the strip heading tag was not found in Strip.tsx');
+        $this->assertMatchesRegularExpression(
+            '/\bfw-(bold|semibold|medium)\b/',
+            reset($headings),
+            'the strip heading carries no weight class'
+        );
+    }
+
+    /**
+     * The tier 3 cards are a grid whose column count the client sets, so a lone card keeps its column.
+     *
+     * ADR-010, decision 4: three classes name three counts, the stylesheet draws each as a fixed
+     * repeat over minmax(0, 1fr), and RowList picks the class from the count it is handed. Neither
+     * axe nor a scenario measures a column, so the source is the only reader.
+     *
+     * @return void
+     */
+    public function test_the_cards_grid_counts_its_columns(): void {
+        $bodies = [];
+        foreach ($this->rules() as $rule) {
+            [$selector, $body] = $rule;
+            if (preg_match('/\.compass-rowcards(-[123])?(?![\w-])/', $selector, $matches) && !str_contains($selector, ':')) {
+                $bodies[$matches[1] ?? ''] = $body;
+            }
+        }
+        // Vacuity guard: the base rule and the three counts must all be there to read.
+        $this->assertArrayHasKey('', $bodies, 'no .compass-rowcards rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bdisplay\s*:\s*grid\b/', $bodies[''], 'the cards are not a grid');
+        foreach ([1, 2, 3] as $count) {
+            $this->assertArrayHasKey("-{$count}", $bodies, "no .compass-rowcards-{$count} rule found in styles.css");
+            $this->assertMatchesRegularExpression(
+                '/grid-template-columns\s*:\s*repeat\(' . $count . ',\s*minmax\(0,\s*1fr\)\)/',
+                $bodies["-{$count}"],
+                ".compass-rowcards-{$count} does not draw {$count} equal columns"
+            );
+        }
+
+        $rowlist = $this->sources()['js/esm/src/RowList.tsx'];
+        $this->assertStringContainsString(
+            'compass-rowcards-${columns}',
+            $rowlist,
+            'RowList does not pick the column class from its count'
+        );
+        $this->assertDoesNotMatchRegularExpression('/\bflex-wrap\b/', $rowlist, 'the cards are a flex line again');
+    }
+
+    /**
+     * On a card the star takes the top-right corner, on a disc, and the badge the top-left.
+     *
+     * ADR-010, decision 5. The star's disc is what keeps the control at 3:1 over a photograph
+     * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The two card
+     * components must render the star for the rule to be about anything.
+     *
+     * @return void
+     */
+    public function test_the_card_corners_are_the_stars_and_the_badges(): void {
+        $badge = null;
+        $star = null;
+        foreach ($this->rules() as $rule) {
+            [$selector, $body] = $rule;
+            if (preg_match('/\.compass-card-badge(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+                $badge = $body;
+            }
+            $cardstar = str_contains($selector, '.compass-card .compass-star');
+            if ($cardstar && str_contains($selector, '.compass-rowcard .compass-star')) {
+                $star = $body;
+            }
+        }
+        // Vacuity guards: both rules must exist to read a corner out of.
+        $this->assertNotNull($badge, 'no .compass-card-badge rule found in styles.css');
+        $this->assertNotNull($star, 'no card star rule (.compass-card .compass-star, .compass-rowcard .compass-star) found');
+
+        $this->assertMatchesRegularExpression('/\bleft\s*:/', $badge, 'the badge is not anchored left');
+        $this->assertDoesNotMatchRegularExpression('/\bright\s*:/', $badge, 'the badge is still anchored right');
+        $this->assertMatchesRegularExpression('/\bposition\s*:\s*absolute\b/', $star, 'the card star is not over the image');
+        $this->assertMatchesRegularExpression('/\bright\s*:/', $star, 'the card star is not anchored right');
+        $this->assertMatchesRegularExpression('/\btop\s*:/', $star, 'the card star is not anchored top');
+        $this->assertMatchesRegularExpression('/border-radius\s*:\s*50%/', $star, 'the star has no disc');
+        $this->assertMatchesRegularExpression(
+            '/\bbackground\s*:\s*var\(--block_compass-surface/',
+            $star,
+            'the disc is not painted with the surface token'
+        );
+        $this->assertMatchesRegularExpression('/\bborder\s*:.*var\(--block_compass-line/', $star, 'the disc has no line border');
+
+        foreach (['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx'] as $file) {
+            $this->assertNotEmpty(
+                $this->tags($this->sources()[$file], 'Star'),
+                "{$file} renders no Star, so the corner rule is about nothing"
+            );
+        }
     }
 }

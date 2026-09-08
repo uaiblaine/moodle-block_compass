@@ -466,6 +466,118 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
+     * Give the viewer a role in a course, or none, for the teacher test below.
+     *
+     * @param int $courseid The course.
+     * @param string|null $shortname A role shortname, or null to leave the viewer with no role at all.
+     * @return void
+     */
+    private function assign_role(int $courseid, ?string $shortname): void {
+        global $DB;
+
+        $context = \core\context\course::instance($courseid);
+        role_unassign_all(['userid' => $this->userid, 'contextid' => $context->id]);
+        if ($shortname !== null) {
+            role_assign((int) $DB->get_field('role', 'id', ['shortname' => $shortname], MUST_EXIST), $this->userid, $context->id);
+        }
+        // The viewer's access data was loaded before the role moved; the next check must see the move.
+        reload_all_capabilities();
+    }
+
+    /**
+     * "No completion configured" is said to a viewer who is not a learner of the course, when
+     * completion is off, and to nobody else (ADR-010, decision 10).
+     *
+     * Six cases over the two call sites. Completion off: a student is a learner and gets no
+     * flag; an editing teacher, a non-editing teacher and a viewer with no role in the course
+     * are not learners and get it - the last being the administrator without a role, whom the
+     * blanket allow would otherwise count as a learner. Completion on: nobody gets it, whatever
+     * their role, because the notice is about completion being off and not about who is
+     * tracked. The flag is present only when true.
+     *
+     * @return void
+     */
+    public function test_the_completion_notice_is_addressed_to_the_teacher_and_only_when_completion_is_off(): void {
+        set_config('enablecompletion', 1);
+        $off = $this->course('Course without completion', ['enablecompletion' => 0]);
+        $on = $this->course('Course with completion', ['enablecompletion' => 1]);
+        foreach ([$off, $on] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 200 * DAYSECS);
+            $this->plugingen->access_at($this->userid, (int) $course->id, self::NOW - HOURSECS);
+        }
+        $offid = (int) $off->id;
+        $onid = (int) $on->id;
+
+        // A student: a learner, so the absence is not signalled.
+        $this->assign_role($offid, 'student');
+        $this->assign_role($onid, 'student');
+        $cards = $this->by_id($this->build_cards());
+        $this->assertArrayNotHasKey('teacher', $cards[$offid]);
+        $this->assertArrayNotHasKey('teacher', $cards[$onid]);
+        $details = array_column(cards::details($this->userid, [$offid, $onid], self::NOW), null, 'id');
+        $this->assertArrayNotHasKey('teacher', $details[$offid]);
+        $this->assertArrayNotHasKey('teacher', $details[$onid]);
+
+        foreach (['editingteacher', 'teacher', null] as $role) {
+            if ($role === null) {
+                // The administrator without a role: has_capability() with the blanket allow would
+                // call them a learner of every course, which is what the fourth argument refuses.
+                set_config('siteadmins', (string) $this->userid);
+                $this->assertTrue(is_siteadmin($this->userid), 'the control: the viewer is an administrator now');
+            }
+            $this->assign_role($offid, $role);
+            $this->assign_role($onid, $role);
+            $cards = $this->by_id($this->build_cards());
+            $label = $role ?? 'administrator without a role';
+            $this->assertTrue(
+                $cards[$offid]['teacher'] ?? false,
+                "{$label}: the notice is addressed to them when completion is off"
+            );
+            $this->assertArrayNotHasKey('teacher', $cards[$onid], "{$label}: no notice when completion is on");
+            $details = array_column(cards::details($this->userid, [$offid, $onid], self::NOW), null, 'id');
+            $this->assertTrue($details[$offid]['teacher'] ?? false, "{$label}: details say so too");
+            $this->assertArrayNotHasKey('teacher', $details[$onid], "{$label}: details keep quiet when completion is on");
+        }
+    }
+
+    /**
+     * The teacher check costs no read once the request is up: the capability is answered from memory.
+     *
+     * Protocol: warm what core keeps across requests (the viewer's access data, the role
+     * definitions, the shared layers), simulate a new request, then pay what every request pays
+     * before the meter starts - the strips, and one build for the filter preload of the cards'
+     * contexts, which is per request and is the build's own cost, not the check's. The measured
+     * build runs the check again, has_capability() memoising nothing of it, and must add nothing.
+     * The control that keeps the zero honest is the flag itself: the measured build must produce
+     * it, or the meter measured a check that never ran.
+     *
+     * @return void
+     */
+    public function test_the_teacher_check_adds_no_read(): void {
+        set_config('enablecompletion', 1);
+        $course = $this->course('Course without completion', ['enablecompletion' => 0]);
+        $courseid = (int) $course->id;
+        $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 200 * DAYSECS);
+        $this->plugingen->access_at($this->userid, $courseid, self::NOW - HOURSECS);
+        $this->assign_role($courseid, 'editingteacher');
+
+        // Warm: the strips, the shared layers, the viewer's access data and the role definitions.
+        $strips = $this->strips();
+        cards::build($this->userid, $strips, self::NOW);
+        $this->plugingen->simulate_new_request();
+        // The request's own costs, before the meter: the strips and the filter preload.
+        $strips = $this->strips();
+        cards::build($this->userid, $strips, self::NOW);
+
+        $meter = budget::start();
+        $cards = $this->by_id(cards::build($this->userid, $strips, self::NOW));
+        $reads = $meter->reads();
+
+        $this->assertTrue($cards[$courseid]['teacher'] ?? false, 'the control: the check ran and said teacher');
+        $this->assertSame(0, $reads, "the teacher check cost {$reads} reads; it must cost none");
+    }
+
+    /**
      * details() computes the progress of a tracked course and leaves it in the cache.
      *
      * @return void

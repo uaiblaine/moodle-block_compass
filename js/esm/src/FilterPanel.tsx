@@ -76,13 +76,27 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
     if (config.pendingenabled) {
         statuschips.push(['pending', labels.chip_pending]);
     }
+    /**
+     * A chip that would show nothing is not drawn (ADR-010, decision 3).
+     *
+     * With two exceptions: the pressed one, because releasing it is the only way back, and
+     * any chip without a number - All, which carries none by design, and every chip in paged
+     * mode, where no count is true yet and hiding on a guess would hide a value the server
+     * would match (ADR-009, decision 5).
+     *
+     * @param {object} item The chip.
+     * @returns {boolean} Whether it is drawn.
+     */
+    const drawn = (item: PlatterItem): boolean => item.pressed || item.count === null || item.count === undefined
+        || item.count > 0;
+
     const statusitems: PlatterItem[] = statuschips.map(([key, label]) => ({
         key,
         label,
         // The neutral chip carries no number: "All (N)" would repeat the panel title's count.
         count: key === 'all' || facets.status === null ? null : facets.status[key] ?? 0,
         pressed: chip === key,
-    }));
+    })).filter(drawn);
 
     const pressed = (chip !== 'all' ? 1 : 0) + Object.keys(selection).length;
 
@@ -100,7 +114,11 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
                     label: value.label,
                     count: counts === null ? null : counts.get(value.key) ?? 0,
                     pressed: selection[field.key] === value.key,
-                }));
+                })).filter(drawn);
+                // A group whose every chip would show nothing is not drawn either, label included.
+                if (items.length === 0) {
+                    return null;
+                }
 
                 return (
                     <div className="compass-chipgroup" key={field.key}>

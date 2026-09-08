@@ -207,7 +207,8 @@ completo no navegador:
 enrol_apply aguardando aprovação, não os action events do calendário da Fase 6 — que, se um dia
 for construída, precisa de outra chave)*, `enable_prewarm`, `prewarm_days`,
 `prewarm_budget_seconds`, `default_view` (list|cards), `enable_search`, `hide_block_title`,
-`show_index`.
+`show_index`, `show_category` *(desde a ADR-010, decisão 11: a linha da categoria nos cards é
+configuração do site, ligada salvo um zero explícito — Fase 9)*.
 
 ## 9. Fases de entrega
 

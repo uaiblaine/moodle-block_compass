@@ -16,12 +16,10 @@
 /**
  * One category group of tier 3: a disclosure holding its rows.
  *
- * A native details element, so the keyboard and the accessibility tree come from
- * the browser. Its open state is driven from above rather than left to the DOM,
- * because a search has to open the groups that match and put them back afterwards.
- *
- * In paged mode the rows arrive on first open and page by page (ADR-004), so this
- * component also owns the "Show more" button and the busy state of its list.
+ * The chevron in the summary is core's own pair, the two a course section header draws,
+ * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph
+ * (ADR-010, decision 7). The disclosure stays a native details/summary: core's button and its
+ * aria-expanded exist for a div that cannot disclose on its own.
  *
  * @module     block_compass/Group
  * @copyright  2026 Anderson Blaine
@@ -30,6 +28,7 @@
 
 import {useCallback, useEffect, useRef} from 'react';
 import type {ReactNode} from 'react';
+import RetryNotice from './RetryNotice';
 import RowList from './RowList';
 import {fill} from './str';
 import type {RowDetails} from './rowdetails';
@@ -42,19 +41,23 @@ type GroupProps = {
     rows: InventoryRow[],
     open: boolean,
     loading: boolean,
+    failed: boolean,
     hasmore: boolean,
     config: BlockConfig,
     now: number,
     lang: string,
     view: string,
+    columns: number,
     details: RowDetails,
     onToggle: (id: number, open: boolean) => void,
     onShowMore: (id: number) => void,
+    onRetry: (id: number) => void,
     focusfrom: number | null,
     anchor: string,
     toolbar?: ReactNode,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
+    onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
     busy: boolean,
 };
 
@@ -62,15 +65,15 @@ type GroupProps = {
  * The group.
  *
  * @param {object} props The group's identity and rows, its open and paging state, the
- *     block config, the view, the details store, the archive action and the callbacks; see
- *     GroupProps.
+ *     block config, the view, the column count, the details store, the archive and star
+ *     actions and the callbacks; see GroupProps.
  * @returns {object} The rendered disclosure.
  */
 const Group = ({
-    id, name, count, rows, open, loading, hasmore, config, now, lang, view, details,
-    onToggle, onShowMore, focusfrom, anchor, toolbar, archived, onArchive, busy,
+    id, name, count, rows, open, loading, failed, hasmore, config, now, lang, view, columns, details,
+    onToggle, onShowMore, onRetry, focusfrom, anchor, toolbar, archived, onArchive, onToggleFavourite, busy,
 }: GroupProps) => {
-    const {labels} = config;
+    const {labels, icons} = config;
     const more = useRef<HTMLButtonElement>(null);
     const list = useRef<HTMLDivElement>(null);
 
@@ -118,7 +121,23 @@ const Group = ({
             onToggle={(event) => onToggle(id, event.currentTarget.open)}
         >
             <summary className="compass-group-summary d-flex justify-content-between align-items-center">
-                <span className="compass-group-name fw-bold">{name}</span>
+                <span className="compass-group-name fw-bold">
+                    {/* Core's own show/hide rule reads the collapsed class on this span, the way it reads
+                        it on a course section's toggle (theme/boost/scss/moodle/icons.scss). */}
+                    <span
+                        className={open
+                            ? 'compass-group-chevron icons-collapse-expand'
+                            : 'compass-group-chevron icons-collapse-expand collapsed'}
+                        aria-hidden="true"
+                    >
+                        <span className="expanded-icon icon-no-margin p-1" dangerouslySetInnerHTML={{__html: icons.expanded}} />
+                        <span className="collapsed-icon icon-no-margin p-1">
+                            <span className="dir-rtl-hide" dangerouslySetInnerHTML={{__html: icons.collapsed}} />
+                            <span className="dir-ltr-hide" dangerouslySetInnerHTML={{__html: icons.collapsedrtl}} />
+                        </span>
+                    </span>
+                    {name}
+                </span>
                 <span className="compass-group-count small text-muted">
                     {fill(labels.coursesingroup, String(count))}
                 </span>
@@ -126,10 +145,23 @@ const Group = ({
             {/* Inside the body rather than the summary: a button in a summary toggles the
                 disclosure as well, and a control that opens and acts at once is two surprises. */}
             {toolbar}
+            {/* A page that failed shows the way back inside the group it belongs to; pressing it
+                asks for the page again (ADR-010, decision 12). */}
+            {failed && (
+                <div className="compass-group-retry">
+                    <RetryNotice
+                        message={labels.connectionlost}
+                        retrying={loading}
+                        config={config}
+                        onRetry={() => onRetry(id)}
+                    />
+                </div>
+            )}
             <div className="compass-rows-shell" ref={list} aria-busy={loading || undefined}>
                 <RowList
                     rows={rows}
                     view={view}
+                    columns={columns}
                     categoryof={categoryof}
                     config={config}
                     now={now}
@@ -137,10 +169,14 @@ const Group = ({
                     details={details}
                     archived={archived}
                     onArchive={onArchive}
+                    onToggleFavourite={onToggleFavourite}
                     busy={busy}
                 />
             </div>
-            {(hasmore || loading) && (
+            {/* Not beside the notice: a failed page keeps its cursor, and "Show more" would resume
+                from it with no acknowledgement that anything failed, while Try again asks for the
+                group again from the start. One way back while the group is failed. */}
+            {(hasmore || loading) && !failed && (
                 <button
                     type="button"
                     ref={more}

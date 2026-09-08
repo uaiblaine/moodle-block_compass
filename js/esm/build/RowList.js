@@ -1,10 +1,10 @@
-import g from"./Row";import f from"./RowCard";import{jsx as i}from"react/jsx-runtime";var y=({rows:e,view:v,categoryof:p,config:s,now:r,lang:t,details:w,archived:a,onArchive:n,busy:d})=>{let{records:l,waiting:c,observe:m}=w;return v==="cards"?i("div",{className:"compass-rowcards d-flex flex-wrap",role:"list",children:e.map(o=>i("div",{className:"compass-rowcards-item",role:"listitem",children:i(f,{row:o,category:p(o),config:s,now:r,lang:t,detail:l[o.id],waiting:!!c[o.id],observe:m,archived:a,onArchive:n,busy:d})},o.id))}):i("div",{className:"compass-rows",role:"list",children:e.map(o=>i("div",{className:"compass-rows-item",role:"listitem",children:i(g,{row:o,config:s,now:r,lang:t,detail:l[o.id],waiting:!!c[o.id],observe:m,archived:a,onArchive:n,busy:d})},o.id))})},u=y;export{u as default};
+import b from"./Row";import f from"./RowCard";import{jsx as i}from"react/jsx-runtime";var y=({rows:e,view:g,columns:p,categoryof:w,config:r,now:s,lang:a,details:u,archived:t,onArchive:n,onToggleFavourite:d,busy:l})=>{let{records:m,waiting:c,observe:v}=u;return g==="cards"?i("div",{className:`compass-rowcards compass-rowcards-${p}`,role:"list",children:e.map(o=>i("div",{className:"compass-rowcards-item",role:"listitem",children:i(f,{row:o,category:w(o),config:r,now:s,lang:a,detail:m[o.id],waiting:!!c[o.id],observe:v,archived:t,onArchive:n,onToggleFavourite:d,busy:l})},o.id))}):i("div",{className:"compass-rows",role:"list",children:e.map(o=>i("div",{className:"compass-rows-item",role:"listitem",children:i(b,{row:o,config:r,now:s,lang:a,detail:m[o.id],waiting:!!c[o.id],observe:v,archived:t,onArchive:n,onToggleFavourite:d,busy:l})},o.id))})},k=y;export{k as default};
 /**
- * A set of tier 3 rows, drawn the way the viewer asked for (ADR-005, decision 4).
+ * The rows of one group, or of the flat list, in the view the reader chose (ADR-005).
  *
- * The one place that knows there are two views, so a group, the flat sort and the search
- * results cannot drift apart - and so that switching view is a re-render of the rows
- * already held rather than anything that travels.
+ * The one place that knows there are two views. The cards view is a grid whose column
+ * count the caller decides - three without the category index, two with it, one under 640 px
+ * of section width - so a lone card on the last line keeps its column (ADR-010, decision 4).
  *
  * @module     block_compass/RowList
  * @copyright  2026 Anderson Blaine

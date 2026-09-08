@@ -135,6 +135,12 @@ class get_attention extends external_api {
             'progress' => new external_value(PARAM_INT, 'Progress percentage when cached', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'pending' => new external_value(PARAM_BOOL, 'Whether progress must be fetched through get_card_details'),
             'nodata' => new external_value(PARAM_BOOL, 'Completion is tracked but not available for this user (cached answer)'),
+            'teacher' => new external_value(
+                PARAM_BOOL,
+                'Present, and true, only when completion is off and the viewer is not a learner of the course: the one '
+                    . 'reader "No completion configured" is said to (ADR-010, decision 10)',
+                VALUE_OPTIONAL
+            ),
             'iscomplete' => new external_value(PARAM_BOOL, 'Whether the course is complete'),
             'isfavourite' => new external_value(PARAM_BOOL, 'Whether the core course star is set'),
             'isnew' => new external_value(PARAM_BOOL, 'Whether this is a new-enrolment card'),

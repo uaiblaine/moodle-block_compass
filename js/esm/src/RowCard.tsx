@@ -14,17 +14,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * One tier 3 row drawn as a card (ADR-005, decision 4).
+ * One card of the tier 3 cards view (ADR-005).
  *
- * ADR-005 left the choice between reusing the tier 1 card and writing a thin one to code
- * review. This is the thin one, and the reason is the payload rather than the styling: a
- * tier 1 card is built from fields the server formats for it - the action label, the
- * enrolment sentence, the deadline, the shortname, the URL - and an inventory row carries
- * none of them by design (ADR-002 keeps it to ten integers per enrolment). Reusing Card
- * would have meant inventing those fields in the browser, which is how a card ends up
- * claiming something no server said.
- *
- * What it draws instead is exactly what the row already knows plus what the details batch
+ * The same row as the list draws, drawn as a card: it registers with the details store the
+ * same way and shows the same batch's answer, which is what makes the switch between the
+ * views free. What the card adds is what the batch already
  * brings: the image, and progress. Its category is the group it sits in, so nothing new
  * travels for that either.
  *
@@ -37,6 +31,11 @@
  * enrolment page, carries the "Awaiting approval" badge where a new card carries "New", and
  * has no star, no archive control and no progress; it registers for no details either.
  *
+ * Since ADR-010 the star is the one that toggles and sits in the image's top-right corner on a
+ * contrast disc, the badge in the top-left (decisions 5 and 6); the category line follows the
+ * show_category setting (decision 11); and "No completion configured" is said only to a viewer
+ * who is not a learner of the course (decision 10).
+ *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -45,6 +44,7 @@
 import {useEffect, useRef} from 'react';
 import Archive from './Archive';
 import Progress from './Progress';
+import Star from './Star';
 import {titleTag} from './heading';
 import {relativeTime} from './filter';
 import {fill} from './str';
@@ -61,6 +61,7 @@ type RowCardProps = {
     observe: (id: number, element: Element) => () => void,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
+    onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
     busy: boolean,
 };
 
@@ -69,13 +70,13 @@ type RowCardProps = {
  *
  * @param {object} props The row, its category, the block config, the instant "ago" is
  *     measured from, the page language, what is known about the row, how to register it
- *     and the archive action; see RowCardProps.
+ *     and the archive and star actions; see RowCardProps.
  * @returns {object} The rendered card.
  */
 const RowCard = ({
-    row, category, config, now, lang, detail, waiting, observe, archived, onArchive, busy,
+    row, category, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy,
 }: RowCardProps) => {
-    const {labels, icons} = config;
+    const {labels} = config;
     const Title = titleTag(config.titlehidden);
     const opened = row.opened || 0;
     const pending = !!row.pend;
@@ -104,6 +105,7 @@ const RowCard = ({
     } else if (detail?.hasimage) {
         image = <img className="compass-card-img card-img-top" src={detail.imageurl} alt="" loading="lazy" />;
     }
+    const answered = !pending && !waiting && detail !== undefined;
 
     return (
         <div
@@ -114,8 +116,21 @@ const RowCard = ({
             {image}
             {row.new && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
             {pending && <span className="compass-card-badge badge bg-warning text-dark">{labels.badge_pending}</span>}
+            {/* The star follows the image in the DOM as it does on screen: a screen reader meets it
+                before the title, where the badge already is (ADR-010, decision 5). */}
+            {!pending && config.favouritesenabled && (
+                <Star
+                    courseid={row.id}
+                    fullname={row.name}
+                    favourite={row.fav}
+                    config={config}
+                    onToggle={onToggleFavourite}
+                />
+            )}
             <div className="card-body d-flex flex-column">
-                {category && <span className="compass-card-category small text-muted">{category}</span>}
+                {category && config.showcategory && (
+                    <span className="compass-card-category small text-muted">{category}</span>
+                )}
                 <Title className="compass-rowcard-title compass-clamp h6 mb-1" title={row.name}>
                     <a href={url} className="compass-row-link stretched-link text-reset text-decoration-none">
                         {row.name}
@@ -131,22 +146,13 @@ const RowCard = ({
                         {!pending && waiting && (
                             <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>
                         )}
-                        {!pending && !waiting && detail?.hascompletion && detail.progress !== null && (
+                        {answered && detail.hascompletion && detail.progress !== null && (
                             <Progress progress={detail.progress} labels={labels} />
                         )}
+                        {answered && !detail.hascompletion && detail.teacher && (
+                            <span className="small text-muted">{labels.nocompletion}</span>
+                        )}
                     </div>
-                    {!pending && row.fav && (
-                        <>
-                            {/* A tier 3 star states a fact; the one that toggles is tier 1's,
-                                where the card carries the course it would change. */}
-                            <span
-                                className="compass-row-star"
-                                aria-hidden="true"
-                                dangerouslySetInnerHTML={{__html: icons.staron}}
-                            />
-                            <span className="visually-hidden">{labels.chip_favourites}</span>
-                        </>
-                    )}
                     {/* Above the stretched link, or the card would swallow the click. */}
                     {!pending && (
                         <span className="compass-card-action">

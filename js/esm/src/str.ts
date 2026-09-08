@@ -39,3 +39,19 @@
  */
 export const fill = (template: string | undefined, value: string): string =>
     (template || '').replace('{$a}', () => value);
+
+/**
+ * Put several values into a language string's object placeholders.
+ *
+ * The PHP side writes {$a->name} for a string whose $a is an object (lib/moodlelib.php's
+ * get_string()); this is the client's half of that convention.
+ *
+ * @param {string} template The translated string, possibly carrying {$a->name} placeholders.
+ * @param {object} values What replaces each one, keyed by name.
+ * @returns {string} The filled string, or the empty string when the template is missing.
+ */
+export const fillObject = (template: string | undefined, values: Record<string, string>): string =>
+    Object.entries(values).reduce(
+        (text, [name, value]) => text.split(`{$a->${name}}`).join(value),
+        template || ''
+    );

@@ -212,6 +212,7 @@ Blocks > Compass*, in this order:
 | Months before a course is dormant (`dormant_months`) | 12 | A course not opened for this many calendar months — or never opened and enrolled longer ago than that — is gathered into the Dormant group instead of padding its category. |
 | Default view for the full course list (`default_view`) | list | Which view the full list opens in for a viewer who has never chosen: the compact list, or cards with the course image. Each viewer's own choice overrides it. |
 | Hide the block title (`hide_block_title`) | off | Render the block without its title bar. Core then renders no block heading at all, so the plugin's own headings move one level up to keep the document's heading ladder unbroken (ADR-008). |
+| Show the category on cards (`show_category`) | on | Print the course's category above its name on every card, in both tiers. Off, the name is the first line (ADR-010). |
 | Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
 | Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision: a row with an "Awaiting approval" badge in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Does nothing without that plugin (ADR-009). |
 | Pre-warm active users (`enable_prewarm`) | off | Run the nightly sweep at all. Never set means off. |
@@ -267,7 +268,26 @@ The full list renders either as a compact list or as cards with the course
 image, chosen from the toolbar. The choice is remembered in the user preference
 `block_compass_view` and switching costs no request: the rows and their details
 are already in the browser, and only the rendering changes. `default_view` is the
-site default for a viewer who has never chosen.
+site default for a viewer who has never chosen. The rest of the toolbar is
+remembered too — the sort, the pressed chip, the field selection and whether the
+filter panel is open — in a second preference, `block_compass_explore`, written
+half a second after a change settles and read back on the next visit; a
+remembered chip or field the site no longer offers is dropped rather than shown
+(ADR-010). The cards are a grid whose column count follows what is beside it:
+three columns with the category index hidden, two with it shown, one on a narrow
+block. On every card the star sits in the top-right corner of the image and the
+*New* badge in the top-left; in the list the star sits beside the archive control.
+A chip that would keep no course is not drawn, in full mode, so the panel lists
+only what is there.
+
+When something fails on the way, the block says so and offers a way back. A read
+that fails in transit — the network dropped, not the server answering with an
+error — is retried twice on its own, after one and three seconds, with the
+attempt announced; a read that still fails, and any server error, becomes an
+amber notice with **Try again** and **Reload page**, in tier 1, in the full list,
+in a group whose page failed and under a search that failed. A reload control at
+the top-right of the block's content fetches everything again, and a browser that
+comes back online retries whatever was waiting.
 
 A course removed from view in the Course overview block is not in the strips or
 in the category groups here either: it is one of the courses the Archived group
@@ -362,7 +382,7 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   accessible name, the run reddened with three `button-name` violations, and went
   green again when the name was restored.
 - **`tests/local/accessibility_rules_test.php` reads what axe cannot**, scanning
-  the client sources and the stylesheet for eleven rules: that the scan found its
+  the client sources and the stylesheet for fourteen rules: that the scan found its
   sources at all, that every image states an `alt` attribute, that no positive
   `tabindex` exists anywhere, that the stylesheet never removes an outline
   without replacing it, that every icon-only button names itself (the archive
@@ -370,9 +390,12 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   `role="group"` carries a name (the platters included), that the heading ladder
   follows the block title, that brand-coloured text goes through the paired
   token, that the archive control declares a minimum target box, that a list
-  row wraps instead of overflowing, and that every course name is clamped to
-  two lines with the whole name in a `title` attribute. Each rule carries a guard
-  asserting it had something to check.
+  row wraps instead of overflowing, that every course name is clamped to
+  two lines with the whole name in a `title` attribute, that nothing is written
+  in capitals, that the cards grid counts its columns in the stylesheet and the
+  client alike, and that the card's star sits on a contrast disc in one corner and
+  the badge in the other. Each rule carries a guard asserting it had something to
+  check.
 - **Headings sit under core's block title.** Core renders the block title as an
   `<h3>`, so the plugin's section titles are `<h4>` and its card titles `<h5>`;
   when `hide_block_title` is on core renders no heading at all and each moves one
@@ -439,11 +462,13 @@ legacy `core_user_update_user_preferences`) — so Compass ships no write functi
 Privacy
 -------
 
-The plugin stores **one** thing of its own: the user preference
+The plugin stores **two** things of its own, both user preferences:
 `block_compass_view`, the viewer's choice between the list and the cards view of
-the full course list. It is declared in `lib.php` and exported by
-`classes/privacy/provider.php`, which implements the metadata provider and
-`user_preference_provider`.
+the full course list, and `block_compass_explore`, the toolbar of that list as
+the viewer left it — the sort, the pressed chip, the field selection and whether
+the filter panel is open, as one JSON value. Both are declared in `lib.php` and
+exported by `classes/privacy/provider.php`, which implements the metadata
+provider and `user_preference_provider`.
 
 Everything else it shows belongs to core and stays core's to export and to
 delete. Courses, enrolments and progress are read, never copied: what the plugin

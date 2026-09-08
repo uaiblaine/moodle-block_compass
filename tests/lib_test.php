@@ -43,6 +43,7 @@ use PHPUnit\Framework\Attributes\CoversFunction;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 #[CoversFunction('block_compass_user_preferences')]
+#[CoversFunction('block_compass_get_fontawesome_icon_map')]
 final class lib_test extends advanced_testcase {
     /**
      * The preference is declared at all — an undeclared one is refused before anything else.
@@ -93,5 +94,62 @@ final class lib_test extends advanced_testcase {
 
         $this->assertTrue(core_user::can_edit_preference('block_compass_view', $me));
         $this->assertFalse(core_user::can_edit_preference('block_compass_view', $other));
+    }
+
+    /**
+     * The remembered toolbar is declared raw and nullable, so a JSON string passes the route untouched.
+     *
+     * The router refuses a value cleaning would change (user/classes/route/api/preferences.php),
+     * and PARAM_RAW changes nothing: the control is a JSON object surviving clean_preference()
+     * byte for byte. Validation is the reader's, explore_preference::read() (ADR-010, decision 9).
+     *
+     * @return void
+     */
+    public function test_the_explore_preference_is_declared_raw_and_read_by_its_own_reader(): void {
+        $this->resetAfterTest();
+        $me = $this->getDataGenerator()->create_user();
+        $other = $this->getDataGenerator()->create_user();
+        $this->setUser($me);
+
+        $definition = core_user::get_preference_definition('block_compass_explore');
+        $this->assertSame(PARAM_RAW, $definition['type']);
+        $this->assertSame(NULL_ALLOWED, $definition['null']);
+        $this->assertNull($definition['default']);
+        $this->assertArrayNotHasKey('choices', $definition);
+
+        $json = '{"sort":"name","chip":"all","cf":{"modality":1},"panel":false}';
+        $this->assertSame($json, core_user::clean_preference($json, 'block_compass_explore'));
+
+        $this->assertTrue(core_user::can_edit_preference('block_compass_explore', $me));
+        $this->assertFalse(core_user::can_edit_preference('block_compass_explore', $other));
+    }
+
+    /**
+     * The archive control's glyphs come from the plugin's own icon map: a box, closed and open.
+     *
+     * The map is tested through the renderer rather than by reading the array back, because the
+     * array protects nothing on its own: the theme's icon system is what turns the key into a
+     * class, and a key it does not know renders a missing image (ADR-010, decision 2).
+     *
+     * @return void
+     */
+    public function test_the_archive_glyphs_are_boxes_from_the_plugins_own_icon_map(): void {
+        global $PAGE;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $PAGE->set_url('/');
+        $output = $PAGE->get_renderer('core');
+
+        $map = block_compass_get_fontawesome_icon_map();
+        $this->assertSame('fa-box-archive', $map['block_compass:archive']);
+        $this->assertSame('fa-box-open', $map['block_compass:unarchive']);
+
+        $archive = $output->render(new \core\output\pix_icon('archive', '', 'block_compass'));
+        $unarchive = $output->render(new \core\output\pix_icon('unarchive', '', 'block_compass'));
+        $this->assertStringContainsString('fa-box-archive', $archive);
+        $this->assertStringContainsString('fa-box-open', $unarchive);
+        // Control: an eye is what the control drew before, and what it must not draw now.
+        $this->assertStringNotContainsString('fa-eye', $archive);
     }
 }

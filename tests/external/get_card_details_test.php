@@ -222,6 +222,32 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
+     * The teacher flag survives the allowlist and is omitted for a learner (ADR-010, decision 10).
+     *
+     * @return void
+     */
+    public function test_the_teacher_flag_survives_the_allowlist_and_is_omitted_for_a_learner(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        [$user, $course] = $this->fixture(0);
+        $this->setUser($user);
+
+        $details = $this->call([(int) $course->id])['details'];
+        $this->assertCount(1, $details);
+        $this->assertFalse($details[0]['hascompletion']);
+        $this->assertArrayNotHasKey('teacher', $details[0], 'a learner is not told');
+
+        $context = \core\context\course::instance((int) $course->id);
+        role_unassign_all(['userid' => (int) $user->id, 'contextid' => $context->id]);
+        role_assign((int) $DB->get_field('role', 'id', ['shortname' => 'teacher']), (int) $user->id, $context->id);
+        reload_all_capabilities();
+
+        $details = $this->call([(int) $course->id])['details'];
+        $this->assertTrue($details[0]['teacher']);
+    }
+
+    /**
      * A course with completion switched off reports no completion and no progress.
      *
      * Null is "completion is not configured", which the card must not render as 0 %.

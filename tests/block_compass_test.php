@@ -133,10 +133,20 @@ final class block_compass_test extends advanced_testcase {
         // The icons are server-rendered markup because there is no pix helper for ESM.
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
-        // The tier 3 toolbar's icon-only controls (ADR-009): list, grid and filter glyphs.
-        foreach (['list', 'grid', 'filter'] as $icon) {
+        // The tier 3 toolbar's icon-only controls (ADR-009): list, grid and filter glyphs; the archive
+        // boxes, the accordion's chevrons and the reload control (ADR-010).
+        $icons = ['list', 'grid', 'filter', 'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl', 'reload'];
+        foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
         }
+        $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
+        $this->assertArrayNotHasKey('hide', $props['icons'], 'the eye is gone (ADR-010, decision 2)');
+        // The category line and the remembered toolbar (ADR-010, decisions 9 and 11).
+        $this->assertTrue($props['showcategory']);
+        $this->assertSame(
+            ['sort' => 'category', 'chip' => 'all', 'cf' => [], 'panel' => true],
+            $props['explore']
+        );
         // Both surfaces of an application awaiting approval hang off this flag; off by default.
         $this->assertFalse($props['pendingenabled']);
         $this->assertSame(get_string('chip_pending', 'block_compass'), $props['labels']['chip_pending']);
@@ -191,6 +201,62 @@ final class block_compass_test extends advanced_testcase {
         // So a value outside the vocabulary can be in the column, and the shell is where it stops.
         set_user_preference('block_compass_view', 'sideways', $user);
         $this->assertSame('cards', $this->props()['view']);
+    }
+
+    /**
+     * The remembered toolbar ships validated: a stored state names what the client can draw and no more.
+     *
+     * Three drops in one stored value, each a different check: a sort outside the vocabulary,
+     * the pending chip while the feature is off, and a field key that is not a shortname. What
+     * survives is what ships (ADR-010, decision 9).
+     *
+     * The second half is about the shape of an empty selection. The shell cannot ship it as {}:
+     * core's react helper decodes the template's JSON block associatively and encodes it again
+     * (lib/classes/output/mustache_react_helper.php:158), so [] is what reaches the client
+     * whatever the shell wrote, and the client - which writes {} back - normalises it where it
+     * reads it. Nothing runs the client here, so the normalisation is pinned in its source: the
+     * one line that reads the selection off the props must go through it, or every mount would
+     * write the same state once over a difference that means nothing.
+     *
+     * @return void
+     */
+    public function test_the_remembered_toolbar_ships_only_what_the_client_can_draw(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+
+        set_user_preference('block_compass_explore', json_encode([
+            'sort' => 'sideways',
+            'chip' => 'pending',
+            'cf' => ['modality' => 2, 'bad key' => 1],
+            'panel' => false,
+        ]), $user);
+        $props = $this->props();
+
+        $this->assertSame('category', $props['explore']['sort']);
+        $this->assertSame('all', $props['explore']['chip'], 'pending is not a chip while the feature is off');
+        $this->assertSame(['modality' => 2], $props['explore']['cf']);
+        $this->assertFalse($props['explore']['panel']);
+
+        // The raw attribute, before decoding: an empty selection is [] on the wire, by core's doing.
+        set_user_preference('block_compass_explore', json_encode(['sort' => 'name']), $user);
+        preg_match('/data-react-props=\'(.*?)\'/', $this->make_block()->get_content()->text, $matches);
+        $this->assertStringContainsString('"cf":[]', html_entity_decode($matches[1]));
+        // ...so the client normalises it, on the line that reads it and on the remembered copy.
+        $source = file_get_contents(__DIR__ . '/../js/esm/src/Explore.tsx');
+        $this->assertSame(
+            2,
+            preg_match_all('/shippedSelection\(config\.explore\.cf\)/', $source),
+            'Explore.tsx must read the shipped selection through shippedSelection() twice: the state and the remembered copy'
+        );
+        $this->assertMatchesRegularExpression(
+            '/const shippedSelection = .*Array\.isArray\(cf\) \? \{\} : cf/',
+            $source,
+            'shippedSelection() must turn the [] core ships into {}'
+        );
+
+        set_config('show_category', 0, 'block_compass');
+        $this->assertFalse($this->props()['showcategory']);
     }
 
     /**

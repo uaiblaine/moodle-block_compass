@@ -8,6 +8,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Phase 9 — UX polish, a remembered toolbar, a teacher-only notice, and resilience (ADR-010),
+  version 2026090800. Twelve decisions, most of them small and every one of them the maintainer's
+  own list. **Opening tier 3 moves the reader there**: the ghost and every heading link scroll the
+  section into view and put the keyboard on it, without easing under `prefers-reduced-motion` or
+  on a Behat site, and the ghost restores the remembered chip rather than forcing *All*. **The
+  archive control is a box** — `fa-box-archive`, and `fa-box-open` for bringing back — from the
+  plugin's own icon map, because the eye core lent it read as "open this course". **A chip that
+  would show nothing is not drawn** in full mode, the pressed one and *All* excepted, and a field
+  group whose every chip is empty vanishes with its label; paged mode keeps every chip, since no
+  count is true there yet. **The cards are a column-counted grid**: three columns without the
+  category index, two with it, one under 640 px of section width, each a class the client picks,
+  so a lone card keeps its column instead of stretching. **The star sits in the card's top-right
+  corner on a surface disc with a line border** — what keeps it at 3:1 over any course image —
+  and the *New* badge in the top-left, on both tiers' cards; **tier 3 rows and cards carry the
+  star** beside the archive control, toggling through the same core service as tier 1's, and a
+  toggle in tier 3 reloads tier 1 so the strip agrees. **The accordion's chevrons are core's own**
+  section-header pair, shown and hidden by core's `icons-collapse-expand` rule with a tighter
+  padding. **Nothing is uppercase**: the strip heading is emphasised with weight, and a static
+  rule bans `text-uppercase` and `text-transform` across the client and the stylesheet. **The
+  toolbar is remembered** — sort, chip, field selection and whether the panel is open — in a
+  second preference, `block_compass_explore`, a JSON value declared `PARAM_RAW` and validated by
+  its own reader on the way in (vocabularies, the pending chip only while the feature is on, field
+  keys as shortnames with non-negative integer values; whether a field is still configured is the
+  client's decision, when the inventory's fields arrive); written through core's own preferences
+  endpoint 500 ms after a change settles, never on mount, and exported by the privacy provider.
+  An empty selection reaches the client as `[]` whatever the shell encodes, because core's react
+  helper decodes the props associatively and encodes them again; the client normalises it on the
+  two lines that read it, and a test pins both. **"No completion configured" is said only to a viewer who
+  is not a learner of the course** — no `moodle/course:isincompletionreports` there, checked
+  without the administrator's blanket allow, on the context the cache already rebuilds, for no
+  read — and only when completion is off; a learner sees a bar or nothing, because for them the
+  absence is not a fact worth stating. The flag rides both `get_attention` and `get_card_details`.
+  **The category line on cards is a setting**, `show_category`, on unless an explicit zero is
+  stored. **Resilience**: a reload control at the content's top-right that remounts tier 3 and
+  reloads tier 1; a bounded automatic retry in the repository for reads only and transport
+  failures only — a rejection without an `errorcode`, or one made while the browser says it is
+  offline — after 1 s and 3 s plus up to 500 ms of jitter, announced as "Reconnecting… (attempt X
+  of Y)" above the strips and in tier 3's loading region, and cleared when the read settles; an
+  amber notice
+  with *Try again* and *Reload page* in every error state — tier 1, the inventory, a failed group
+  page and a failed search, the last two new (ADR-005 said tier 3 printed nothing; ADR-007 said
+  reopening was the retry) — and a retry of whatever failed when the browser comes back online.
+  Eleven mutation gates cover the guards; three static rules join the accessibility test (no
+  uppercase, the column-counted grid, the card corners); scenario 3 of the Behat feature asserts
+  a hidden empty chip, the one-column grid the block drawer measures (about 315 px, under the
+  640 px the index needs) and the focus after a heading link.
+
 - Phase 8 — complete favourites, one ghost, a filter panel, and applications awaiting approval
   (ADR-009), version 2026090702. Four things change what tier 1 and tier 3 show, and most of it
   is subtraction. The **favourites strip lists every favourite**, the ones already in Continue or

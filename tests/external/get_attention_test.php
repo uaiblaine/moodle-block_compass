@@ -280,6 +280,34 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
+     * The teacher flag survives the allowlist, and is omitted for a learner (ADR-010, decision 10).
+     *
+     * @return void
+     */
+    public function test_the_teacher_flag_survives_the_allowlist_and_is_omitted_for_a_learner(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $user = $gen->create_user();
+        $course = $gen->create_course(['enablecompletion' => 0]);
+        $plugin->enrol_at((int) $user->id, (int) $course->id, time() - 2 * DAYSECS);
+        $this->setUser($user);
+
+        $cards = array_column($this->call()['new'], null, 'id');
+        $this->assertArrayNotHasKey('teacher', $cards[(int) $course->id], 'a learner is not told');
+
+        $context = \core\context\course::instance((int) $course->id);
+        role_unassign_all(['userid' => (int) $user->id, 'contextid' => $context->id]);
+        role_assign((int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher']), (int) $user->id, $context->id);
+        reload_all_capabilities();
+
+        $cards = array_column($this->call()['new'], null, 'id');
+        $this->assertTrue($cards[(int) $course->id]['teacher']);
+    }
+
+    /**
      * Guests are refused.
      *
      * @return void
