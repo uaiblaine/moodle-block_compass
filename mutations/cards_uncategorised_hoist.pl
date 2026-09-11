@@ -1,0 +1,1 @@
+s/                \} else \{\n                    \$categoryname = get_string\('uncategorised', 'block_compass'\);\n                \}/                }\n                \$categoryname = \$categoryname ?? get_string('uncategorised', 'block_compass');/;

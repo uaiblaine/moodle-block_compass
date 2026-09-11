@@ -1,7 +1,7 @@
 # ADR-011 — The client arrives in one file and is announced in the head: a bundle, `modulepreload` hints, and two batched reads
 
-- **Status:** Accepted (2026-09-08), in its own commit before the code, as ADR-008 to ADR-010
-  were. Written as Proposed and answered the same day: Phase 9 first, and the bundler as a generic
+- **Status:** Accepted (2026-09-08) in its own commit before the code, as ADR-008 to ADR-010 were; implemented in Phase 10 (2026-09-11; see the Amendments at the end).
+  Written as Proposed and answered the same day: Phase 9 first, and the bundler as a generic
   step of `moodle-dev` rather than a script of the plugin (the two questions at the end).
 - **Date:** 2026-09-08
 - **Deciders:** Anderson Blaine (maintainer), who compared `block_compass_get_attention` against
@@ -413,3 +413,54 @@ arriving later.
    opts in through a marker file? The record proposed the plugin's own script, since it is the
    only React client in the fleet today. — **The generic `moodle-dev` step**, so the next React
    plugin inherits it; the marker file is `js/esm/bundle.json`.
+
+## Amendments (2026-09-11, at implementation)
+
+1. **The generic step's shape.** `moodle-dev/ci/esm-bundle.mjs`, run by `mdl grunt` after core's
+   `grunt react` and by `mdl ci` after `moodle-plugin-ci grunt`; the marker `js/esm/bundle.json`
+   names `entry` and `outfile` (both relative to `js/esm`), and the manifest is
+   `build/bundle.manifest.json` with `entry`, `outfile` and `sources` (relative path => SHA-1,
+   sorted). `mdl ci` builds into a scratch directory and compares the bundle and the manifest byte
+   for byte with the committed copies, which is the CI half of the freshness guard decision 1
+   asked for; `mdl grunt` counts both files in its "written by this run" check.
+2. **The `bundle_source_name_guard` gate is not a gate.** The guard against a source named like
+   the output lives in the bundler, which refuses to run over it; the plugin's test pins the
+   absence, and a mutation of a test proves nothing about the product. The other seven gates ship.
+3. **The store-operation count is not asserted.** `cards_test` proves the mechanism by reading
+   the source — one `get_many`, no exporter call, the string inside its branch — and the answer
+   by parity with the exporter for a course with an image and one without; a cache store stub
+   counting operations would have tested the stub.
+4. **The preload hook listens in two places** (ADR-012, decision 4): the Dashboard with the
+   block, and the block's own page. The `href`s are the import map's loader plus the specifier,
+   the way `import_map` builds its entries (`lib/classes/output/requirements/import_map.php:79`),
+   and `hook_callbacks_test` compares each with the map core writes for the same page.
+5. **The hints are written at the top of the body, not in the head — measured, not reasoned.**
+   Decision 2 chose `before_standard_head_html_generation`. Implemented that way, the block's own
+   page mounted nothing: every bare specifier failed with "Failed to resolve module specifier
+   @moodle/lms/core/…". The head hook's output is written before the head code that carries the
+   import map (`core_renderer.php:178-240`, the hook's output first, `get_head_code()` after),
+   and a module preload that precedes an import map makes the browser ignore the map. Fact 10
+   ("a plugin can write into the head, before the import map exists") was true and was exactly
+   the problem. The callback moved to `before_standard_top_of_body_html_generation`, whose output
+   follows `get_top_of_body_code()` — the map is already in the head, and core's `react_autoinit`
+   module script is on the lines just above (`page_requirements_manager.php:1796`,
+   `core_renderer.php:302-315`). The seven fetches still start while the parser is on those lines,
+   which is what decision 2 wanted; the template, the tests and the fifth scenario read
+   `//link[@rel='modulepreload']` anywhere on the page rather than in the head.
+6. **What it bought, measured on m502 on 2026-09-11** (Resource Timing, the maintainer logged in,
+   the Dashboard holding the Compass block alone; fact 2's table is the before):
+
+   | `/my/` | after `mdl purge`, before | after `mdl purge`, after | warm, after |
+   |---|---|---|---|
+   | requests | 53 | 27 | 26 (20 from cache) |
+   | ESM modules | 32, the last ending at 21.9 s | 7, the first at 0.8 s, the last at 4.4 s | 7, from cache by 1.1 s |
+   | `get_attention` fires at | 22.0 s | 11.9 s | 1.7 s |
+   | `DOMContentLoaded` | 12.1 s | 9.8 s | 1.7 s |
+
+   The seven are exactly the preloaded set — react, react-dom/client, react/jsx-runtime, core's
+   react_autoinit, mount and profiler, and the bundle — and the twenty-five per-file modules are
+   requested by nothing. What remains of the cold column is the theme's CSS and JS after a purge
+   (10–20 MB on this stack), which no plugin decides; the block's own delivery went from
+   thirteen seconds of waterfall to three and a half of parallel fetches, and on a warm browser
+   the client is done before the service answers. The page of ADR-012 measured the same shape:
+   30 requests cold, 27 warm, the seven modules done by 4.5 s cold and by 0.9 s warm.

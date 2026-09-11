@@ -79,7 +79,7 @@ const completion = (card: CourseCard, labels: Record<string, string>) => {
  */
 const Card = ({card, config, onToggleFavourite}: CardProps) => {
     const {labels} = config;
-    const Title = titleTag(config.titlehidden);
+    const Title = titleTag(config.headinglevel);
     const meta = card.isnew
         ? [card.enrolledtext, card.deadlinetext].filter(Boolean).join(' · ')
         : card.lastaccesstext;

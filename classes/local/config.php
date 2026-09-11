@@ -138,6 +138,18 @@ final class config {
     }
 
     /**
+     * Whether the block's own page is enabled: off unless an explicit 1 is stored (ADR-012).
+     *
+     * Off by default, so an upgrade changes nothing for a site that never asked for the page:
+     * index.php redirects to the Dashboard and the home page hook offers nothing.
+     *
+     * @return bool
+     */
+    public static function page_enabled(): bool {
+        return (int) get_config('block_compass', 'enable_page') === 1;
+    }
+
+    /**
      * Whether the tier 3 search box is shown. Never set means enabled.
      *
      * @return bool

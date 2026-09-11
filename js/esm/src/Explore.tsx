@@ -1192,7 +1192,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     // The panel title's level comes from heading.ts: an h4 under core's own block-title h3,
     // an h3 when hide_block_title has removed it (ADR-008, decision 3). The h5 class keeps
     // the size, and keepFocus() finds the element by its class, so the level is free to move.
-    const Heading = sectionTag(config.titlehidden);
+    const Heading = sectionTag(config.headinglevel);
 
     return (
         <section className="compass-explore" ref={section} tabIndex={-1} aria-labelledby={titleid}>

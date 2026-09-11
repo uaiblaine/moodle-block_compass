@@ -1,0 +1,1 @@
+s/        \} catch \(\\Throwable \$e\) \{\n            \/\/ A hook that throws takes the whole page with it; a page without preload hints\n            \/\/ merely loads the way it did before this callback existed\.\n            return;\n        \}/        } catch (\\ValueError \$e) {\n            return;\n        }/;

@@ -6,6 +6,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- Phase 10 — the client arrives in one file and is announced at the top of the body, and the
+  block gets a page of its own (ADR-011, ADR-012), version 2026091100. **One bundle.** A generic step of the
+  fleet's tooling (`moodle-dev/ci/esm-bundle.mjs`, opted into by `js/esm/bundle.json`) builds
+  `js/esm/build/bundle.js` over `Block.tsx` beside core's per-file outputs, with the same esbuild
+  options core uses minus the plugin that keeps relative imports external, and writes a manifest
+  of source hashes that `bundle_test` recomputes: a source edited without a rebundle is red on
+  every runtime leg, and `mdl ci` rebuilds the bundle into a scratch directory and compares it
+  byte for byte with the committed one. The mount point is `@moodle/lms/block_compass/bundle`;
+  25 module requests become 1 and five levels of the loader's waterfall become none. **Seven
+  `modulepreload` hints** from a `before_standard_top_of_body_html_generation` callback — the
+  top of the body and not the head, because the head hook's output precedes the import map and
+  a module preload before the map makes the browser ignore the map, measured live before the
+  hook moved — written where the block is and nowhere else: on the Dashboard only when `$PAGE->blocks->is_block_present('compass')`
+  — answered from the instances `starting_output()` loaded before the layout ran — and on the
+  block's own page always; each `href` is the import map's own loader for the ESM route plus the
+  specifier, so the hint and the loader's later request are one cache entry, and a router that
+  throws leaves the output untouched. **Two batched reads in the service**: every card's and every
+  detail's image in one `get_many` over core's `course_image` cache, reproducing the exporter's
+  conversions byte for byte, and the `uncategorised` string fetched only for a card whose category
+  is gone. **A page of its own**, `/blocks/compass/index.php`, behind the `enable_page` setting
+  (off by default): the block's shell on Boost's `base` layout — no regions, so no block drawer,
+  no sticky blocks and no "Add a block" in editing mode — in the system context under the theme's
+  own heading, rendering the same bundle; off, it redirects to the Dashboard. While it is on,
+  "Compass" is offered as a choice for *Start page for users* and in each user's own preference
+  through core's `extend_default_homepage` hook, and the site root, a login and the Home node all
+  land on it. **A third rung of the heading ladder**: the shell exports `headinglevel` — 4 under
+  core's block title, 3 with the title hidden, 2 on the page under the theme's `<h1>` — instead of
+  the `titlehidden` flag, and the static rule pins three ladders. A fifth Behat scenario opens the
+  page and makes it the start page; scenario 1 asserts the seven hints; fourteen mutation gates
+  hold the guards.
+
 ### Fixed
 
 - Three things the maintainer found after Phase 9, version 2026090801. **The archived group in

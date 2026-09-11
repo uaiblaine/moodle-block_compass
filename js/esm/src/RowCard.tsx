@@ -77,7 +77,7 @@ const RowCard = ({
     row, category, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy,
 }: RowCardProps) => {
     const {labels} = config;
-    const Title = titleTag(config.titlehidden);
+    const Title = titleTag(config.headinglevel);
     const opened = row.opened || 0;
     const pending = !!row.pend;
     const url = pending

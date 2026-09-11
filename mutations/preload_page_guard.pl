@@ -1,0 +1,1 @@
+s/return \$page->pagetype === 'my-index'\n            && \$page->pagelayout === 'mydashboard'\n            && \$page->blocks->is_block_present\('compass'\);/return \$page->blocks->is_block_present('compass');/;

@@ -56,7 +56,7 @@ final class config_test extends advanced_testcase {
             'attention_max', 'new_days', 'group_depth',
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
-            'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category',
+            'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category', 'enable_page',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -292,6 +292,27 @@ final class config_test extends advanced_testcase {
 
         set_config('show_category', 1, 'block_compass');
         $this->assertTrue(config::category_shown());
+    }
+
+    /**
+     * The block's own page is off unless an explicit 1 is stored (ADR-012, decision 1).
+     *
+     * The opposite default from the other checkboxes, on purpose: an upgrade must change
+     * nothing for a site that never asked for the page, so "never set" and "0" both mean off.
+     *
+     * @return void
+     */
+    public function test_the_page_is_off_unless_an_explicit_one_is_stored(): void {
+        $this->resetAfterTest();
+
+        unset_config('enable_page', 'block_compass');
+        $this->assertFalse(config::page_enabled());
+
+        set_config('enable_page', 0, 'block_compass');
+        $this->assertFalse(config::page_enabled());
+
+        set_config('enable_page', 1, 'block_compass');
+        $this->assertTrue(config::page_enabled());
     }
 
     /**

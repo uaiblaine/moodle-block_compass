@@ -68,7 +68,7 @@ type StripProps = {
  */
 const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, onExplore}: StripProps) => {
     const headingid = useId();
-    const Heading = sectionTag(config.titlehidden);
+    const Heading = sectionTag(config.headinglevel);
 
     // A strip with no cards renders nothing, link included: an overflow link over an empty strip
     // would point at rows the strip itself is not showing (ADR-009, decision 2).

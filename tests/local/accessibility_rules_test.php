@@ -360,19 +360,33 @@ final class accessibility_rules_test extends basic_testcase {
         // Vacuity guard: the React sources must have been read at all.
         $this->assertGreaterThanOrEqual(1, $scanned, 'no React source scanned: has js/esm/src moved?');
 
-        // The helper pins the two ladders, one literal pair each.
+        // The helper pins the three ladders (ADR-012, decision 2): 4 under core's block title, 3
+        // without it, 2 on the block's own page under the theme's h1 - and a level it does not
+        // know reads as 4, the Dashboard's.
         $this->assertArrayHasKey('js/esm/src/heading.ts', $sources, 'heading.ts is where the rungs are chosen');
         $helper = $sources['js/esm/src/heading.ts'];
         $this->assertMatchesRegularExpression(
-            '/titlehidden \? \'h3\' : \'h4\'/',
+            '/rung\(level\) === 2 \? \'h2\' : \(rung\(level\) === 3 \? \'h3\' : \'h4\'\)/',
             $helper,
-            'sections: h3 without the block title, h4 under it'
+            'sections: h2 on the page, h3 without the block title, h4 under it'
         );
         $this->assertMatchesRegularExpression(
-            '/titlehidden \? \'h4\' : \'h5\'/',
+            '/rung\(level\) === 2 \? \'h3\' : \(rung\(level\) === 3 \? \'h4\' : \'h5\'\)/',
             $helper,
             'card titles: one rung under the sections'
         );
+        $this->assertMatchesRegularExpression(
+            '/level === 2 \? 2 : \(level === 3 \? 3 : 4\)/',
+            $helper,
+            'an unknown level is the Dashboard\'s'
+        );
+        foreach (array_merge($sections, $titles) as $file) {
+            $this->assertStringContainsString(
+                'config.headinglevel',
+                $sources[$file],
+                "{$file} chooses its rung from something other than the shell's headinglevel"
+            );
+        }
         sort($sections);
         sort($titles);
         $this->assertSame(

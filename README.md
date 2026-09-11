@@ -213,6 +213,7 @@ Blocks > Compass*, in this order:
 | Default view for the full course list (`default_view`) | list | Which view the full list opens in for a viewer who has never chosen: the compact list, or cards with the course image. Each viewer's own choice overrides it. |
 | Hide the block title (`hide_block_title`) | off | Render the block without its title bar. Core then renders no block heading at all, so the plugin's own headings move one level up to keep the document's heading ladder unbroken (ADR-008). |
 | Show the category on cards (`show_category`) | on | Print the course's category above its name on every card, in both tiers. Off, the name is the first line (ADR-010). |
+| Enable the Compass page (`enable_page`) | off | Serve the block's content on a page of its own, `/blocks/compass/index.php`, with only the theme's navigation bar and footer around it. While on, "Compass" is offered as a choice for *Start page for users* and, when that setting leaves the choice to users, in each user's own preferences. Off, the page redirects to the Dashboard (ADR-012). |
 | Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
 | Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision: a row with an "Awaiting approval" badge in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Does nothing without that plugin (ADR-009). |
 | Pre-warm active users (`enable_prewarm`) | off | Run the nightly sweep at all. Never set means off. |
@@ -366,6 +367,39 @@ which the web nodes never read — pre-warming then warms nothing for anyone. Ma
 the stores first (see *Cache stores* above).
 
 
+A page of its own
+-----------------
+
+With `enable_page` on, `/blocks/compass/index.php` shows the block's content and nothing else:
+the theme's navigation bar, the page heading "Compass", the three tiers, the footer. The page uses
+the theme's `base` layout, which declares no block regions, so there is no block drawer, no
+site-wide block and no "Add a block" control in editing mode; a guest is refused as the block
+refuses one; and the sections sit one rung under the theme's own `<h1>`. It renders the same
+bundle the Dashboard block does and costs what any Moodle page costs plus the block — the
+Dashboard's own machinery, its other blocks and its drawer are not paid.
+
+While the page is on, "Compass" appears among the choices of *Site administration › Appearance ›
+Navigation › Start page for users*, through Moodle's own `extend_default_homepage` hook, and in
+each user's *Preferences › Home page* when the site leaves the choice to users. Chosen, the site
+root, a login and the navigation bar's Home node all land on the page, and `/my/` stays reachable
+through the Dashboard node — hiding that node is the theme's business (Boost Union's "Hide nodes
+in primary navigation", which its child themes inherit), not the plugin's. Off, a start page
+stored earlier lands on the Dashboard: the page redirects there rather than failing.
+
+Client delivery
+---------------
+
+The client is one file. `js/esm/bundle.json` opts the plugin into the fleet's generic bundle step,
+which builds `js/esm/build/bundle.js` over `Block.tsx` beside core's per-file outputs and writes a
+manifest of source hashes that a PHPUnit test recomputes, so a source edited without a rebundle
+fails the suite and `mdl ci` fails on a bundle that differs from a fresh build. The mount point is
+`@moodle/lms/block_compass/bundle`. On the Dashboard with the block, and on the block's own page,
+a hook at the top of the body — after the import map, which a preload in the head would
+disable — adds seven `modulepreload` hints — React, its DOM client and JSX runtime, core's
+React auto-init, mount and profiler modules, and the bundle — with the import map's own URLs, so
+the browser fetches all of them while it parses those lines instead of discovering each after
+the previous one arrived. Nothing is preloaded on any other page.
+
 Accessibility
 -------------
 
@@ -382,7 +416,7 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   accessible name, the run reddened with three `button-name` violations, and went
   green again when the name was restored.
 - **`tests/local/accessibility_rules_test.php` reads what axe cannot**, scanning
-  the client sources and the stylesheet for fourteen rules: that the scan found its
+  the client sources and the stylesheet for seventeen rules: that the scan found its
   sources at all, that every image states an `alt` attribute, that no positive
   `tabindex` exists anywhere, that the stylesheet never removes an outline
   without replacing it, that every icon-only button names itself (the archive
@@ -393,8 +427,10 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   row wraps instead of overflowing, that every course name is clamped to
   two lines with the whole name in a `title` attribute, that nothing is written
   in capitals, that the cards grid counts its columns in the stylesheet and the
-  client alike, and that the card's star sits on a contrast disc in one corner and
-  the badge in the other. Each rule carries a guard asserting it had something to
+  client alike, that the card's star sits on a contrast disc in one corner and
+  the badge in the other, that a control which disables itself while busy stays
+  focusable, that icon-only glyphs carry no margin, and that the accordion's
+  chevron flows inline. Each rule carries a guard asserting it had something to
   check.
 - **Headings sit under core's block title.** Core renders the block title as an
   `<h3>`, so the plugin's section titles are `<h4>` and its card titles `<h5>`;
@@ -491,14 +527,15 @@ Testing
   tests beside it, one for behaviour and one for its budget; a budget test
   asserts the read count this README's *Sizing* table states, not whatever the
   code currently costs.
-- **Behat: four smoke scenarios**, deliberately thin — the block appears with a
-  recently opened course leading, the courses that do not fit are counted, the
-  ghost card opens the full list and the search filters it in place, and
-  archiving in Compass moves the course into the Course overview block's
-  *Removed from view*. Each of the four carries core's axe step; the second runs
-  with the block title hidden, so that configuration is measured too. Logic lives
-  in PHPUnit.
-- **52 mutation gates.** `mutations/gates.conf` names one guard per line together
+- **Behat: five smoke scenarios**, deliberately thin — the block appears with a
+  recently opened course leading (and the page carries the seven module preload
+  hints), the courses that do not fit are counted, the ghost card opens the full
+  list and the search filters it in place, archiving in Compass moves the course
+  into the Course overview block's *Removed from view*, and the block's own page
+  shows the block alone and serves as the start page. Each of the five carries
+  core's axe step; the second runs with the block title hidden, so that
+  configuration is measured too. Logic lives in PHPUnit.
+- **107 mutation gates.** `mutations/gates.conf` names one guard per line together
   with the test that must redden when it is broken; `mdl mutate` breaks each in
   turn and runs the suite. A guard that reddens nothing is the finding.
 - **The matrix**: `MOODLE_502_STABLE` on PHP 8.3 and 8.4, against PostgreSQL and

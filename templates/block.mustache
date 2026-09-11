@@ -37,9 +37,14 @@
     JavaScript off both messages appear, and both are true: one says what happened,
     the other says why.
 
+    Since ADR-011 the mount point names the bundle, one ES module built over Block.tsx by
+    the fleet's generic bundle step (js/esm/bundle.json), so the client arrives in one
+    request instead of twenty-five; the per-file outputs stay in js/esm/build for core's
+    own build check and are imported by nothing.
+
     Context variables required for this template:
     * props - the component's props, JSON-encoded by block_compass\output\block:
-      labels, icons, strips, favouritesenabled, showsearch and showindex.
+      labels, icons, strips, favouritesenabled, showsearch, showindex and headinglevel.
 
     Example context (json):
     {
@@ -49,7 +54,7 @@
 <div class="compass-root" data-region="block_compass">
     {{#react}}
     {
-        "component": "@moodle/lms/block_compass/Block",
+        "component": "@moodle/lms/block_compass/bundle",
         "props": {{{props}}}
     }
     <p class="compass-noscript">{{#str}}loaderror, block_compass{{/str}}</p>

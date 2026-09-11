@@ -44,6 +44,19 @@ use core\output\templatable;
  */
 class block implements renderable, templatable {
     /**
+     * The shell, for the Dashboard block unless a level is given.
+     *
+     * @param int|null $headinglevel The level of the client's section headings: 2 on the block's
+     *     own page under the theme's h1 (ADR-012, decision 2); null for the Dashboard, where the
+     *     setting decides between 4, under core's block title, and 3, with the title hidden.
+     */
+    public function __construct(
+        /** @var int|null The level asked for, or null for the Dashboard's. */
+        private readonly ?int $headinglevel = null,
+    ) {
+    }
+
+    /**
      * Export the shell context.
      *
      * Everything the client needs travels in one JSON value, which the template hands
@@ -120,9 +133,10 @@ class block implements renderable, templatable {
             'showindex' => config::index_shown(),
             // The category line on cards is a setting (ADR-010, decision 11).
             'showcategory' => config::category_shown(),
-            // Without the title bar core renders no h3 for the block, and the client's own
-            // headings move one rung up to take its place (ADR-008, decision 3; heading.ts).
-            'titlehidden' => config::hide_block_title(),
+            // Where the block is, as the level of its section headings (ADR-008, decision 3;
+            // ADR-012, decision 2; heading.ts): 4 under core's block title, 3 when hide_block_title
+            // has removed it and the headings move one rung up, 2 on the block's own page.
+            'headinglevel' => $this->headinglevel ?? (config::hide_block_title() ? 3 : 4),
             'view' => self::view(),
             // The tier 3 toolbar as the viewer left it, validated on read (ADR-010, decision 9). An
             // empty field selection reaches the client as [] whatever is encoded here: core's react

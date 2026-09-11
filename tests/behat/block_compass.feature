@@ -30,6 +30,10 @@ Feature: The Compass block puts the courses that need attention first
     And I add the "Compass" block
     And I turn editing mode off
     Then "Compass" "block" should exist
+    # The top of the body announces the client's seven modules where the block is (ADR-011,
+    # decision 2; ADR-012, decision 4): a seventh modulepreload link exists and an eighth does not.
+    And "//link[@rel='modulepreload'][7]" "xpath_element" should exist
+    And "//link[@rel='modulepreload'][8]" "xpath_element" should not exist
     And I should see "Continue where you left off" in the "Compass" "block"
     And I should see "Course 1" in the "Compass" "block"
     And I should see "New enrolments" in the "Compass" "block"
@@ -225,3 +229,30 @@ Feature: The Compass block puts the courses that need attention first
     And I click on "Removed from view" "button" in the "Course overview" "block"
     And I click on "All" "link" in the "Course overview" "block"
     Then I should see "Course 2" in the "Course overview" "block"
+
+  @javascript
+  Scenario: The Compass page shows the block alone, and can be the start page
+    # The fifth scenario, granted for ADR-012: the block's own page is a browser-only surface -
+    # a layout with no regions, the theme's heading, core's head hook - and nothing in PHPUnit
+    # loads a page. The page is behind a setting, off by default (decision 1).
+    Given the following config values are set as admin:
+      | enable_page | 1 | block_compass |
+    And I am on the "C1" "Course" page logged in as "student1"
+    When I visit "/blocks/compass/index.php"
+    # The theme's own heading is the block's name, and under it the block's content with its
+    # sections one rung down (decision 2); no block drawer, because the base layout has no
+    # regions, and no block instance, because the page renders the block's shell itself.
+    Then I should see "Compass" in the "#page-header" "css_element"
+    And I should see "Continue where you left off" in the ".compass-page" "css_element"
+    And I should see "Course 1" in the ".compass-page" "css_element"
+    And "#theme_boost-drawers-blocks" "css_element" should not exist
+    And "Compass" "block" should not exist
+    And "//link[@rel='modulepreload'][7]" "xpath_element" should exist
+    And the ".compass-page" "css_element" should meet accessibility standards with "best-practice" extra tests
+    # As the site's start page (decision 3): the site root lands on the page, through core's own
+    # redirect for a URL home page, with the value the hook offered as the setting's key.
+    And the following config values are set as admin:
+      | defaulthomepage | /blocks/compass/index.php |
+    When I am on site homepage
+    Then I should see "Compass" in the "#page-header" "css_element"
+    And I should see "Course 1" in the ".compass-page" "css_element"

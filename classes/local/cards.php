@@ -24,7 +24,6 @@
 
 namespace block_compass\local;
 
-use core_course\external\course_summary_exporter;
 use moodle_url;
 use stdClass;
 
@@ -89,6 +88,8 @@ final class cards {
         }
         $progress = details::get_many($userid, $withcompletion);
 
+        // Every card's image in one read of core's course_image cache (ADR-011, decision 3).
+        $images = self::images(array_keys($entries));
         $result = [];
         foreach ($strips as $strip => $rows) {
             $result[$strip] = [];
@@ -98,14 +99,16 @@ final class cards {
                 $context = $contexts[$courseid];
                 $category = $categories[$entry['category']] ?? null;
                 // The category's name in its own context, as core_course_category::get_formatted_name()
-                // formats it (course/classes/category.php:2539-2546); "Uncategorised" once it no longer exists.
-                $categoryname = get_string('uncategorised', 'block_compass');
+                // formats it (course/classes/category.php:2539-2546); "Uncategorised" once it no longer
+                // exists - a string fetched only for that card (ADR-011, decision 3).
                 if ($category !== null) {
                     $categoryname = format_string(
                         $category['name'],
                         true,
                         ['context' => category_meta::context_of($category), 'escape' => false]
                     );
+                } else {
+                    $categoryname = get_string('uncategorised', 'block_compass');
                 }
                 $hascompletion = in_array($courseid, $withcompletion, true);
                 $cached = $hascompletion ? (array_key_exists($courseid, $progress) ? $progress[$courseid] : false) : null;
@@ -120,7 +123,7 @@ final class cards {
                     'fullname' => format_string($entry['fullname'], true, ['context' => $context, 'escape' => false]),
                     'shortname' => format_string($entry['shortname'], true, ['context' => $context, 'escape' => false]),
                     'url' => (new moodle_url('/course/view.php', ['id' => $courseid]))->out(false),
-                    'imageurl' => (string) course_summary_exporter::get_course_image((object) ['id' => $courseid]),
+                    'imageurl' => (string) $images[$courseid],
                     'category' => $categoryname,
                     'hascompletion' => $hascompletion,
                     'progress' => is_int($cached) ? $cached : null,
@@ -364,12 +367,46 @@ final class cards {
             ];
         }
 
-        return array_map(static function (array $detail): array {
-            $image = (string) course_summary_exporter::get_course_image((object) ['id' => $detail['id']]);
+        // Every detail's image in one read of core's course_image cache (ADR-011, decision 3).
+        $images = self::images(array_column($result, 'id'));
+
+        return array_map(static function (array $detail) use ($images): array {
+            $image = (string) $images[$detail['id']];
             $detail['imageurl'] = $image;
             $detail['hasimage'] = $image !== '';
 
             return $detail;
         }, $result);
+    }
+
+    /**
+     * The course images of many courses, in one read of core's own cache (ADR-011, decision 3).
+     *
+     * The same cache core's exporter reads one course at a time
+     * (course/classes/external/course_summary_exporter.php:185-194), by the same name, so a
+     * warm store answers one get_many instead of one round trip per card; cold, the datasource
+     * still loads per course, as core does. The exporter's two conversions are reproduced for
+     * each entry so imageurl is byte-identical to what it was: false for a miss or a null, the
+     * stored value rebuilt through \core\url and out() for a hit.
+     *
+     * @param array $courseids Course ids.
+     * @return array Course id => absolute URL string, or false for a course without an image.
+     */
+    private static function images(array $courseids): array {
+        $images = [];
+        foreach ($courseids as $courseid) {
+            $images[(int) $courseid] = false;
+        }
+        if (empty($images)) {
+            return $images;
+        }
+        foreach (\core_cache\cache::make('core', 'course_image')->get_many(array_keys($images)) as $courseid => $image) {
+            if ($image === null || $image === false) {
+                continue;
+            }
+            $images[(int) $courseid] = (new \core\url($image))->out();
+        }
+
+        return $images;
     }
 }

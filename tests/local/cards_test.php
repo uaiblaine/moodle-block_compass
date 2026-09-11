@@ -578,6 +578,70 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
+     * The image read is one get_many over core's cache, and its answer is the exporter's, byte for byte.
+     *
+     * Two courses, one with an overview file and one without, through both call sites: what the
+     * cards and the details say for each is exactly what core's own exporter says for the same
+     * course - an absolute URL for the one with a file, an empty string for the other (ADR-011,
+     * decision 3). The exporter is no longer called by the plugin; the source is read to prove
+     * it, because the parity would hold with either implementation.
+     *
+     * @return void
+     */
+    public function test_the_image_read_is_batched_and_answers_what_the_exporter_answers(): void {
+        global $CFG;
+
+        $with = $this->course('Course with an image');
+        $without = $this->course('Course without an image');
+        $withid = (int) $with->id;
+        $withoutid = (int) $without->id;
+        get_file_storage()->create_file_from_string([
+            'contextid' => \core\context\course::instance($withid)->id,
+            'component' => 'course',
+            'filearea' => 'overviewfiles',
+            'itemid' => 0,
+            'filepath' => '/',
+            'filename' => 'cover.png',
+        ], base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+        foreach ([$withid, $withoutid] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 200 * DAYSECS);
+            $this->plugingen->access_at($this->userid, $courseid, self::NOW - HOURSECS);
+        }
+        \core_cache\cache::make('core', 'course_image')->purge();
+
+        $expectedwith = (string) \core_course\external\course_summary_exporter::get_course_image((object) ['id' => $withid]);
+        $expectedwithout = (string) \core_course\external\course_summary_exporter::get_course_image((object) ['id' => $withoutid]);
+        // Vacuity guards: the fixture really has one image and one absence, and the URL is absolute.
+        $this->assertStringStartsWith($CFG->wwwroot, $expectedwith);
+        $this->assertStringContainsString('cover.png', $expectedwith);
+        $this->assertSame('', $expectedwithout);
+
+        $cards = $this->by_id($this->build_cards());
+        $this->assertSame($expectedwith, $cards[$withid]['imageurl']);
+        $this->assertTrue($cards[$withid]['hasimage']);
+        $this->assertSame('', $cards[$withoutid]['imageurl']);
+        $this->assertFalse($cards[$withoutid]['hasimage']);
+
+        $details = array_column(cards::details($this->userid, [$withid, $withoutid], self::NOW), null, 'id');
+        $this->assertSame($expectedwith, $details[$withid]['imageurl']);
+        $this->assertTrue($details[$withid]['hasimage']);
+        $this->assertSame('', $details[$withoutid]['imageurl']);
+        $this->assertFalse($details[$withoutid]['hasimage']);
+
+        // The mechanism: one get_many per call site, no per-course exporter call, and the
+        // uncategorised string fetched only in the branch for a category that is gone.
+        $source = (string) file_get_contents(__DIR__ . '/../../classes/local/cards.php');
+        $this->assertStringNotContainsString('course_summary_exporter::get_course_image(', $source);
+        $this->assertSame(2, substr_count($source, 'self::images('), 'both call sites read the images through images()');
+        $this->assertSame(1, substr_count($source, "->get_many("), 'images() reads the cache once');
+        $this->assertMatchesRegularExpression(
+            '/\} else \{\s*\$categoryname = get_string\(\'uncategorised\', \'block_compass\'\);/',
+            $source,
+            'the uncategorised string is fetched only for a card whose category is gone'
+        );
+    }
+
+    /**
      * details() computes the progress of a tracked course and leaves it in the cache.
      *
      * @return void

@@ -422,6 +422,26 @@ arriving later.
   | ESM modules (25 of the block, 7 of core) | 32, the last one ending at 21.9 s | 32, from cache |
   | `get_attention` fires at | 22.0 s | 1.26 s |
 
+  And the page's own column, taken the same day on the same stack once the page existed, the
+  bundle and the preload hints of ADR-011 in place on both pages:
+
+  | | `/my/` after `mdl purge` | `/blocks/compass/index.php` after `mdl purge` | `/my/` warm | the page, warm |
+  |---|---|---|---|---|
+  | requests | 27 | 30 | 26 | 27 |
+  | server time to first byte | 0.78 s | 1.03 s | 1.06 s | 0.91 s |
+  | ESM modules | 7, the last at 4.4 s | 7, the last at 4.5 s | 7, from cache | 7, from cache |
+  | `get_attention` fires at | 11.9 s | 14.4 s | 1.7 s | 1.7 s |
+  | block instances on the page | 1 (Compass) | 0 (the page is the block) | | |
+
+  On this stack the two are the same page in cost, as fact 16 already said they would be: the
+  Dashboard here holds nothing but the block, so there is no other block's work to save, and the
+  server time is the request's own variance (0.8–1.1 s either way). What the page removes is
+  structural — the block drawer, the sticky blocks, the "my page" resolution, an instance row —
+  and it shows on a Dashboard that carries the default blocks, not on this one. The page's
+  chrome is what decision 1 asked for and fact 9b predicted: an `<h1>` "Compass", the block's
+  sections as `<h2>` and its card titles as `<h3>`, no drawer, no `[data-block]`, no user picture
+  and no Message button in the header.
+
   Two things the table says that fact 16 did not: **this Dashboard holds the Compass block
   alone** (`[data-block]` lists `compass` only), so on the maintainer's site the page saves the
   "my page" resolution, the regions and the drawer, not other blocks' work — the block-heavy
@@ -436,3 +456,20 @@ through a `require`, which a grep for the property could not see), the user-cont
 decision 1 (fact 9b, which turned the page's context from the viewer's to the system's) and the
 run sites of the hook in decision 3, before this record was sent; nothing in it comes from memory
 of another Moodle version.
+
+## Amendments (2026-09-11, at implementation)
+
+1. **The page's shell is a subclass.** `\block_compass\output\page extends block` calls the
+   parent with `headinglevel: 2`, which is what lets `renderer_base::render()` resolve the
+   `block_compass/page` template by class name; `new block(headinglevel: 2)` would have rendered
+   the block template. The page's two gates live in `page::require_access()` — a guest is
+   refused, a switched-off page redirects to `/my/` — so PHPUnit can test them and two mutation
+   gates can hold them; `index.php` calls `require_login(null, false)` and then that method.
+2. **The fifth scenario's shape.** With `enable_page` on, a student who opened a course visits the
+   page: the heading "Compass" in the theme's page header, the strips inside `.compass-page`, no
+   `#theme_boost-drawers-blocks`, no "Compass" block, the seventh preload link, and axe over the
+   wrapper; then `defaulthomepage` is set to the page's path as admin and the site root lands on
+   the page. Nothing in it changes a theme or a navigation node.
+3. **The hook of decision 4 is the top-of-body hook.** The head hook's output precedes the import
+   map and a module preload before the map disables the map (ADR-011, amendment 5); the two
+   conditions of decision 4 are unchanged.

@@ -110,7 +110,8 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('data-region="block_compass"', $content->text);
         // Since phase R2 the shell is a React mount point: the component name and its props
         // ARE the contract between the server and the client, so they are what is asserted.
-        $this->assertStringContainsString('data-react-component="@moodle/lms/block_compass/Block"', $content->text);
+        // Since ADR-011 the mount point is the bundle: one file over the whole client.
+        $this->assertStringContainsString('data-react-component="@moodle/lms/block_compass/bundle"', $content->text);
         $this->assertMatchesRegularExpression('/data-react-props=\'(.*?)\'/', $content->text);
         preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
         $props = json_decode(html_entity_decode($matches[1]), true);
@@ -143,6 +144,8 @@ final class block_compass_test extends advanced_testcase {
         $this->assertArrayNotHasKey('hide', $props['icons'], 'the eye is gone (ADR-010, decision 2)');
         // The category line and the remembered toolbar (ADR-010, decisions 9 and 11).
         $this->assertTrue($props['showcategory']);
+        // Where the block is, as a heading level: under core's block title, an h3, so 4 (ADR-012).
+        $this->assertSame(4, $props['headinglevel']);
         $this->assertSame(
             ['sort' => 'category', 'chip' => 'all', 'cf' => [], 'panel' => true],
             $props['explore']

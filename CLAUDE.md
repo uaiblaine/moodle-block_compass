@@ -86,7 +86,7 @@ mdl ci moodle-block_compass --strict           # phpmd as a gate; keep it at zer
 mdl phpunit m502 block_compass                 # whole suite (re-init first if any mounted version.php moved)
 mdl phpunit m502 blocks/compass/tests/external/get_attention_test.php
 mdl behat m502 @block_compass                  # smoke scenarios only
-mdl grunt m502 blocks/compass                  # rebuild js/esm/build — commit with the src change + version bump
+mdl grunt m502 blocks/compass                  # rebuild js/esm/build, bundle.js and its manifest — commit with the src change + version bump
 mdl purge m502                                 # AND THEN THIS: a rebuilt js/esm module is invisible until the JS revision moves
 mdl purge m502                                 # after PHP changes that affect rendered output
 mdl mutate moodle-block_compass <spec> --stack m502b   # break one guard, prove exactly one test reddens
@@ -467,7 +467,8 @@ phases raised decisions of their own:
 | ADR-008 | the accessibility audit is a **gate**, not a document: core's axe step inside the four scenarios plus a static rules test; the documentation is English only; `v5.2-r1` ships at `MATURITY_BETA` | Phase 7 | Accepted (2026-09-07), implemented in Phase 7 |
 | ADR-009 | complete favourites (exclusivity superseded for that strip), one ghost card with heading overflow links, enrol_apply applications awaiting approval as tier 3 rows plus a notice (never a card; the plugin's own predicate, not `status = 2`), the toolbar as a sort platter, an icon toggle and a filter panel, course custom fields as chip groups with two sibling caches, two settings (`filter_fields`, `enable_pending`), a two-line name clamp with a tooltip; Phase 8 ships inside `v5.2-r1` | Phase 8 | Accepted (2026-09-07), implemented in Phase 8 |
 | ADR-010 | twelve decisions from the maintainer's list: scroll and focus into tier 3, the archive box glyphs, zero chips hidden, a column-counted cards grid, the star and badge corners, the star in tier 3, core's chevrons, no uppercase, the remembered toolbar (`block_compass_explore`), the teacher-only completion notice, `show_category`, and resilience (reload control, bounded retry, amber notice in every error state) | Phase 9 | Accepted (2026-09-08), implemented in Phase 9 |
-| ADR-011 | client delivery: one bundle through a generic moodle-dev build step opted in by `js/esm/bundle.json`, seven `modulepreload` hints from a head hook on the Dashboard, and two batched reads (`course_image` `get_many`, one `uncategorised` string) — the answer to the cold-load waterfall measured against core's timeline service | Phase 10 | Accepted (2026-09-08), to be implemented in Phase 10 |
+| ADR-011 | client delivery: one bundle through a generic moodle-dev build step opted in by `js/esm/bundle.json`, seven `modulepreload` hints from a top-of-body hook on the Dashboard with the block and on the block's own page, and two batched reads (`course_image` `get_many`, one `uncategorised` string) — the answer to the cold-load waterfall measured against core's timeline service | Phase 10 | Accepted (2026-09-08), implemented in Phase 10 |
+| ADR-012 | a page of the block's own at `/blocks/compass/index.php` on the `base` layout in the system context, behind `enable_page`, offered as the start page through `core_user\hook\extend_default_homepage`; a third rung of the heading ladder (`headinglevel` 4/3/2); the top-of-body hook listening on the Dashboard only with the block present and on the page always | Phase 10 | Accepted (2026-09-11), implemented in Phase 10 |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -484,6 +485,9 @@ sessions (`local_quiz_summary_option` does this well).
 ```
 block_compass.php            Shell: title, applicable_formats, has_config, can_block_be_added,
                              get_content() renders output\block — no data access here, ever
+index.php                    The block's own page (ADR-012): require_login, page::require_access()
+                             (no guest; off → redirect to /my/), system context, base layout, no
+                             secondary navigation, output\page rendered between header and footer
 settings.php                 §8 settings: attention_max, new_days, dormant_months, group_depth,
                              inventory_max, enable_favourites, enable_pending (enrol_apply
                              applications, ADR-009 — NOT the calendar events PLAN.md §8 once meant),
@@ -544,9 +548,17 @@ classes/
                              PARAM_RAW and core cleans it not at all (Phase 9, ADR-010)
   observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
                              category events in Phase 2)
+  hook_callbacks.php         db/hooks.php callbacks, each catching \Throwable: the top-of-body hook writing
+                             seven modulepreload hints where the block is (after the import map - a preload
+                             in the head disables the map; my-index + mydashboard with
+                             is_block_present('compass'), or blocks-compass-index + base) with the import
+                             map's own URLs, and the extend_default_homepage hook offering the page as a
+                             start page while enable_page is on (ADR-011 dec. 2, ADR-012 dec. 3-4)
   task/warm_active_users.php scheduled task, always registered, gated by enable_prewarm; a thin caller
                              of local\prewarm::run() that mtraces one summary line (Phase 3)
-  output/                    renderable+templatable shells only (block.php)
+  output/                    renderable+templatable shells only: block.php (takes headinglevel, null
+                             for the Dashboard's 4/3), page.php (the block's shell at rung 2, plus the
+                             page's two gates in require_access(); ADR-012)
   privacy/provider.php       metadata provider + user_preference_provider since R4, for
                              block_compass_view and, since Phase 9, block_compass_explore
                              (favourites and hidden-course preferences are core's and are
@@ -571,15 +583,22 @@ js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since
                              filter (normalise, match, relative time, chips — the PHP twin of the
                              first two is classes/local/matcher.php and the pair is pinned by a
                              fixture), heading (the section and card heading levels, chosen from
-                             the titlehidden prop — no component writes a heading tag itself,
-                             ADR-008), str (placeholder substitution), types (the payload shapes)
-js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src
-templates/                   block — the only one left: a React mount point, its fallback, and the
-                             noscript. Every card, row, group and toolbar is a component
+                             the headinglevel prop — no component writes a heading tag itself,
+                             ADR-008, ADR-012), str (placeholder substitution), types (the payload shapes)
+js/esm/bundle.json           the marker that opts the plugin into moodle-dev's generic bundle step
+                             (entry src/Block.tsx, outfile build/bundle.js; ADR-011, decision 1)
+js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src: the
+                             per-file outputs core's task writes (imported by nothing) AND bundle.js,
+                             its map and bundle.manifest.json (source hashes bundle_test recomputes)
+templates/                   block (the React mount point naming @moodle/lms/block_compass/bundle,
+                             its fallback, the noscript), page (the block_compass wrapper around the
+                             block partial, for index.php) and preload (the modulepreload links the
+                             top-of-body hook writes). Every card, row, group and toolbar is a component
 db/                          access.php, services.php (five read functions), caches.php (six
                              definitions), events.php (six course/category/completion observers plus
                              four core_customfield ones), tasks.php (warm_active_users, 04:00, random
-                             minute; Phase 3). NO install.xml, NO upgrade.php with schema steps, and
+                             minute; Phase 3), hooks.php (the two callbacks above; Phase 10). NO
+                             install.xml, NO upgrade.php with schema steps, and
                              no uninstall.php purge: the plugin owns no rows outside MUC and the
                              three prewarm_* plugin-config rows, which core's uninstall removes
 lang/en, lang/pt_br          lockstep, alphabetical, no section comments
@@ -861,14 +880,16 @@ things about writing them here are not obvious and were paid for in R1:
   construct is banned outright and a test asserts the ban. Anything conditional
   picks between whole literals.
 - **A heading tag is never written literally in a component.** `js/esm/src/heading.ts`
-  exports `sectionTag()` and `titleTag()`, both a function of the `titlehidden` prop the
-  shell exports: under core's own block-title `<h3>` sections are `<h4>` and card titles
-  `<h5>`, and with `hide_block_title` on — when core renders no heading at all
-  (`lib/classes/output/core_renderer.php:1492`) — each moves one rung up. A literal
-  `<h1>`–`<h6>` anywhere in `js/esm/src` is banned outright and
+  exports `sectionTag()` and `titleTag()`, both a function of the `headinglevel` prop the
+  shell exports: 4 under core's own block-title `<h3>` (sections `<h4>`, card titles `<h5>`),
+  3 with `hide_block_title` on — when core renders no heading at all
+  (`lib/classes/output/core_renderer.php:1492`) — and 2 on the block's own page, under the
+  theme's `<h1>` (ADR-012, decision 2); an unknown level reads as 4. The shell decides
+  between 4 and 3 from the setting; `output\page` asks for 2 through the constructor. A
+  literal `<h1>`–`<h6>` anywhere in `js/esm/src` is banned outright and
   `accessibility_rules_test` enforces the ban both ways (no literal tag outside
-  `heading.ts`; the two ladders pinned inside it), because a fixed level is correct in
-  exactly one of the two configurations (ADR-008, decision 3 and its first amendment).
+  `heading.ts`; the three ladders pinned inside it), because a fixed level is correct in
+  exactly one of the three configurations (ADR-008, decision 3 and its amendments).
 - **Brand-coloured TEXT is painted with `--block_compass-brand-text`**, never with
   `--block_compass-brand` itself. The text token is overridden under
   `:root[data-bs-theme="dark"]` to `--bs-body-color`, the one colour dark mode
@@ -1116,21 +1137,23 @@ the following defaults flip, deliberately:
   between the warm-up and the measured call: headers ≤ 3, rows ≤ 3, search ≤ 3
   (+ 1 each through the web service); the task ≤ 1 read per user + 1 per batch
   + 1 for the count line with the shared layers warm.
-- Behat: **four** smoke scenarios at most — the block appears on the Dashboard, a
-  recently accessed course shows in Continue, the ghost card opens tier 3 (and,
-  since R4, switches to cards and finds them again after a reload), and archiving
-  in Compass removes the course from the Course overview block and back. The
-  fourth was granted by the maintainer for ADR-007 because its criterion is
-  cross-plugin and browser-only; it reaches the archived course through core's
-  own "Removed from view" filter, which is what proves the row is core's. Logic
-  stays in PHPUnit. Read the lang string before writing a step's label.
+- Behat: **five** smoke scenarios at most — the block appears on the Dashboard (and
+  the page carries the seven preload hints), a recently accessed course shows in
+  Continue, the ghost card opens tier 3 (and, since R4, switches to cards and finds
+  them again after a reload), archiving in Compass removes the course from the
+  Course overview block and back, and the block's own page shows the block alone
+  and serves as the start page. The fourth was granted by the maintainer for
+  ADR-007 because its criterion is cross-plugin and browser-only; it reaches the
+  archived course through core's own "Removed from view" filter, which is what
+  proves the row is core's. The fifth was granted for ADR-012: a page is a
+  browser-only surface. Logic stays in PHPUnit. Read the lang string before writing a step's label.
   **Every scenario carries core's axe step** — `the "Compass" "block" should meet
   accessibility standards with "best-practice" extra tests` — scoped to this block
   and placed where the most is on screen; the feature carries `@accessibility`,
   which the step demands, and axe is on by default in the Behat run config, so
   nothing has to be switched on (ADR-008, decision 1). Scenario 2 runs with
   `hide_block_title` on, so the other heading ladder is measured too.
-  `tests/local/accessibility_rules_test.php` is the static half — fourteen rules over
+  `tests/local/accessibility_rules_test.php` is the static half — seventeen rules over
   `js/esm/src`, `templates/` and `styles.css`, each with the vacuity guard its
   sibling `bootstrap_compat_test` carries — because axe reads a rendered page and
   cannot see a rule that no scenario happens to render.

@@ -1,0 +1,1 @@
+s/\$images\[\(int\) \$courseid\] = \(new \\core\\url\(\$image\)\)->out\(\);/\$images[(int) \$courseid] = (string) \\core_course\\external\\course_summary_exporter::get_course_image((object) ['id' => \$courseid]);/;

@@ -153,7 +153,9 @@ export type BlockConfig = {
     showsearch: boolean,
     showindex: boolean,
     showcategory: boolean,
-    titlehidden: boolean,
+    // Where the block is, as a heading level for its sections: 4 under core's block title, 3
+    // with the title hidden, 2 on the block's own page under the theme's h1 (ADR-012).
+    headinglevel: number,
     view: string,
     explore: ExploreState,
 };

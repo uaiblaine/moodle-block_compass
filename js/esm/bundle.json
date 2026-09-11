@@ -1,0 +1,4 @@
+{
+    "entry": "src/Block.tsx",
+    "outfile": "build/bundle.js"
+}
