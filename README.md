@@ -214,6 +214,7 @@ Blocks > Compass*, in this order:
 | Hide the block title (`hide_block_title`) | off | Render the block without its title bar. Core then renders no block heading at all, so the plugin's own headings move one level up to keep the document's heading ladder unbroken (ADR-008). |
 | Show the category on cards (`show_category`) | on | Print the course's category above its name on every card, in both tiers. Off, the name is the first line (ADR-010). |
 | Enable the Compass page (`enable_page`) | off | Serve the block's content on a page of its own, `/blocks/compass/index.php`, with only the theme's navigation bar and footer around it. While on, "Compass" is offered as a choice for *Start page for users* and, when that setting leaves the choice to users, in each user's own preferences. Off, the page redirects to the Dashboard (ADR-012). |
+| Hide the page title (`hide_page_title`) | off | Show the Compass page without the theme's page heading, so the content starts closer to the navigation bar. The title stays in the page as a visually hidden `<h1>` for assistive technology. Only the page is affected (ADR-012, amendment 4). |
 | Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
 | Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision: a row with an "Awaiting approval" badge in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Does nothing without that plugin (ADR-009). |
 | Pre-warm active users (`enable_prewarm`) | off | Run the nightly sweep at all. Never set means off. |
@@ -386,6 +387,14 @@ through the Dashboard node — hiding that node is the theme's business (Boost U
 in primary navigation", which its child themes inherit), not the plugin's. Off, a start page
 stored earlier lands on the Dashboard: the page redirects there rather than failing.
 
+With `hide_page_title` on as well, the theme's header holds no heading and the page renders
+"Compass" itself as a visually hidden `<h1>` at the top of its content: out of sight, in the
+accessibility tree, the ladder under it unchanged. The reload control moves to the page's top-right
+corner, off its own row, and the first card starts 68 px higher; the theme's own panel margins are
+left alone. No WCAG 2.2 Level A or AA criterion asks for a level-one heading and Moodle's
+accessibility step runs no heading rule; the one axe best practice that does,
+`page-has-heading-one`, reads the DOM, where the heading still is (ADR-012, amendment 4).
+
 Client delivery
 ---------------
 
@@ -416,7 +425,7 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   accessible name, the run reddened with three `button-name` violations, and went
   green again when the name was restored.
 - **`tests/local/accessibility_rules_test.php` reads what axe cannot**, scanning
-  the client sources and the stylesheet for seventeen rules: that the scan found its
+  the client sources and the stylesheet for eighteen rules: that the scan found its
   sources at all, that every image states an `alt` attribute, that no positive
   `tabindex` exists anywhere, that the stylesheet never removes an outline
   without replacing it, that every icon-only button names itself (the archive
@@ -429,8 +438,10 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   in capitals, that the cards grid counts its columns in the stylesheet and the
   client alike, that the card's star sits on a contrast disc in one corner and
   the badge in the other, that a control which disables itself while busy stays
-  focusable, that icon-only glyphs carry no margin, and that the accordion's
-  chevron flows inline. Each rule carries a guard asserting it had something to
+  focusable, that icon-only glyphs carry no margin, that the accordion's
+  chevron flows inline, and that the page's hidden title is hidden from sight
+  only — core's `visually-hidden` on the `<h1>`, and no `display: none` in the
+  no-title rules. Each rule carries a guard asserting it had something to
   check.
 - **Headings sit under core's block title.** Core renders the block title as an
   `<h3>`, so the plugin's section titles are `<h4>` and its card titles `<h5>`;
@@ -535,7 +546,7 @@ Testing
   shows the block alone and serves as the start page. Each of the five carries
   core's axe step; the second runs with the block title hidden, so that
   configuration is measured too. Logic lives in PHPUnit.
-- **107 mutation gates.** `mutations/gates.conf` names one guard per line together
+- **111 mutation gates.** `mutations/gates.conf` names one guard per line together
   with the test that must redden when it is broken; `mdl mutate` breaks each in
   turn and runs the suite. A guard that reddens nothing is the finding.
 - **The matrix**: `MOODLE_502_STABLE` on PHP 8.3 and 8.4, against PostgreSQL and

@@ -127,6 +127,14 @@ if ($ADMIN->fulltree) {
         0
     ));
 
+    // The page's title (ADR-012, amendment 4): hidden from sight, kept for assistive technology.
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/hide_page_title',
+        get_string('hide_page_title', 'block_compass'),
+        get_string('hide_page_title_desc', 'block_compass'),
+        0
+    ));
+
     // The filter panel of the full course list (ADR-009, decisions 5 and 7). The choices are the
     // site's own eligible course custom fields — select and checkbox, visible to everyone — read
     // from the filterfields layer, and admin_setting_configmultiselect drops any submitted value

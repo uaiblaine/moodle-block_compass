@@ -25,12 +25,17 @@
     Context variables required for this template:
     * props - the component's props, JSON-encoded by block_compass\output\page: the block's,
       with headinglevel 2.
+    * hiddentitle - the block's name while the theme shows no page heading (ADR-012, amendment 4),
+      rendered as a visually hidden h1 so the page keeps its level-one heading for assistive
+      technology; empty while the theme's heading is shown.
 
     Example context (json):
     {
-        "props": "{\"labels\": {\"loaderror\": \"Your courses could not be loaded.\"}, \"strips\": [], \"headinglevel\": 2}"
+        "props": "{\"labels\": {\"loaderror\": \"Your courses could not be loaded.\"}, \"strips\": [], \"headinglevel\": 2}",
+        "hiddentitle": "Compass"
     }
 }}
 <div class="block_compass compass-page">
+    {{#hiddentitle}}<h1 class="visually-hidden">{{hiddentitle}}</h1>{{/hiddentitle}}
     {{> block_compass/block }}
 </div>

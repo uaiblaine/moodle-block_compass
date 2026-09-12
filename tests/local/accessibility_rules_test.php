@@ -598,6 +598,47 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
+     * The page's hidden title is hidden from sight only: core's visually-hidden class, nothing else.
+     *
+     * The page template's h1 must carry visually-hidden - the recipe that keeps an element in
+     * the accessibility tree - and none of the spellings that remove it: d-none, hidden, or an
+     * aria-hidden attribute. And the stylesheet's no-title rules, keyed on the body class, may
+     * collapse the theme's empty header but never display: none or visibility: hidden anything
+     * (ADR-012, amendment 4). The vacuity guards are the h1 and the rules themselves.
+     *
+     * @return void
+     */
+    public function test_the_hidden_page_title_is_hidden_from_sight_only(): void {
+        $template = $this->sources()['templates/page.mustache'];
+        $this->assertMatchesRegularExpression(
+            '/<h1 class="visually-hidden">/',
+            $template,
+            'the page renders no visually hidden h1'
+        );
+        preg_match('/<h1\b[^>]*>/', $template, $matches);
+        $this->assertDoesNotMatchRegularExpression(
+            '/d-none|\bhidden\b(?!")|aria-hidden/',
+            $matches[0],
+            'the h1 is removed from the accessibility tree'
+        );
+
+        $seen = 0;
+        foreach ($this->rules() as $rule) {
+            [$selector, $body] = $rule;
+            if (!str_contains($selector, '.block_compass-notitle')) {
+                continue;
+            }
+            $seen++;
+            $this->assertDoesNotMatchRegularExpression(
+                '/\bdisplay\s*:\s*none\b|\bvisibility\s*:\s*hidden\b/',
+                $body,
+                "{$selector}: a no-title rule removes something from the accessibility tree"
+            );
+        }
+        $this->assertGreaterThanOrEqual(3, $seen, 'no .block_compass-notitle rules found in styles.css');
+    }
+
+    /**
      * The accordion's chevron flows inline with the group name.
      *
      * Core's icons-collapse-expand rule makes its element a block-level flex box

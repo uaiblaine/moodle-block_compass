@@ -468,7 +468,7 @@ phases raised decisions of their own:
 | ADR-009 | complete favourites (exclusivity superseded for that strip), one ghost card with heading overflow links, enrol_apply applications awaiting approval as tier 3 rows plus a notice (never a card; the plugin's own predicate, not `status = 2`), the toolbar as a sort platter, an icon toggle and a filter panel, course custom fields as chip groups with two sibling caches, two settings (`filter_fields`, `enable_pending`), a two-line name clamp with a tooltip; Phase 8 ships inside `v5.2-r1` | Phase 8 | Accepted (2026-09-07), implemented in Phase 8 |
 | ADR-010 | twelve decisions from the maintainer's list: scroll and focus into tier 3, the archive box glyphs, zero chips hidden, a column-counted cards grid, the star and badge corners, the star in tier 3, core's chevrons, no uppercase, the remembered toolbar (`block_compass_explore`), the teacher-only completion notice, `show_category`, and resilience (reload control, bounded retry, amber notice in every error state) | Phase 9 | Accepted (2026-09-08), implemented in Phase 9 |
 | ADR-011 | client delivery: one bundle through a generic moodle-dev build step opted in by `js/esm/bundle.json`, seven `modulepreload` hints from a top-of-body hook on the Dashboard with the block and on the block's own page, and two batched reads (`course_image` `get_many`, one `uncategorised` string) — the answer to the cold-load waterfall measured against core's timeline service | Phase 10 | Accepted (2026-09-08), implemented in Phase 10 |
-| ADR-012 | a page of the block's own at `/blocks/compass/index.php` on the `base` layout in the system context, behind `enable_page`, offered as the start page through `core_user\hook\extend_default_homepage`; a third rung of the heading ladder (`headinglevel` 4/3/2); the top-of-body hook listening on the Dashboard only with the block present and on the page always | Phase 10 | Accepted (2026-09-11), implemented in Phase 10 |
+| ADR-012 | a page of the block's own at `/blocks/compass/index.php` on the `base` layout in the system context, behind `enable_page`, offered as the start page through `core_user\hook\extend_default_homepage`; a third rung of the heading ladder (`headinglevel` 4/3/2); the top-of-body hook listening on the Dashboard only with the block present and on the page always | Phase 10 | Accepted (2026-09-11), implemented in Phase 10; amendment 4 (`hide_page_title`, the h1 kept visually hidden) accepted and implemented 2026-09-11 |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -494,7 +494,8 @@ settings.php                 §8 settings: attention_max, new_days, dormant_mont
                              filter_fields (multiselect of eligible course custom fields, ADR-009),
                              enable_prewarm, prewarm_days, prewarm_budget_seconds, default_view,
                              enable_search, hide_block_title, show_index, show_category (the category
-                             line on cards, ADR-010) (ints via configtext+PARAM_INT, vocabularies via
+                             line on cards, ADR-010), enable_page, hide_page_title (the page's title
+                             kept as a visually hidden h1, ADR-012 amendment 4) (ints via configtext+PARAM_INT, vocabularies via
                              configselect — never a free-text field for an enum)
 version.php                  requires 2026042000, supported [502, 502]
 lib.php                      block_compass_user_preferences(): block_compass_view, with its choices
@@ -558,7 +559,9 @@ classes/
                              of local\prewarm::run() that mtraces one summary line (Phase 3)
   output/                    renderable+templatable shells only: block.php (takes headinglevel, null
                              for the Dashboard's 4/3), page.php (the block's shell at rung 2, plus the
-                             page's two gates in require_access(); ADR-012)
+                             page's two gates in require_access(), and with hide_page_title on an
+                             empty theme_heading(), the body class NOTITLE_CLASS and hiddentitle for
+                             the template's visually hidden h1; ADR-012)
   privacy/provider.php       metadata provider + user_preference_provider since R4, for
                              block_compass_view and, since Phase 9, block_compass_explore
                              (favourites and hidden-course preferences are core's and are
@@ -884,7 +887,8 @@ things about writing them here are not obvious and were paid for in R1:
   shell exports: 4 under core's own block-title `<h3>` (sections `<h4>`, card titles `<h5>`),
   3 with `hide_block_title` on — when core renders no heading at all
   (`lib/classes/output/core_renderer.php:1492`) — and 2 on the block's own page, under the
-  theme's `<h1>` (ADR-012, decision 2); an unknown level reads as 4. The shell decides
+  theme's `<h1>` or, with `hide_page_title` on, under the page's own visually hidden one
+  (ADR-012, decision 2 and amendment 4); an unknown level reads as 4. The shell decides
   between 4 and 3 from the setting; `output\page` asks for 2 through the constructor. A
   literal `<h1>`–`<h6>` anywhere in `js/esm/src` is banned outright and
   `accessibility_rules_test` enforces the ban both ways (no literal tag outside
@@ -1153,7 +1157,7 @@ the following defaults flip, deliberately:
   which the step demands, and axe is on by default in the Behat run config, so
   nothing has to be switched on (ADR-008, decision 1). Scenario 2 runs with
   `hide_block_title` on, so the other heading ladder is measured too.
-  `tests/local/accessibility_rules_test.php` is the static half — seventeen rules over
+  `tests/local/accessibility_rules_test.php` is the static half — eighteen rules over
   `js/esm/src`, `templates/` and `styles.css`, each with the vacuity guard its
   sibling `bootstrap_compat_test` carries — because axe reads a rendered page and
   cannot see a rule that no scenario happens to render.

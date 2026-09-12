@@ -192,6 +192,18 @@ final class config {
     }
 
     /**
+     * Whether the block's own page shows no title (ADR-012, amendment 4).
+     *
+     * Off unless an explicit 1 is stored, like enable_page: the page keeps the theme's heading
+     * for a site that never asked otherwise.
+     *
+     * @return bool
+     */
+    public static function hide_page_title(): bool {
+        return (int) get_config('block_compass', 'hide_page_title') === 1;
+    }
+
+    /**
      * Whether a card prints its category (ADR-010, decision 11). Never set means shown.
      *
      * A client switch and nothing more: the category still travels, on a tier 1 card as the

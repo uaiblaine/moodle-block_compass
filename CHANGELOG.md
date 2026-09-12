@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- The Compass page's title can be hidden (ADR-012, amendment 4), version 2026091101. A setting
+  `hide_page_title` (off) hands the theme an empty heading — core then renders no heading element —
+  and the page renders "Compass" itself as a visually hidden `<h1>` at the top of its content, so
+  the level-one heading stays for assistive technology and the ladder under it is unchanged; the
+  reload control moves to the page's top-right corner and the first card starts 68 px higher,
+  with the theme's panel margins left alone. Measured before deciding: no WCAG 2.2 A/AA criterion
+  requires an `<h1>`, Moodle's Behat accessibility step runs no heading rule, and axe's
+  best-practice `page-has-heading-one` passes with the hidden heading and fails without it.
+  Tests: `config_test`, `page_test`, an eighteenth static accessibility rule (the hidden title
+  is hidden from sight only), scenario 5's hidden-title branch, four mutation gates.
 - Phase 10 — the client arrives in one file and is announced at the top of the body, and the
   block gets a page of its own (ADR-011, ADR-012), version 2026091100. **One bundle.** A generic step of the
   fleet's tooling (`moodle-dev/ci/esm-bundle.mjs`, opted into by `js/esm/bundle.json`) builds

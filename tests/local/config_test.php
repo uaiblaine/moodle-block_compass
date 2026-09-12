@@ -316,6 +316,26 @@ final class config_test extends advanced_testcase {
     }
 
     /**
+     * The page's title is shown unless an explicit 1 hides it (ADR-012, amendment 4).
+     *
+     * Same shape as enable_page: "never set" and "0" both keep the theme's heading.
+     *
+     * @return void
+     */
+    public function test_the_page_title_is_shown_unless_an_explicit_one_hides_it(): void {
+        $this->resetAfterTest();
+
+        unset_config('hide_page_title', 'block_compass');
+        $this->assertFalse(config::hide_page_title());
+
+        set_config('hide_page_title', 0, 'block_compass');
+        $this->assertFalse(config::hide_page_title());
+
+        set_config('hide_page_title', 1, 'block_compass');
+        $this->assertTrue(config::hide_page_title());
+    }
+
+    /**
      * The tier 3 search box is on unless an explicit zero says otherwise.
      *
      * Same three states as the favourites rule, and the same trap: a site that

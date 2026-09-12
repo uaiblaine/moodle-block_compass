@@ -256,3 +256,14 @@ Feature: The Compass block puts the courses that need attention first
     When I am on site homepage
     Then I should see "Compass" in the "#page-header" "css_element"
     And I should see "Course 1" in the ".compass-page" "css_element"
+    # With the title hidden (amendment 4) the theme's header holds no heading; the page keeps
+    # its h1, visually hidden by core's own class, at the top of the content, and axe with the
+    # best-practice rules still passes over it.
+    And the following config values are set as admin:
+      | hide_page_title | 1 | block_compass |
+    And I reload the page
+    Then I should not see "Compass" in the "#page-header" "css_element"
+    And "#page-header h1" "css_element" should not exist
+    And ".compass-page h1.visually-hidden" "css_element" should exist
+    And I should see "Continue where you left off" in the ".compass-page" "css_element"
+    And the ".compass-page" "css_element" should meet accessibility standards with "best-practice" extra tests

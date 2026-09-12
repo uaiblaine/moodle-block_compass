@@ -58,6 +58,35 @@
     outline-offset: 2px;
 }
 
+/* The page without its title (ADR-012, amendment 4), keyed on the body class index.php adds:
+   the theme got an empty heading and its header holds nothing, so the header collapses to no
+   height (its inner margins are Bootstrap utilities, which win by weight, so they are boxed in
+   rather than fought); the page carries its own h1, visually hidden by core's class; and the
+   reload control leaves its row for the page's top-right corner, with the first row of content
+   padded away from it. */
+.block_compass-notitle #page-header {
+    height: 0;
+    overflow: hidden;
+}
+
+.block_compass-notitle .compass-page {
+    position: relative;
+}
+
+.block_compass-notitle .compass-page .compass-content-head {
+    position: absolute;
+    top: 0;
+    inset-inline-end: 0;
+    margin: 0;
+}
+
+.block_compass-notitle .compass-page .compass-strip:first-of-type .compass-strip-head,
+.block_compass-notitle .compass-page .compass-explore:first-of-type .compass-explore-title,
+.block_compass-notitle .compass-page .compass-status,
+.block_compass-notitle .compass-page .compass-retry {
+    padding-inline-end: 2.5rem;
+}
+
 .block_compass .compass-reload-glyph {
     display: inline-flex;
 }

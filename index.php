@@ -38,10 +38,13 @@ $PAGE->set_context(\core\context\system::instance());
 $PAGE->set_url('/blocks/compass/index.php');
 $PAGE->set_pagelayout('base');
 $PAGE->set_secondary_navigation(false);
-$title = get_string('pluginname', 'block_compass');
-$PAGE->set_title($title);
-$PAGE->set_heading($title);
+$page = new \block_compass\output\page();
+$PAGE->set_title(get_string('pluginname', 'block_compass'));
+$PAGE->set_heading($page->theme_heading());
+foreach ($page->body_classes() as $class) {
+    $PAGE->add_body_class($class);
+}
 
 echo $OUTPUT->header();
-echo $OUTPUT->render(new \block_compass\output\page());
+echo $OUTPUT->render($page);
 echo $OUTPUT->footer();
