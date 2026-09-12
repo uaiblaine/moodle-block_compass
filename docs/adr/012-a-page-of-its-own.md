@@ -473,3 +473,70 @@ of another Moodle version.
 3. **The hook of decision 4 is the top-of-body hook.** The head hook's output precedes the import
    map and a module preload before the map disables the map (ADR-011, amendment 5); the two
    conditions of decision 4 are unchanged.
+
+## Amendment 4 (Accepted 2026-09-11): the title can be hidden, and the `<h1>` stays
+
+The maintainer asked two things after Phase 10: whether any accessibility rule requires the
+page's `<h1>`, and for a way to hide the title and pull the cards closer to the top. The
+facts, each measured on 2026-09-11:
+
+1. **No WCAG 2.2 Level A or AA criterion requires a level-one heading.** 1.3.1 and 2.4.6
+   govern headings that exist; 2.4.10 (Section Headings) is Level AAA and asks for section
+   headings, not an `<h1>`. Moodle's target is WCAG 2.2 AA, and its accessibility policy
+   (moodledev.io) says nothing about headings.
+2. **The gate runs no heading rule.** `the page should meet accessibility standards` runs
+   axe 4.10.3 (`lib/behat/axe/axe.min.js`) with the tags `wcag2a`, `wcag21a`, `wcag22a`,
+   `wcag2aa`, `wcag21aa`, `wcag22aa`, `section508`, `cat.aria`,
+   `cat.sensory-and-visual-cues` and `wcag134` (`lib/tests/behat/behat_accessibility.php:242-266`;
+   the `'type' > 'tag'` at `:271` sends no type, which axe's `normalizeOptions` reads as `tag`).
+   `page-has-heading-one`, `heading-order` and `empty-heading` carry `best-practice` plus a
+   category tag Moodle does not list, so none of them runs: on the live page 68 rules ran,
+   none of the three among them.
+3. **The one rule that does ask for an `<h1>` is an axe best practice, and it reads the DOM,
+   not the paint.** With the `<h1>` node removed, `page-has-heading-one` reports one violation
+   and `heading-order` still passes; with the `<h1>` kept and hidden by the `visually-hidden`
+   recipe, both pass. Screen readers announce the hidden heading; sighted viewers see nothing.
+4. **Core's own "remove" spelling is an empty heading.** `context_header::export_for_template()`
+   renders no heading element when the text is `''` (`lib/classes/output/context_header.php:116-117`),
+   so `set_heading('')` drops the `<h1>` and keeps the `<title>`.
+5. **Where the space is.** On m502 (Boost Union, 800 px pane) the navbar's bottom edge to the
+   first card is 155 px: 23 px `.main-inner` margin (`layout.scss:164`), 24 px `.main-inner`
+   padding (`:45`), 48 px `#page-header` (the `<h1>` row at 40 plus `mb-2`), 32 px
+   `.compass-content-head` (the reload row, ADR-010 decision 12: 24 plus its margin), 27 px the
+   first strip's `<h2>` and gap. The first two belong to the theme's white panel on every page.
+
+**Decision.** A setting `hide_page_title` (checkbox, off; beside `enable_page`). On,
+`index.php` hands the theme an empty heading — core's own spelling for "no heading element"
+(fact 4) — and adds the body class `block_compass-notitle` before the header; the page template
+renders the block's name itself as `<h1 class="visually-hidden">` at the top of `.compass-page`,
+core's recipe, in the accessibility tree, at the start of the main content; `styles.css`
+collapses the empty header to no height under the body class (its inner margins are Bootstrap
+utilities, which win by weight, so they are boxed in rather than fought); on the page only, the reload control leaves its
+row and sits absolutely at the top-right corner of `.compass-page`, and the first row of content
+gains end padding so it never runs under the control. A level-one heading stays in the DOM, so
+the ladder is unchanged — `<h1>` (hidden) over `<h2>` strips over `<h3>` cards — and
+`headinglevel` 2 stands. (At implementation the hidden `<h1>` became the page's own rather
+than the theme's one restyled: a PHPUnit test can then see it, Behat can name it, and the recipe
+is core's class rather than a copy.)
+The theme's 47 px are left alone. Measured on a prototype of exactly this CSS: navbar to first
+card 87 px, the first card 68 px higher, `#page-header` 12 px tall, axe green under both the
+gate's tags (scoped, as scenario 5 runs it) and `best-practice` over the whole document.
+
+**Alternatives.** (a) `set_heading('')` — cheapest, and the page then has no top heading for
+assistive technology; `page-has-heading-one` fires. Rejected unless the maintainer prefers it.
+(b) Also cut the theme's `.main-inner` padding on this page through its body id — reaches into
+the theme's panel for 24 px at most; not proposed.
+
+**Tests and gates.** `config_test`: off unless an explicit 1 is stored. `page_test`: the theme
+heading, the body class and the hidden `<h1>` follow the setting. A static rule: the page's `<h1>`
+carries `visually-hidden` and no spelling that removes it, and no `.block_compass-notitle` rule
+sets `display: none` or `visibility: hidden`. Scenario 5 gains a branch with the setting on: no
+heading in `#page-header`, the hidden `<h1>` inside `.compass-page`, axe with `best-practice`
+over the wrapper (where `heading-order` runs; `page-has-heading-one` matches `html` and is out
+of that scope). Four mutation gates: the setting read, the theme heading, the body class, the
+hidden `<h1>`'s class. Docs: README settings row and section, CHANGELOG, CLAUDE.md.
+
+**The maintainer's answers (2026-09-11).** Asked: (1) hide and keep the `<h1>` for assistive
+technology, or remove it with `set_heading('')`; (2) the reload control in the page's top-right
+corner, off its own row; (3) leave the theme's 47 px; (4) the name `hide_page_title`, mirroring
+`hide_block_title`. Answered: hide; yes; yes; yes — the decision above stands as written.
