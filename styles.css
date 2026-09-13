@@ -17,11 +17,31 @@
 /* Brand TEXT needs its own token: the brand on Boost's dark body is 3.02:1, under the
    4.5:1 floor (ADR-008, decision 3), and Bootstrap's dark emphasis tint of the brand is
    not safe either - a navy brand tints to 3.28:1 (measured). Body text is the one colour
-   dark mode guarantees readable. One selector, because 5.2 has one dark mechanism - the
-   attribute Bootstrap 5.3 moves its tokens under; nothing on 5.2 emits a .theme-dark class.
-   Anchored at the root: Boost Union sets the same attribute on its navbar alone. */
-:root[data-bs-theme="dark"] .block_compass,
-:root[data-bs-theme="dark"] .compass-dialogue {
+   dark mode guarantees readable. 5.2 has one dark mechanism - the attribute Bootstrap 5.3
+   moves its tokens under; nothing on 5.2 emits a .theme-dark class.
+
+   FOUR SELECTORS, BECAUSE THE HOST WRITES THE ATTRIBUTE IN ONE OF TWO PLACES, AND ON 5.2 IT
+   IS NOT THE ONE YOU WOULD EXPECT. Measured on the 5.2 checkout: theme_boost does NOT listen
+   to core's before_html_attributes hook and ships no enablecolourmodes setting, so nothing in
+   core writes this attribute at all on the branch this block supports. What does write it is
+   theme_moove, on document.body (amd/src/darkmode.js:35), redefining the whole --bs-* set
+   there - and the old :root anchor could not see that, so under moove's dark mode the brand
+   text kept its 3.02:1 light value on a dark body.
+
+   The html arm is therefore forward-looking rather than current: on 5.3-dev theme_boost does
+   listen (classes/hook_listener.php:93 adds data-bs-theme to the html tag, behind
+   theme_boost/enablecolourmodes) and Bootstrap's own rule is unanchored anyway.
+
+   Naming html or body as the scope - and nothing deeper - is what keeps the original
+   guarantee the :root anchor was written for: theme_boost_union sets this same attribute on
+   its navbar alone, and a bare [data-bs-theme="dark"] .block_compass would match through ANY
+   ancestor at any depth, since CSS descendant combinators have no nearest-ancestor-wins
+   rule. Neither arm below can match a navbar scope. Pinned by
+   accessibility_rules_test::test_dark_override_scope_is_html_or_body. */
+body[data-bs-theme="dark"] .block_compass,
+[data-bs-theme="dark"] body .block_compass,
+body[data-bs-theme="dark"] .compass-dialogue,
+[data-bs-theme="dark"] body .compass-dialogue {
     --block_compass-brand-text: var(--bs-body-color, #dee2e6);
 }
 

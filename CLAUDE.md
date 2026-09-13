@@ -895,13 +895,25 @@ things about writing them here are not obvious and were paid for in R1:
   `heading.ts`; the three ladders pinned inside it), because a fixed level is correct in
   exactly one of the three configurations (ADR-008, decision 3 and its amendments).
 - **Brand-coloured TEXT is painted with `--block_compass-brand-text`**, never with
-  `--block_compass-brand` itself. The text token is overridden under
-  `:root[data-bs-theme="dark"]` to `--bs-body-color`, the one colour dark mode
-  guarantees readable: Boost's own brand on its dark body is 3.02:1 against the
-  4.5:1 floor, and Bootstrap's dark emphasis tint of a brand is no safer — a navy
-  brand measured 3.28:1. Outlines, borders and backgrounds keep the plain token and
-  clear their own 3:1. The dark selector is `:root[data-bs-theme="dark"]` and nothing
-  else — **never `.theme-dark`**, which nothing in the 5.2 checkout, in Boost Union
+  `--block_compass-brand` itself. The text token is overridden under dark mode to
+  `--bs-body-color`, the one colour dark mode guarantees readable: Boost's own brand
+  on its dark body is 3.02:1 against the 4.5:1 floor, and Bootstrap's dark emphasis
+  tint of a brand is no safer — a navy brand measured 3.28:1. Outlines, borders and
+  backgrounds keep the plain token and clear their own 3:1.
+- **That override is scoped to html-or-body, in four selectors, and never to `:root`
+  alone** (2026-09-12). It was `:root[data-bs-theme="dark"] .block_compass`, and on
+  5.2 that anchor sees nothing: `theme_boost` does not listen to core's
+  `before_html_attributes` hook on this branch and ships no `enablecolourmodes`
+  setting, so no core theme writes the attribute on the html element here. The host
+  that does write it is `theme_moove`, on `document.body`
+  (`amd/src/darkmode.js:35`) — so the brand text kept its 3.02:1 light value on a
+  dark body until this was fixed. The html arm is kept for 5.3-dev, where
+  `theme_boost` does listen (`classes/hook_listener.php:93`). Naming html-or-body and
+  nothing deeper is what still keeps a navbar scope out: Boost Union sets this same
+  attribute on its navbar alone, and a bare `[data-bs-theme="dark"] .block_compass`
+  would match through any ancestor at any depth. Pinned by
+  `accessibility_rules_test::test_dark_override_scope_is_html_or_body`, mutation-checked
+  both ways. **Never `.theme-dark`**, which nothing in the 5.2 checkout, in Boost Union
   or in its children emits (ADR-008 amendments, 2026-09-07).
 - **There is no React eslint plugin either.** Core registers neither
   `eslint-plugin-react` nor `eslint-plugin-react-hooks`, so `rules-of-hooks`,

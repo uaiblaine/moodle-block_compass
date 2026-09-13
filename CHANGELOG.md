@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+- **The dark-mode override now follows the host wherever it writes the colour-mode attribute**,
+  version 2026091200.
+  `--block_compass-brand-text` exists because the brand on Boost's dark body is 3.02:1, under the
+  4.5:1 floor (ADR-008, decision 3); its override was anchored at `:root[data-bs-theme="dark"]`.
+  Measured on the 5.2 checkout, that anchor saw nothing at all: `theme_boost` does not listen to
+  core's `before_html_attributes` hook on 5.2 and ships no `enablecolourmodes` setting, so no core
+  theme writes the attribute on the html element on the branch this block supports. The host that
+  does write it is `theme_moove`, on `document.body` (`amd/src/darkmode.js:35`), redefining the
+  whole `--bs-*` set there - so under moove's dark mode the brand text kept its light 3.02:1 value
+  on a dark body. (The html arm is kept as the forward-looking half: on 5.3-dev `theme_boost` does
+  listen, `classes/hook_listener.php:93`.)
+
+  The block's TOKENS were never affected, and that is worth recording because it is the reason
+  this change is four selectors rather than a re-architecture: they are declared on
+  `.block_compass, .compass-dialogue`, i.e. read at the surface, which is where Bootstrap's own
+  components read `--bs-*` and why a scope anywhere above them already worked. Only the override
+  named a scope, and it named the wrong one. (The sibling family `local_dimensions` /
+  `block_dimensions` did have to move its whole block, from `:root` to `body`, for exactly this
+  reason - it declared derived tokens at the root and snapshotted the light values.)
+
+  The rule is now scoped to html-or-body and nothing deeper:
+  `body[data-bs-theme="dark"] .block_compass`, `[data-bs-theme="dark"] body .block_compass`, and
+  the same pair for `.compass-dialogue`. That keeps the guarantee the `:root` anchor was written
+  for - `theme_boost_union` sets this same attribute on its navbar alone, and a bare
+  `[data-bs-theme="dark"] .block_compass` would match through any ancestor at any depth, since CSS
+  descendant combinators have no nearest-ancestor-wins rule - while covering both places a host
+  actually writes it.
+
+  New arm `accessibility_rules_test::test_dark_override_scope_is_html_or_body` pins it, with a
+  vacuity guard so it cannot pass by examining no selector. Mutation-checked both ways: re-anchor
+  an arm at `:root` and it reddens; drop the `body` from an arm, leaving a bare attribute selector,
+  and it reddens. Verified in the browser on m502 through moove's own switch - the token resolves
+  `#0f47ad` in light and `#dee2e6` in dark.
+
 ### Added
 
 - The Compass page's title can be hidden (ADR-012, amendment 4), version 2026091101. A setting

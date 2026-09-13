@@ -51,6 +51,12 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  */
 #[CoversNothing]
 final class accessibility_rules_test extends basic_testcase {
+    /** @var string Bootstrap 5.3's colour-mode attribute, the one signal 5.2 has. */
+    private const DARK_ATTRIBUTE = '[data-bs-theme="dark"]';
+
+    /** @var string The same attribute without its brackets, for building selector prefixes. */
+    private const DARK_ATTRIBUTE_VALUE = 'data-bs-theme="dark"';
+
     /**
      * Every file the scan covers, with its contents.
      *
@@ -441,7 +447,7 @@ final class accessibility_rules_test extends basic_testcase {
             if (!str_contains($body, '--block_compass-brand-text:')) {
                 continue;
             }
-            if (str_contains($selector, '[data-bs-theme="dark"]')) {
+            if (str_contains($selector, self::DARK_ATTRIBUTE)) {
                 $dark++;
             } else {
                 $light++;
@@ -452,6 +458,60 @@ final class accessibility_rules_test extends basic_testcase {
             1,
             $dark,
             '--block_compass-brand-text is not overridden under [data-bs-theme="dark"]'
+        );
+    }
+
+    /**
+     * Every colour-mode override is scoped to the html element or to body, and to nothing deeper.
+     *
+     * The host writes data-bs-theme in one of two places and the block has to follow both: core
+     * puts it on the html element, theme_moove puts it on document.body (amd/src/darkmode.js:35)
+     * and redefines the whole --bs-* set there. An override anchored at :root sees only the first,
+     * which is how the brand text kept its 3.02:1 light value on moove's dark body.
+     *
+     * Going the other way, a BARE [data-bs-theme="dark"] .block_compass would match through any
+     * ancestor at any depth - CSS descendant combinators have no nearest-ancestor-wins rule - and
+     * theme_boost_union really does set this same attribute on its navbar alone. So the scope must
+     * be html or body: wide enough for both hosts, narrow enough that no deeper scope reaches the
+     * block.
+     *
+     * Mutations that must redden it: re-anchor one arm at :root; drop the "body" from an arm,
+     * leaving a bare attribute selector.
+     *
+     * @return void
+     */
+    public function test_dark_override_scope_is_html_or_body(): void {
+        $offenders = [];
+        $checked = 0;
+        foreach ($this->rules() as $rule) {
+            [$selector] = $rule;
+            if (!str_contains($selector, self::DARK_ATTRIBUTE)) {
+                continue;
+            }
+            foreach (explode(',', $selector) as $part) {
+                $part = trim(preg_replace('/\s+/', ' ', $part));
+                if ($part === '') {
+                    continue;
+                }
+                $checked++;
+                $onbody = str_starts_with($part, 'body[' . self::DARK_ATTRIBUTE_VALUE . ']');
+                $underhtml = str_starts_with($part, '[' . self::DARK_ATTRIBUTE_VALUE . '] body ');
+                if (!$onbody && !$underhtml) {
+                    $offenders[] = $part;
+                }
+            }
+        }
+        $this->assertGreaterThanOrEqual(
+            1,
+            $checked,
+            'no colour-mode selector was examined: this test checked nothing'
+        );
+        $this->assertSame(
+            [],
+            $offenders,
+            'a colour-mode selector must carry the attribute on body, or on an html above body; '
+                . 'anchoring at :root misses a host that scopes to body, and a bare attribute '
+                . 'selector matches a navbar scope: ' . implode('; ', $offenders)
         );
     }
 
