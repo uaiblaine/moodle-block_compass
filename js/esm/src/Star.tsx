@@ -16,14 +16,12 @@
 /**
  * The favourite star: the core course star, toggled without a reload.
  *
- * The write goes to core's own service (ADR-000, decision 8), so the star agrees
- * with the Course overview block and this plugin owns no favourite rows.
+ * The write goes to core_course_set_favourite_courses, so the star agrees with the
+ * Course overview block and this plugin owns no favourite rows.
  *
- * The icons arrive as server-rendered markup, which is why they are set as inner
- * HTML. There is no pix helper for ESM any more than there is a string helper: the
- * shell calls $OUTPUT->pix_icon() once and ships the result, exactly as a Mustache
- * template would have received it from the pix section. The trust boundary is the
- * same one the fleet's triple-stash rule draws - core's own output, not user data.
+ * The icons arrive as server-rendered markup, because there is no pix helper for ESM:
+ * the shell renders each pix_icon once (classes/output/block.php) and ships the result.
+ * Setting it as inner HTML is safe because it is core's own output, never user data.
  *
  * @module     block_compass/Star
  * @copyright  2026 Anderson Blaine
@@ -68,11 +66,16 @@ const Star = ({courseid, fullname, favourite, config, onToggle}: StarProps) => {
         }
     };
 
+    // Never the disabled attribute: it would be applied in the render the star's own click
+    // causes, and a focused element that becomes disabled drops the keyboard to the body (see
+    // Reload.tsx). Nor Bootstrap's disabled class, which sets pointer-events: none, so a second
+    // click on a card's star would fall through to the stretched link beneath and open the
+    // course. aria-disabled says it to assistive technology and click() refuses the press.
     return (
         <button
             type="button"
             className="compass-star btn btn-link p-1"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             aria-pressed={favourite}
             aria-label={favourite ? labels.removefromfavourites : labels.addtofavourites}
             onClick={click}

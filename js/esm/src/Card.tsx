@@ -16,16 +16,12 @@
 /**
  * One tier 1 card.
  *
- * Since R2 the card is a component rather than a Mustache template: it renders from the
- * payload block_compass_get_attention returned and re-renders when the star or the
- * progress changes, which is what makes patching one card cheap. The title's level comes
- * from heading.ts, one rung under the strip heading (ADR-008, decision 3), and the title is
- * clamped to two lines with the whole name in its title attribute (ADR-009, decision 10).
- *
- * Since ADR-010 the star sits in the image's top-right corner on a contrast disc and the badge
- * in the top-left (decision 5), the category line follows the show_category setting (decision
- * 11), and "No completion configured" is said only to a viewer who is not a learner of the
- * course, when completion is off (decision 10).
+ * It renders from the block_compass_get_attention payload and re-renders when the star or
+ * the progress changes, which is what makes patching one card cheap. The title's level comes
+ * from heading.ts, one rung under the strip heading, and the title is clamped to two lines
+ * with the whole name in its title attribute. The star sits in the image's top-right corner
+ * on a contrast disc, the badge in the top-left, and the category line follows the
+ * show_category setting.
  *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine
@@ -46,11 +42,11 @@ type CardProps = {
 /**
  * What the completion area of a card shows, given what is known about it.
  *
- * One rule, the same as tier 3's: a bar when there is one; "No completion configured" to the
- * one reader who is not a learner of the course, when completion is off; and nothing to a
- * learner, because for them absence is not a fact worth stating (ADR-010, decision 10). The
- * "tracked but null" case is a learner with no completion to report yet, and prints nothing
- * for the same reason.
+ * One rule, which Row and RowCard follow too: a bar when there is one; "No completion
+ * configured" to the one reader who is not a learner of the course, when completion is off;
+ * and nothing to a learner, because for them absence is not a fact worth stating. Completion
+ * on with a null progress (the viewer is not tracked, or no activity tracks completion)
+ * prints nothing either.
  *
  * @param {object} card The card.
  * @param {object} labels The block labels.
@@ -91,7 +87,7 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
                 : <div className="compass-card-img compass-card-img-empty card-img-top" aria-hidden="true"></div>}
             {card.isnew && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
             {/* The star follows the image in the DOM as it does on screen: a screen reader meets it
-                before the title, where the badge already is (ADR-010, decision 5). */}
+                before the title, where the badge already is. */}
             {config.favouritesenabled && (
                 <Star
                     courseid={card.id}

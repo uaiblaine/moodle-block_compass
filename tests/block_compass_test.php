@@ -36,7 +36,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * The block is a shell: it renders for logged-in users, nothing for guests,
- * and touches no data while doing so (PLAN.md §3.2).
+ * and touches no data while doing so.
  *
  * @package    block_compass
  * @category   test
@@ -82,7 +82,7 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
-     * The block is a Dashboard block and nothing else (ADR-000, decision 5).
+     * The block is a Dashboard block and nothing else.
      *
      * @return void
      */
@@ -108,9 +108,8 @@ final class block_compass_test extends advanced_testcase {
         $content = $this->make_block()->get_content();
 
         $this->assertStringContainsString('data-region="block_compass"', $content->text);
-        // Since phase R2 the shell is a React mount point: the component name and its props
-        // ARE the contract between the server and the client, so they are what is asserted.
-        // Since ADR-011 the mount point is the bundle: one file over the whole client.
+        // The component name and its props are the contract between the server and the client,
+        // so they are what is asserted; the component is the bundle of the whole client.
         $this->assertStringContainsString('data-react-component="@moodle/lms/block_compass/bundle"', $content->text);
         $this->assertMatchesRegularExpression('/data-react-props=\'(.*?)\'/', $content->text);
         preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
@@ -134,17 +133,17 @@ final class block_compass_test extends advanced_testcase {
         // The icons are server-rendered markup because there is no pix helper for ESM.
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
-        // The tier 3 toolbar's icon-only controls (ADR-009): list, grid and filter glyphs; the archive
-        // boxes, the accordion's chevrons and the reload control (ADR-010).
+        // The tier 3 toolbar's icon-only controls: list, grid and filter glyphs; the archive
+        // boxes, the accordion's chevrons and the reload control.
         $icons = ['list', 'grid', 'filter', 'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl', 'reload'];
         foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
         }
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
-        $this->assertArrayNotHasKey('hide', $props['icons'], 'the eye is gone (ADR-010, decision 2)');
-        // The category line and the remembered toolbar (ADR-010, decisions 9 and 11).
+        $this->assertArrayNotHasKey('hide', $props['icons'], 'the archive control is drawn with the archive boxes, not the eye');
+        // The category line and the remembered toolbar.
         $this->assertTrue($props['showcategory']);
-        // Where the block is, as a heading level: under core's block title, an h3, so 4 (ADR-012).
+        // Where the block is, as a heading level: under core's block title, an h3, so 4.
         $this->assertSame(4, $props['headinglevel']);
         $this->assertSame(
             ['sort' => 'category', 'chip' => 'all', 'cf' => [], 'panel' => true],
@@ -154,8 +153,8 @@ final class block_compass_test extends advanced_testcase {
         $this->assertFalse($props['pendingenabled']);
         $this->assertSame(get_string('chip_pending', 'block_compass'), $props['labels']['chip_pending']);
 
-        // Since R3 the shell carries ONE mount point and nothing else of the block's own:
-        // tier 3 renders from the component, so the region it used to need is gone.
+        // The shell carries one mount point and nothing else of the block's own: tier 3 renders
+        // inside the component and needs no region of its own.
         $this->assertStringNotContainsString('data-region="explore"', $content->text);
         $this->assertSame(
             1,
@@ -211,15 +210,15 @@ final class block_compass_test extends advanced_testcase {
      *
      * Three drops in one stored value, each a different check: a sort outside the vocabulary,
      * the pending chip while the feature is off, and a field key that is not a shortname. What
-     * survives is what ships (ADR-010, decision 9).
+     * survives is what ships.
      *
      * The second half is about the shape of an empty selection. The shell cannot ship it as {}:
      * core's react helper decodes the template's JSON block associatively and encodes it again
-     * (lib/classes/output/mustache_react_helper.php:158), so [] is what reaches the client
-     * whatever the shell wrote, and the client - which writes {} back - normalises it where it
-     * reads it. Nothing runs the client here, so the normalisation is pinned in its source: the
-     * one line that reads the selection off the props must go through it, or every mount would
-     * write the same state once over a difference that means nothing.
+     * (lib/classes/output/mustache_react_helper.php), so [] is what reaches the client whatever
+     * the shell wrote, and the client - which writes {} back - normalises it where it reads it.
+     * Nothing runs the client here, so the normalisation is pinned in its source: the lines that
+     * read the selection off the props must go through it, or every mount would write the same
+     * state once over a difference that means nothing.
      *
      * @return void
      */
@@ -278,16 +277,16 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
-     * Rendering the shell reads nothing from the database once core is warm (PLAN.md §3.2).
+     * Rendering the shell reads nothing from the database once core is warm.
      *
      * Protocol: warm core by rendering once, then measure a second, fresh block whose
      * page has already initialised its theme and output. That last step matters:
      * moodle_page::initialise_theme_and_output() runs
      * filter_manager::setup_page_for_globally_available_filters(), whose
      * filter_get_active_in_context() is a recordset that PostgreSQL executes as
-     * DECLARE, FETCH and CLOSE — three reads on the meter, measured on 5.2 — and that
-     * is core's per-page cost, not the shell's. The shell has no plugin cache to purge
-     * yet; when it does, purge it between the two renders.
+     * DECLARE, FETCH and CLOSE — three reads on the meter — and that is core's
+     * per-page cost, not the shell's. The shell reads no plugin cache; if it ever
+     * does, purge that cache between the two renders.
      *
      * @return void
      */

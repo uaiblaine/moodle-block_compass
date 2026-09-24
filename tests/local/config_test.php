@@ -32,12 +32,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * One place reads the settings, so one place is where the defaults and the clamps are proved.
  *
- * Two rules the fleet has paid for elsewhere are pinned here. An
- * admin_setting_configtext with PARAM_INT stores whatever an administrator
- * types, so a typed 99 must not turn tier 1 into tier 3 — the accessor clamps,
- * the setting does not. And a default-on checkbox is off only when an explicit
- * '0' is stored: "never set" and "stored 1" both mean on, which is why
- * favourites_enabled() cannot be written as a plain cast.
+ * Two rules are pinned here. An admin_setting_configtext with PARAM_INT stores any
+ * integer an administrator types, so a typed 99 must not turn tier 1 into tier 3 —
+ * the accessor clamps, the setting does not. And a default-on checkbox is off only
+ * when an explicit '0' is stored: "never set" and "stored 1" both mean on, which is
+ * why favourites_enabled() cannot be written as a plain cast.
  *
  * @package    block_compass
  * @category   test
@@ -95,7 +94,7 @@ final class config_test extends advanced_testcase {
 
     /**
      * filter_fields is at most FILTER_FIELDS_MAX distinct shortnames, cleaned to the shortname
-     * alphabet, in the stored order (ADR-009, decision 5).
+     * alphabet, in the stored order.
      *
      * The control is a stored list of three, which comes back whole: without it a clamp that
      * always answered the empty list would pass.
@@ -124,11 +123,10 @@ final class config_test extends advanced_testcase {
     }
 
     /**
-     * Applications awaiting approval are shown only when the setting is on AND enrol_apply is present.
+     * Applications awaiting approval are shown only when the setting is on and enrol_apply is present.
      *
-     * The presence is injected so both branches run on every site: the CI runtime has no
-     * enrol_apply, the development stack does. A stored one with the plugin absent is off — the
-     * forced-off of ADR-009 decision 7 — and never set is off whatever is installed.
+     * The presence is injected so both branches run whether or not enrol_apply is installed. A
+     * stored one with the plugin absent is off, and never set is off whatever is installed.
      *
      * @return void
      */
@@ -233,8 +231,8 @@ final class config_test extends advanced_testcase {
      * group_depth is at least one, and has no upper bound.
      *
      * Depth 0 does not exist in {course_categories} — the top level is depth 1
-     * — so a stored zero must not reach explore::group_id(), where it would
-     * index the path array at -1 and roll every course up to nothing.
+     * — so a stored zero must not reach category_meta::group_id(), where it
+     * would index the path at -1 and leave every category its own group.
      *
      * @param mixed $stored What the administrator's setting holds.
      * @param int $expected What the accessor must return.
@@ -272,10 +270,10 @@ final class config_test extends advanced_testcase {
     }
 
     /**
-     * The category line on cards is shown unless an explicit zero says otherwise (ADR-010, decision 11).
+     * The category line on cards is shown unless an explicit zero says otherwise.
      *
-     * The same three states as the favourites rule, and the same trap: a site that never
-     * opened the settings page has nothing stored, and a plain cast of that "nothing" would
+     * The same three states as the favourites rule, and the same trap: a site where the
+     * setting was never saved has nothing stored, and a plain cast of that "nothing" would
      * strip the category from every card on every such site.
      *
      * @return void
@@ -295,7 +293,7 @@ final class config_test extends advanced_testcase {
     }
 
     /**
-     * The block's own page is off unless an explicit 1 is stored (ADR-012, decision 1).
+     * The block's own page is off unless an explicit 1 is stored.
      *
      * The opposite default from the other checkboxes, on purpose: an upgrade must change
      * nothing for a site that never asked for the page, so "never set" and "0" both mean off.
@@ -316,7 +314,7 @@ final class config_test extends advanced_testcase {
     }
 
     /**
-     * The page's title is shown unless an explicit 1 hides it (ADR-012, amendment 4).
+     * The page's title is shown unless an explicit 1 hides it.
      *
      * Same shape as enable_page: "never set" and "0" both keep the theme's heading.
      *
@@ -338,9 +336,9 @@ final class config_test extends advanced_testcase {
     /**
      * The tier 3 search box is on unless an explicit zero says otherwise.
      *
-     * Same three states as the favourites rule, and the same trap: a site that
-     * never opened the settings page has nothing stored, and a plain cast of
-     * that "nothing" would hide the search box on every such site.
+     * Same three states as the favourites rule, and the same trap: a site where
+     * the setting was never saved has nothing stored, and a plain cast of that
+     * "nothing" would hide the search box on every such site.
      *
      * @return void
      */
@@ -506,8 +504,8 @@ final class config_test extends advanced_testcase {
      * Pre-warming is on only when an explicit one is stored.
      *
      * The mirror image of the default-on rule: this task costs database time on a schedule, so a
-     * site that never opened the settings page must not start it. Never set, an explicit zero
-     * and an empty string are all off; only the stored one is on.
+     * site where the setting was never saved must not start it. Never set, an explicit zero and
+     * an empty string are all off; only the stored one is on.
      *
      * @return void
      */
@@ -561,9 +559,9 @@ final class config_test extends advanced_testcase {
     /**
      * Months of silence default to twelve, refuse anything below one, and have no ceiling.
      *
-     * The ceiling is absent on purpose (ADR-007, decision 5): unlike attention_max a large
-     * value degrades nothing, it empties the group. The control is a stored 36, which must
-     * come back as 36 and not as the default.
+     * The ceiling is absent on purpose: unlike attention_max a large value degrades nothing,
+     * it empties the group. The control is a stored 36, which must come back as 36 and not
+     * as the default.
      *
      * @return void
      */

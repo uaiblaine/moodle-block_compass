@@ -27,7 +27,7 @@ namespace block_compass\local;
 use core_cache\cache;
 
 /**
- * Wrapper of the block_compass/coursefields definition (ADR-009, decision 5).
+ * Wrapper of the block_compass/coursefields definition.
  *
  * Key: course id. Value: field id => stored intvalue, for the eligible fields the course has a
  * data row for — the column both eligible types use
@@ -40,8 +40,8 @@ use core_cache\cache;
  *
  * A sibling of coursemeta and deliberately not a key inside it: cards.php writes coursemeta
  * entries from tier 1's strip rows, which carry no field columns, and a field-less entry
- * written there would be read here as "no values" — a wrong answer with a green suite. A
- * definition of its own cannot be poisoned by a caller that does not know about it.
+ * written there would be read here as "no values". A definition of its own cannot be
+ * written by a caller that does not know about it.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -69,8 +69,12 @@ final class course_fields {
      * Index: customfield_data (instanceid, fieldid, component, area, itemid), unique
      * (lib/db/install.xml, customfield_data). Bounded by the two id lists.
      *
+     * An entry is stored under the course id alone, with no record of the fields that filled it,
+     * so a caller passes every eligible field and never a subset: an entry filled for fewer fields
+     * would later answer a wider question as if the missing fields had no value.
+     *
      * @param int[] $courseids Course ids.
-     * @param int[] $fieldids Ids of the eligible fields (filter_fields::eligible()).
+     * @param int[] $fieldids Ids of every eligible field (filter_fields::eligible()).
      * @return array Course id => [field id => intvalue], every requested course present.
      */
     public static function get_many(array $courseids, array $fieldids): array {

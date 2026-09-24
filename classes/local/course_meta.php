@@ -30,7 +30,7 @@ use core_cache\cache;
 use stdClass;
 
 /**
- * Wrapper of the block_compass/coursemeta definition (ADR-001, layer 1).
+ * Wrapper of the block_compass/coursemeta definition.
  *
  * Key: course id. Value: raw fullname and shortname, category id, visible,
  * enablecompletion, and the six context columns needed to rebuild the course
@@ -55,15 +55,6 @@ final class course_meta {
      */
     private static function cache(): cache {
         return cache::make('block_compass', 'coursemeta');
-    }
-
-    /**
-     * Kept for callers that purge the definition and then reset the wrapper; there is no
-     * per-request memo to clear (see cache()).
-     *
-     * @return void
-     */
-    public static function reset(): void {
     }
 
     /**

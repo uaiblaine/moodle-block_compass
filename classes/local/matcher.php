@@ -28,7 +28,7 @@ use core_text;
 use Normalizer;
 
 /**
- * PHP twin of js/esm/src/filter.ts's normalise() and matches() (ADR-004, fact 5).
+ * PHP twin of js/esm/src/filter.ts's normalise() and matches(); keep the two in step.
  *
  * Full mode matches in the browser; paged mode matches here, over the raw course
  * names of the entry. The two must agree bit for bit, so this class reproduces
@@ -36,8 +36,9 @@ use Normalizer;
  * core_text::specialtoascii() — ICU's "Any-Latin; Latin-ASCII" transliteration,
  * which also folds letters that have no canonical decomposition (ø, ß, æ, ł)
  * where NFD leaves them alone — or for the database collation, which cannot be
- * accent-insensitive on PostgreSQL. A PHPUnit fixture of query/name pairs pins
- * the parity from the PHP side; the same pairs pin filter.ts.
+ * accent-insensitive on PostgreSQL. The query/name pairs of
+ * block_compass_generator::search_pairs() pin the PHP side; no test runs
+ * filter.ts, so check a change on either side against those pairs.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -49,7 +50,7 @@ final class matcher {
      *
      * The four steps in the JavaScript order: canonical decomposition (NFD, what
      * String.prototype.normalize('NFD') does in the client) through the intl
-     * extension's Normalizer — Moodle 5.2 requires intl (admin/environment.xml:5402,
+     * extension's Normalizer — Moodle 5.2 requires intl (admin/environment.xml,
      * PHP_EXTENSION name="intl" level="required"); removal of the combining
      * diacritical marks U+0300–U+036F; lower-casing through core_text::strtolower()
      * (lib/classes/text.php:237, mb_strtolower under the hood); and a trim that, like the word

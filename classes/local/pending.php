@@ -25,22 +25,21 @@
 namespace block_compass\local;
 
 /**
- * The "awaiting approval" rule, in one place, so it has one home and one test (ADR-009, decision 3).
+ * The "awaiting approval" rule, in one place, so it has one home and one test.
  *
- * It is enrol_apply's own rule and not a value: that plugin creates every application at
+ * It is enrol_apply's own rule and not a status value: that plugin creates every application at
  * ENROL_USER_SUSPENDED and writes its waiting-list status only when a manager explicitly
- * defers one, and its approval queue, review lookup and retention sweep all read the SAME
- * predicate — not active, with the enrolment period still open
- * (enrol/apply/classes/local/queue.php:51-75, awaiting_decision_where()). The period clause is
- * not decoration: under an "expired action" of suspend, core re-suspends an enrolment whose
- * period ran out, and that row is status 1 with a past timeend — somebody approved long ago,
- * not an applicant. What Compass adds is the third clause that says the row is an application
- * at all: it sits on an instance of the "apply" method. A suspended manual enrolment is not an
- * application, and neither is a lapsed self-enrolment.
+ * defers one, and it recognises an undecided application by one predicate — not active, with
+ * the enrolment period still open ({@see \enrol_apply\local\queue::awaiting_decision_where()}).
+ * The period clause matters: under an "expired action" of suspend, core re-suspends an
+ * enrolment whose period ran out, and that row is status 1 with a past timeend — somebody
+ * approved long ago, not an applicant. What Compass adds is the third clause that says the row
+ * is an application at all: it sits on an instance of the "apply" method. A suspended manual
+ * enrolment is not an application, and neither is a lapsed self-enrolment.
  *
  * Nothing here names enrol_apply's own constant, and nothing may: enrol_get_plugin('apply')
- * include_onces the plugin's lib.php as a side effect (lib/enrollib.php:142-166), and this
- * block does not depend on that plugin. The only status constant spelled is core's own.
+ * include_onces the plugin's lib.php as a side effect, and this block does not depend on that
+ * plugin. The only status constant spelled is core's own.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -53,9 +52,9 @@ final class pending {
     /**
      * Whether an inventory row is an application awaiting a decision, at the given instant.
      *
-     * Three clauses, each a mutation gate of its own: the row is on an apply instance
-     * (inventory::APPLYINSTANCE, non-zero), its status is not active, and its period is still
-     * open. A row written before the eleventh integer existed reads as 0 and is not pending.
+     * Three clauses: the row is on an apply instance (inventory::APPLYINSTANCE, non-zero), its
+     * status is not active, and its period is still open. A cached row that lacks the
+     * APPLYINSTANCE field reads as 0 and is not pending.
      *
      * @param array $row An inventory row, keyed by inventory's index constants.
      * @param int $now Unix time to treat as now.

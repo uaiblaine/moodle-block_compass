@@ -2,10 +2,9 @@ import{amd as l}from"./amd";var u=null,c=[1e3,3e3],d=500,i=null,m=0,P=e=>{i=e},_
 /**
  * The only module that talks to the server.
  *
- * core/ajax is an AMD module and a React component cannot import one (ADR-006), so
- * it is reached through the bridge, once, and every call goes through here. Phase R2
- * had this file borrow the AMD repository through that same bridge because tier 3
- * still used it; R3 removed the AMD half, so this is now the repository itself.
+ * The core/ajax and core_user/repository modules are AMD, which an ES module cannot import,
+ * so they are loaded through the bridge in amd.ts; every web service call and preference
+ * write of the client goes through here.
  *
  * @module     block_compass/repository
  * @copyright  2026 Anderson Blaine

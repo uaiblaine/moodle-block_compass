@@ -2,16 +2,12 @@ import r from"./Progress";import n from"./Star";import{titleTag as p}from"./head
 /**
  * One tier 1 card.
  *
- * Since R2 the card is a component rather than a Mustache template: it renders from the
- * payload block_compass_get_attention returned and re-renders when the star or the
- * progress changes, which is what makes patching one card cheap. The title's level comes
- * from heading.ts, one rung under the strip heading (ADR-008, decision 3), and the title is
- * clamped to two lines with the whole name in its title attribute (ADR-009, decision 10).
- *
- * Since ADR-010 the star sits in the image's top-right corner on a contrast disc and the badge
- * in the top-left (decision 5), the category line follows the show_category setting (decision
- * 11), and "No completion configured" is said only to a viewer who is not a learner of the
- * course, when completion is off (decision 10).
+ * It renders from the block_compass_get_attention payload and re-renders when the star or
+ * the progress changes, which is what makes patching one card cheap. The title's level comes
+ * from heading.ts, one rung under the strip heading, and the title is clamped to two lines
+ * with the whole name in its title attribute. The star sits in the image's top-right corner
+ * on a contrast disc, the badge in the top-left, and the category line follows the
+ * show_category setting.
  *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine

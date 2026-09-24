@@ -14,7 +14,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The filter panel of tier 3: chip groups on platters, one value per group (ADR-009, decision 4).
+ * The filter panel of tier 3: chip groups on platters, one value per group.
  *
  * The Status group first - All, New, Favourites and, when the feature is on, Awaiting approval -
  * then one group per course custom field the administrator chose, then one Clear control shared
@@ -23,9 +23,9 @@
  * Groups combine with AND. Every group is named by a visible label through aria-labelledby, and
  * the label is not a heading: the panel is a control, not a section.
  *
- * The panel is a plain block toggled with the hidden property and never a Bootstrap collapse:
- * Bootstrap's display utilities are !important and would defeat [hidden], which is the rule
- * bootstrap_compat_test already enforces.
+ * The panel is a plain block toggled with the hidden property, never a Bootstrap collapse, and
+ * it carries no display utility: those are !important and would defeat [hidden]
+ * (bootstrap_compat_test enforces that).
  *
  * @module     block_compass/FilterPanel
  * @copyright  2026 Anderson Blaine
@@ -77,12 +77,12 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
         statuschips.push(['pending', labels.chip_pending]);
     }
     /**
-     * A chip that would show nothing is not drawn (ADR-010, decision 3).
+     * A chip that would show nothing is not drawn.
      *
      * With two exceptions: the pressed one, because releasing it is the only way back, and
      * any chip without a number - All, which carries none by design, and every chip in paged
      * mode, where no count is true yet and hiding on a guess would hide a value the server
-     * would match (ADR-009, decision 5).
+     * would match.
      *
      * @param {object} item The chip.
      * @returns {boolean} Whether it is drawn.
@@ -135,12 +135,23 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
                     </div>
                 );
             })}
+            {/* Never the disabled attribute: the press that releases the last filter would disable
+                the focused button in the render it causes, dropping the keyboard to the body (see
+                Reload.tsx). aria-disabled says it, and the handler refuses the press. Bootstrap's
+                disabled class is kept for its look: its pointer-events: none passes a click to the
+                panel beneath, which has no handler and no stretched link (see Star.tsx). */}
             <div>
                 <button
                     type="button"
-                    className="btn btn-sm btn-outline-secondary rounded-pill compass-clear"
-                    disabled={pressed === 0}
-                    onClick={onClear}
+                    className={pressed === 0
+                        ? 'btn btn-sm btn-outline-secondary rounded-pill compass-clear disabled'
+                        : 'btn btn-sm btn-outline-secondary rounded-pill compass-clear'}
+                    aria-disabled={pressed === 0 || undefined}
+                    onClick={() => {
+                        if (pressed > 0) {
+                            onClear();
+                        }
+                    }}
                 >
                     {labels.clearfilters}
                 </button>

@@ -30,7 +30,7 @@ use core_cache\cache;
 use stdClass;
 
 /**
- * Wrapper of the block_compass/categorymeta definition (ADR-001, category layer).
+ * Wrapper of the block_compass/categorymeta definition.
  *
  * Key: category id. Value: raw name, path, depth and the six context columns
  * needed to rebuild the category context without a query. Nothing formatted,
@@ -57,15 +57,6 @@ final class category_meta {
      */
     private static function cache(): cache {
         return cache::make('block_compass', 'categorymeta');
-    }
-
-    /**
-     * Kept for callers that purge the definition and then reset the wrapper; there is no
-     * per-request memo to clear (see cache()).
-     *
-     * @return void
-     */
-    public static function reset(): void {
     }
 
     /**
@@ -180,10 +171,9 @@ final class category_meta {
     /**
      * The category context of an entry, rebuilt from the stored columns without a query.
      *
-     * context_helper::preload_from_record() (lib/classes/context_helper.php) seeds core's
-     * context cache, and context\coursecat::instance() (lib/classes/context/coursecat.php)
-     * returns from that cache — "if ($context = context::cache_get(self::LEVEL, $categoryid))"
-     * — before it would read {context}.
+     * context_helper::preload_from_record() seeds core's context cache, which
+     * context\coursecat::instance() consults before it would read {context}
+     * (lib/classes/context/coursecat.php:168).
      *
      * @param array $entry An entry from get_many() or set_from_rows().
      * @return context
@@ -231,14 +221,14 @@ final class category_meta {
      *
      * A move rewrites the whole subtree — course_categories.path and depth through
      * fix_course_sortorder() (lib/datalib.php, _fix_course_cats()) and the context paths
-     * through context::update_moved() (lib/classes/context.php) — and the event is created
-     * with objectid and context only, at every site in course/classes/category.php (update(),
-     * change_parent(), hide(), show(), change_sortorder_by_one(), delete_move()), so a move
-     * cannot be told from a rename and every update drops the descendants as well. A
-     * descendant's path holds "/<id>/" — the ancestor's id delimited on both sides — and no
-     * other category's does, so the predicate is right whether the paths are the old ones or
-     * the rebuilt ones (delete_move() fires the event for each child before its own
-     * fix_course_sortorder()), and needs no read of the category's own path first.
+     * through context::update_moved() — and the event is created with objectid and context
+     * only, at every site in course/classes/category.php (update(), change_parent(), hide(),
+     * show(), change_sortorder_by_one(), delete_move()), so a move cannot be told from a
+     * rename and every update drops the descendants as well. A descendant's path holds
+     * "/<id>/" — the ancestor's id delimited on both sides — and no other category's does, so
+     * the predicate is right whether the paths are the old ones or the rebuilt ones
+     * (delete_move() fires the event for each child before its fix_course_sortorder()), and
+     * needs no read of the category's own path first.
      *
      * Index: none. course_categories has no index on path (lib/db/install.xml: the primary key
      * and the parent foreign key only), so this scans the category table — categories, not

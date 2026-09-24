@@ -1,12 +1,14 @@
 /* Compass block.
  *
- * Tokens are declared on every root the plugin paints, including the ones
- * core relocates (a core/modal dialogue is appended to body, outside the
- * block). Read the theme's tokens with a fallback chain; never hardcode a
- * palette and never declare --mds-* names.
+ * Tokens are declared on every root the plugin paints. The block is the only
+ * one today; a surface the plugin painted inside something core relocates (a
+ * core/modal dialogue is appended to body, outside the block) would need the
+ * declaration repeated on its own root. The one dialogue the client opens is
+ * core's save and cancel confirmation, which the theme paints. Read the
+ * theme's tokens with a fallback chain; never hardcode a palette and never
+ * declare --mds-* names.
  */
-.block_compass,
-.compass-dialogue {
+.block_compass {
     --block_compass-brand: var(--bs-primary, #0f6cbf);
     --block_compass-brand-text: var(--bs-primary, #0f6cbf);
     --block_compass-line: var(--bs-border-color, #dee2e6);
@@ -14,34 +16,19 @@
     --block_compass-surface: var(--bs-body-bg, #fff);
 }
 
-/* Brand TEXT needs its own token: the brand on Boost's dark body is 3.02:1, under the
-   4.5:1 floor (ADR-008, decision 3), and Bootstrap's dark emphasis tint of the brand is
-   not safe either - a navy brand tints to 3.28:1 (measured). Body text is the one colour
-   dark mode guarantees readable. 5.2 has one dark mechanism - the attribute Bootstrap 5.3
-   moves its tokens under; nothing on 5.2 emits a .theme-dark class.
+/* Brand-coloured text needs its own token: the brand on Boost's dark body is 3.02:1, under
+   the 4.5:1 floor, and Bootstrap's dark emphasis tint of a brand is not safe either - a navy
+   brand tints to 3.28:1. Body text is the one colour dark mode guarantees readable.
 
-   FOUR SELECTORS, BECAUSE THE HOST WRITES THE ATTRIBUTE IN ONE OF TWO PLACES, AND ON 5.2 IT
-   IS NOT THE ONE YOU WOULD EXPECT. Measured on the 5.2 checkout: theme_boost does NOT listen
-   to core's before_html_attributes hook and ships no enablecolourmodes setting, so nothing in
-   core writes this attribute at all on the branch this block supports. What does write it is
-   theme_moove, on document.body (amd/src/darkmode.js:35), redefining the whole --bs-* set
-   there - and the old :root anchor could not see that, so under moove's dark mode the brand
-   text kept its 3.02:1 light value on a dark body.
+   Moodle 5.2 has one dark mechanism, the data-bs-theme attribute (no .theme-dark class), and
+   a theme may set it on html or on body. On 5.2 theme_boost sets it nowhere; theme_moove sets
+   it on body. On 5.3-dev theme_boost sets it on html, behind theme_boost/enablecolourmodes.
 
-   The html arm is therefore forward-looking rather than current: on 5.3-dev theme_boost does
-   listen (classes/hook_listener.php:93 adds data-bs-theme to the html tag, behind
-   theme_boost/enablecolourmodes) and Bootstrap's own rule is unanchored anyway.
-
-   Naming html or body as the scope - and nothing deeper - is what keeps the original
-   guarantee the :root anchor was written for: theme_boost_union sets this same attribute on
-   its navbar alone, and a bare [data-bs-theme="dark"] .block_compass would match through ANY
-   ancestor at any depth, since CSS descendant combinators have no nearest-ancestor-wins
-   rule. Neither arm below can match a navbar scope. Pinned by
-   accessibility_rules_test::test_dark_override_scope_is_html_or_body. */
+   Html or body, and nothing deeper: theme_boost_union sets the same attribute on its navbar
+   alone, and a bare [data-bs-theme="dark"] .block_compass would match through any ancestor.
+   Pinned by accessibility_rules_test::test_dark_override_scope_is_html_or_body. */
 body[data-bs-theme="dark"] .block_compass,
-[data-bs-theme="dark"] body .block_compass,
-body[data-bs-theme="dark"] .compass-dialogue,
-[data-bs-theme="dark"] body .compass-dialogue {
+[data-bs-theme="dark"] body .block_compass {
     --block_compass-brand-text: var(--bs-body-color, #dee2e6);
 }
 
@@ -55,8 +42,8 @@ body[data-bs-theme="dark"] .compass-dialogue,
     margin-bottom: 1.25rem;
 }
 
-/* The block's own top-right corner (ADR-010, decision 12): the title bar beside it is core's, so
-   the reload control sits on the first row of the content, pushed to the right. */
+/* The block's own top-right corner: the title bar beside it is core's, so the reload control
+   sits on the first row of the content, pushed to the right. */
 .block_compass .compass-content-head {
     display: flex;
     justify-content: flex-end;
@@ -78,7 +65,7 @@ body[data-bs-theme="dark"] .compass-dialogue,
     outline-offset: 2px;
 }
 
-/* The page without its title (ADR-012, amendment 4), keyed on the body class index.php adds:
+/* The page without its title, keyed on the body class index.php adds:
    the theme got an empty heading and its header holds nothing, so the header collapses to no
    height (its inner margins are Bootstrap utilities, which win by weight, so they are boxed in
    rather than fought); the page carries its own h1, visually hidden by core's class; and the
@@ -131,8 +118,8 @@ body[data-bs-theme="dark"] .compass-dialogue,
     }
 }
 
-/* The way back from a failure (ADR-010, decision 12): the message, then Try again and Reload
-   page pushed to the end of the line; the amber is Bootstrap's own warning alert. */
+/* The way back from a failure: the message, then Try again and Reload page pushed to the end
+   of the line; the amber is Bootstrap's own warning alert. */
 .block_compass .compass-retry-actions {
     display: inline-flex;
     align-items: center;
@@ -145,7 +132,7 @@ body[data-bs-theme="dark"] .compass-dialogue,
 }
 
 /* A strip's heading row: the title and, when the strip overflowed, the link to the rest of it
-   in tier 3 (ADR-009, decision 2). The link is text, so it is painted with the text token. */
+   in tier 3. The link is text, so it is painted with the text token. */
 .block_compass .compass-strip-head {
     display: flex;
     align-items: baseline;
@@ -166,14 +153,14 @@ body[data-bs-theme="dark"] .compass-dialogue,
     outline-offset: 2px;
 }
 
-/* The one notice an enrolment application gets in tier 1, under New enrolments (ADR-009). */
+/* The one notice an enrolment application gets in tier 1, under New enrolments. */
 .block_compass .compass-strip-note {
     margin: -0.5rem 0 1.25rem;
 }
 
 /* A course name is at most two lines, ellipsis and all - Boost's own .clamp-2 pattern
    (theme/boost/scss/moodle/core.scss) - and the whole name rides in the element's title
-   attribute (ADR-009, decision 10). Visual only: the text stays whole in the DOM. */
+   attribute. Visual only: the text stays whole in the DOM. */
 .block_compass .compass-clamp {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -216,8 +203,8 @@ body[data-bs-theme="dark"] .compass-dialogue,
     opacity: 0.6;
 }
 
-/* The badge in a card's top-LEFT corner - New on a new enrolment, Awaiting approval on an
-   application - and the star in the top-right (ADR-010, decision 5). */
+/* The badge in a card's top-left corner - New on a new enrolment, Awaiting approval on an
+   application - and the star in the top-right. */
 .block_compass .compass-card-badge {
     position: absolute;
     top: 0.5rem;
@@ -231,9 +218,9 @@ body[data-bs-theme="dark"] .compass-dialogue,
 
 /* The star sits above the stretched link, or the link would swallow its clicks. Its glyph is
    painted with the text token rather than left to btn-link: Boost paints btn-link with the
-   brand itself, which on the dark body measured 1.10:1 on a navy brand (ADR-008). On a card it
-   takes the image's top-right corner on a surface disc with a line border, so the control keeps
-   3:1 over any photograph, light or dark (ADR-010, decision 5); in a list row it is inline. */
+   brand itself, which on the dark body is 1.10:1 for a navy brand. On a card it takes the
+   image's top-right corner on a surface disc with a line border, so the control keeps 3:1
+   over any photograph, light or dark; in a list row it is inline. */
 .block_compass .compass-star {
     position: relative;
     z-index: 2;
@@ -279,23 +266,17 @@ body[data-bs-theme="dark"] .compass-dialogue,
     background: var(--bs-secondary-bg, #f8f9fa);
 }
 
-/* The error region carries `hidden` from the server and is unhidden only on a failure --
-   but `d-flex` used to sit on it, and Bootstrap utilities are !important. Boost's own
-   `[hidden] { display: none !important; }` has the SAME specificity, so source order
-   decided it and `.d-flex` won: the block shipped a permanently visible empty warning
-   with a Try again button, on every Dashboard, since Phase 1. Nothing could see it --
-   phpcs reads PHP, the Mustache lint reads structure, stylelint reads this file, and
-   Behat's `I should see` does not ask whether an empty span is displayed. Found by
-   looking at the page. The layout is the same; the guard is what makes `hidden` win. */
+/* The retry notice lays its message and actions out on one line. The layout is stated here,
+   under :not([hidden]), rather than with d-flex: Bootstrap's display utilities are !important
+   and have the same specificity as Boost's [hidden] { display: none !important; }, so the
+   utility, later in source order, would keep a hidden element visible. */
 .block_compass .compass-error:not([hidden]) {
     display: flex;
     align-items: center;
 }
 
-/* Until R1 the tier 2 ghost was rendered inside the cards grid, alone, so it was one
-   column wide rather than the block's full width. It has its own region now, so the
-   region reproduces that grid: without this the w-100 button stretches edge to edge,
-   which is a visual change nobody decided. */
+/* When no strip has cards the ghost stands alone in its own region, which reproduces the
+   cards grid so the w-100 button is one column wide rather than the block's full width. */
 .block_compass .compass-ghost-wrap {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
@@ -357,8 +338,8 @@ body[data-bs-theme="dark"] .compass-dialogue,
     list-style: none;
 }
 
-/* Every other control here states its own ring; the summary relied on the browser
-   default alone (ADR-008, decision 3, finding 5). */
+/* Every other control here states its own ring; without this the summary would rely on the
+   browser default alone. */
 .block_compass .compass-group-summary:focus-visible {
     outline: 2px solid var(--block_compass-brand);
     outline-offset: 2px;
@@ -369,10 +350,10 @@ body[data-bs-theme="dark"] .compass-dialogue,
 }
 
 /* The accordion's chevron is core's own pair, shown and hidden by core's icons-collapse-expand
-   rule the way a course section's is, with less padding around the glyph (ADR-010, decision 7).
-   Painted with the text token: core paints its own with the brand, through btn-icon. Core's rule
-   also makes the span a block-level flex box (theme/boost/scss/moodle/icons.scss, .icons-collapse-
-   expand), which breaks the line and drops the group name under the glyph; inline-flex keeps the
+   rule the way a course section's is, with less padding around the glyph. Painted with the
+   text token: core paints its own with the brand, through btn-icon. Core's rule also makes the
+   span a block-level flex box (theme/boost/scss/moodle/icons.scss, .icons-collapse-expand),
+   which breaks the line and drops the group name under the glyph; inline-flex keeps the
    show/hide of the two icons inside and flows with the name. Scoped here, never on the class. */
 .block_compass .compass-group-chevron {
     display: inline-flex;
@@ -386,7 +367,7 @@ body[data-bs-theme="dark"] .compass-dialogue,
     border-top: 1px solid var(--block_compass-line);
 }
 
-/* Paged mode (ADR-004): the "Show more" control closes a group like one more row,
+/* Paged mode: the "Show more" control closes a group like one more row,
    full width, separated from the rows above it by the same rule they use. */
 .block_compass .compass-showmore {
     display: block;
@@ -397,8 +378,8 @@ body[data-bs-theme="dark"] .compass-dialogue,
 }
 
 /* A row wraps once its parts no longer fit on one line - the name first, then the date, the
-   progress and the controls below it. Measured at 375 CSS px: the unwrapped row overflowed
-   the block by 19 px, which is a horizontal scroll at 320 (WCAG 1.4.10, ADR-008). */
+   progress and the controls below it. Unwrapped, a row overflows a narrow block and scrolls
+   horizontally at 320 CSS px (WCAG 1.4.10 Reflow). */
 .block_compass .compass-row {
     flex-wrap: wrap;
     padding: 0.4rem 0.75rem;
@@ -428,15 +409,11 @@ body[data-bs-theme="dark"] .compass-dialogue,
 }
 
 /* The underline above marks the name; this marks the link, which is what a keyboard user
-   is actually on - a stretched link covers the whole row or card (ADR-008, decision 3). */
+   is actually on - a stretched link covers the whole row or card. */
 .block_compass .compass-row-link:focus-visible,
 .block_compass .compass-card-link:focus-visible {
     outline: 2px solid var(--block_compass-brand);
     outline-offset: 2px;
-}
-
-.block_compass .compass-row-star {
-    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-ghost {
@@ -460,11 +437,11 @@ body[data-bs-theme="dark"] .compass-dialogue,
     background: var(--block_compass-surface);
 }
 
-/* Tier 3 cards (ADR-010, decision 4): a grid whose column count the client sets - three
-   without the category index, two with it, one under 640 px of section width - so a lone card
-   on the last line keeps its column. An integer count from a class rather than auto-fill, which
-   packs a third card into a wide block, and rather than a container query, which the lint
-   rejects; minmax(0, 1fr) keeps a long name from widening a column. */
+/* Tier 3 cards: a grid whose column count the client sets - three without the category index,
+   two with it, one under 640 px of section width - so a lone card on the last line keeps its
+   column. An integer count from a class rather than auto-fill, which packs a third card into a
+   wide block, and rather than a container query, which Moodle's stylelint rejects;
+   minmax(0, 1fr) keeps a long name from widening a column. */
 .block_compass .compass-rowcards {
     display: grid;
     gap: 0.75rem;
@@ -510,7 +487,7 @@ body[data-bs-theme="dark"] .compass-dialogue,
 }
 
 /* A placeholder shaped like the value it is standing in for, while the batch that
-   answers for this row is out (ADR-005, decision 2). */
+   answers for this row is out. */
 .block_compass .compass-skeleton {
     display: block;
     min-height: 0.75rem;
@@ -545,11 +522,11 @@ body[data-bs-theme="dark"] .compass-dialogue,
     }
 }
 
-/* Archiving (ADR-007): one icon-only control per row, on the row's own line, and above the
-   card's stretched link so the click is the button's and not the card's.
+/* Archiving: one icon-only control per row, on the row's own line, and above the card's
+   stretched link so the click is the button's and not the card's.
    btn-link btn-sm p-0 computes to about 23 px tall, one under the 24 px minimum of WCAG
-   2.2 2.5.8 (ADR-008, decision 3), so the box is stated here rather than by dropping p-0:
-   the icon keeps the size it has and only the target grows around it. */
+   2.2 2.5.8, so the box is stated here rather than by dropping p-0: the icon keeps the size
+   it has and only the target grows around it. */
 .block_compass .compass-archive {
     display: inline-flex;
     align-items: center;
@@ -576,9 +553,9 @@ body[data-bs-theme="dark"] .compass-dialogue,
     border-bottom: 1px solid var(--block_compass-line);
 }
 
-/* Tier 3 toolbar (ADR-009, decision 4): the sort platter and the view toggle on one line, the
-   search box and the Filter button on a second, full-basis line. Painted with the theme's
-   secondary and tertiary surfaces, which dark mode moves like every other --bs-* token. */
+/* Tier 3 toolbar: the sort platter and the view toggle on one line, the search box and the
+   Filter button on a second, full-basis line. Painted with the theme's secondary and tertiary
+   surfaces, which dark mode moves like every other --bs-* token. */
 .block_compass .compass-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -687,7 +664,7 @@ body[data-bs-theme="dark"] .compass-dialogue,
 }
 
 /* The scroll paddles: decorative, mouse-only (aria-hidden, tabindex -1), drawn only while
-   the pills overflow the mask and disabled at the edge they cannot scroll past. */
+   the pills overflow the mask and hidden at the edge they cannot scroll past. */
 .block_compass .compass-paddle {
     position: absolute;
     top: 50%;
@@ -789,7 +766,7 @@ body[data-bs-theme="dark"] .compass-dialogue,
 
 /* The filter panel: a plain block the hidden property toggles - never a Bootstrap collapse,
    whose display utilities are !important and would defeat [hidden]. The layout is stated
-   under :not([hidden]) for the same reason the error region's is. */
+   under :not([hidden]) for the same reason as .compass-error's. */
 .block_compass .compass-fpanel:not([hidden]) {
     display: flex;
     flex-direction: column;

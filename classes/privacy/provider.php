@@ -34,16 +34,22 @@ use core_privacy\local\request\writer;
  * tier 3 toolbar as they left it.
  *
  * Everything else it shows is core's — courses, enrolments, favourites, the archived-course
- * preferences of the Course overview block — and stays core's to export and to delete
- * (ADR-000, decisions 8 and 16). Since Phase R4 the block writes block_compass_view, and since
- * Phase 9 block_compass_explore (ADR-010, decision 9), so the null provider it used to be would
- * now be a false statement.
+ * preferences of the Course overview block — and stays core's to export and to delete.
  *
- * Both interfaces are needed and neither is optional: a component counts as compliant only
- * when it implements the metadata provider AND a data provider
- * (privacy/classes/manager.php:143-159), and user_preference_provider is only the second of
- * those. No deletion method is owed — the interface declares none, and core's own block does
- * not implement one for its preferences either.
+ * Two caches keyed by user hold copies derived from that core data: the inventory (each
+ * enrolment's dates and status, the last access, the star) and the progress per course. They
+ * are not exported, since they say nothing core's own export does not. When an account is
+ * deleted, {@see \block_compass\observer::user_deleted()} drops the user's inventory entry and
+ * the progress entries of every course it lists. Whatever the observer cannot reach is bounded
+ * by the TTLs in db/caches.php: an hour for progress in a course no cached inventory entry
+ * lists, a day for an inventory entry left behind by any deletion that does not go through
+ * delete_user().
+ *
+ * Both interfaces are needed: a component counts as compliant only when it implements the
+ * metadata provider and a data provider ({@see \core_privacy\manager::component_is_compliant()}),
+ * and user_preference_provider is only the second of those. No deletion method is owed — the
+ * interface declares none, and core's own block does not implement one for its preferences
+ * either.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -73,16 +79,14 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
      * Export the stored preferences of one user.
      *
      * The exported view is the label the viewer chose rather than the stored token, and the
-     * match names both keys literally: get_string() with a key built from the stored value
-     * would be a dynamic string id, which this fleet forbids.
+     * match names both keys literally rather than building a string id from the stored value.
      *
-     * Anything outside the vocabulary is exported verbatim, and that is the point of the
-     * default arm rather than an oversight. The rest of the plugin re-validates a stored
-     * view because a value it cannot draw would render nothing (config::default_view(),
-     * block\view()); an export answers a different question — what is held about this
-     * person — so naming a view they never chose would be a false statement in the one
-     * document that exists to be true. The toolbar state is exported as stored for the same
-     * reason: it is the JSON the viewer's own browser wrote.
+     * Anything outside the vocabulary is exported verbatim, on purpose. The rest of the plugin
+     * falls back to a default for a stored view it cannot draw
+     * ({@see \block_compass\output\block::view()}); an export answers a different question —
+     * what is held about this person — so it must not name a view they never chose. The toolbar
+     * state is exported as stored for the same reason: it is the JSON the viewer's own browser
+     * wrote.
      *
      * @param int $userid The user whose data is being exported.
      * @return void

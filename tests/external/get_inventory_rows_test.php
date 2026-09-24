@@ -28,9 +28,6 @@ namespace block_compass\external;
 use advanced_testcase;
 use block_compass\local\budget;
 use block_compass\local\dormancy;
-use block_compass\local\category_meta;
-use block_compass\local\course_meta;
-use block_compass\local\details;
 use block_compass\local\inventory;
 use core\exception\invalid_parameter_exception;
 use core_cache\cache;
@@ -38,15 +35,15 @@ use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * One page of one group in paged mode (ADR-004, "Rows of a group").
+ * One page of one group in paged mode.
  *
  * Pinned here: the vocabularies of chip and sort, refused before any work; the
  * guest gate; the key set of the page and of every row, because
  * execute_returns() is an allowlist and clean_returnvalue() drops silently
  * whatever it does not declare; that a page's rows are exactly full mode's rows,
- * so the client renders both through one template; that a cursor from another
- * user's course restarts the page and leaks nothing; and the read budget of
- * ADR-004, measured as a fresh request pays it.
+ * so the client renders both with the same components; that a cursor from
+ * another user's course restarts the page and leaks nothing; and the read
+ * budget, measured as a fresh request pays it.
  *
  * @package    block_compass
  * @category   test
@@ -59,11 +56,11 @@ final class get_inventory_rows_test extends advanced_testcase {
      * A user with three courses across two categories.
      *
      * One course is opened, one is a brand-new starred enrolment and one is an
-     * old enrolment never opened, so every boolean of a row has both values
-     * somewhere in the group. Flat, the two categories are top-level and form
-     * two groups; nested, both sit under one "Faculty" category and roll up to a
+     * old enrolment never opened, so opened, new and fav each take both values
+     * in Cat A's group. Flat, the two categories are top-level and form two
+     * groups; nested, both sit under one "Faculty" category and roll up to a
      * single group at depth 1 — the ancestor the category layer has to fetch in
-     * a second list, which is the read the fully cold budget accounts for.
+     * a second list when it is cold.
      *
      * @param bool $nested Whether the two categories sit under a common parent.
      * @return array The user, the courses keyed by role, the two categories, the instant used and
@@ -107,7 +104,10 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * Purge every one of this plugin's definitions: the fully cold state of a fresh install.
+     * Purge coursemeta, categorymeta, details and inventory: the fully cold state of a fresh install.
+     *
+     * coursefields and filterfields are not purged: the budget tests configure no filter field,
+     * and without one neither layer is read.
      *
      * @return void
      */
@@ -116,9 +116,6 @@ final class get_inventory_rows_test extends advanced_testcase {
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -129,7 +126,6 @@ final class get_inventory_rows_test extends advanced_testcase {
     private function purge_user_caches(): void {
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        details::reset();
     }
 
     /**
@@ -200,7 +196,7 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * A chip outside all, new and favourites is refused before any work, at both layers.
+     * A chip outside all, new, favourites and pending is refused before any work, at both layers.
      *
      * PARAM_ALPHA only strips, so 'bogus' passes validate_parameters() and the vocabulary check
      * is the service's own. Zero reads is the "before any work" half: nothing was resolved for
@@ -227,7 +223,7 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * A filter outside the allowlist is refused before any work, at both layers (ADR-009, decision 5).
+     * A filter outside the allowlist is refused before any work, at both layers.
      *
      * The shape half — a field named twice — costs nothing at all. The membership half — a field
      * that is not configured, a value that is not one of its chips — needs the vocabulary, one
@@ -275,8 +271,8 @@ final class get_inventory_rows_test extends advanced_testcase {
             'invalidparameter',
             $this->failing_call(['groupid' => $groupid, 'filters' => [['field' => 'modality', 'value' => 9]]])
         );
-        // A value the shortname alphabet rejects never reaches the check: PARAM_ALPHANUMEXT strips
-        // it and what is left is not a configured field either.
+        // A name outside the shortname alphabet never reaches the allowlist: validate_parameters()
+        // refuses any value that PARAM_ALPHANUMEXT cleaning would change.
         $this->assertSame(
             'invalidparameter',
             $this->failing_call(['groupid' => $groupid, 'filters' => [['field' => 'mod ality', 'value' => 1]]])
@@ -284,11 +280,12 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * pend and cf survive the allowlist and are OMITTED where they do not apply (ADR-009, fact 15).
+     * pend and cf survive the allowlist and are omitted where they do not apply.
      *
-     * The omission is the zero-cost shape on the wire and a tested property, not a hope: a row
-     * that is not an application has no pend key at all, and a row with no field value has no cf
-     * key. No row carries an enrol instance id, because the link needs nothing from it.
+     * A row that is not an application has no pend key at all, which keeps the wire shape of an
+     * ordinary row unchanged. A checkbox field always yields a cf pair, since a course with no
+     * stored value takes the field's default. No row carries an enrol instance id, because the
+     * link needs nothing from it.
      *
      * @return void
      */
@@ -323,7 +320,7 @@ final class get_inventory_rows_test extends advanced_testcase {
      *
      * A negative id is not a category, so letting it through would answer an empty page that
      * reads like a category the user has no course in — a client bug made invisible. The two
-     * reserved ones are the dormant and archived groups (ADR-007, decision 2).
+     * reserved ones are the dormant and archived groups.
      *
      * @return void
      */
@@ -375,7 +372,7 @@ final class get_inventory_rows_test extends advanced_testcase {
      *
      * The key-set assertions are the point: execute_returns() is an allowlist, so a field added
      * to the domain and forgotten in the returns is dropped without a word. The comparison with
-     * get_inventory pins that the client can render both payloads through one template.
+     * get_inventory pins that the client can render both payloads with the same components.
      *
      * @return void
      */
@@ -483,7 +480,7 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: three reads per request with the user's layers cold and the shared layers warm, plus one.
+     * Three reads per request with the user's layers cold and the shared layers warm, plus one.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * call once so core is warm; purge inventory and details only; reset the per-request memos
@@ -558,14 +555,14 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * Budget: opening the archived group costs what opening any group costs (ADR-007, decision 2).
+     * Budget: opening the archived group costs what opening any group costs.
      *
-     * The archived rows never travel in the first payload, so their first open is one paged
-     * read — the same resolve() every page pays, over the same cached entry, plus the filter
-     * preload of the names it ships. The archived population is resolved in the SAME get_many()
-     * as the active one, so there is no read of its own for it, and this is the assertion that
-     * would catch a second lookup creeping in. Protocol as the other rows budgets: warm, then a
-     * new request, then measure.
+     * The archived rows never travel in the first payload, so their first open is one rows
+     * request — the same resolve() every page pays, over the same cached entry, plus the filter
+     * preload of the names it ships. The archived population is resolved in the same get_many()
+     * as the active one, so it costs no read of its own, and this is the assertion that would
+     * catch a second lookup. Protocol as the other rows budgets: warm, then a new request, then
+     * measure.
      *
      * @return void
      */

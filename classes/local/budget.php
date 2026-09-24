@@ -27,12 +27,12 @@ namespace block_compass\local;
 use core\exception\coding_exception;
 
 /**
- * Counts the database reads a piece of code costs (PLAN.md §6.6).
+ * Counts the database reads a piece of code costs.
  *
  * Wraps $DB->perf_get_reads(), which counts every SELECT the connection has
  * issued since it opened — core's own included. Take a reading, run the code,
  * assert the delta. Because core's reads are counted too, the measurement
- * protocol is fixed, and it counts reads per REQUEST. Warm what core keeps
+ * protocol is fixed, and it counts reads per request. Warm what core keeps
  * across requests (config, strings, contexts, capabilities — MUC and the
  * session) by running the code once. Then reset what core keeps for one request
  * only, in PHP globals, and would reload on a real second request: the filter
@@ -47,7 +47,7 @@ use core\exception\coding_exception;
  *
  * The counter is per statement, not per logical query. On PostgreSQL a
  * recordset ($DB->get_recordset*) is executed as DECLARE, FETCH and CLOSE and
- * costs three reads where MariaDB counts one (measured on 5.2). Budgets are
+ * costs three reads where MariaDB counts one. Budgets are
  * therefore written for array-returning, bounded queries only; classes/local/
  * never opens a recordset.
  *

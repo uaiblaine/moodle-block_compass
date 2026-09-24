@@ -14,12 +14,12 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The one control that archives a course or brings it back (ADR-007, decision 4).
+ * The one control that archives a course or brings it back.
  *
  * Icon-only, named by its aria-label with the course in it, so a screen reader hears
  * "Archive Course 2" and not "button". The same component sits in a row and in a card,
- * which is what keeps the two views' accessible names identical - the Behat scenario
- * ADR-007 specifies asserts exactly these names.
+ * which is what keeps the two views' accessible names identical - the Behat feature
+ * clicks the control by exactly this name.
  *
  * @module     block_compass/Archive
  * @copyright  2026 Anderson Blaine
@@ -64,8 +64,8 @@ const Archive = ({courseid, name, archived, busy, config, onArchive}: ArchivePro
                 onArchive(courseid, name, !archived);
             }}
         >
-            {/* A box, closed to archive and opened to bring back, from the plugin's own icon map: the
-                eye core lent this control read as "open this course" (ADR-010, decision 2). */}
+            {/* A box, closed to archive and opened to bring back, from the plugin's own icon map;
+                see the icons in classes/output/block.php. */}
             <span
                 className="icon-no-margin"
                 aria-hidden="true"

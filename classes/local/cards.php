@@ -28,11 +28,11 @@ use moodle_url;
 use stdClass;
 
 /**
- * Turns tier 1 rows into the arrays the web services return and the templates render.
+ * Turns tier 1 rows into the arrays the web services return and the client renders.
  *
  * Everything language-dependent happens here, at response time: names are
  * formatted with the course context rebuilt from the cache and the filters
- * preloaded in one query (ADR-001), category names the same way from the
+ * preloaded in one query, category names the same way from the
  * category layer; images come from core's course_image cache; progress comes
  * from the details cache, pending when not cached.
  *
@@ -41,7 +41,7 @@ use stdClass;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class cards {
-    /** @var int Batch ceiling for get_card_details (PLAN.md §7). */
+    /** @var int Most course ids get_card_details accepts in one call. */
     public const DETAILS_BATCH = 24;
 
     /** @var int Enrolment timeend values at or above this mean "no end" (the column default). */
@@ -75,8 +75,8 @@ final class cards {
         }
         filters::preload(array_values($contexts));
 
-        // The category layer: one read when cold, none when warm (ADR-001, category layer). The
-        // category contexts are ancestors on the course context paths, so they are preloaded above.
+        // The category layer: one read when cold, none when warm. The category contexts are
+        // ancestors on the course context paths, so their filters were preloaded above.
         $categories = category_meta::get_many(array_unique(array_column($entries, 'category')));
 
         $completionenabled = !empty($CFG->enablecompletion);
@@ -88,7 +88,7 @@ final class cards {
         }
         $progress = details::get_many($userid, $withcompletion);
 
-        // Every card's image in one read of core's course_image cache (ADR-011, decision 3).
+        // Every card's image in one read of core's course_image cache.
         $images = self::images(array_keys($entries));
         $result = [];
         foreach ($strips as $strip => $rows) {
@@ -100,7 +100,7 @@ final class cards {
                 $category = $categories[$entry['category']] ?? null;
                 // The category's name in its own context, as core_course_category::get_formatted_name()
                 // formats it (course/classes/category.php:2539-2546); "Uncategorised" once it no longer
-                // exists - a string fetched only for that card (ADR-011, decision 3).
+                // exists - a string fetched only for that card.
                 if ($category !== null) {
                     $categoryname = format_string(
                         $category['name'],
@@ -112,10 +112,9 @@ final class cards {
                 }
                 $hascompletion = in_array($courseid, $withcompletion, true);
                 $cached = $hascompletion ? (array_key_exists($courseid, $progress) ? $progress[$courseid] : false) : null;
-                // The "No completion configured" notice is said only to a viewer who is not a learner of
-                // the course, and only when completion is off (ADR-010, decision 10): the capability core's
-                // own completion report goes by, checked without the administrator's blanket allow, on the
-                // context rebuilt from the cached columns - an in-memory lookup once the request is up.
+                // The "No completion configured" notice is said only when completion is off, and only to
+                // a viewer who is not a learner of the course (see is_learner()), checked on the context
+                // rebuilt from the cached columns.
                 $teacher = !$hascompletion && !self::is_learner($userid, $context);
 
                 $card = [
@@ -128,7 +127,6 @@ final class cards {
                     'hascompletion' => $hascompletion,
                     'progress' => is_int($cached) ? $cached : null,
                     'pending' => $hascompletion && $cached === false,
-                    'nodata' => $hascompletion && $cached === null,
                     'iscomplete' => $cached === 100,
                     'isfavourite' => !empty($row->isfavourite),
                     'isnew' => $strip === 'new',
@@ -148,7 +146,7 @@ final class cards {
                     self::add_enrolment_fields($card, $row, $now);
                 }
                 if ($teacher) {
-                    // Present only when true: omission is the zero-cost shape on the wire (ADR-009).
+                    // Present only when true: an omitted key costs nothing on the wire.
                     $card['teacher'] = true;
                 }
                 $result[$strip][] = $card;
@@ -169,8 +167,7 @@ final class cards {
     private static function add_enrolment_fields(array &$card, stdClass $row, int $now): void {
         $method = (string) $row->enrol;
         $component = 'enrol_' . $method;
-        // The component is dynamic, the key is not: this is core's own idiom for a plugin's name
-        // (ADR-000, decision 19).
+        // The component is dynamic, the key is not: this is core's own idiom for a plugin's name.
         $card['enrolmethod'] = get_string_manager()->string_exists('pluginname', $component)
             ? get_string('pluginname', $component)
             : '';
@@ -225,9 +222,9 @@ final class cards {
      * moodle/course:isincompletionreports, whose only archetype is student
      * (lib/completionlib.php:1402-1404, lib/db/access.php:1152-1158). Every teacher, editing or
      * not, and every manager fails it; the administrator's blanket allow is ignored so that one
-     * without a role in the course is a teacher here too. Cost: none on 5.2 once the request is
-     * up - the access data is loaded once per request and role definitions come from a
-     * per-request array and then MUC (lib/accesslib.php:570-582, :303-329).
+     * without a role in the course is a teacher here too. No read once the request is up: the
+     * access data is already loaded and role definitions come from a per-request array and then
+     * MUC (lib/accesslib.php:570-582, :303-329).
      *
      * @param int $userid The viewer.
      * @param \core\context $context The course context.
@@ -263,17 +260,18 @@ final class cards {
      * never runs on the first paint). Ids the user is not actively enrolled in are
      * silently dropped: an unvalidated course id is an enumeration oracle.
      *
-     * Since ADR-005 the answer also carries the course image, because the batch is exactly
-     * the set of rows somebody is looking at: putting the URL in the inventory instead would
-     * cost a read per course for courses nobody scrolls to. Warm, the image is free; cold it
-     * is core's course_image datasource, which loops per course whatever the entry point
+     * The answer also carries the course image, because the batch is exactly the set of rows
+     * somebody is looking at: putting the URL in the inventory instead would cost a read per
+     * course for courses nobody scrolls to. Warm, the image is free; cold it is core's
+     * course_image datasource, which loops per course whatever the entry point
      * (course/classes/cache/course_image.php:99-105) - which is why the contexts are warmed
-     * from the course layer just below, and why the budget test states the cold cost apart.
+     * from the course layer just below.
      *
      * @param int $userid The viewer.
      * @param int[] $courseids At most DETAILS_BATCH ids.
      * @param int|null $now Unix time to treat as now; null for time().
-     * @return array List of entries: id, hascompletion, progress, imageurl and hasimage.
+     * @return array List of entries: id, hascompletion, progress, imageurl and hasimage, plus
+     *     teacher (true) when completion is off and the viewer is not a learner.
      */
     public static function details(int $userid, array $courseids, ?int $now = null): array {
         global $DB, $CFG;
@@ -330,11 +328,11 @@ final class cards {
         $courses = empty($tocompute) ? [] : $DB->get_records_list('course', 'id', $tocompute);
 
         /*
-         * Warm the batch's course contexts before any image is asked for. get_course_image()
-         * ends in get_course_overviewfiles(), which takes context_course::instance() per course
-         * (course/classes/list_element.php:253) - a read each, on a cold context, for something
-         * the course layer already holds in its stored columns. cards::build() does this for the
-         * filter preload; this path did not, and ADR-005 decision 3 makes it part of the phase.
+         * Warm the batch's course contexts before any image is asked for. A miss in core's
+         * course_image cache is filled through get_course_overviewfiles(), which takes
+         * context_course::instance() per course (course/classes/list_element.php:253) - a read
+         * each, on a cold context, for something the course layer already holds in its stored
+         * columns.
          */
         foreach ($meta as $entry) {
             course_meta::context_of($entry);
@@ -367,7 +365,7 @@ final class cards {
             ];
         }
 
-        // Every detail's image in one read of core's course_image cache (ADR-011, decision 3).
+        // Every detail's image in one read of core's course_image cache.
         $images = self::images(array_column($result, 'id'));
 
         return array_map(static function (array $detail) use ($images): array {
@@ -380,14 +378,14 @@ final class cards {
     }
 
     /**
-     * The course images of many courses, in one read of core's own cache (ADR-011, decision 3).
+     * The course images of many courses, in one read of core's own cache.
      *
      * The same cache core's exporter reads one course at a time
-     * (course/classes/external/course_summary_exporter.php:185-194), by the same name, so a
-     * warm store answers one get_many instead of one round trip per card; cold, the datasource
-     * still loads per course, as core does. The exporter's two conversions are reproduced for
-     * each entry so imageurl is byte-identical to what it was: false for a miss or a null, the
-     * stored value rebuilt through \core\url and out() for a hit.
+     * (course/classes/external/course_summary_exporter.php:185-194), so a warm store answers
+     * one get_many instead of one round trip per card; cold, the datasource still loads per
+     * course, as core does. The exporter's two conversions are reproduced for each entry so
+     * imageurl is byte-identical to the exporter's: false for a miss or a null, the stored
+     * value rebuilt through \core\url and out() for a hit.
      *
      * @param array $courseids Course ids.
      * @return array Course id => absolute URL string, or false for a course without an image.

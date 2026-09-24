@@ -20,12 +20,12 @@ use basic_testcase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
- * The client arrives in one file, and that file is fresh (ADR-011, decision 1).
+ * The client arrives in one file, and that file is fresh.
  *
  * Core's grunt regenerates the per-file outputs and CI fails on a diff, so those cannot go
- * stale unnoticed; the bundle is written by the fleet's own step, which core's check cannot
- * see. The manifest that step writes beside the bundle - the SHA-1 of every source - is what
- * this test recomputes: a source edited without a rebundle is red on every runtime leg.
+ * stale unnoticed; the bundle is written by a build step outside core's grunt, which core's
+ * check cannot see. The manifest that step writes beside the bundle - the SHA-1 of every
+ * source - is what this test recomputes, so a source edited without a rebundle fails here.
  *
  * @package    block_compass
  * @category   test
@@ -37,8 +37,12 @@ final class bundle_test extends basic_testcase {
     /** @var string The plugin's root. */
     private const ROOT = __DIR__ . '/..';
 
+    /** @var string What to do when the build is stale. */
+    private const REBUILD = 'rebuild js/esm/build (the per-file outputs, and the bundle that js/esm/bundle.json names '
+        . 'with its manifest) and commit it';
+
     /**
-     * The marker names the entry and the output the fleet's step builds.
+     * The marker names the entry and the output the bundle step builds.
      *
      * @return void
      */
@@ -62,7 +66,7 @@ final class bundle_test extends basic_testcase {
      */
     public function test_the_bundle_is_as_fresh_as_the_sources(): void {
         $manifest = json_decode((string) file_get_contents(self::ROOT . '/js/esm/build/bundle.manifest.json'), true);
-        $this->assertIsArray($manifest, 'no manifest beside the bundle: run mdl grunt');
+        $this->assertIsArray($manifest, 'no manifest beside the bundle: ' . self::REBUILD);
         $this->assertSame('src/Block.tsx', $manifest['entry'] ?? null);
 
         $ondisk = [];
@@ -83,13 +87,13 @@ final class bundle_test extends basic_testcase {
         $this->assertSame(
             array_keys($ondisk),
             array_keys($listed),
-            'the manifest does not list exactly the sources on disk: run mdl grunt and commit js/esm/build'
+            'the manifest does not list exactly the sources on disk: ' . self::REBUILD
         );
         foreach ($ondisk as $relative => $hash) {
             $this->assertSame(
                 $hash,
                 $listed[$relative],
-                "{$relative} was edited after the bundle was built: run mdl grunt and commit js/esm/build"
+                "{$relative} was edited after the bundle was built: " . self::REBUILD
             );
         }
     }

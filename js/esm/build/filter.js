@@ -5,16 +5,16 @@ var u=e=>String(e||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCa
  * No DOM access, so every function is testable in isolation and the components
  * stay about rendering.
  *
- * **normalise() and matches() have a twin in PHP** — classes/local/matcher.php —
- * and the two must stay equal step for step, because full mode filters here and
- * paged mode filters there (ADR-004): the same query must find the same courses
- * whichever side answers. One fixture of query/name pairs pins both, built by
- * tests/generator/lib.php and consumed by matcher_test.php. Change a line here and
- * that fixture has to fail; if it does not, the fixture is the thing to fix.
+ * normalise() and matches() have a PHP twin, classes/local/matcher.php, and the two must
+ * stay equal step for step: full mode filters here and paged mode filters there, and the
+ * same query must find the same courses whichever side answers. The query/name pairs of
+ * block_compass_generator::search_pairs() define the rule; matcher_test and explore_test
+ * run them against the PHP side only, as no test executes this file, so check a change
+ * here against those pairs.
  *
  * The steps are, in order: NFD, strip the combining marks U+0300-U+036F,
  * lower-case, trim. Not core_text::specialtoascii(), which also folds o-slash,
- * eszett and ae - characters NFD leaves alone, so a query for "strom" must NOT
+ * eszett and ae - characters NFD leaves alone, so a query for "strom" must not
  * find "Strøm".
  *
  * @module     block_compass/filter

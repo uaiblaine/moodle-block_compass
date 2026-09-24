@@ -17,11 +17,11 @@
 {{!
     @template block_compass/preload
 
-    The modulepreload hints the top-of-body hook writes where the block is (ADR-011, decision 2
-    and amendment 5): one link per module the client will import, so the browser fetches all of
-    them while it parses these lines instead of discovering each level after the previous one
-    arrived. At the top of the body and not in the head, because a module preload that precedes
-    the import map makes the browser ignore the map.
+    The modulepreload hints the top-of-body hook writes where the block is: one link per
+    module the client will import, so the browser fetches all of them while it parses these
+    lines instead of discovering each level after the previous one arrived. At the top of the
+    body and not in the head, because a module preload that precedes the import map makes the
+    browser ignore the map.
 
     Context variables required for this template:
     * links - a list of objects with one key, href: the absolute URL of one module, the same

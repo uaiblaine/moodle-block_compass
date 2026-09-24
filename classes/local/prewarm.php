@@ -28,22 +28,21 @@ use core_php_time_limit;
 
 /**
  * Warm the inventory of every user active inside a window, in batches, under a time budget,
- * resuming where the last run stopped (PLAN.md §6.4, ADR-003).
+ * resuming where the last run stopped.
  *
- * The shape is core's search indexer's (\core_search\manager::index(),
- * search/classes/manager.php:1201): a stop time computed once, checked between units of
- * work, a persisted cursor. A sweep starts at cursor 0, fixes its lastaccess window in
- * plugin config, walks {user} by primary key in batches of BATCH_SIZE, and ends when a
- * batch comes back short — resetting the cursor to 0 and recording the time. A run that
- * exhausts its budget leaves the cursor where it stopped and the next run continues from
- * there. Per user: the inventory is filled (never validated: a valid hit does not renew
- * the TTL, ADR-003 fact 2) and the shared layers are made to hold that user's courses and
- * groups; details is never touched. The task's execute() is a thin caller; tests drive
- * run() directly with a batch of 1 and a budget below the settings floor.
+ * The shape is core's search indexer's ({@see \core_search\manager::index()}): a stop time
+ * computed once, checked between units of work, a persisted cursor. A sweep starts at cursor
+ * 0, fixes its lastaccess window in plugin config, walks {user} by primary key in batches of
+ * BATCH_SIZE, and ends when a batch comes back short — resetting the cursor to 0 and recording
+ * the time. A run that exhausts its budget leaves the cursor where it stopped and the next run
+ * continues from there. Per user: the inventory is filled (never validated: a valid hit does
+ * not renew the TTL) and the shared layers are made to hold that user's courses and groups;
+ * details is never touched. The task's execute() is a thin caller; tests drive run() directly
+ * with a batch of 1 and a budget below the settings floor.
  *
- * No lock of its own: cron takes one named after the task class before running it —
- * "$cronlockfactory->get_lock(($record->classname), 0)", lib/classes/task/manager.php:1067 —
- * so two cron workers never run the task at once.
+ * No lock of its own: cron takes one named after the task class before running it
+ * ({@see \core\task\manager::get_next_scheduled_task()}), so two cron workers never run the
+ * task at once.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -65,24 +64,28 @@ final class prewarm {
     /**
      * One run: warm users from the cursor onwards until the sweep ends or the budget runs out.
      *
-     * The time budget is checked between users against a stop time computed once, as the
-     * search indexer does; core_php_time_limit::raise() is called too, as the indexer does
-     * (search/classes/manager.php:1213), knowing it is a no-op under CLI_SCRIPT — every
-     * context a scheduled task runs in: "if (self::$currentend === 0 || CLI_SCRIPT) { return; }",
-     * lib/classes/php_time_limit.php:66-68 — and that the CLI SAPI has no execution limit by
-     * default. The stop-time check is the real protection.
+     * The time budget is checked between users against a stop time computed once.
+     * core_php_time_limit::raise() is called too, as the search indexer does, although it returns
+     * early under CLI_SCRIPT — every context a scheduled task runs in — and the CLI SAPI has no
+     * execution limit by default. The stop-time check is the real protection.
      *
      * Reads: 1 for the opening count; 1 per selection (each batch, including the short one that
      * ends the sweep); per user 1 (the fill) with the shared layers warm — up to 4 cold (fill,
      * coursemeta, categorymeta for the courses' categories, categorymeta for the group ancestors),
      * 2 for a user with no enrolment at all (an empty fill runs the stamp statement,
-     * inventory::fill()); and 1 per config write, because set_config() reads the row before it
-     * decides between insert and update ("$record = $DB->get_record($table, $conditions, 'id,
-     * value')", lib/moodlelib.php:968). The config writes are: the window once per sweep, the
-     * cursor after every full batch and at a budget stop, and at completion the cursor reset plus
-     * the completion time — so a sweep that completes in one batch writes three times. Bypassing
-     * set_config() to save those reads would skip the config cache invalidation and leave the next
-     * run reading a stale cursor; the reads are the price of a resumable sweep.
+     * inventory::fill()); 1 per config write, because set_config() reads the row before it decides
+     * between insert and update; and 1 per reload of the plugin's config bundle. The config writes
+     * are: the window when a run starts a sweep (or finds the window missing), the cursor after
+     * every full batch and at a budget stop, and at completion the cursor reset plus the completion
+     * time. Each write invalidates the bundle, even with the value unchanged, because set_config()
+     * compares the stored string with the int it is given strictly. So the run's first get_config()
+     * reloads it unless something has read it since the previous run's last write, and a run that
+     * starts a sweep reloads it once more, in config::group_depth() after the window's write;
+     * nothing reads it after the other writes, so they cost no reload within the run. A run that
+     * starts a sweep and completes it in one batch therefore costs 7 reads beyond its users: 2
+     * reloads, 3 writes, the count and the selection, the bound prewarm_test's budget test asserts.
+     * Bypassing set_config() to save those reads would skip the config cache invalidation and leave
+     * the next run reading a stale cursor.
      *
      * @param int|null $batchsize Users per selection; null for BATCH_SIZE.
      * @param int|null $budgetseconds Seconds before the run stops between users; null for the setting.
@@ -126,8 +129,7 @@ final class prewarm {
 
         // Once per run, for the opening line — never per batch. Index: the {user} primary key
         // drives the scan and lastaccess/deleted/suspended are applied as an in-scan filter, not
-        // a separate index access (ADR-003, evidence: Parallel Index Scan on the primary key,
-        // 82.7 ms). Bounded: an aggregate.
+        // a separate index access. Bounded: an aggregate.
         $remaining = $DB->count_records_sql(
             "SELECT COUNT(*)
                FROM {user} u
@@ -148,10 +150,9 @@ final class prewarm {
         $exhausted = false;
         while (!$completed && !$exhausted) {
             // Index: {user} primary key drives the keyset; the lastaccess window is the filter (index
-            // lastaccess exists, but the ordered keyset makes the primary key cheaper — ADR-003,
-            // evidence). Bound: the batch size, passed as get_records_sql()'s limitnum
-            // (lib/dml/moodle_database.php:1523); get_fieldset_sql() takes no limit on 5.2
-            // (moodle_database.php:1797). Keyed by u.id, the first selected column.
+            // lastaccess exists, but the ordered keyset makes the primary key cheaper). Bound: the
+            // batch size, passed as get_records_sql()'s limitnum; get_fieldset_sql() takes no limit.
+            // Keyed by u.id, the first selected column.
             $records = $DB->get_records_sql(
                 "SELECT u.id
                    FROM {user} u
@@ -174,13 +175,10 @@ final class prewarm {
                      * One unwarmable user must not wedge the sweep: cron retries a throwing task
                      * for ever (\core\task\manager::scheduled_task_failed(), back-off capped at
                      * 24 h) and the selection is "id > cursor", so an exception escaping here
-                     * would re-select the same user on every run, for ever. Nothing warm() does
-                     * throws on any data state a fixture can build — every step guards its own
-                     * emptiness and indexes no key it has not checked — so this catch is
-                     * insurance against the layers underneath (a cache store, the database, a
-                     * later change to fill()), and it carries no test and no mutation gate for
-                     * exactly that reason. Do not delete it as dead code: what it prevents is a
-                     * sweep that never advances again.
+                     * would re-select the same user on every run. Nothing warm() does throws on
+                     * any data state a fixture can build, so this catch has no test: it guards
+                     * against the layers underneath (a cache store, the database). Do not remove
+                     * it as dead code.
                      */
                     $trace(sprintf('block_compass: pre-warm failed for user %d: %s', $userid, $e->getMessage()));
                 }
@@ -214,7 +212,7 @@ final class prewarm {
         }
 
         // The closing line belongs to the method that holds the trace, so every caller — the
-        // scheduled task, a future CLI, a test — reports the same sweep the same way, once.
+        // scheduled task or a test — reports the same sweep the same way, once.
         $trace($completed
             ? sprintf('block_compass: sweep complete, %d users warmed.', $warmed)
             : sprintf('block_compass: budget reached after %d users; resuming at id %d.', $warmed, $cursor));
@@ -231,11 +229,11 @@ final class prewarm {
 
     /**
      * Warm one user: the inventory entry, the course layer of the active courses, the category
-     * layer of their categories and of the group ancestors (ADR-003, "What warm one user means").
+     * layer of their categories and of the group ancestors.
      *
      * fill() rather than get(): a valid hit does not rewrite the entry, so its TTL is not renewed
-     * and a daily visitor's entry would still expire before the visit (fact 2); the fill also sees
-     * the status writes the stamp cannot. No hidden set: hidden courses need their coursemeta entry
+     * and a daily visitor's entry would still expire before the visit; the fill also sees the
+     * status writes the stamp cannot. No hidden set: hidden courses need their coursemeta entry
      * too (the Archived group), and the preferences would cost a read for nothing. No visibility
      * filter, no formatting, no filter preload: this warms stores, it renders nothing. The same
      * two-list shape as explore::resolve() for the category layer. details is never touched.

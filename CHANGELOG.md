@@ -8,6 +8,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **The code findings of the comment audit**, version 2026092401.
+  - **A custom-field filter works as soon as it is configured.** `coursefields` was filled with
+    the configured fields only, so a field added to `filter_fields` showed its chips and matched
+    no course until the course was edited or a custom-field event purged the layer. It is now
+    filled with every eligible field, as ADR-009's amendments already said it was.
+  - **Controls that disable themselves keep the keyboard.** The star, *Clear filters* and
+    *Archive all* are `aria-disabled` while they cannot act, never `disabled`, so the focused
+    control no longer drops focus to the page body. When *Archive all* empties the dormant
+    group, focus goes to the section title. Opening tier 3 scrolls and focuses it once per
+    press, no longer again when a paged payload lands afterwards.
+  - **A star toggled in tier 1 updates an open tier 3** — the row's star, the Favourites
+    count and the facets — with no request.
+  - **Notifications are guarded.** Every use of `core/notification` goes through one module,
+    `notify.ts`, so a failed load is never an unhandled rejection (tier 1's favourite error
+    path had no guard), and a confirmation that cannot load counts as a cancel.
+  - **With *Show favourites* off, tier 1 no longer queries the favourites strip**: one read
+    fewer per first paint.
+  - **Deleting an account drops that user's cached inventory and progress** at once, from an
+    observer of `\core\event\user_deleted` (registered on upgrade), instead of leaving them to
+    the 24 h and 1 h TTLs.
+  - **The name order is total and numbers compare by value on both sides.** Pages and search
+    hits compare collation sort keys with ties to the lower course id, so two names the
+    collator calls equal can no longer swap across a page boundary; full mode's flat list
+    (A–Z and Recent) now puts "Unit 2" before "Unit 10", as the grouped view, the pages and
+    the search already did.
+  - The client's `fill()` substitutes every `{$a}` of a string, as core's `get_string()` does
+    (no current string has two).
+  - **Dead code removed:** the unread `nodata` card field (service and client), the empty
+    `reset()` methods of three cache wrappers, the `.compass-dialogue` and `.compass-row-star`
+    selectors, and the `blocking` key of `db/tasks.php`, which 5.2 does not read.
+  - **Stronger guards.** The static rules now read `hidden={…}`, a tag to its own end past
+    the arrow functions inside it, single-quoted badge classes and a computed `className` to
+    its matching brace, each with positive controls. The busy-controls rule reads three more
+    files, and six new accessibility rules pin the other client fixes, one of them failing any
+    class the stylesheet styles and nothing renders. The completion observer's guard test can
+    now fail, the pre-warming overhead is bounded at the traced seven reads, and each new guard
+    has its mutation gate.
+  - **Web-service descriptions** in `db/services.php` say what `get_inventory` and
+    `get_card_details` return today, and no parameter description cites a design record.
+
+### Changed
+
+- **Code comments audited against Moodle's comment guidance**, version 2026092400. Every
+  comment in the PHP, TypeScript, Mustache, CSS, Behat and workflow sources was checked against the
+  code it describes and rewritten where it was wrong or where it carried planning history rather
+  than a fact: 141 comments that contradicted their code were corrected, and every reference to
+  ADR numbers, phases, decisions and the development environment left the source (they stay in
+  `docs/` and the git history). Comments only - the token stream of every source file is unchanged.
+  `js/esm/build` is rebuilt because the per-file outputs carry the modules' docblocks; the bundle
+  itself is byte-identical.
+
+### Fixed
+
 - **The dark-mode override now follows the host wherever it writes the colour-mode attribute**,
   version 2026091200.
   `--block_compass-brand-text` exists because the brand on Boost's dark body is 3.02:1, under the

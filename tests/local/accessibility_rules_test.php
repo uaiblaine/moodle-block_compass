@@ -29,20 +29,24 @@ use basic_testcase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
- * The half of the accessibility audit that axe cannot see (ADR-008, decision 3).
+ * The half of the accessibility audit that axe cannot see.
  *
- * Phase 7 makes the audit a gate rather than a document: core's axe step rides inside
- * the four Behat scenarios, and this file reads what that step cannot. Three reasons
- * something lands here rather than there. A rule may need a state no scenario reaches -
- * the dark theme is a token swap nothing in the feature toggles. It may need a
- * relationship axe measures only when both halves are on screen, while the static form
- * survives a component nobody put in a scenario - the heading ladder. Or axe-core 4.10.3
- * may simply not implement the criterion, as with target size (WCAG 2.2 2.5.8).
+ * Core's axe step runs inside the Behat scenarios, and this file reads what that step
+ * cannot. Three reasons something lands here rather than there. A rule may need a state
+ * no scenario reaches - the dark theme is a token swap nothing in the feature toggles. It
+ * may need a relationship axe measures only when both halves are on screen, while the
+ * static form survives a component nobody put in a scenario - the heading ladder. Or the
+ * axe run may not check the criterion: axe-core 4.10.3, which core ships, has its target
+ * size rule (WCAG 2.2 2.5.8) disabled by default.
  *
- * The discipline is the sibling file's, and for the sibling file's reason: two drafts of
- * bootstrap_compat_test once passed while blind to the very defect they were written for.
- * So every rule here carries a vacuity guard asserting it had something to check, and a
- * rule that matches nothing is the finding, not a pass.
+ * As in bootstrap_compat_test, every rule carries a vacuity guard asserting it had
+ * something to check: a negative rule that matches nothing passes while blind to the
+ * defect it was written for.
+ *
+ * Nothing runs the React sources in a test, so the rules that keep the reader's keyboard and
+ * announcements right read them as text - where focus goes, which state a star says, how a
+ * language string is filled, how a failure is reported - and so does the rule that every
+ * class the stylesheet styles is actually rendered.
  *
  * @package    block_compass
  * @category   test
@@ -99,20 +103,77 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * Every opening tag of one element name, as written in the source.
+     * Every tag in a template or a React source, as written.
      *
-     * The tag ends at the first closing angle bracket, which an arrow function in a later
-     * attribute would bring forward - so a rule reading these tags asserts about the
-     * attributes written BEFORE any handler, which is where a name belongs anyway.
+     * The reader of bootstrap_compat_test::tags(), kept as a copy of its own for the reason
+     * sources() gives. A tag ends at the first closing angle bracket outside quotes and braces, so
+     * an arrow function or a comparison inside a JSX expression does not end it early, and the
+     * attributes written after a handler are read. Every opening angle bracket followed by a
+     * letter is a candidate, so an element written inside another element's attribute is returned
+     * on its own as well. A candidate that opens no tag, such as a comparison, is dropped at the
+     * first semicolon or parenthesis outside braces, or at a closing brace it did not open; a type
+     * argument such as useRef<HTMLElement> comes back as a tag of its own, which no rule's element
+     * name or attribute matches.
+     *
+     * @param string $contents The source.
+     * @return string[] The tags, each from its opening angle bracket to its closing one.
+     */
+    private static function all_tags(string $contents): array {
+        preg_match_all('/<[a-zA-Z]/', $contents, $starts, PREG_OFFSET_CAPTURE);
+        $length = strlen($contents);
+        $tags = [];
+        foreach ($starts[0] as $start) {
+            $offset = $start[1];
+            $depth = 0;
+            $quote = '';
+            for ($i = $offset + 1; $i < $length; $i++) {
+                $char = $contents[$i];
+                if ($quote !== '') {
+                    // A quoted attribute value ends only at its own quote.
+                    if ($char === $quote) {
+                        $quote = '';
+                    }
+                } else if ($char === '{') {
+                    $depth++;
+                } else if ($char === '}') {
+                    $depth--;
+                    if ($depth < 0) {
+                        break;
+                    }
+                } else if ($depth > 0) {
+                    // Inside a JSX expression or a Mustache tag nothing ends the tag.
+                    continue;
+                } else if ($char === '"' || $char === "'") {
+                    $quote = $char;
+                } else if ($char === '>') {
+                    $tags[] = substr($contents, $offset, $i - $offset + 1);
+                    break;
+                } else if (str_contains(';()', $char)) {
+                    break;
+                }
+            }
+        }
+
+        return $tags;
+    }
+
+    /**
+     * Every opening tag of one element name, read whole by {@see self::all_tags()}.
+     *
+     * The name must end where the tag's name does, so a type argument such as ExploreState is
+     * not an Explore tag.
      *
      * @param string $contents The source.
      * @param string $name The element name.
-     * @return array The matched tags.
+     * @return string[] The matched tags.
      */
     private function tags(string $contents, string $name): array {
-        preg_match_all('/<' . $name . '[^>]*>/s', $contents, $matches);
+        $pattern = '/^<' . preg_quote($name, '/') . '(?![\w-])/';
 
-        return $matches[0];
+        return array_values(array_filter(
+            self::all_tags($contents),
+            static fn(string $tag): bool => preg_match($pattern, $tag) === 1
+        ));
     }
 
     /**
@@ -149,8 +210,7 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Named rather than counted: a glob that silently stops matching turns every rule in
      * this file into a pass over nothing, which is the failure mode the whole file exists
-     * to prevent. Archive and Star are the two icon-only controls, Card and RowCard the
-     * two card titles, Strip and Explore the two section titles, and the stylesheet is
+     * to prevent. Each named component is one a rule below reads, and the stylesheet is
      * where the token pairing and the target size are declared.
      *
      * @return void
@@ -167,6 +227,44 @@ final class accessibility_rules_test extends basic_testcase {
         }
         $this->assertArrayHasKey('styles.css', $files);
         $this->assertGreaterThanOrEqual(8, count($files));
+    }
+
+    /**
+     * Every element rule reads a tag to its own end, past the handlers written inside it.
+     *
+     * The client writes its handlers as arrow functions, onClick={() => ...}, and the arrow's
+     * closing angle bracket is not the tag's. A reader that stopped there would show the element
+     * rules only the attributes written before the first handler, so a disabled attribute written
+     * after one would pass the busy-controls rule unseen. These controls go through tags(), the
+     * reader every element rule uses.
+     *
+     * Changes that must make it fail: ending a tag at an angle bracket inside braces or inside a
+     * quoted value, or matching an element name as the prefix of a longer one.
+     *
+     * @return void
+     */
+    public function test_a_tag_is_read_to_its_own_end(): void {
+        $afterhandler = $this->tags('<button onClick={() => go()} disabled={busy}>', 'button');
+        $this->assertSame(['<button onClick={() => go()} disabled={busy}>'], $afterhandler, 'a handler ends the tag early');
+        // The same tag through the busy-controls rule's own pattern, which must see the attribute.
+        $this->assertMatchesRegularExpression('/\sdisabled=/', $afterhandler[0], 'the busy-controls rule would miss it');
+
+        $this->assertSame(
+            ['<img src={wide > 0 ? url : ""} alt="">'],
+            $this->tags('<img src={wide > 0 ? url : ""} alt="">', 'img'),
+            'a comparison inside braces ends the tag early'
+        );
+        $this->assertSame(
+            ['<button title="a > b" aria-label="x">'],
+            $this->tags('<button title="a > b" aria-label="x">', 'button'),
+            'an angle bracket inside a quoted value ends the tag early'
+        );
+        $this->assertSame(
+            ['<Explore starred={starred} />'],
+            $this->tags('useState<ExploreState>(seed); <Explore starred={starred} />', 'Explore'),
+            'a longer name, or a type argument, is read as the element'
+        );
+        $this->assertSame([], $this->tags('while (i <length) { i++; }', 'length'), 'a comparison is read as a tag');
     }
 
     /**
@@ -221,8 +319,8 @@ final class accessibility_rules_test extends basic_testcase {
         /*
          * Vacuity guard, and the sharpest one in the file: the rule is a negative, so it
          * passes when the regex has stopped reading the attribute at all. Counting the
-         * deliberate -1 values - the decorative duplicate link on a card, the focus target
-         * of the tier 3 title - proves the pattern still finds a tabindex where one is.
+         * deliberate -1 values - such as the decorative duplicate link on a card and the
+         * tier 3 focus targets - proves the pattern still finds a tabindex where one is.
          */
         $this->assertGreaterThanOrEqual(
             1,
@@ -262,12 +360,12 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The icon-only buttons name themselves.
      *
-     * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
-     * without an aria-label a screen reader announces "button" and the user is told to
-     * press something unnamed. Since ADR-009 the list/cards switch (ViewToggle) is two such
-     * buttons and the Filter button (FilterToggle) hides its own text and count from the
-     * accessibility tree to say them as one sentence. Every button tag in these four files
-     * must carry the attribute.
+     * Archive, Star and Reload render a glyph and nothing else, and the glyph is aria-hidden,
+     * so without an aria-label a screen reader announces "button" and the user is told to
+     * press something unnamed. The list/cards switch (ViewToggle) is two such buttons, and
+     * the Filter button (FilterToggle) hides its own text and count from the accessibility
+     * tree to say them as one sentence. Every button tag in these five files must carry the
+     * attribute.
      *
      * @return void
      */
@@ -280,7 +378,7 @@ final class accessibility_rules_test extends basic_testcase {
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
             $tags = $this->tags($files[$file], 'button');
-            // Vacuity guard: this file's whole purpose is one button, so finding none is the bug.
+            // Vacuity guard: each file exists to render such a button, so finding none is the bug.
             $this->assertNotEmpty($tags, "{$file}: no button tag found, so the rule checked nothing");
             foreach ($tags as $tag) {
                 $this->assertMatchesRegularExpression(
@@ -296,16 +394,15 @@ final class accessibility_rules_test extends basic_testcase {
      * Every toolbar grouping carries a name.
      *
      * role="group" tells a screen reader that the buttons inside belong together and then
-     * says nothing about what they do; unnamed, the three tier 3 toolbars are read as
-     * three anonymous groups of buttons in a row.
+     * says nothing about what they do; unnamed, the tier 3 toolbar's platters and view
+     * switch are read as anonymous groups of buttons in a row.
      *
      * @return void
      */
     public function test_every_role_group_carries_a_name(): void {
         $groups = 0;
         foreach ($this->reactsources() as $file => $contents) {
-            preg_match_all('/<[a-zA-Z][^>]*>/s', $contents, $matches);
-            foreach ($matches[0] as $tag) {
+            foreach (self::all_tags($contents) as $tag) {
                 // Either quote: a single-quoted attribute is valid JSX and must not slip past.
                 if (!preg_match('/\brole\s*=\s*["\']group["\']/', $tag)) {
                     continue;
@@ -318,7 +415,7 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: the tier 3 toolbars are the groups, and there are three of them.
+        // Vacuity guard: Platter and ViewToggle each write one.
         $this->assertGreaterThanOrEqual(1, $groups, 'no role="group" found: has the tier 3 toolbar changed?');
     }
 
@@ -330,10 +427,10 @@ final class accessibility_rules_test extends basic_testcase {
      * all. A heading of this plugin's at the block title's own level reads as a sibling of
      * the block rather than as a section inside it, and one rung too low under a hidden
      * title skips a level. So every level this plugin writes is a function of that one fact,
-     * chosen in heading.ts and nowhere else: sections h4 under the title and h3 without it,
-     * card titles one rung below. A literal heading tag in a component is a rung chosen
-     * without asking, which is why none is allowed. axe's heading-order cannot see the first
-     * case: sibling h3s skip no level.
+     * chosen in heading.ts and nowhere else: sections h4 under the title, h3 without it and
+     * h2 on the block's own page, card titles one rung below. A literal heading tag in a
+     * component is a rung chosen without asking, which is why none is allowed. axe's
+     * heading-order cannot see the first case: sibling h3s skip no level.
      *
      * The exact file lists are the point - a new component with a heading has to choose
      * its rung deliberately and land in one of them.
@@ -366,9 +463,9 @@ final class accessibility_rules_test extends basic_testcase {
         // Vacuity guard: the React sources must have been read at all.
         $this->assertGreaterThanOrEqual(1, $scanned, 'no React source scanned: has js/esm/src moved?');
 
-        // The helper pins the three ladders (ADR-012, decision 2): 4 under core's block title, 3
-        // without it, 2 on the block's own page under the theme's h1 - and a level it does not
-        // know reads as 4, the Dashboard's.
+        // The helper pins the three ladders: 4 under core's block title, 3 without it, 2 on the
+        // block's own page under the theme's h1 - and a level it does not know reads as 4, the
+        // Dashboard's.
         $this->assertArrayHasKey('js/esm/src/heading.ts', $sources, 'heading.ts is where the rungs are chosen');
         $helper = $sources['js/esm/src/heading.ts'];
         $this->assertMatchesRegularExpression(
@@ -415,10 +512,10 @@ final class accessibility_rules_test extends basic_testcase {
      * text token is a second name that dark mode overrides and the plain one is left to
      * the rings and the borders.
      *
-     * The rule pins the PAIRING, not the ratio: no source can compute a contrast, and the
-     * measurement is the driven pass's. The dark selector is the one dark mechanism 5.2 has,
-     * the attribute Bootstrap 5.3 moves its tokens under; a .theme-dark class is emitted by
-     * nothing in the 5.2 checkout or in the fleet's themes, so a rule for it would be dead.
+     * The rule pins the pairing, not the ratio: no source can compute a contrast, so the ratio
+     * is measured in a browser. The dark selector is the one dark mechanism 5.2 has, the
+     * attribute Bootstrap 5.3 moves its tokens under; nothing in Moodle 5.2 or in Boost Union
+     * emits a .theme-dark class, so a rule for it would be dead.
      *
      * @return void
      */
@@ -464,19 +561,19 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * Every colour-mode override is scoped to the html element or to body, and to nothing deeper.
      *
-     * The host writes data-bs-theme in one of two places and the block has to follow both: core
-     * puts it on the html element, theme_moove puts it on document.body (amd/src/darkmode.js:35)
-     * and redefines the whole --bs-* set there. An override anchored at :root sees only the first,
-     * which is how the brand text kept its 3.02:1 light value on moove's dark body.
+     * The host writes data-bs-theme in one of two places and the block has to follow both: Moodle
+     * 5.3's theme_boost puts it on the html element (5.2's core writes it nowhere), theme_moove
+     * puts it on document.body (amd/src/darkmode.js) and redefines the whole --bs-* set there. An
+     * override anchored at :root sees only the first, and would leave the brand text at its 3.02:1
+     * light value on moove's dark body.
      *
-     * Going the other way, a BARE [data-bs-theme="dark"] .block_compass would match through any
+     * Going the other way, a bare [data-bs-theme="dark"] .block_compass would match through any
      * ancestor at any depth - CSS descendant combinators have no nearest-ancestor-wins rule - and
-     * theme_boost_union really does set this same attribute on its navbar alone. So the scope must
-     * be html or body: wide enough for both hosts, narrow enough that no deeper scope reaches the
-     * block.
+     * theme_boost_union sets this same attribute on its navbar alone. So the scope must be html or
+     * body: wide enough for both hosts, narrow enough that no deeper scope reaches the block.
      *
-     * Mutations that must redden it: re-anchor one arm at :root; drop the "body" from an arm,
-     * leaving a bare attribute selector.
+     * Changes that must make it fail: re-anchoring one arm at :root; dropping the "body" from an
+     * arm, leaving a bare attribute selector.
      *
      * @return void
      */
@@ -520,8 +617,8 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * WCAG 2.2 2.5.8 sets the minimum at 24 by 24, and btn-link btn-sm p-0 computes to
      * about 23: the Bootstrap padding utility is !important, so nothing but an explicit
-     * box brings it back. axe-core 4.10.3 does not check target size at all, which is why
-     * the rule is here and not in the Behat step.
+     * box brings it back. axe-core 4.10.3 ships its target size rule disabled by default,
+     * which is why the rule is here and not in the Behat step.
      *
      * @return void
      */
@@ -558,11 +655,10 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A course name is at most two lines, and the whole name rides in a title attribute.
      *
-     * ADR-009, decision 10, the maintainer's own note: a name of several lines breaks the layout,
-     * and the concern is the layout and not the payload. The clamp is Boost's own .clamp-2 pattern
-     * under this plugin's .compass-clamp, and every element carrying that class also carries a
-     * title, so hovering a clamped name shows it in full. axe reads neither: nothing in a
-     * scenario renders a name long enough to clamp.
+     * A name of several lines breaks the layout. The clamp is Boost's own .clamp-2 pattern under
+     * this plugin's .compass-clamp, and every element carrying that class also carries a title,
+     * so hovering a clamped name shows it in full. axe reads neither: nothing in a scenario
+     * renders a name long enough to clamp.
      *
      * @return void
      */
@@ -582,8 +678,7 @@ final class accessibility_rules_test extends basic_testcase {
 
         $clamped = 0;
         foreach ($this->reactsources() as $file => $contents) {
-            preg_match_all('/<[a-zA-Z][^>]*>/s', $contents, $matches);
-            foreach ($matches[0] as $tag) {
+            foreach (self::all_tags($contents) as $tag) {
                 if (!preg_match('/\bcompass-clamp\b/', $tag)) {
                     continue;
                 }
@@ -603,10 +698,10 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A list row wraps rather than overflowing the block.
      *
-     * The row is a flex line of a name, a date, a progress bar and two controls. Measured at
-     * 375 CSS px in the driven pass of ADR-008, the unwrapped line overflowed the block by
-     * 19 px, which at 320 px is the horizontal scroll WCAG 1.4.10 forbids. axe does not
-     * measure reflow, and no scenario runs at that width, so the source is the only reader.
+     * The row is a flex line of a name, a date, a progress bar and two controls. Unwrapped, it
+     * overflows the block by about 19 px at a 375 CSS px viewport already, and WCAG 1.4.10
+     * forbids horizontal scrolling at 320 px. axe does not measure reflow, and no scenario runs
+     * at that width, so the source is the only reader.
      *
      * @return void
      */
@@ -663,8 +758,8 @@ final class accessibility_rules_test extends basic_testcase {
      * The page template's h1 must carry visually-hidden - the recipe that keeps an element in
      * the accessibility tree - and none of the spellings that remove it: d-none, hidden, or an
      * aria-hidden attribute. And the stylesheet's no-title rules, keyed on the body class, may
-     * collapse the theme's empty header but never display: none or visibility: hidden anything
-     * (ADR-012, amendment 4). The vacuity guards are the h1 and the rules themselves.
+     * collapse the theme's empty header but never display: none or visibility: hidden anything.
+     * The vacuity guards are the h1 and the rules themselves.
      *
      * @return void
      */
@@ -675,12 +770,13 @@ final class accessibility_rules_test extends basic_testcase {
             $template,
             'the page renders no visually hidden h1'
         );
-        preg_match('/<h1\b[^>]*>/', $template, $matches);
-        $this->assertDoesNotMatchRegularExpression(
-            '/d-none|\bhidden\b(?!")|aria-hidden/',
-            $matches[0],
-            'the h1 is removed from the accessibility tree'
-        );
+        foreach ($this->tags($template, 'h1') as $heading) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/d-none|\bhidden\b(?!")|aria-hidden/',
+                $heading,
+                'the h1 is removed from the accessibility tree: ' . $heading
+            );
+        }
 
         $seen = 0;
         foreach ($this->rules() as $rule) {
@@ -725,19 +821,30 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * A control that triggers its own busy state is aria-disabled while busy, never disabled.
+     * A control that disables itself by being pressed is aria-disabled, never disabled.
      *
      * The disabled attribute is applied in the render the control's own click causes, and a
      * focused element that becomes disabled drops the keyboard to the body: the "Reloading…"
-     * label is then announced to nobody, and the next Tab starts at the top of the page
-     * (ADR-010, amendment 9). The two components that render such a control are read; "Show
-     * more" in Group.tsx keeps its disabled attribute on purpose, because Explore moves focus
-     * after a page deliberately (R3). The vacuity guard is the button tag itself, in each file.
+     * label is then announced to nobody, and the next Tab starts at the top of the page. The
+     * components that render such a control are read: the reload control and Try again, the
+     * star while its write is out, Clear filters once its press has released the last filter,
+     * and Archive all (the one button Explore.tsx renders itself) while its run is out. Two
+     * controls keep the attribute on purpose, because the keyboard is moved deliberately after
+     * them: "Show more" in Group.tsx, and the archive control, whose row leaves the page and
+     * whose focus Explore's keepFocus() puts back. The vacuity guard is the button tag itself,
+     * in each file.
+     *
+     * Changes that must make it fail: the disabled attribute back on any button of these files,
+     * or no button of one of them saying aria-disabled.
      *
      * @return void
      */
     public function test_the_busy_controls_stay_focusable(): void {
-        foreach (['js/esm/src/Reload.tsx', 'js/esm/src/RetryNotice.tsx'] as $file) {
+        $files = [
+            'js/esm/src/Reload.tsx', 'js/esm/src/RetryNotice.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/FilterPanel.tsx',
+            'js/esm/src/Explore.tsx',
+        ];
+        foreach ($files as $file) {
             $tags = $this->tags($this->sources()[$file], 'button');
             $this->assertNotEmpty($tags, "{$file} renders no button, so the rule is about nothing");
             $ariadisabled = 0;
@@ -756,11 +863,232 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
+     * After an archive the keyboard is put back, even when the group it was in has left the page.
+     *
+     * The row an archive control sits on leaves the page with it, and so does the dormant group
+     * once Archive all has emptied it. keepFocus() in Explore.tsx decides the target before the
+     * write, while the control is still there - the group's summary - and a summary that is no
+     * longer in the document takes no focus. So the target is checked when it is used, and the
+     * section title stands in for a summary that has gone.
+     *
+     * Changes that must make it fail: focusing the saved summary without checking that it is
+     * still in the document, or dropping the section title as the fallback.
+     *
+     * @return void
+     */
+    public function test_an_archive_puts_the_keyboard_back_when_the_group_has_left(): void {
+        $explore = $this->sources()['js/esm/src/Explore.tsx'];
+        $start = strpos($explore, 'const keepFocus = useCallback(');
+        // Vacuity guard: the helper must be there to read.
+        $this->assertNotFalse($start, 'keepFocus() is not in Explore.tsx any more');
+        $end = strpos($explore, '}, []);', $start);
+        $this->assertNotFalse($end, 'keepFocus() does not end where a useCallback with no dependencies does');
+        $body = substr($explore, $start, $end - $start);
+
+        $this->assertMatchesRegularExpression(
+            '/(\w+) !== null && document\.contains\(\1\)\s*\?\s*\1\s*:\s*'
+                . 'section\.current\?\.querySelector<HTMLElement>\(\'\.compass-explore-title\'\)/',
+            $body,
+            'keepFocus() focuses the summary it saved without checking that it is still in the document, '
+                . 'or has no section title to fall back on: after Archive all empties the dormant group, the '
+                . 'keyboard would stay on the body'
+        );
+    }
+
+    /**
+     * Tier 3 takes the keyboard once per press, not once per render that follows the press.
+     *
+     * A press on the ghost or on a heading link scrolls tier 3 to the top of the viewport and
+     * focuses the section, so that a screen reader announces its name. The effect that does it
+     * also runs when anything else it reads changes - chooseChip does when a paged payload lands
+     * after the press - and without a record of the press it has handled, it would scroll and
+     * take the keyboard a second time, from wherever the reader had moved to since.
+     *
+     * Changes that must make it fail: dropping the comparison with the last press handled, or
+     * the assignment that records it.
+     *
+     * @return void
+     */
+    public function test_tier_3_takes_the_keyboard_once_per_press(): void {
+        $explore = $this->sources()['js/esm/src/Explore.tsx'];
+        // Vacuity guard: one place scrolls the section, and it is an effect.
+        $this->assertSame(1, substr_count($explore, '.scrollIntoView('), 'tier 3 is scrolled from no single place');
+        $at = strpos($explore, '.scrollIntoView(');
+        $start = strrpos(substr($explore, 0, $at), 'useEffect(');
+        $this->assertNotFalse($start, 'the scroll into tier 3 is not made by an effect');
+        $effect = substr($explore, $start, $at - $start);
+
+        $this->assertMatchesRegularExpression(
+            '/if \(reveal === 0 \|\| reveal === (\w+)\.current\) \{\s*return;\s*\}\s*\1\.current = reveal;/',
+            $effect,
+            'the reveal effect acts again on a press it has handled: it must return when the counter equals '
+                . 'the last press it recorded, and record every press it acts on'
+        );
+    }
+
+    /**
+     * A star toggled in tier 1 is toggled in the rows tier 3 holds for the same course.
+     *
+     * Both tiers draw the core star of a course, and its aria-pressed is what a screen reader
+     * says of it. Tier 3's own toggle patches its rows and refetches tier 1; a toggle in tier 1
+     * has to reach tier 3 as well, or an open tier 3 keeps announcing the old state, and
+     * counting the course under Favourites, until a reload. Block hands the change to Explore as
+     * a prop, and Explore applies it through withRow, the one patcher of the rows it holds.
+     *
+     * Changes that must make it fail: Block no longer recording the toggle after the write, or
+     * no longer handing it to Explore; Explore no longer applying it through withRow.
+     *
+     * @return void
+     */
+    public function test_a_star_toggled_in_tier_1_reaches_tier_3(): void {
+        $sources = $this->sources();
+        $block = $sources['js/esm/src/Block.tsx'];
+        $explore = $sources['js/esm/src/Explore.tsx'];
+
+        $this->assertMatchesRegularExpression(
+            '/await setFavourite\(courseid, favourite\);.*?setStarred\(\{courseid, favourite\}\);/s',
+            $block,
+            'Block does not record a successful tier 1 toggle for tier 3'
+        );
+        $tags = $this->tags($block, 'Explore');
+        // Vacuity guard: the one place Block renders tier 3.
+        $this->assertCount(1, $tags, 'Block renders tier 3 from no single place');
+        $this->assertStringContainsString('starred={starred}', $tags[0], 'Block does not hand the toggle to tier 3');
+        $this->assertMatchesRegularExpression(
+            '/useEffect\(\(\) => \{\s*if \(starred === null\) \{\s*return;\s*\}\s*'
+                . 'const \{courseid, favourite\} = starred;\s*'
+                . 'withRow\(courseid, \(row\) => \(\{\.\.\.row, fav: favourite\}\)\);\s*'
+                . '\}, \[starred, withRow\]\);/',
+            $explore,
+            'Explore does not apply a tier 1 toggle to the rows it holds through withRow'
+        );
+    }
+
+    /**
+     * Core's notifications are reached through one module, whose loads never reject.
+     *
+     * A failed write is reported through core/notification, an AMD module the client loads
+     * through RequireJS, and that load can fail. Awaited unguarded from a click handler, it ends
+     * in an unhandled rejection and says nothing. notify.ts holds both uses - the error
+     * notification and the confirmation dialogue - each inside a try, so that each settles
+     * whatever happens, and no other client file loads the module itself.
+     *
+     * Changes that must make it fail: a load of core/notification in any other client file, or
+     * one in notify.ts outside a try block.
+     *
+     * @return void
+     */
+    public function test_notifications_go_through_the_guarded_module(): void {
+        $sources = $this->reactsources();
+        $load = '\bamd\s*(?:<[^>]*>)?\s*\(\s*[\'"]core\/notification[\'"]';
+        // Vacuity guard: the module must be there to hold the loads.
+        $this->assertArrayHasKey('js/esm/src/notify.ts', $sources, 'notify.ts is not in the scan');
+        foreach ($sources as $file => $contents) {
+            if ($file === 'js/esm/src/notify.ts') {
+                continue;
+            }
+            $this->assertDoesNotMatchRegularExpression(
+                '/' . $load . '/',
+                $contents,
+                "{$file}: loads core/notification itself; use notify() or confirmAction() from notify.ts, which never reject"
+            );
+        }
+
+        $notify = $sources['js/esm/src/notify.ts'];
+        $loads = preg_match_all('/' . $load . '/', $notify);
+        $guarded = preg_match_all('/\btry \{\s*const \w+ = await ' . $load . '/', $notify);
+        // Vacuity guard: the notification and the dialogue.
+        $this->assertSame(2, $loads, 'notify.ts does not hold both uses of core/notification');
+        $this->assertSame($loads, $guarded, 'notify.ts loads core/notification outside a try block');
+    }
+
+    /**
+     * A language string is filled at every placeholder, as core fills it.
+     *
+     * Accessible names and live-region announcements are built with fill(): the archive
+     * control's label, the strip overflow links, "N courses shown". Core's get_string()
+     * replaces every {$a} in a string; a fill() that stopped at the first would leave the
+     * placeholder itself in what a screen reader reads out, as soon as a translation used the
+     * value twice.
+     *
+     * Changes that must make it fail: going back to String.replace() with a string pattern,
+     * which replaces the first occurrence only.
+     *
+     * @return void
+     */
+    public function test_fill_replaces_every_placeholder(): void {
+        $str = $this->sources()['js/esm/src/str.ts'];
+        $start = strpos($str, 'export const fill = ');
+        // Vacuity guard: the helper must be there to read.
+        $this->assertNotFalse($start, 'fill() is not in str.ts any more');
+        $fill = substr($str, $start, strpos($str, ';', $start) - $start);
+
+        $this->assertStringContainsString(
+            '.split(\'{$a}\').join(value)',
+            $fill,
+            'fill() does not replace every {$a}; split and join, as fillObject() does'
+        );
+        $this->assertStringNotContainsString('.replace(', $fill, 'fill() replaces with a string pattern, which stops at one');
+    }
+
+    /**
+     * Every class the stylesheet styles is one a template or the client writes.
+     *
+     * A rule for a class nothing renders reads like a guarantee - a token block on a dialogue
+     * root, a brand text colour on a star - while the element that needed it gets nothing. The
+     * client writes one family of names from a template literal, the cards grid's column
+     * classes, so a class starting with the literal part before a placeholder counts as
+     * written. Comments are removed on both sides: a class named in prose is not rendered.
+     *
+     * Changes that must make it fail: a selector for a class no template or client source
+     * writes, such as a dialogue root added to the token rule with no dialogue carrying it.
+     *
+     * @return void
+     */
+    public function test_every_styled_class_is_rendered(): void {
+        preg_match_all('/(?<![\w-])\.(compass-[\w-]+)/', $this->css(), $matches);
+        $styled = array_unique($matches[1]);
+
+        $code = '';
+        foreach ($this->sources() as $file => $contents) {
+            if (str_ends_with($file, '.css')) {
+                continue;
+            }
+            // Block and line comments in the client, comment tags in the templates.
+            $code .= preg_replace(['#/\*.*?\*/#s', '#(?<![:/])//[^\n]*#', '/\{\{!.*?\}\}/s'], '', $contents) . "\n";
+        }
+        preg_match_all('/(?<![\w-])(compass-[\w-]*-)\$\{/', $code, $prefixes);
+
+        $unrendered = [];
+        foreach ($styled as $class) {
+            if (preg_match('/(?<![\w-])' . preg_quote($class, '/') . '(?![\w-])/', $code)) {
+                continue;
+            }
+            foreach ($prefixes[1] as $prefix) {
+                if (str_starts_with($class, $prefix)) {
+                    continue 2;
+                }
+            }
+            $unrendered[] = $class;
+        }
+        sort($unrendered);
+
+        // Vacuity guards: the stylesheet's classes were read, and the template-literal family was recognised.
+        $this->assertGreaterThanOrEqual(30, count($styled), 'fewer than 30 compass-* classes read out of styles.css');
+        $this->assertContains('compass-rowcards-', $prefixes[1], 'the cards grid\'s column classes were not recognised');
+        $this->assertSame(
+            [],
+            $unrendered,
+            'styles.css styles classes that no template or client source writes: ' . implode(', ', $unrendered)
+        );
+    }
+
+    /**
      * Nothing is written in capitals: a heading is emphasised with weight, never with case.
      *
-     * The maintainer's rule (ADR-010, decision 8), general on purpose. Bootstrap's text-uppercase
-     * and a text-transform declaration are the two ways to shout, and the strip heading - the
-     * one place that used to - is the vacuity guard: it must exist and carry a weight class.
+     * The rule covers every source, not only headings. Bootstrap's text-uppercase and a
+     * text-transform declaration are the two ways to shout, and the strip heading is the
+     * vacuity guard: it must exist and carry a weight class.
      *
      * @return void
      */
@@ -769,7 +1097,7 @@ final class accessibility_rules_test extends basic_testcase {
             $this->assertDoesNotMatchRegularExpression(
                 '/\btext-uppercase\b/',
                 $contents,
-                "{$file}: text-uppercase shouts; emphasise with fw-bold instead (ADR-010, decision 8)"
+                "{$file}: text-uppercase shouts; emphasise with fw-bold instead"
             );
         }
         $this->assertDoesNotMatchRegularExpression(
@@ -795,9 +1123,9 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The tier 3 cards are a grid whose column count the client sets, so a lone card keeps its column.
      *
-     * ADR-010, decision 4: three classes name three counts, the stylesheet draws each as a fixed
-     * repeat over minmax(0, 1fr), and RowList picks the class from the count it is handed. Neither
-     * axe nor a scenario measures a column, so the source is the only reader.
+     * Three classes name three counts, the stylesheet draws each as a fixed repeat over
+     * minmax(0, 1fr), and RowList picks the class from the count it is handed. Neither axe nor
+     * a scenario measures a column, so the source is the only reader.
      *
      * @return void
      */
@@ -833,7 +1161,7 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * On a card the star takes the top-right corner, on a disc, and the badge the top-left.
      *
-     * ADR-010, decision 5. The star's disc is what keeps the control at 3:1 over a photograph
+     * The star's disc is what keeps the control at 3:1 over a photograph
      * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The two card
      * components must render the star for the rule to be about anything.
      *

@@ -71,19 +71,13 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
-     * A logged-in viewer, the plugin generator, and the memoised MUC handles cleared.
-     *
-     * core_cache\factory::reset() runs between tests (lib/classes/test/testing_util.php,
-     * reset_dataroot), so the wrappers' memoised instances would otherwise point at
-     * stores from the previous test.
+     * A logged-in viewer and the plugin generator.
      *
      * @return void
      */
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
-        course_meta::reset();
-        details::reset();
         $user = $this->getDataGenerator()->create_user();
         $this->userid = (int) $user->id;
         $this->setUser($user);
@@ -152,9 +146,9 @@ final class cards_test extends advanced_testcase {
     /**
      * One course per state the action label and the progress fields distinguish.
      *
-     * Site completion is on; the four tracked courses differ only in what the
-     * details cache holds for them, and the fifth differs only by having course
-     * completion off.
+     * Site completion is on. The new course was enrolled two days ago and never opened;
+     * the complete, pending and partial courses differ only in what the details cache
+     * holds for them; the plain course differs only by having course completion off.
      *
      * @return array Keys new, complete, pending, partial and plain, each a course record.
      */
@@ -260,7 +254,7 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
-     * The full name is filtered for the viewer's language, and costs no extra query.
+     * The full name is filtered for the viewer's language, at no cost beyond the filter preload's one read.
      *
      * The multilang filter on 5.2 reads the class-based span syntax under both its
      * regular expressions (filter/multilang/classes/text_filter.php), so that form
@@ -436,11 +430,11 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.6: with completion off, a batch costs the enrolment check and the courses.
+     * With site completion off, a details batch costs one read: the enrolment check.
      *
      * The three courses have course completion on, so only the site setting keeps the
      * expensive per-course computation out of the measurement. The course layer answers
-     * the completion flag, so the only read left is the enrolment check.
+     * the completion flag, so no course record is read.
      *
      * @return void
      */
@@ -486,12 +480,12 @@ final class cards_test extends advanced_testcase {
 
     /**
      * "No completion configured" is said to a viewer who is not a learner of the course, when
-     * completion is off, and to nobody else (ADR-010, decision 10).
+     * completion is off, and to nobody else.
      *
-     * Six cases over the two call sites. Completion off: a student is a learner and gets no
-     * flag; an editing teacher, a non-editing teacher and a viewer with no role in the course
-     * are not learners and get it - the last being the administrator without a role, whom the
-     * blanket allow would otherwise count as a learner. Completion on: nobody gets it, whatever
+     * Checked through both build() and details(). Completion off: a student is a learner and
+     * gets no flag; an editing teacher, a non-editing teacher and an administrator with no role
+     * in the course are not learners and get it - the administrator because the check refuses
+     * the blanket allow, which would count them a learner. Completion on: nobody gets it, whatever
      * their role, because the notice is about completion being off and not about who is
      * tracked. The flag is present only when true.
      *
@@ -544,12 +538,10 @@ final class cards_test extends advanced_testcase {
      * The teacher check costs no read once the request is up: the capability is answered from memory.
      *
      * Protocol: warm what core keeps across requests (the viewer's access data, the role
-     * definitions, the shared layers), simulate a new request, then pay what every request pays
-     * before the meter starts - the strips, and one build for the filter preload of the cards'
-     * contexts, which is per request and is the build's own cost, not the check's. The measured
-     * build runs the check again, has_capability() memoising nothing of it, and must add nothing.
-     * The control that keeps the zero honest is the flag itself: the measured build must produce
-     * it, or the meter measured a check that never ran.
+     * definitions, the shared layers), simulate a new request, then run the strips and one build
+     * before the meter, because the filter preload of the cards' contexts is a per-request cost
+     * of the build, not of the check. The measured build runs the check again and must add
+     * nothing. The flag is the control: the measured build must produce it, or the check never ran.
      *
      * @return void
      */
@@ -582,9 +574,9 @@ final class cards_test extends advanced_testcase {
      *
      * Two courses, one with an overview file and one without, through both call sites: what the
      * cards and the details say for each is exactly what core's own exporter says for the same
-     * course - an absolute URL for the one with a file, an empty string for the other (ADR-011,
-     * decision 3). The exporter is no longer called by the plugin; the source is read to prove
-     * it, because the parity would hold with either implementation.
+     * course - an absolute URL for the one with a file, an empty string for the other. The
+     * source is read to prove the plugin does not call the exporter per course, because the
+     * parity would hold with either implementation.
      *
      * @return void
      */
@@ -670,7 +662,12 @@ final class cards_test extends advanced_testcase {
 
     /**
      * A cached null is an answer, not a miss: the card is neither pending nor complete and
-     * says completion is not available (ADR-001, layer 2b).
+     * carries no progress.
+     *
+     * hascompletion with a null progress and pending false is the whole "no data" state, and it
+     * is what the client reads; the card carries no separate flag for it.
+     *
+     * Changes that must make it fail: writing a nodata key on the card again.
      *
      * @return void
      */
@@ -686,8 +683,8 @@ final class cards_test extends advanced_testcase {
         $card = $cards['continue'][0];
         $this->assertTrue($card['hascompletion']);
         $this->assertFalse($card['pending']);
-        $this->assertTrue($card['nodata']);
         $this->assertNull($card['progress']);
         $this->assertFalse($card['iscomplete']);
+        $this->assertArrayNotHasKey('nodata', $card);
     }
 }

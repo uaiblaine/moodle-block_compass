@@ -27,7 +27,7 @@ namespace block_compass\local;
 use core_cache\cache;
 
 /**
- * Wrapper of the block_compass/inventory definition (ADR-002).
+ * Wrapper of the block_compass/inventory definition.
  *
  * Key: user id. Value: a seven-field stamp and one row per enrolment, keyed by
  * the user_enrolments id — eleven integers, no course data. Nothing invalidates
@@ -64,10 +64,10 @@ final class inventory {
     /**
      * @var int Row field: the enrol instance id when the method is "apply", 0 for every other method.
      *
-     * The eleventh integer (ADR-009, decision 3): non-zero says the row is an enrolment
-     * application, which is what tells one apart from a suspended enrolment on some other
-     * method. It never leaves the server — the pending row links to the course's own enrolment
-     * page, built from the course id — and a row written before it existed reads as 0.
+     * Non-zero says the row is an enrolment application, which is what tells one apart from a
+     * suspended enrolment on some other method. It never leaves the server — the pending row
+     * links to the course's own enrolment page, built from the course id — and a cached row
+     * that lacks it reads as 0 (pending::is_pending()).
      */
     public const APPLYINSTANCE = 10;
 
@@ -89,7 +89,8 @@ final class inventory {
      * A valid entry for the user: cached and confirmed by the stamp, or rebuilt.
      *
      * Reads: 1 on a valid hit (the stamp statement), 1 on a miss with rows (the
-     * fill), 2 on a miss with no rows or on a stale hit.
+     * fill), 2 on a miss with no rows or on a stale hit, 3 on a stale hit whose fill
+     * finds no rows.
      *
      * @param int $userid The user.
      * @return array 'stamp' (see STAMP_FIELDS) and 'rows' keyed by user_enrolments id.
@@ -242,7 +243,7 @@ final class inventory {
     }
 
     /**
-     * Drop the entry (tests and the privacy provider's future delete paths).
+     * Drop the entry.
      *
      * @param int $userid The user.
      * @return void
@@ -252,19 +253,39 @@ final class inventory {
     }
 
     /**
+     * The courses the cached entry lists, read as it is cached: no stamp statement and no fill.
+     *
+     * For dropping what the cache holds about a user ({@see \block_compass\observer::user_deleted()}),
+     * which must cost no query and must not write a fresh entry. Every row counts, active or not:
+     * progress may have been cached while an enrolment that has since ended was still active.
+     *
+     * @param int $userid The user.
+     * @return int[] Distinct course ids; empty when nothing is cached.
+     */
+    public static function cached_courseids(int $userid): array {
+        $entry = self::cache()->get($userid);
+        $courseids = [];
+        // A miss is false; reading its rows through the null-coalescing operator gives null, with no warning.
+        foreach ($entry['rows'] ?? [] as $row) {
+            $courseids[(int) $row[self::COURSEID]] = true;
+        }
+
+        return array_keys($courseids);
+    }
+
+    /**
      * One entry per course the user is actively enrolled in now, from the stored rows.
      *
      * Active is the enrol_get_my_courses() rule evaluated at $now. Of several
      * active rows for one course the earliest timecreated wins, tie-broken by
-     * the lowest user_enrolments id — the rule ADR-001 gives New and the counts.
+     * the lowest user_enrolments id — the row attention's New strip and counts use.
      *
-     * Two modes over the hidden set, and they are complements of each other (ADR-007,
-     * decision 2). By default the hidden courses are left out, which is what every tier 3
-     * answer has meant by "active" since Phase 2. With $onlyhidden the SAME active test runs
-     * over exactly the hidden courses and nothing else, so that the archived group can be
-     * built from the same cached entry, in PHP, with no second read: an archived course
-     * whose enrolment has since ended must not come back from the archive, and only the
-     * active test knows that.
+     * Two modes over the hidden set, and they are complements of each other. By default
+     * the hidden courses are left out, which is what every tier 3 answer means by "active".
+     * With $onlyhidden the same active test runs over exactly the hidden courses and nothing
+     * else, so that the archived group can be built from the same cached entry, in PHP, with
+     * no second read: an archived course whose enrolment has since ended must not come back
+     * from the archive, and only the active test knows that.
      *
      * @param array $entry An entry from get().
      * @param int $now Unix time to treat as now.
@@ -296,11 +317,11 @@ final class inventory {
     }
 
     /**
-     * The courses the user holds an enrolment application in, from the stored rows (ADR-009, decision 3).
+     * The courses the user holds an enrolment application in, from the stored rows.
      *
      * The third population, with a predicate of its own — pending::is_pending(): not active,
      * period still open, on an apply instance — and one input neither of the other two passes
-     * needs: the course ids the ACTIVE pass selected, which are excluded, because a learner
+     * needs: the course ids the active pass selected, which are excluded, because a learner
      * holding an active enrolment on one method and an application on another is in a course
      * they can enter, and the active enrolment wins. The hidden set is honoured exactly as the
      * active pass honours it. Of several applications in one course the earliest wins, tie-broken
@@ -335,8 +356,8 @@ final class inventory {
     /**
      * Keep the row for a course unless one with an earlier timecreated is already kept.
      *
-     * Rows are visited in id order, so an equal timecreated keeps the lower id — the rule
-     * ADR-001 gives New and the counts.
+     * Rows are visited in id order, so an equal timecreated keeps the lower id — the same row
+     * {@see attention::earliest_enrolment_row_sql()} picks for the New strip; keep the two in step.
      *
      * @param array $courses The per-course entries built so far, extended in place.
      * @param int $courseid The row's course.

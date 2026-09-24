@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Web service: one page of one tier 3 group, in paged mode.
+ * Web service: one page of one tier 3 group.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -35,15 +35,16 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * The rows of one group, by cursor, for users above inventory_max (ADR-004).
+ * The rows of one group, by cursor.
  *
- * In paged mode get_inventory ships group headers only; the client fetches the
- * rows of a group here when it is opened, explore::PAGE_SIZE at a time, sending
- * back the id of the last row it holds. The chip and the sort are parameters
+ * In paged mode (above inventory_max) get_inventory ships group headers only; the
+ * client fetches the rows of a group here when it is opened, explore::PAGE_SIZE at
+ * a time, sending back the id of the last row it holds. The archived group's rows
+ * come from here in both modes. The chip and the sort are parameters
  * because the browser does not hold the group's rows to filter or reorder them
  * itself. Read-only, current user only; three database reads per request with
- * the shared layers warm (the stamp, preferences, the filter preload of the
- * page's contexts), one more per cold shared layer — plus the one read
+ * the shared layers warm (the stamp or the fill, preferences, the filter preload
+ * of the page's contexts), one more per cold shared layer — plus the one read
  * validate_context() costs here, the user context, since the context cache
  * starts empty every request.
  *
@@ -58,7 +59,7 @@ class get_inventory_rows extends external_api {
     /** @var string[] The orders a page can be returned in; anything else is rejected before any work. */
     public const SORTS = ['name', 'recent'];
 
-    /** @var int[] The two group ids that are not categories (ADR-007, decision 2). */
+    /** @var int[] The two group ids that are not categories. */
     public const RESERVED_GROUPS = [dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED];
 
     /**
@@ -78,7 +79,7 @@ class get_inventory_rows extends external_api {
     }
 
     /**
-     * The custom-field filters parameter, shared with search_inventory (ADR-009, decision 5).
+     * The custom-field filters parameter, shared with search_inventory.
      *
      * One entry per configured field at most: the field's shortname — PARAM_ALPHANUMEXT is a
      * safe superset of what core allows in one (customfield/classes/field_config_form.php:122) —
@@ -153,9 +154,9 @@ class get_inventory_rows extends external_api {
         if (!in_array($params['sort'], self::SORTS, true)) {
             throw new \invalid_parameter_exception('sort must be one of ' . implode(', ', self::SORTS) . '.');
         }
-        // A group id is a category id, except for the two reserved negatives (ADR-007, decision 2).
-        // Any other negative is a client bug, and it is refused here rather than answered with an
-        // empty page that would look like a category the user has no course in.
+        // A group id is a category id, except for the two reserved negatives. Any other negative is
+        // a client bug, and it is refused here rather than answered with an empty page that would
+        // look like a category the user has no course in.
         if ($params['groupid'] < 0 && !in_array($params['groupid'], self::RESERVED_GROUPS, true)) {
             throw new \invalid_parameter_exception(
                 'groupid must be a category id or one of ' . implode(', ', self::RESERVED_GROUPS) . '.'
@@ -171,7 +172,7 @@ class get_inventory_rows extends external_api {
         self::validate_context(context_user::instance($userid));
 
         // The allowlist half of the filter check: a field outside the configured set or a value
-        // outside its chips is refused here, before the population is resolved (ADR-009, decision 5).
+        // outside its chips is refused here, before the population is resolved.
         filter_fields::validate($params['filters']);
 
         return explore::rows(
@@ -187,12 +188,12 @@ class get_inventory_rows extends external_api {
 
     /**
      * The fields of one row: exactly the full-mode row of get_inventory, so the client renders
-     * both through the same template. Shared with search_inventory, which adds a groupid, and
+     * both through the same components. Shared with search_inventory, which adds a groupid, and
      * with get_inventory itself.
      *
-     * pend and cf are optional and OMITTED when they do not apply — never sent as false or
-     * empty — because a VALUE_OPTIONAL key the domain leaves out never enters the response, and
-     * that is the zero-cost shape (ADR-009, fact 15).
+     * pend and cf are optional and omitted when they do not apply — never sent as false or
+     * empty — because a VALUE_OPTIONAL key the domain leaves out never enters the response and
+     * costs no bytes on the rows it does not describe.
      *
      * @return array Field name => external_value.
      */
@@ -203,15 +204,15 @@ class get_inventory_rows extends external_api {
             'opened' => new external_value(PARAM_INT, 'Last access timestamp', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'new' => new external_value(PARAM_BOOL, 'Enrolled recently and never opened'),
             'fav' => new external_value(PARAM_BOOL, 'Whether the core course star is set'),
-            'dorm' => new external_value(PARAM_BOOL, 'Whether the course has gone quiet (ADR-007)'),
+            'dorm' => new external_value(PARAM_BOOL, 'Whether the course has gone quiet'),
             'pend' => new external_value(
                 PARAM_BOOL,
-                'Present, and true, only on an enrolment application awaiting approval (ADR-009)',
+                'Present, and true, only on an enrolment application awaiting approval',
                 VALUE_OPTIONAL
             ),
             'cf' => new external_multiple_structure(
                 new external_value(PARAM_INT, 'A field index into the top-level fields array, then its value key'),
-                'Custom-field values in pairs; present only when the row holds one (ADR-009)',
+                'Custom-field values in pairs; present only when the row holds one',
                 VALUE_OPTIONAL
             ),
         ];

@@ -30,12 +30,13 @@ use core_user;
 use PHPUnit\Framework\Attributes\CoversFunction;
 
 /**
- * The one preference the plugin writes, and the three things core does with its definition.
+ * The two preferences the plugin writes, what core does with their definitions, and the icon map.
  *
- * They are tested through core rather than by reading the array back, because the array is
+ * They are tested through core rather than by reading the arrays back, because the arrays are
  * not what protects anything: the endpoint the client posts to looks the definition up, asks
  * the permission callback, cleans the value and refuses the write when cleaning changed it
- * (user/classes/route/api/preferences.php:224-244). Each test below is one of those steps.
+ * ({@see \core_user\route\api\preferences::set_single_preference()}). Each preference test
+ * below is one of those steps.
  *
  * @package    block_compass
  * @category   test
@@ -101,7 +102,7 @@ final class lib_test extends advanced_testcase {
      *
      * The router refuses a value cleaning would change (user/classes/route/api/preferences.php),
      * and PARAM_RAW changes nothing: the control is a JSON object surviving clean_preference()
-     * byte for byte. Validation is the reader's, explore_preference::read() (ADR-010, decision 9).
+     * byte for byte. Validation is the reader's, explore_preference::read().
      *
      * @return void
      */
@@ -129,7 +130,7 @@ final class lib_test extends advanced_testcase {
      *
      * The map is tested through the renderer rather than by reading the array back, because the
      * array protects nothing on its own: the theme's icon system is what turns the key into a
-     * class, and a key it does not know renders a missing image (ADR-010, decision 2).
+     * class, and a key it does not know renders a missing image.
      *
      * @return void
      */
@@ -149,7 +150,7 @@ final class lib_test extends advanced_testcase {
         $unarchive = $output->render(new \core\output\pix_icon('unarchive', '', 'block_compass'));
         $this->assertStringContainsString('fa-box-archive', $archive);
         $this->assertStringContainsString('fa-box-open', $unarchive);
-        // Control: an eye is what the control drew before, and what it must not draw now.
+        // Not an eye, which on this control reads as "open this course".
         $this->assertStringNotContainsString('fa-eye', $archive);
     }
 }

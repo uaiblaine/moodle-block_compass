@@ -1,0 +1,1 @@
+s/ \|\| reveal === revealed\.current//;

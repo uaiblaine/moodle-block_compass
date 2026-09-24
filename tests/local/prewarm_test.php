@@ -31,12 +31,12 @@ use core_php_time_limit;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * ADR-003 turned into tests: who is warmed, what "warm one user" writes, the resume cursor,
+ * The pre-warming sweep: who is warmed, what "warm one user" writes, the resume cursor,
  * the fixed window of a sweep, the time budget and the read cost.
  *
  * The setting gate belongs to the task and is tested there; every case here drives
- * prewarm::run() directly, with a small batch and a budget below the settings floor, the way
- * explore::build() takes its nullable sizes. The instant is fixed and every last access is
+ * prewarm::run() directly, with a small batch and a budget below the settings floor passed as
+ * its nullable overrides. The instant is fixed and every last access is
  * expressed against it, so the window never depends on the day the suite runs — and every
  * user the install created is moved out of the window first, because the test site's admin
  * has a real last access that would otherwise fall inside it.
@@ -77,7 +77,7 @@ final class prewarm_test extends advanced_testcase {
     }
 
     /**
-     * Empty the four definitions and drop the wrappers' memoised handles.
+     * Empty the four definitions.
      *
      * @return void
      */
@@ -86,9 +86,6 @@ final class prewarm_test extends advanced_testcase {
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -232,24 +229,33 @@ final class prewarm_test extends advanced_testcase {
         $this->assertMatchesRegularExpression('/complete/i', end($this->trace), 'the closing line says the sweep completed');
         $this->assertMatchesRegularExpression('/\b3\b/', end($this->trace), 'the closing line names the users warmed');
 
-        // The defensive time limit of the search indexer, budget plus a minute; a no-op under CLI.
+        // The defensive time limit the search indexer also sets, budget plus a minute; a no-op under CLI.
         $this->assertContains(60 + 60, core_php_time_limit::get_and_clear_unit_test_data());
         $this->assertSame(200, prewarm::BATCH_SIZE);
     }
 
     /**
-     * ADR-003 budget: one read per user with the shared layers warm, over a fixed overhead per sweep.
+     * The budget: one read per user with the shared layers warm, over a fixed overhead per sweep.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()): one
      * sweep warms core and the shared layers; then two sweeps are measured after the user layer
      * is purged, one over a single user in the window and one over three, so the per-user cost is
-     * the difference and the overhead cancels out. Accounting of the overhead, per completing
-     * one-batch sweep: the remaining count (1), the selection (1), and the plugin-config plumbing
-     * — set_config() reads the existing row before writing (lib/moodlelib.php:969) for the window,
-     * the cursor after the batch, the cursor reset and the completion time (up to 4), and the
-     * first get_config() after those writes reloads the plugin's config (1) — eight at most. Per
-     * user: the fill (1); coursemeta and categorymeta are warm, the steady state of a live site,
-     * and details is never written (its own test).
+     * the difference. Per user: the fill (1); coursemeta and categorymeta are warm, the steady
+     * state of a live site, and details is never written (its own test).
+     *
+     * The overhead is seven reads, the same for both measured sweeps, because each follows a
+     * completed sweep and so starts a new one at cursor 0 ({@see prewarm::run()}): the plugin's
+     * config bundle, reloaded by the first get_config() because the previous sweep's last
+     * set_config() invalidated it; the window's set_config(), which reads its row before writing;
+     * the bundle reloaded again by config::group_depth(), because that write invalidated it; the
+     * remaining count; the one selection; and the row reads of the two set_config() calls that
+     * end the sweep, the cursor reset and the completion time. Every one of those set_config()
+     * calls invalidates the bundle even when the value is unchanged, because it compares the
+     * stored string with the int it is given strictly (lib/moodlelib.php). The opening line's
+     * userdate() reads no table: its strings are cached by the warm-up sweep.
+     *
+     * Changes that must make it fail: one more read per sweep, or a second read per user with the
+     * shared layers warm.
      *
      * @return void
      */
@@ -288,8 +294,8 @@ final class prewarm_test extends advanced_testcase {
         $this->assert_warmed($p['b'], 2);
         $this->assert_warmed($p['c'], 1);
 
-        $this->assertLessThanOrEqual(1 + 8, $readsone, "warming one user cost {$readsone} reads; the bound is 1 + 8");
-        $this->assertLessThanOrEqual(3 + 8, $readsthree, "warming three users cost {$readsthree} reads; the bound is 3 + 8");
+        $this->assertLessThanOrEqual(1 + 7, $readsone, "warming one user cost {$readsone} reads; the bound is 1 + 7");
+        $this->assertLessThanOrEqual(3 + 7, $readsthree, "warming three users cost {$readsthree} reads; the bound is 3 + 7");
         $this->assertLessThanOrEqual(
             2,
             $readsthree - $readsone,
@@ -391,9 +397,8 @@ final class prewarm_test extends advanced_testcase {
     /**
      * The details layer is never written by a sweep.
      *
-     * Progress is a per-user, per-course computation the plan refuses to spend on people who
-     * may not come back (ADR-003, "What warm one user means", step 3). The control proves the
-     * key this test reads is the key the layer writes.
+     * Progress is a per-user, per-course computation not worth spending on users who may not
+     * come back. The control proves the key this test reads is the key the layer writes.
      *
      * @return void
      */
@@ -418,9 +423,9 @@ final class prewarm_test extends advanced_testcase {
     /**
      * A user with no enrolments is warmed like any other: the entry exists with no rows.
      *
-     * The fill with no rows asks the stamp statement instead (ADR-002), so this is the one
-     * path where warming one user costs two reads; it must still write, or the user's first
-     * visit pays the miss the sweep existed to remove.
+     * The fill with no rows asks the stamp statement instead ({@see inventory::fill()}), so this
+     * is the one path where warming one user costs two reads; it must still write, or the user's
+     * first visit pays the miss the sweep existed to remove.
      *
      * @return void
      */

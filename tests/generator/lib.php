@@ -29,7 +29,7 @@
  *
  * "New" and "Continue" are functions of user_enrolments.timecreated and
  * user_lastaccess.timeaccess, so every fixture takes them as arguments instead of
- * relying on time() — the trap that made another plugin's suite weekday-dependent.
+ * relying on time(), and a test can pin them against a fixed instant.
  *
  * @package    block_compass
  * @category   test
@@ -83,14 +83,14 @@ class block_compass_generator extends testing_block_generator {
     }
 
     /**
-     * An enrolment application awaiting approval, as enrol_apply writes one (ADR-009, decision 3).
+     * An enrolment application awaiting approval, as enrol_apply writes one.
      *
-     * A {user_enrolments} row that is NOT active, with no period, on an instance of the "apply"
-     * method — which is what apply() creates (enrol/apply/lib.php:309,323), at
-     * ENROL_USER_SUSPENDED; a manager's "wait" action later writes 2. Both rows go straight to
-     * the tables: the fixture needs no enrol_apply installed, because the CI matrix installs
-     * only declared dependencies and this block declares none. The instance is created enabled
-     * and reused by every later application in the same course.
+     * A {user_enrolments} row that is not active, with no period, on an instance of the "apply"
+     * method — which is what enrol_apply_plugin::apply() creates, at ENROL_USER_SUSPENDED; a
+     * manager's "wait" action later writes 2. Both rows go straight to the tables, so the
+     * fixture works without enrol_apply installed: this block does not declare it as a
+     * dependency. The instance is created enabled and reused by every later application in the
+     * same course.
      *
      * @param int $userid The applicant.
      * @param int $courseid The course.
@@ -258,7 +258,7 @@ class block_compass_generator extends testing_block_generator {
      * core keeps in PHP globals.
      *
      * A budget test warms core with one call and measures a second, and inside one process
-     * three per-request memos survive between the two that never survive between two
+     * four per-request memos survive between the two that never survive between two
      * requests — so a bound measured without this step is lower than what any real request
      * pays. Each memo is reset here by the mechanism that makes it a memo:
      *
@@ -275,19 +275,18 @@ class block_compass_generator extends testing_block_generator {
      * - Core's category records. The coursecatrecords definition is MODE_REQUEST
      *   (lib/db/caches.php:203-209): a real request starts with it empty, so it is purged.
      * - The preference bundle. get_user_preferences() resolves the current user's id to $USER
-     *   itself (lib/moodlelib.php, "if ($USER->id == $user) { $user = $USER; }"), and
-     *   check_user_preferences_loaded() (lib/moodlelib.php:1429-1470) reloads the bundle with
-     *   one get_records_menu() whenever $user->preference is not set — the branch that never
-     *   consults its static $loadedusers, which nothing can reset. Unsetting the property is
-     *   what a fresh request's $USER looks like before its first preference read.
-     *
+     *   itself (lib/moodlelib.php:1688-1689), and check_user_preferences_loaded()
+     *   (lib/moodlelib.php:1429-1470) reloads the bundle with one get_records_menu() whenever
+     *   $user->preference is not set — the branch that never consults its static $loadedusers,
+     *   which nothing can reset. Unsetting the property is what a fresh request's $USER looks
+     *   like before its first preference read.
      * - The context cache (lib/classes/context.php), a per-request static, reset through
      *   context_helper::reset_caches() and then warmed back to what core has loaded before any
      *   block code runs: the system context (SYSCONTEXTID, no read) and the site course
      *   context (require_login()). Contexts the plugin preloads from its own rows stay free;
      *   the user context validate_context() asks for costs the read it costs a real request.
      *
-     * Deliberately NOT reset, because they are core's cost and the protocol's "warm core"
+     * Deliberately not reset, because they are core's cost and the protocol's "warm core"
      * excludes them (classes/local/budget.php): the access data behind has_capability(), the
      * string manager and config, and the plugin's own MUC definitions — a budget test purges
      * those explicitly, per layer, so its docblock can say which layers were cold.
@@ -301,10 +300,7 @@ class block_compass_generator extends testing_block_generator {
         \core_filters\filter_manager::reset_caches();
         \core_cache\cache::make('core', 'coursecatrecords')->purge();
         unset($USER->preference);
-        // The context cache is per request too. Core loads two contexts before any block code
-        // runs — the system context (built from SYSCONTEXTID, no read) and the site course
-        // context (require_login()) — so they are warmed back here, outside the meter; a
-        // context the plugin asks for beyond those costs what it costs a real request.
+        // Reset the context cache, then warm back the two contexts core loads before any block code runs.
         \core\context_helper::reset_caches();
         \core\context\system::instance();
         \core\context\course::instance(SITEID);
@@ -313,15 +309,14 @@ class block_compass_generator extends testing_block_generator {
     /**
      * Query/name pairs pinning the search rule shared by js/esm/src/filter.ts and classes/local/matcher.php.
      *
-     * One fixture, two consumers (ADR-004, fact 5): matcher_test feeds each pair to the PHP rule
-     * and explore_test creates a course per name and asks explore::search() the same questions,
-     * so the rule the browser applies in full mode and the one the server applies in paged mode
-     * cannot drift apart unnoticed. The pairs are plain [query, name, matches] so a JavaScript
-     * test can read them as data. "Strøm" and "Straße" are the two that separate NFD from a
-     * transliterator: neither ø nor ß has a canonical decomposition, so the browser does not
-     * fold them and the server must not either. Every course name here is unique, and no query
-     * word occurs in the generated short names (compass1, compass2, ...), so a hit can only come
-     * from the full name.
+     * Two consumers: matcher_test feeds each pair to the PHP rule, and explore_test creates one
+     * course per distinct name and asks explore::search() the same questions. Nothing runs
+     * filter.ts against the pairs, so they are also the written statement of the browser's rule,
+     * kept as plain [query, name, matches] data: a change to either side must be reflected here.
+     * "Strøm" and "Straße" are the two that separate NFD from a transliterator: neither ø nor ß
+     * has a canonical decomposition, so the browser does not fold them and the server must not
+     * either. No query word occurs in the generated short names (compass1, compass2, ...), so a
+     * hit can only come from the full name.
      *
      * @return array Case name => [query, course full name, whether the course matches].
      */

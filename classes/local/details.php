@@ -29,12 +29,13 @@ use core_completion\progress;
 use stdClass;
 
 /**
- * Wrapper of the block_compass/details definition (ADR-001, layer 2b).
+ * Wrapper of the block_compass/details definition.
  *
- * Key: "<userid>_<courseid>", both cast to int here because MUC checks the key
- * charset only under debugging(). Value: the progress percentage as an integer,
- * or null meaning "completion is not available for this user in this course" —
- * a cached answer, distinct from a miss, which MUC reports as false.
+ * Key: "<userid>_<courseid>", both typed int here because MUC checks the simplekeys
+ * charset only under debugging() (cache/classes/helper.php). Value: the progress
+ * percentage as an integer, or null meaning "completion is not available for this
+ * user in this course" — a cached answer, distinct from a miss, which MUC reports
+ * as false.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -50,15 +51,6 @@ final class details {
      */
     private static function cache(): cache {
         return cache::make('block_compass', 'details');
-    }
-
-    /**
-     * Kept for callers that purge the definition and then reset the wrapper; there is no
-     * per-request memo to clear (see cache()).
-     *
-     * @return void
-     */
-    public static function reset(): void {
     }
 
     /**
@@ -117,6 +109,21 @@ final class details {
      */
     public static function delete(int $userid, int $courseid): void {
         self::cache()->delete(self::key($userid, $courseid));
+    }
+
+    /**
+     * Drop the answers of one user for many courses, on the deletion of their account.
+     *
+     * @param int $userid The user.
+     * @param int[] $courseids Course ids; an empty list deletes nothing.
+     * @return void
+     */
+    public static function delete_many(int $userid, array $courseids): void {
+        $keys = [];
+        foreach (array_unique(array_map('intval', $courseids)) as $courseid) {
+            $keys[] = self::key($userid, $courseid);
+        }
+        self::cache()->delete_many($keys);
     }
 
     /**

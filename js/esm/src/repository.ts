@@ -16,10 +16,9 @@
 /**
  * The only module that talks to the server.
  *
- * core/ajax is an AMD module and a React component cannot import one (ADR-006), so
- * it is reached through the bridge, once, and every call goes through here. Phase R2
- * had this file borrow the AMD repository through that same bridge because tier 3
- * still used it; R3 removed the AMD half, so this is now the repository itself.
+ * The core/ajax and core_user/repository modules are AMD, which an ES module cannot import,
+ * so they are loaded through the bridge in amd.ts; every web service call and preference
+ * write of the client goes through here.
  *
  * @module     block_compass/repository
  * @copyright  2026 Anderson Blaine
@@ -46,9 +45,9 @@ type UserRepository = {
 let loading: Promise<AjaxModule> | null = null;
 
 /**
- * The waits before the second and the third attempt of a read that failed in transport
- * (ADR-010, decision 12): two attempts over four seconds, which cover the connection that is
- * not up yet when the Dashboard is, and stop before they become the hammering ADR-005 refused.
+ * The waits before the second and the third attempt of a read that failed in transport: two
+ * retries over about four seconds cover a connection that is not up yet when the Dashboard is,
+ * and stop before they hammer a server that is struggling.
  */
 const RETRY_DELAYS_MS = [1000, 3000];
 
@@ -56,9 +55,9 @@ const RETRY_DELAYS_MS = [1000, 3000];
 const RETRY_JITTER_MS = 500;
 
 /**
- * Told about each attempt a read makes beyond its first, and told with attempt 0 when the last
- * read that was retrying has settled - answered or given up - so the line can be cleared by the
- * wrapper that lit it, whichever caller's read it was. Block shows it as "Reconnecting…".
+ * Called before each retry with the retry's number (1 or 2) and the number of retries, and with
+ * attempt 0 once no read is retrying any more - answered or given up - so the listener can clear
+ * its notice whichever read lit it. Block shows it as "Reconnecting…".
  */
 export type RetryListener = (attempt: number, attempts: number) => void;
 
@@ -81,9 +80,8 @@ export const onRetry = (listener: RetryListener | null): void => {
  * Whether a rejection is the network's rather than the server's.
  *
  * A web-service exception always carries a Moodle errorcode; core/ajax rejects a transport
- * failure with an Error that has none. The rule is block_feedback_tracker's (amd/src/lib/api.js),
- * with the browser's own offline flag as the second signal. A server that answered is never
- * retried: its answer is the answer.
+ * failure with whatever jQuery reported, which has none. The browser's offline flag is the
+ * second signal. A server that answered is never retried: its answer is the answer.
  *
  * @param {unknown} error The rejection.
  * @returns {boolean} Whether it is a transport failure.
@@ -125,10 +123,10 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
 /**
  * Call one READ web service, retrying a transport failure twice before giving up.
  *
- * Reads only: the five services below answer questions, so asking again changes nothing. A
- * write - the star, the archive, the preferences - goes through call() and is never retried,
- * because a write that may have landed must not be sent again (ADR-010, decision 12). The
- * sequence numbers of the callers already drop an answer that arrives after they moved on.
+ * Reads only: the five services below answer questions, so asking again changes nothing. Writes
+ * are never retried - the star goes through call(), the view, the toolbar and the archive through
+ * core_user/repository - because a write that may have landed must not be sent again. The
+ * callers' sequence numbers already drop an answer that arrives after they moved on.
  *
  * @param {string} methodname The external function.
  * @param {object} args Its arguments.
@@ -182,7 +180,7 @@ export const getAttention = (): Promise<Attention> =>
     read<Attention>('block_compass_get_attention', {});
 
 /**
- * Progress for a batch of courses whose cards were marked pending.
+ * Progress and image for a batch of courses: tier 1 cards marked pending, tier 3 rows in view.
  *
  * @param {number[]} courseids At most 24 ids; the service refuses more.
  * @returns {Promise} The details list.
@@ -191,7 +189,8 @@ export const getCardDetails = (courseids: number[]): Promise<{details: CardDetai
     read<{details: CardDetail[]}>('block_compass_get_card_details', {courseids});
 
 /**
- * Set or unset the core course star, through core's own service (ADR-000, decision 8).
+ * Set or unset the core course star, through core's own service, so it is the star the Course
+ * overview block shows.
  *
  * @param {number} courseid The course.
  * @param {boolean} favourite Whether the course becomes a favourite.
@@ -203,8 +202,8 @@ export const setFavourite = (courseid: number, favourite: boolean): Promise<unkn
 /**
  * Tier 3 for the current user: every active course, grouped by category.
  *
- * In paged mode (ADR-004) the groups arrive with their counts and an empty courses
- * list; the rows come through getInventoryRows() group by group.
+ * In paged mode the groups arrive with their counts and an empty courses list; the rows
+ * come through getInventoryRows() group by group.
  *
  * @returns {Promise} The payload.
  */
@@ -212,12 +211,12 @@ export const getInventory = (): Promise<Inventory> =>
     read<Inventory>('block_compass_get_inventory', {});
 
 /**
- * One page of one group of tier 3, in paged mode (ADR-004).
+ * One page of one group of tier 3: any group in paged mode, the archived group in both modes.
  *
- * The chip, the sort and the custom-field filters are parameters because the browser does not
- * hold the group's rows to filter or reorder them itself (ADR-009, decision 5).
+ * The chip, the sort and the custom-field filters are parameters because in paged mode the
+ * browser does not hold the group's rows to filter or reorder them itself.
  *
- * @param {number} groupid The group (a category id).
+ * @param {number} groupid The group: a category id, or GROUP_DORMANT or GROUP_ARCHIVED.
  * @param {number} after Id of the last row the client holds; 0 for the first page.
  * @param {string} chip all, new, favourites or pending.
  * @param {string} sort name or recent.
@@ -234,7 +233,7 @@ export const getInventoryRows = (
     read<RowPage>('block_compass_get_inventory_rows', {groupid, after, chip, sort, filters});
 
 /**
- * Server-side search over the current user's courses, in paged mode (ADR-004).
+ * Server-side search over the current user's courses, in paged mode.
  *
  * @param {string} query The raw query; the server normalises it the way filter.ts does.
  * @param {object[]} filters The pressed custom-field chips, one per field.
@@ -244,11 +243,11 @@ export const searchInventory = (query: string, filters: FilterParam[]): Promise<
     read<SearchHits>('block_compass_search_inventory', {query, filters});
 
 /**
- * Remember the tier 3 toolbar as the viewer left it (ADR-010, decision 9).
+ * Remember the tier 3 toolbar as the viewer left it.
  *
- * One JSON object through the same route as the view: PARAM_RAW on the server, so cleaning
- * changes nothing and the router accepts it; the shell validates the shape when it reads it
- * back, and the client the membership when the inventory's fields arrive.
+ * One JSON object through the same route as the view. It is declared PARAM_RAW, so cleaning
+ * changes nothing and the route accepts it; the shell validates the shape when it reads it
+ * back, and the client the field membership when the inventory's fields arrive.
  *
  * @param {object} state The sort, the status chip, the field selection and the panel.
  * @returns {Promise} Resolves once the preference is written.
@@ -261,11 +260,11 @@ export const setExplorePreference = async(state: ExploreState): Promise<void> =>
 /**
  * Persist the viewer's choice of tier 3 view, through core's own preference route.
  *
- * Compass ships no write service for this (ADR-005, decision 4): core_user/repository posts
- * to core's own preference endpoint, which cleans the value against the choices lib.php
- * declares. The userid is passed as 0 and must be - the module's checkUserId() compares
- * Number(userid) against 0 and against the current user, and an omitted one is NaN, which
- * equals neither and throws (user/amd/src/repository.js:28-38).
+ * Compass ships no write service for this: core_user/repository posts to core's own
+ * preference route, which refuses a value outside the choices lib.php declares. The userid
+ * must be passed, as 0: the module's checkUserId() compares Number(userid) against 0 and the
+ * current user, and an omitted one is NaN, which matches neither and throws
+ * (user/amd/src/repository.js).
  *
  * @param {string} view list or cards.
  * @returns {Promise} Resolves once the preference is written.
@@ -275,26 +274,26 @@ export const setViewPreference = async(view: string): Promise<void> => {
     await repository.setUserPreferences([{name: 'block_compass_view', value: view, userid: 0}]);
 };
 
-/** The most preferences one request carries (ADR-007, decision 3). */
+/** The most preferences one archive request carries; see setArchived(). */
 export const ARCHIVE_BATCH = 50;
 
 /**
  * Archive or bring back courses, through core's own preference routes.
  *
- * The preference is the Course overview block's own, block_myoverview_hidden_course_<id>
- * (ADR-000, decision 16): 1 archives, null deletes the row and is how core's own block
- * brings a course back.
+ * The preference is the Course overview block's own, block_myoverview_hidden_course_<id>, so
+ * both blocks share one archive: 1 archives, null deletes the row, which is how core's own
+ * block brings a course back.
  *
- * Archiving is batched at ARCHIVE_BATCH, because a write is one row and roughly three reads
- * with no bulk SQL anywhere, and because the batch route abandons the rest of a batch on the
- * first item it cannot write - so this stops at the first failed batch and lets the error
- * travel, rather than retrying over a state it no longer knows (ADR-007, decision 3).
+ * Archiving is batched at ARCHIVE_BATCH, because each write is one row plus about three reads
+ * with no bulk SQL, and because the batch route abandons the rest of a batch at the first item
+ * it cannot write, with no transaction - so this stops at the first failed batch and lets the
+ * error travel rather than retrying over a state it no longer knows.
  *
- * Bringing back goes one course at a time through the SINGLE-preference route, and not by
- * choice: the batch route's body is declared as a map of strings, and a null in it is a 500
- * from core, measured on m502. The single route declares its value as a nullable scalar and
- * is the one core's own block uses for exactly this (blocks/myoverview/amd/src/view.js:373).
- * Nobody brings back fifty courses at once, so the shape costs nothing it would not anyway.
+ * Bringing back goes one course at a time through the single-preference route: the batch
+ * route's body is declared as a map of strings, and a null in it makes core answer with a
+ * 500. The single route treats a null value as a delete and is the one core's own block uses
+ * for exactly this (blocks/myoverview/amd/src/view.js). The client only ever brings back one
+ * course at a time, so the loop costs nothing a batch would save.
  *
  * @param {number[]} courseids The courses, in the order they are written.
  * @param {boolean} archived Whether they become archived.

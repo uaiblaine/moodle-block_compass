@@ -30,8 +30,7 @@ use core\exception\coding_exception;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The meter is what every budget test in later phases relies on, so its own
- * arithmetic is pinned here against real database reads.
+ * Pins the arithmetic of the meter every budget test relies on, against real database reads.
  *
  * @package    block_compass
  * @category   test

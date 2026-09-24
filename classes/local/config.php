@@ -25,7 +25,7 @@
 namespace block_compass\local;
 
 /**
- * The one place settings are read, with their defaults (PLAN.md §7, §8).
+ * The one place settings are read, with their defaults.
  *
  * get_config() is served by the core/config MUC cache, so reading here costs no
  * database read once core is warm. Default-on checkboxes treat only an explicit
@@ -36,7 +36,7 @@ namespace block_compass\local;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class config {
-    /** @var int Default number of cards per strip (ADR-000, decision 9). */
+    /** @var int Default number of cards per strip. */
     public const DEFAULT_ATTENTION_MAX = 3;
 
     /** @var int Hard ceiling for attention_max, so a typo cannot turn tier 1 into tier 3. */
@@ -84,7 +84,7 @@ final class config {
         return $value < 1 ? self::DEFAULT_GROUP_DEPTH : $value;
     }
 
-    /** @var int Default number of courses above which tier 3 degrades to paged mode (ADR-000, decision 21; ADR-004). */
+    /** @var int Default number of courses above which tier 3 degrades to paged mode. */
     public const DEFAULT_INVENTORY_MAX = 250;
 
     /**
@@ -98,7 +98,7 @@ final class config {
         return $value < 1 ? self::DEFAULT_INVENTORY_MAX : $value;
     }
 
-    /** @var int Default months of silence after which a course is dormant (ADR-007, decision 5). */
+    /** @var int Default months of silence after which a course is dormant. */
     public const DEFAULT_DORMANT_MONTHS = 12;
 
     /**
@@ -116,7 +116,7 @@ final class config {
         return $value < 1 ? self::DEFAULT_DORMANT_MONTHS : $value;
     }
 
-    /** @var string The view tier 3 opens in when nobody has chosen otherwise (ADR-005, decision 4). */
+    /** @var string The view tier 3 opens in when nobody has chosen otherwise. */
     public const DEFAULT_VIEW = 'list';
 
     /** @var string[] The views a stored preference or a site default may name. */
@@ -138,7 +138,7 @@ final class config {
     }
 
     /**
-     * Whether the block's own page is enabled: off unless an explicit 1 is stored (ADR-012).
+     * Whether the block's own page is enabled: off unless an explicit 1 is stored.
      *
      * Off by default, so an upgrade changes nothing for a site that never asked for the page:
      * index.php redirects to the Dashboard and the home page hook offers nothing.
@@ -192,7 +192,7 @@ final class config {
     }
 
     /**
-     * Whether the block's own page shows no title (ADR-012, amendment 4).
+     * Whether the block's own page hides its title; the h1 stays, visually hidden (see output\page).
      *
      * Off unless an explicit 1 is stored, like enable_page: the page keeps the theme's heading
      * for a site that never asked otherwise.
@@ -204,7 +204,7 @@ final class config {
     }
 
     /**
-     * Whether a card prints its category (ADR-010, decision 11). Never set means shown.
+     * Whether a card prints its category. Never set means shown.
      *
      * A client switch and nothing more: the category still travels, on a tier 1 card as the
      * formatted name and on a tier 3 row as its group, so the payload does not move.
@@ -218,11 +218,12 @@ final class config {
     }
 
     /**
-     * @var int The most course custom fields offered as chip groups (ADR-009, decision 5).
+     * @var int The most course custom fields offered as chip groups.
      *
-     * A measurement, not an estimate: 250 rows each carrying three fields and every row an
-     * application encode to 34 172 bytes against the 40 000 ceiling, and a fourth field would
-     * spend a sixth of that margin to add a fourth group to a panel three already fill.
+     * The payload bound: at the default inventory_max, 250 rows each carrying three fields and
+     * every row an application encode to 34 172 bytes against get_inventory's 40 000-byte
+     * ceiling, and a fourth field would spend a sixth of that margin to add a fourth group to a
+     * panel three already fill.
      */
     public const FILTER_FIELDS_MAX = 3;
 
@@ -250,13 +251,12 @@ final class config {
     }
 
     /**
-     * Whether enrolment applications awaiting approval are shown (ADR-009, decisions 3 and 7).
+     * Whether enrolment applications awaiting approval are shown.
      *
      * Two conditions, and both must hold: the setting is on — never set means off, like
      * enable_prewarm — and the enrol_apply plugin is present, because without it there is no
-     * apply instance for an application to sit on and the setting cannot be on. The presence
-     * is injectable so that the tests can exercise both branches on a site that has the plugin
-     * and on the CI runtime that does not.
+     * apply instance for an application to sit on. The presence is injectable so that tests can
+     * exercise both branches whether or not the site has the plugin.
      *
      * @param bool|null $pluginpresent Whether enrol_apply is installed; null to ask the plugin manager.
      * @return bool
@@ -281,8 +281,8 @@ final class config {
     }
 
     /**
-     * Whether the warm_active_users task does anything. Never set means OFF (ADR-003): the task
-     * is always scheduled and this single switch gates it.
+     * Whether the warm_active_users task does anything. Never set means off: the task is always
+     * scheduled and this single switch gates it.
      *
      * @return bool
      */

@@ -35,15 +35,16 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * The one call behind the first paint (PLAN.md §6.1): three strips and the counts.
+ * The one call behind the first paint: three strips and the counts.
  *
  * Read-only, current user only, six database reads per request with the shared
  * layers warm (four strip and count statements, preferences, filters), seven
- * fully cold (one categorymeta fill; coursemeta is filled from the strip rows)
- * — plus the one read validate_context() costs here, the user context, since
- * the context cache starts empty every request. Asserted by its budget tests.
- * The count of enrolment applications awaiting approval rides inside the counts
- * statement as a scalar subquery (ADR-009, decision 3) and adds no read.
+ * with every plugin cache cold (one categorymeta fill; coursemeta is filled from
+ * the strip rows) — plus the one read validate_context() costs here, the user
+ * context, since the context cache starts empty every request. One read fewer
+ * with the favourites feature off, whose strip is then not queried. Asserted by
+ * its budget tests. The count of enrolment applications awaiting approval rides
+ * inside the counts statement as a scalar subquery and adds no read.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -77,21 +78,18 @@ class get_attention extends external_api {
         self::validate_context(context_user::instance($userid));
 
         $now = time();
-        $tier = (new attention($userid, $now))->build();
         $favouritesenabled = config::favourites_enabled();
-        if (!$favouritesenabled) {
-            $tier['favourites'] = [];
-        }
+        $tier = (new attention($userid, $now, null, null, null, $favouritesenabled))->build();
         $strips = cards::build($userid, [
             'continue' => $tier['continue'],
             'new' => $tier['new'],
             'favourites' => $tier['favourites'],
         ], $now);
 
-        // A favourite may also sit in Continue or New (ADR-009, decision 1), so what tier 1 shows is
-        // the DISTINCT courses across the three strips, and the ghost answers "how many courses are
-        // not represented up here" rather than "how many cards did I draw". The favourites overflow
-        // is the true total minus the strip's own size, since the strip now lists every favourite.
+        // A favourite may also sit in Continue or New, so what tier 1 shows is the distinct courses
+        // across the three strips, and the ghost counts the courses not represented up here rather
+        // than the cards drawn. The favourites overflow is the favourite total minus the strip's own
+        // size, because that strip does not skip the favourites shown in Continue or New.
         $shownids = [];
         foreach ($strips as $cardsofstrip) {
             foreach ($cardsofstrip as $card) {
@@ -118,7 +116,7 @@ class get_attention extends external_api {
     }
 
     /**
-     * One card. Names are plain text (escaped by the template), URLs are URLs.
+     * One card. Names are formatted but unescaped (the client escapes them); URLs are absolute.
      *
      * @return external_single_structure
      */
@@ -134,11 +132,10 @@ class get_attention extends external_api {
             'hascompletion' => new external_value(PARAM_BOOL, 'Whether completion is tracked for this course'),
             'progress' => new external_value(PARAM_INT, 'Progress percentage when cached', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'pending' => new external_value(PARAM_BOOL, 'Whether progress must be fetched through get_card_details'),
-            'nodata' => new external_value(PARAM_BOOL, 'Completion is tracked but not available for this user (cached answer)'),
             'teacher' => new external_value(
                 PARAM_BOOL,
                 'Present, and true, only when completion is off and the viewer is not a learner of the course: the one '
-                    . 'reader "No completion configured" is said to (ADR-010, decision 10)',
+                    . 'reader "No completion configured" is said to',
                 VALUE_OPTIONAL
             ),
             'iscomplete' => new external_value(PARAM_BOOL, 'Whether the course is complete'),

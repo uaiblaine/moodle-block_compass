@@ -27,9 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
-use block_compass\local\category_meta;
 use block_compass\local\config;
-use block_compass\local\course_meta;
 use block_compass\local\details;
 use core_cache\cache;
 use core_external\external_api;
@@ -83,9 +81,6 @@ final class get_attention_test extends advanced_testcase {
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -99,7 +94,6 @@ final class get_attention_test extends advanced_testcase {
     private function purge_user_caches(): void {
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        details::reset();
     }
 
     /**
@@ -178,14 +172,14 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * A favourite that also sits in Continue is drawn twice and counted once (ADR-009, decisions 1 and 2).
+     * A favourite that also sits in Continue is drawn twice and counted once.
      *
      * Four favourites, one of them the most recently opened course: the favourites strip lists
      * the first three by name, so the fourth is the heading link's count — the true total minus
-     * the strip's size, not the total minus every lit star on screen, which the old walk over all
-     * three strips would have made 0. And shown is the DISTINCT courses, so the ghost does not
-     * shrink by the repeat: recent, older, brandnew and three favourites, one of them recent
-     * again — five distinct of six, one for the ghost.
+     * the strip's size, not the total minus every lit star on screen, which would be 0 here. And
+     * shown counts distinct courses, so the ghost does not shrink by the repeat: recent, older,
+     * brandnew and three favourites, one of them recent again — five distinct of six, one for
+     * the ghost.
      *
      * @return void
      */
@@ -219,10 +213,10 @@ final class get_attention_test extends advanced_testcase {
      * The pending count travels through the allowlist, and it is what the setting and the plugin allow.
      *
      * The service reads the setting and the plugin's presence for itself, so the assertion
-     * follows the site: with enrol_apply installed the two applications are counted; on a runtime
-     * without it — the CI matrix installs only declared dependencies — the stored setting is
-     * forced off and the count is 0 over the same fixture, which is decision 7's rule and not a
-     * skipped test. Both branches assert that the three other counts are untouched.
+     * follows the site: with enrol_apply installed the two applications are counted; on a site
+     * without it the stored setting is forced off and the count is 0 over the same fixture,
+     * which is the rule under test rather than a skipped test. Both branches assert that the
+     * other counts are untouched.
      *
      * @return void
      */
@@ -280,7 +274,7 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * The teacher flag survives the allowlist, and is omitted for a learner (ADR-010, decision 10).
+     * The teacher flag survives the allowlist, and is omitted for a learner.
      *
      * @return void
      */
@@ -321,14 +315,14 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.6: six reads per request with the user's layers cold and the shared layers warm, plus one.
+     * Budget: six reads per request with the user's layers cold and the shared layers warm, plus one.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * call once so core is warm; purge inventory and details only; reset the per-request
      * memos a second call in one process would otherwise inherit — the filter preload, core's
      * request-mode category cache, the preference bundle — so the measured call pays what a
      * fresh request pays; measure the second call. Accounting: the four strip and count
-     * statements of §6.1, the preference load, the filter preload — six. coursemeta is
+     * statements, the preference load, the filter preload — six. coursemeta is
      * written from the strip rows (set_from_rows()) and costs nothing; categorymeta is warm
      * from the first call, the steady state of a busy site. The bound is asserted with the
      * number in the message, and the controls prove the call did the work.
@@ -367,10 +361,9 @@ final class get_attention_test extends advanced_testcase {
      * At most eight reads per request with every one of the plugin's caches cold: the seven above plus one.
      *
      * Same protocol, every definition purged — the first request after an install, an upgrade
-     * or a cache purge. The one extra read is the categorymeta fill for the cards' categories;
-     * coursemeta still costs nothing because the strip rows carry its columns. This is the
-     * bound the previous test could not see: with core's request-scoped category cache warm
-     * between two calls of one process, the category read never showed.
+     * or a cache purge. The one extra read is the categorymeta fill for the cards' categories,
+     * which the previous test keeps warm; coursemeta still costs nothing because the strip rows
+     * carry its columns.
      *
      * @return void
      */
@@ -394,6 +387,67 @@ final class get_attention_test extends advanced_testcase {
             8,
             $reads,
             "get_attention cost {$reads} reads with every plugin cache cold; the budget is 8 (7 + the categorymeta fill)."
+        );
+    }
+
+    /**
+     * With favourites off the strip is empty, its overflow 0, and its query is not run.
+     *
+     * Same protocol as the six-read budget above, measured twice over one fixture: with the
+     * feature on, then off. The only favourite is the course Continue shows, so both answers draw
+     * the same distinct courses, and the one read between the two measurements is the strip's own
+     * query; the counts still see the star.
+     *
+     * Changes that must make it fail: building tier 1 without the setting, or querying the
+     * favourites strip whatever the setting, and emptying it only afterwards.
+     *
+     * @return void
+     */
+    public function test_favourites_off_empties_the_strip_and_costs_one_read_less(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $user = $gen->create_user();
+        $now = time();
+        $recent = $gen->create_course(['enablecompletion' => 1]);
+        $brandnew = $gen->create_course(['enablecompletion' => 1]);
+        $plugin->enrol_at((int) $user->id, (int) $recent->id, $now - 40 * DAYSECS);
+        $plugin->enrol_at((int) $user->id, (int) $brandnew->id, $now - 2 * DAYSECS);
+        $plugin->access_at((int) $user->id, (int) $recent->id, $now - HOURSECS);
+        $plugin->favourite((int) $user->id, (int) $recent->id);
+        $this->setUser($user);
+
+        $answers = [];
+        $reads = [];
+        foreach (['on' => 1, 'off' => 0] as $state => $setting) {
+            set_config('enable_favourites', $setting, 'block_compass');
+            get_attention::execute();
+            $this->purge_user_caches();
+            $plugin->simulate_new_request();
+            $meter = budget::start();
+            $answers[$state] = get_attention::execute();
+            $reads[$state] = $meter->reads();
+        }
+
+        $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $this->assertSame([(int) $recent->id], $ids($answers['on']['favourites']));
+        $this->assertTrue($answers['on']['favouritesenabled']);
+        $this->assertSame([], $answers['off']['favourites']);
+        $this->assertFalse($answers['off']['favouritesenabled']);
+        $this->assertSame(0, $answers['off']['counts']['favouritesmore']);
+        foreach ($answers as $state => $data) {
+            $this->assertSame([(int) $recent->id], $ids($data['continue']), "continue with favourites {$state}");
+            $this->assertSame([(int) $brandnew->id], $ids($data['new']), "new with favourites {$state}");
+            $this->assertSame(2, $data['counts']['total'], "total with favourites {$state}");
+            $this->assertSame(2, $data['counts']['shown'], "shown with favourites {$state}");
+        }
+        $this->assertLessThanOrEqual(7, $reads['on'], "get_attention cost {$reads['on']} reads with favourites on; the bound is 7");
+        $this->assertSame(
+            $reads['on'] - 1,
+            $reads['off'],
+            "get_attention cost {$reads['off']} reads with favourites off and {$reads['on']} with them on; "
+                . 'the strip query is the one read between them'
         );
     }
 

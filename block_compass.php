@@ -25,9 +25,9 @@
 /**
  * The Compass block class.
  *
- * A shell, on purpose: it ships labels and configuration and renders the
- * template; every piece of course data is fetched by the browser over AJAX
- * (PLAN.md §3.2). Nothing in this class may touch $DB or a cache.
+ * A shell: it ships labels and configuration and renders the template; every
+ * piece of course data is fetched by the browser over AJAX, so nothing in this
+ * class may touch $DB or the plugin's caches.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -44,7 +44,7 @@ class block_compass extends block_base {
     }
 
     /**
-     * The block lives on the Dashboard only (ADR-000, decision 5).
+     * The block lives on the Dashboard only.
      *
      * @return array
      */

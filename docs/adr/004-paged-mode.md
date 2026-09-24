@@ -2,7 +2,8 @@
 
 - **Status:** Accepted (2026-09-04, maintainer; implementation in Phase 3).
   Supersedes ADR-000 decision 18 (search as a SQL `LIKE`) — see "Search" and
-  ADR-000 decision 23.
+  ADR-000 decision 23. Amended 2026-09-24: the name order is total, and the client's
+  flat list compares numbers by value (see Amendments at the end).
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent against the
   5.2 source and the bench of `docs/perf/2026-09-04-bench-postgres17.md`
@@ -65,7 +66,8 @@ Facts that shaped the decision:
    `matches()` splits the normalised query on whitespace and requires every
    word as a substring. PHP's `Normalizer::normalize($s, Normalizer::FORM_D)`
    is the same NFD, and the `intl` extension that provides it is **required**
-   by Moodle 5.2 (`admin/environment.xml:5402`, `level="required"`). The
+   by Moodle 5.2 (`admin/environment.xml:5402`, `level="required"`; *amended
+   2026-09-24: that line is in the 5.3 block, the 5.2 one is 5197*). The
    tempting shortcut, `core_text::specialtoascii()` (`lib/classes/text.php`),
    is **not** the same rule: it is ICU's `Any-Latin; Latin-ASCII`
    transliteration, which also folds letters that have no canonical
@@ -297,7 +299,9 @@ PHP and a handful of formatted group names — well inside 400 ms; the fill
   names the collator calls equal without being byte-identical (a case- or
   accent-only difference) are not separated by the cursor's tie-break, so such a
   pair can still swap between two pages of one group — the tie-break covers
-  byte-identical names, which is the case a shared name actually produces; and
+  byte-identical names, which is the case a shared name actually produces
+  *(amended 2026-09-24: closed — the order is total for every pair; see the
+  Amendments)*; and
   the client detects a restarted page by the ids it already holds, so a bulk
   change that removes every rendered row while later rows survive appends the
   fresh page under stale ones until the group is closed and reopened. An
@@ -333,3 +337,37 @@ appendix.
 | Search through `$DB->sql_like()` (ADR-000 decision 18) | Accent-insensitive matching is impossible on PostgreSQL and collation-dependent on MariaDB, against an accent-insensitive full mode; the planner scans `{course}`; one read the entry-derived path does not need. |
 | Chips narrowing the header counts server-side | One more statement or one more full pass per chip change; the plan's tolerance is "the UI is the same", which a live-region note on the header count satisfies. |
 | A separate `mode` setting forcing `paged` for everyone | The mode is a function of the user's size, not a site preference; a forced `paged` for small users would cost round trips for nothing. |
+
+## Amendments
+
+**2026-09-24: the name order is total, and the known limit about collator-equal names is
+closed.** The first implementation ordered the candidates with
+`core_collator::asort_array_of_arrays_by_key(..., SORT_NATURAL)` and then separated
+byte-identical names by id. Two names the collator calls equal without being byte-identical —
+"Unit 1 course" and "Unit 01 course" once the natural sort has padded their digits — stayed
+unseparated, and since `Collator::asort()` is not stable (its comparison has no fallback to the
+original position), the order the population arrived in, which follows the cache state,
+decided between them: page 1 could ship either course, and a cursor could repeat one and lose
+the other. From version 2026092401 `explore::order()` computes each raw name's collation sort
+key (`explore::sort_key()`: digit runs left-padded to twenty characters as
+`core_collator::callback_naturalise()` pads them, then `Collator::getSortKey()` under the
+langconfig locale with `CASE_FIRST` off, as `core_collator::asort()` sets up its own collator)
+and `usort`s on `strcmp()` of the keys with ties to the lower course id. Sort keys order exactly
+as the collator compares, so distinct names keep the order this record decided; `recent` is
+still a stable `usort` on `timeaccess` layered over that order. Pinned by
+`explore_test::test_names_the_collator_calls_equal_are_paged_in_course_id_order` (gate
+`explore_order_id_tiebreak`).
+
+**2026-09-24: the client's flat list compares numbers by value, so the name order is one rule
+on both sides.** Full mode's grouped view arrives ordered by the server (`build()`,
+`SORT_NATURAL`), and pages and search hits by `order()` above; only the flat list (A–Z and
+Recent) is sorted in the browser, and its comparator compared digit runs as text, putting
+"Unit 10" before "Unit 2" there alone. It now passes `{numeric: true}` to `localeCompare()`.
+Three differences from the server remain on purpose, stated at `byname()` in `Explore.tsx`:
+case and accents are folded by `normalise()` before comparing, the locale is the browser's
+rather than the user's Moodle language, and a tie keeps arrival order. Pinned by
+`explore_test::test_a_number_in_a_name_orders_by_value_on_the_server_and_in_the_client`, which
+reads every `localeCompare()` in the client sources for the numeric option.
+
+**2026-09-24: fact 5's line.** The `intl` requirement of Moodle 5.2 is
+`admin/environment.xml:5197`; 5402 is the same requirement in the 5.3 block. The fact stands.

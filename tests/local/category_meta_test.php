@@ -34,13 +34,12 @@ use core_course_category;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The categorymeta wrapper (ADR-001, the shared category layer).
+ * The categorymeta wrapper, the shared category layer.
  *
  * Core keeps the same records in coursecatrecords, but that definition is MODE_REQUEST
- * (lib/db/caches.php:203-209): core_course_category::get_many() paid a read on every real
- * request, and the budget tests never saw it because their warm-up and measured call share
- * one process. This layer is an application cache, and these cases pin what the budget
- * accounting now assumes of it: one read fills any number of misses, a hit costs none, the
+ * (lib/db/caches.php:203-209), so core_course_category::get_many() costs a read on every
+ * request. This layer is an application cache, and these cases pin what the budget
+ * accounting assumes of it: one read fills any number of misses, a hit costs none, the
  * context comes back from the stored columns without a query, and group_id() walks the
  * stored path instead of asking for ancestors. Every case purges the definition first —
  * cold is where a wrapper that never fills, never stores or stores the wrong shape shows,
@@ -54,13 +53,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(category_meta::class)]
 final class category_meta_test extends advanced_testcase {
     /**
-     * Purge the definition and drop anything the wrapper memoises.
+     * Purge the definition.
      *
      * @return void
      */
     private function purge_category_meta_cache(): void {
         cache::make('block_compass', 'categorymeta')->purge();
-        category_meta::reset();
     }
 
     /**
@@ -352,7 +350,7 @@ final class category_meta_test extends advanced_testcase {
      * The observer calls this beside delete() on every course_category_updated, because a move
      * rewrites the descendants' paths and the event cannot tell a move from a rename. The
      * category itself, its parent and a sibling subtree are the controls: the predicate is the
-     * delimited "/<id>/" on the stored path, and nothing outside the subtree carries it.
+     * delimited "/<id>/" in {course_categories}.path, and nothing outside the subtree carries it.
      *
      * @return void
      */

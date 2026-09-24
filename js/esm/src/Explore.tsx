@@ -16,24 +16,22 @@
 /**
  * Tier 3: the inventory, grouped by category, filtered and reordered in place.
  *
- * Two modes, decided by the server (ADR-004). In FULL mode one request brings every
- * row and the toolbar only re-renders what is already held - no request is made for
- * a filter the browser can answer, which is non-negotiable 5 of PLAN.md. In PAGED
- * mode the groups arrive with counts only: a group fetches its rows on first open
- * and page by page, the chip and the sort are parameters of those fetches, and the
- * search box asks the server, because the rows are not here to search.
+ * Two modes, decided by the server. In full mode one request brings every row but the
+ * archive's (see pagedgroup()) and the toolbar only re-renders what is already held - no
+ * request is made for a filter the browser can answer. In paged mode the groups arrive with
+ * counts only: a group fetches its rows on first open and page by page, the chip, the field
+ * selection and the sort are parameters of those fetches, and the search box asks the
+ * server, because the rows are not here to search.
  *
- * Since R4 the section also owns two things that cut across both modes: the viewer's
- * choice between the list and the cards, which is a re-render and a preference write and
- * nothing more, and the details store, which fetches progress and the course image for the
- * rows that actually reach the viewport (ADR-005). Neither knows about the mode, because a
- * row is a row however it arrived.
+ * Two things cut across both modes: the viewer's choice between the list and the cards,
+ * which is a re-render and a preference write and nothing more, and the details store,
+ * which fetches progress and the course image for the rows that actually reach the
+ * viewport. Neither knows about the mode, because a row is a row however it arrived.
  *
- * Since ADR-010: the section is scrolled into view and given the keyboard on every press that
- * opens or re-aims it (decision 1); the toolbar starts as the viewer left it and is remembered
- * in one preference the shell validates (decision 9); the star toggles here too, patching the
- * row and refreshing tier 1 (decision 6); the cards grid carries a column count (decision 4);
- * and every failure has a way back (decision 12).
+ * The section is scrolled into view and given the keyboard on every press that opens or
+ * re-aims it; the toolbar starts as the viewer left it and is remembered in one preference
+ * the shell validates; the star toggles here too, patching the row and refreshing tier 1,
+ * and a star toggled in tier 1 patches the row here; and every failure has a way back.
  *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
@@ -50,10 +48,10 @@ import Platter from './Platter';
 import RetryNotice from './RetryNotice';
 import RowList from './RowList';
 import ViewToggle from './ViewToggle';
-import {amd} from './amd';
 import {matches, normalise, passesChip, passesSelection} from './filter';
 import type {RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
+import {confirmAction, notify} from './notify';
 import {fill, fillObject} from './str';
 import {
     getInventory, getInventoryRows, isTransportFailure, searchInventory, setArchived, setExplorePreference, setFavourite,
@@ -63,6 +61,7 @@ import {useRowDetails} from './rowdetails';
 import {GROUP_ARCHIVED, GROUP_DORMANT} from './types';
 import type {
     BlockConfig, ExploreState, FilterField, FilterParam, Inventory, InventoryRow, KeptToolbar, Reconnecting, SearchRow,
+    StarChange,
 } from './types';
 
 /** The status chips, in the order the panel draws them; the pending one only when the feature is on. */
@@ -71,19 +70,19 @@ const STATUS_CHIPS = ['all', 'new', 'favourites', 'pending'];
 /** Full mode: the browser answers a keystroke, so it may answer it soon. */
 const DEBOUNCE_MS = 150;
 
-/** Paged mode: the server answers, so wait for the typing to settle (ADR-004). */
+/** Paged mode: the server answers, so wait for the typing to settle. */
 const PAGE_DEBOUNCE_MS = 300;
 
-/** Shorter than this, normalised, and the server would refuse it anyway. */
+/** Shorter than this, normalised, and the server answers no rows anyway (explore::SEARCH_MIN_LENGTH). */
 const SEARCH_MIN_LENGTH = 2;
 
-/** A toolbar change is remembered once it has settled for this long (ADR-010, decision 9). */
+/** A toolbar change is remembered once it has settled for this long. */
 const REMEMBER_MS = 500;
 
 /**
  * Below this width of the section itself the category index is hidden.
  *
- * Of the SECTION, not the viewport: the block may sit in a drawer or a narrow
+ * Of the section, not the viewport: the block may sit in a drawer or a narrow
  * column, and a viewport query would fire at the wrong moments.
  */
 const NARROW_PX = 640;
@@ -92,6 +91,7 @@ type ExploreProps = {
     config: BlockConfig,
     chip: string | null,
     reveal: number,
+    starred: StarChange | null,
     reconnecting: Reconnecting | null,
     kept: RefObject<KeptToolbar | null>,
     announce: (text: string) => void,
@@ -117,7 +117,7 @@ type Failure = 'transport' | 'server';
 const shippedSelection = (cf: Selection | unknown[]): Selection => (Array.isArray(cf) ? {} : cf);
 
 /**
- * Keep of a remembered field selection what the payload's fields can draw (ADR-010, decision 9).
+ * Keep of a remembered field selection what the payload's fields can draw.
  *
  * The shell validated the shape; whether a field is still configured, and whether its value is
  * still one of the field's keys, is only known here, when the inventory arrives.
@@ -140,7 +140,7 @@ const knownSelection = (selection: Selection, fields: FilterField[]): Selection 
 
 /**
  * Whether the section should scroll without easing: the reader asked for less motion, or a
- * Behat run is driving the page and a click must not land on a moving element (decision 1).
+ * Behat run is driving the page and a click must not land on a moving element.
  *
  * @returns {string} auto or smooth.
  */
@@ -151,18 +151,13 @@ const scrollBehavior = (): 'auto' | 'smooth' => {
     return reduced || document.body.classList.contains('behat-site') ? 'auto' : 'smooth';
 };
 
-type NotificationModule = {
-    addNotification: (notification: {message: string, type: string}) => void,
-    saveCancelPromise: (title: string, question: string, savelabel: string) => Promise<unknown>,
-};
-
 /**
  * What one group has fetched, in paged mode.
  *
  * `failed` is what stops the fetch-on-open effect becoming a retry loop: it fires while a
  * group is open with nothing loaded, so a failure that only cleared `loading` would be
- * asked again immediately, for ever, against a server that is already unwell. Closing and
- * reopening the group clears it, which is the retry.
+ * asked again immediately, for ever, against a server that is already unwell. Try again,
+ * reopening the group and the browser coming back online clear it, which is the retry.
  */
 type PageState = {
     rows: InventoryRow[],
@@ -176,34 +171,20 @@ type PageState = {
 const EMPTY_PAGE: PageState = {rows: [], after: 0, hasmore: false, loaded: false, loading: false, failed: false};
 
 /**
- * Report a failure the way the rest of the client does.
- *
- * @param {string} message The already-translated message.
- * @returns {Promise} Resolves once the notification is up.
- */
-const notify = async(message: string): Promise<void> => {
-    try {
-        const notification = await amd<NotificationModule>('core/notification');
-        notification.addNotification({message, type: 'error'});
-    } catch (e) {
-        // There is nowhere left to say it: the notifier itself did not load.
-    }
-};
-
-/**
  * Tier 3.
  *
- * @param {object} props The block config, the chip to open on, the block's assertive live
- *     region and the callback that refetches tier 1; see ExploreProps.
+ * @param {object} props The block config, the chip to open on, the press counter, the last
+ *     star tier 1 toggled, the block's assertive live region and the callback that refetches
+ *     tier 1; see ExploreProps.
  * @returns {object} The rendered section.
  */
-const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
+const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
     const {labels} = config;
     const titleid = useId();
     const searchid = useId();
     const panelid = useId();
     // Where the toolbar starts: as the viewer left it before a reload remounted this component,
-    // or - on the first mount - as the shell read it (ADR-010, decision 9 and amendment 9).
+    // or - on the first mount - as the shell read it.
     const seed = useRef<KeptToolbar>(kept.current ?? {
         explore: {...config.explore, cf: shippedSelection(config.explore.cf)},
         view: config.view === 'cards' ? 'cards' : 'list',
@@ -220,14 +201,13 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     const [searchfailed, setSearchfailed] = useState(false);
     const [query, setQuery] = useState('');
     const [applied, setApplied] = useState('');
-    // The toolbar starts as the viewer left it (ADR-010, decision 9); a heading link's chip is
-    // pressed over the remembered one by the reveal effect below.
+    // A heading link's chip is pressed over the remembered one by the reveal effect below.
     const [chip, setChip] = useState(seed.explore.chip);
-    // The pressed chip of each custom-field group (ADR-009, decision 4): one value per group,
-    // groups combine with AND. In full mode a change re-renders; in paged mode it travels.
+    // The pressed chip of each custom-field group: one value per group, groups combine with
+    // AND. In full mode a change re-renders; in paged mode it travels.
     const [selection, setSelection] = useState<Selection>(seed.explore.cf);
-    // The filter panel is open at first render for a viewer who never closed it, so its
-    // platters are on screen when axe reads the block (ADR-009, decision 8).
+    // Open at first render for a viewer who never closed it (explore_preference::defaults()),
+    // which is also what puts the platters on screen for the Behat axe step.
     const [panelopen, setPanelopen] = useState(seed.explore.panel);
     const [sort, setSort] = useState(seed.explore.sort);
     const [open, setOpen] = useState<Record<number, boolean>>({});
@@ -236,10 +216,11 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     const [announcement, setAnnouncement] = useState({text: '', at: 0});
     const [narrow, setNarrow] = useState(false);
     const [focusmore, setFocusmore] = useState<{id: number, from: number} | null>(null);
-    // The shell resolved this: the viewer's own preference, or the site default (ADR-005).
+    // The shell resolved this: the viewer's own preference, or the site default.
     const [view, setView] = useState(seed.view);
     // An archive write is out. Every archive control is disabled while it is, because a
-    // second write racing the first would be racing a batch the route may abandon midway.
+    // second write racing the first would race a batch core's preference service may
+    // abandon midway (see setArchived() in repository.ts).
     const [busy, setBusy] = useState(false);
     // Bumped by an archive so that a paged-mode search, whose hits are state of their own
     // and not derived from the inventory, is asked again rather than left showing a row
@@ -313,7 +294,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             setData(payload);
             setFailed(null);
             // A remembered field that is no longer configured, or a value the field no longer
-            // has, is dropped here: the shell could only check the shape (decision 9).
+            // has, is dropped here: the shell could only check the shape.
             setSelection((current) => {
                 const known = knownSelection(current, payload.fields);
 
@@ -327,8 +308,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                 // a group's stays its unfiltered total until its rows arrive.
                 announce(labels.pagednote || '');
             } else if (payload.groups.length && payload.groups[0].id >= 0) {
-                // The first CATEGORY opens; the two groups that are not categories are closed
-                // by default even when one of them is all there is (ADR-007, decision 2).
+                // The first category opens; the two groups that are not categories are closed
+                // by default even when one of them is all there is.
                 setOpen({[payload.groups[0].id]: true});
             }
         } catch (e) {
@@ -383,12 +364,11 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         groupseq.current[id] = mine;
         setPages((current) => ({...current, [id]: {...(current[id] || EMPTY_PAGE), loading: true}}));
         try {
-            // Full mode holds the rows it filters, the archive's included once they are here
-            // (ADR-007, amendment 3): the page asks for the whole archive, name-ordered, and the
-            // chip, the selection and the query are applied in groupview() the way every other
-            // group's are - so a change narrows it and a cleared search brings the rows back.
-            // Paged mode holds nothing and sends them as parameters. The first version sent the
-            // toolbar of the moment in both modes and never looked at the rows again.
+            // Full mode holds the rows it filters, the archive's included once they are here:
+            // the page asks for the whole archive, name-ordered, and the chip, the selection and
+            // the query are applied by passesRow() the way every other group's are - so a change
+            // narrows it and a cleared search brings the rows back. Paged mode holds nothing and
+            // sends them as parameters.
             const page = await getInventoryRows(
                 id,
                 before.after,
@@ -402,8 +382,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             }
             /*
              * A page whose rows the group already holds means the server restarted the group -
-             * the cursor no longer existed in its order (ADR-004) - so the rows replace what is
-             * held rather than being appended to it. Decided out here, not inside the updater,
+             * the cursor no longer existed in its order - so the rows replace what is held
+             * rather than being appended to it. Decided out here, not inside the updater,
              * because the focus target below needs the same answer and an updater's locals are
              * not readable from outside it.
              */
@@ -425,7 +405,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             setFocusmore(focus ? {id, from: restarted ? 0 : before.rows.length} : null);
         } catch (e) {
             if (groupseq.current[id] === mine) {
-                // The group shows the way back inside itself (ADR-010, decision 12).
+                // The group shows the way back inside itself.
                 setPages((current) => ({
                     ...current,
                     [id]: {...(current[id] || EMPTY_PAGE), loading: false, failed: true},
@@ -456,12 +436,12 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     /**
      * Whether a group fetches its rows rather than holding them.
      *
-     * Every group does in paged mode. The archived group does in BOTH modes: its rows never
+     * Every group does in paged mode. The archived group does in both modes: its rows never
      * travel in the first payload, so that archiving cannot grow the first paint or push a
-     * tidy-up over inventory_max (ADR-007, decision 2).
+     * tidy-up over inventory_max.
      *
      * @param {number} id The group.
-     * @returns {boolean} Whether rows() is how this group gets its rows.
+     * @returns {boolean} Whether loadPage() is how this group gets its rows.
      */
     const pagedgroup = useCallback((id: number): boolean => paged || id === GROUP_ARCHIVED, [paged]);
 
@@ -469,7 +449,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     // just reset. One effect covers every such group, so no call site can be forgotten. In
     // full mode the archive is fetched page after page until it is all here - full mode holds
     // what it filters, and a filter over half an archive would say "0 courses" of a course
-    // that exists (ADR-007, amendment 3); paged mode fetches one page and offers "Show more".
+    // that exists; paged mode fetches one page and offers "Show more".
     useEffect(() => {
         if (!data) {
             return;
@@ -488,7 +468,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         });
     }, [data, open, pages, paged, loadPage, pagedgroup]);
 
-    // Paged mode: the search is the server's, and a query it would refuse is not sent.
+    // Paged mode: the search is the server's, and a query too short for it to match is not sent.
     useEffect(() => {
         if (!paged) {
             return;
@@ -498,10 +478,10 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
          * An empty box that has never been searched is the state this effect starts in, on
          * every mount, and it has nothing to say about it. Announcing there would wipe what
          * the region was holding - on first render, the paged-mode note said by the load
-         * effect one tick earlier. Measured on m502: the note never survived.
+         * effect one tick earlier.
          *
          * The condition is the sequence number rather than "no hits showing", deliberately:
-         * hits is state this effect SETS, so reading it would put it in the dependencies and
+         * hits is state this effect sets, so reading it would put it in the dependencies and
          * every answer would re-run the effect that fetched it. The counter only moves when
          * a query is actually sent, and a ref is not a dependency.
          */
@@ -530,7 +510,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                     : shown);
             } catch (e) {
                 if (searchseq.current === mine) {
-                    // The notice takes the hits' place, with the way back (ADR-010, decision 12).
+                    // The notice takes the hits' place, with the way back.
                     setSearchfailed(true);
                 }
             }
@@ -539,9 +519,9 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         labels.loaderror]);
 
     // Full mode: matching is over the normalised name, so normalise each once rather
-    // than on every keystroke. The archive's rows, held once fetched (ADR-007, amendment 3),
-    // are in the map too, keyed on their own array so a page's loading flag does not rebuild
-    // it: a row the map does not know would match nothing, whatever its name.
+    // than on every keystroke. The archive's rows, held once fetched, are in the map too,
+    // keyed on their own array so a page's loading flag does not rebuild it: a row the map
+    // does not know would match nothing, whatever its name.
     const archivedrows = pages[GROUP_ARCHIVED]?.rows;
     const normalised = useMemo(() => {
         const map = new Map<number, string>();
@@ -566,13 +546,12 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         cf: row.cf ?? [],
     }), [normalised]);
 
-    // Full mode: which rows survive the chip, the custom-field selection and the query, group
-    // by group. No request is made for any of it: the rows are already here (non-negotiable 5).
     /**
      * Full mode's one filter: whether a row passes the chip, the field selection and the query.
      *
-     * The same predicate for the rows the payload carried and for the archive's once fetched,
-     * so the two cannot narrow differently (ADR-009, decision 4; ADR-007, amendment 3).
+     * No request is made for any of it: the rows are already here. The same predicate serves
+     * the rows the payload carried and the archive's once fetched, so the two cannot narrow
+     * differently.
      *
      * @param {object} row The row.
      * @returns {boolean} Whether it is shown.
@@ -598,12 +577,12 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     }, [data, paged, passesRow]);
 
     /**
-     * Full mode: how many rows each chip would keep, given everything ELSE that is pressed.
+     * Full mode: how many rows each chip would keep, given everything else that is pressed.
      *
      * A status chip is counted over the rows passing the selection and the query; a field chip
      * over the rows passing the status chip, the query and the other groups' selections - the
      * usual faceted count, so a number never promises rows the press would not show. Paged mode
-     * holds no rows to count and carries no numbers (ADR-009, decision 5).
+     * holds no rows to count and carries no numbers.
      */
     const facets = useMemo((): Facets => {
         if (!data || paged) {
@@ -648,8 +627,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         return {status, fields: perfield};
     }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
 
-    // The archive's rows that pass the same filter, once they are here (ADR-007, amendment 3);
-    // none in paged mode, where the rows are not held, and none while a page is still due.
+    // The archive's rows that pass the same filter, once they are here; none in paged mode,
+    // where the rows are not held, and none while a page is still due.
     const archivedvisible = useMemo(() => {
         const page = pages[GROUP_ARCHIVED];
         if (paged || !page || !page.loaded || page.hasmore) {
@@ -662,7 +641,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     // What the filter keeps, the archive's matching rows included once they are here: what the
     // live region announces and what decides "No course matches." - the chips' own numbers
     // count the listed courses only, because the archive is not part of the population they
-    // are over (ADR-007, decision 2).
+    // are over.
     const shown = useMemo(
         () => Array.from(visible.values()).reduce((total, rows) => total + rows.length, 0) + archivedvisible.length,
         [visible, archivedvisible]
@@ -751,18 +730,25 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     const statuschips = config.pendingenabled ? STATUS_CHIPS : STATUS_CHIPS.filter((key) => key !== 'pending');
     const pressedcount = (chip !== 'all' && statuschips.includes(chip) ? 1 : 0) + Object.keys(selection).length;
 
+    // The last press the effect below has acted on.
+    const revealed = useRef(0);
+
     /*
-     * Every press that opens or re-aims tier 3 (ADR-010, decision 1): the chip the press implies,
-     * when it implies one - the ghost restores the remembered one instead - then the section is
-     * scrolled to the top of the viewport and given the keyboard, so a screen reader announces
-     * its name before anything inside it. Keyed on the counter rather than on the chip, so a
-     * remembered chip survives the mount and a second press of the same link scrolls again. A
-     * tier 3 that would open on its own has no press and moves nothing.
+     * Every press that opens or re-aims tier 3: the chip the press implies, when it implies
+     * one - the ghost keeps the remembered one instead - then the section is scrolled to the
+     * top of the viewport and given the keyboard, so a screen reader announces its name before
+     * anything inside it. Keyed on the counter rather than on the chip, so a remembered chip
+     * survives the mount and a second press of the same link scrolls again. A tier 3 that
+     * would open on its own has no press and moves nothing.
+     *
+     * Once per press: the effect also runs when chooseChip changes, which it does when a paged
+     * payload lands after the press, and by then the reader may have moved on.
      */
     useEffect(() => {
-        if (reveal === 0) {
+        if (reveal === 0 || reveal === revealed.current) {
             return;
         }
+        revealed.current = reveal;
         if (pressedchip !== null) {
             chooseChip(pressedchip);
         }
@@ -774,8 +760,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         element.focus({preventScroll: true});
     }, [reveal, pressedchip, chooseChip]);
 
-    // The toolbar is remembered once a change has settled (ADR-010, decision 9): one write per
-    // half-second of quiet, never for a render and never for a value equal to what was read.
+    // The toolbar is remembered once a change has settled: one write per half-second of quiet,
+    // never for a render and never for a value equal to what was read.
     useEffect(() => {
         const state: ExploreState = {sort, chip, cf: selection, panel: panelopen};
         const json = JSON.stringify(state);
@@ -793,7 +779,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         return () => window.clearTimeout(timer);
     }, [sort, chip, selection, panelopen, labels.viewerror, kept]);
 
-    // The toolbar as it is now, for Block to hand back after a reload's remount (amendment 9):
+    // The toolbar as it is now, for Block to hand back after a reload's remount:
     // the live values, and the JSON last read or written, which a change made under the debounce
     // above is still ahead of - so the remounted effect writes it rather than losing it.
     useEffect(() => {
@@ -804,8 +790,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         };
     }, [sort, chip, selection, panelopen, view, kept]);
 
-    // When the browser comes back online, whatever failed is asked for once more on its own
-    // (ADR-010, decision 12): the inventory, the search, and every group whose page failed.
+    // When the browser comes back online, whatever failed is asked for once more on its own:
+    // the inventory, the search, and every group whose page failed.
     useEffect(() => {
         /**
          * Retry what is in an error state.
@@ -856,11 +842,11 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     };
 
     /**
-     * Both tiers again, after the set of courses changed under them (ADR-007, decision 3).
+     * Both tiers again, after the set of courses changed under them.
      *
-     * Every loaded page is dropped so an open paged group refetches, tier 3 is fetched again
-     * and tier 1 with it: the strips and the ghost counts are the server's decision and the
-     * client cannot patch them without reimplementing which strip a course lands in.
+     * Every loaded page is dropped so an open paged group refetches, a paged-mode search is
+     * asked again, and tier 3 is fetched again and tier 1 with it (see Block's
+     * refreshAttention for why tier 1 is refetched rather than patched).
      *
      * @returns {Promise} Resolves when both have been asked for.
      */
@@ -881,7 +867,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
 
     /**
      * Apply a change to one row wherever it is held: the full-mode groups, the paged-mode
-     * pages, the search hits (ADR-010, decision 6). The twin of Block's withCard.
+     * pages, the search hits. The twin of Block's withCard.
      *
      * @param {number} courseid The course.
      * @param {Function} change What to do to the row.
@@ -922,14 +908,25 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             : current));
     }, []);
 
+    // A star toggled in tier 1 reaches the rows held here the way this tier's own toggle does,
+    // through withRow: the row's star, the Favourites chip's count and the facets follow with no
+    // request (see StarChange for why each toggle is a new object).
+    useEffect(() => {
+        if (starred === null) {
+            return;
+        }
+        const {courseid, favourite} = starred;
+        withRow(courseid, (row) => ({...row, fav: favourite}));
+    }, [starred, withRow]);
+
     /**
-     * Toggle the core course star of one row (ADR-010, decision 6).
+     * Toggle the core course star of one row.
      *
      * The same call tier 1 makes. After the write tier 3 patches itself - the star, the
      * Favourites chip's count and the facets follow with no request - and tier 1 reloads,
-     * because the favourites strip and the ghost count are the server's decision (ADR-009,
-     * decision 1). The confirmation goes through the block's assertive region, as tier 1's
-     * does; the row does not leave the page, so the keyboard stays on the star.
+     * because the favourites strip and the ghost count are the server's decision. The
+     * confirmation goes through the block's assertive region, as tier 1's does; the row does
+     * not leave the page, so the keyboard stays on the star.
      *
      * @param {number} courseid The course.
      * @param {boolean} favourite The state it becomes.
@@ -953,34 +950,38 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      * Where the keyboard goes once the control it was on has left the page.
      *
      * An archived row unmounts with its button, so focus would fall to the body and a
-     * keyboard user would lose their place in the list they just changed - the same
-     * failure "Show more" had in R3. The target is decided BEFORE the write, while the
-     * control is still there: the group's own summary when the row is in a group, the
-     * section title otherwise. It is used only if focus has actually been lost.
+     * keyboard user would lose their place in the list they just changed. The target is
+     * decided before the write, while the control is still there: the group's own summary
+     * when the row is in a group, the section title otherwise. The title also stands in when
+     * the group has left with its rows - the dormant group does once every course in it is
+     * archived - because a summary no longer in the document takes no focus. It is used only
+     * if focus has actually been lost.
      *
      * @returns {Function} Puts focus back, if it fell to the body.
      */
     const keepFocus = useCallback((): (() => void) => {
         const origin = document.activeElement as HTMLElement | null;
-        const target = origin?.closest('.compass-group')?.querySelector<HTMLElement>('summary')
-            ?? section.current?.querySelector<HTMLElement>('.compass-explore-title')
-            ?? null;
+        const summary = origin?.closest('.compass-group')?.querySelector<HTMLElement>('summary') ?? null;
 
         return () => {
             const active = document.activeElement;
-            if (target && (active === null || active === document.body || !document.contains(active))) {
-                target.focus();
+            if (active !== null && active !== document.body && document.contains(active)) {
+                return;
             }
+            const target = summary !== null && document.contains(summary)
+                ? summary
+                : section.current?.querySelector<HTMLElement>('.compass-explore-title') ?? null;
+            target?.focus();
         };
     }, []);
 
     /**
      * Archive one course or bring it back, then look again.
      *
-     * The write goes through core's preference route (ADR-000 decision 16, ADR-007 decision 3)
-     * and is confirmed through the assertive live region, the way a favourite is. On failure
-     * the reader is told, and both tiers are still reloaded: the only way to know what is
-     * actually stored after a write that may have half-happened is to ask.
+     * The write goes through core's user preference services (see setArchived() in
+     * repository.ts) and is confirmed through the assertive live region, the way a favourite
+     * is. On failure the reader is told, and both tiers are still reloaded: the only way to
+     * know what is actually stored after a write that may have half-happened is to ask.
      *
      * @param {number} courseid The course.
      * @param {string} name Its name, for the announcement.
@@ -1010,8 +1011,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      *
      * Only what the browser knows to be dormant is written: in full mode that is the dormant
      * group's rows; in paged mode it is the rows the group has fetched so far, and the button
-     * says how many. The confirmation is core's own dialogue, so the reader gets the same
-     * modal, focus handling and Escape behaviour as everywhere else in Moodle.
+     * says how many. The confirmation is core's own dialogue (see confirmAction() in notify.ts).
      *
      * @param {object[]} rows The dormant rows the browser holds.
      * @returns {Promise} Resolves when the run has ended, whichever way.
@@ -1020,15 +1020,12 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         if (busy || rows.length === 0) {
             return;
         }
-        const notification = await amd<NotificationModule>('core/notification');
-        try {
-            await notification.saveCancelPromise(
-                labels.archiveall,
-                fill(labels.archiveallconfirm, String(rows.length)),
-                labels.confirm
-            );
-        } catch (e) {
-            // Cancelled, or the dialogue was dismissed: nothing to do and nothing to say.
+        const confirmed = await confirmAction(
+            labels.archiveall,
+            fill(labels.archiveallconfirm, String(rows.length)),
+            labels.confirm
+        );
+        if (!confirmed) {
             return;
         }
         const refocus = keepFocus();
@@ -1037,8 +1034,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             await setArchived(rows.map((row) => row.id), true);
             alert(fill(labels.coursearchived, String(rows.length)));
         } catch (e) {
-            // A batch may have been written before the one that failed (ADR-007, fact 5):
-            // say so, and let the reload below show what is actually stored.
+            // A batch may have been written before the one that failed: say so, and let the
+            // reload below show what is actually stored.
             await notify(labels.archiveerror || '');
         }
         setBusy(false);
@@ -1052,7 +1049,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      *
      * The rows are already held, so this is a re-render and nothing else: every detail
      * already fetched survives it, and a row still waiting is observed again once it is
-     * back on screen. Only the memory of the choice travels (ADR-005, decision 4).
+     * back on screen. Only the memory of the choice travels.
      *
      * @param {string} value list or cards.
      * @returns {Promise} Resolves once the preference is written, or the failure reported.
@@ -1073,7 +1070,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      * Which category a row belongs to, for the cards view to print.
      *
      * Full mode knows it from the group the row was sent in; a paged search hit carries its
-     * group id (ADR-004), which the group headers name. Either way nothing new travels.
+     * group id, which the group headers name. Either way nothing new travels.
      */
     const categoryname = useMemo((): Map<number, string> => {
         const names = new Map<number, string>();
@@ -1106,12 +1103,19 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         /**
          * Compare two rows by their normalised names, which is what the eye reads.
          *
+         * A run of digits compares by its value, so "Unit 2" comes before "Unit 10" and "Unit 01"
+         * ties with "Unit 1", as in the server's order (explore::order()). Three things differ from
+         * that order: case and accents are folded away by normalise() before comparing, so names
+         * differing only in them tie here; the locale is the browser's default rather than the
+         * one of the user's Moodle language; and a tie keeps the order the rows arrived in
+         * (sort() is stable), where the server puts the lower course id first.
+         *
          * @param {object} a One row.
          * @param {object} b Another row.
          * @returns {number} The comparison.
          */
         const byname = (a: InventoryRow, b: InventoryRow): number =>
-            (normalised.get(a.id) || '').localeCompare(normalised.get(b.id) || '');
+            (normalised.get(a.id) || '').localeCompare(normalised.get(b.id) || '', undefined, {numeric: true});
         rows.sort(sort === 'recent'
             ? (a, b) => ((b.opened || 0) - (a.opened || 0)) || byname(a, b)
             : byname);
@@ -1132,8 +1136,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         );
     }
     if (!data) {
-        // The wrapper's retry is said here too (decision 12, amendment 8): the section sits at
-        // the top of the viewport after a press, where Block's own line is off screen.
+        // The repository's retry is said here too: the section sits at the top of the viewport
+        // after a press, where Block's own line is off screen.
         return (
             <section className="compass-explore" ref={section} tabIndex={-1}>
                 <div className="compass-status text-muted small" role="status" aria-live="polite">
@@ -1150,8 +1154,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
 
     const grouped = paged ? hits === null : sort === 'category';
     const showindex = config.showindex && grouped && !narrow;
-    // The cards grid's column count (ADR-010, decision 4): three without the index, two with
-    // it, one while the section is narrow.
+    // The cards grid's column count: three without the index, two with it, one while the
+    // section is narrow.
     const columns = narrow ? 1 : (showindex ? 2 : 3);
     const flat = paged ? (hits?.rows ?? []) : flatrows;
     const noresults = paged ? hits !== null && hits.rows.length === 0 : shown === 0;
@@ -1176,11 +1180,11 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         if (!paged) {
             // The archived group in full mode: fetched page after page on first open until it is
             // all here, then held and filtered like every other group's rows, so a chip, a
-            // selection or a query narrows it and clearing them brings the rows back (ADR-007,
-            // amendment 3). Until the rows are all here the count is the server's total - there
-            // is nothing complete to narrow yet - and the group stays, closed, whatever the
-            // filter: it is not part of the population the filter is over, and hiding it would
-            // make the archive unreachable for as long as a query is typed (ADR-007, decision 2).
+            // selection or a query narrows it and clearing them brings the rows back. Until the
+            // rows are all here the count is the server's total - there is nothing complete to
+            // narrow yet - and the group stays, closed, whatever the filter: it is not part of
+            // the population the filter is over, and hiding it would make the archive
+            // unreachable for as long as a query is typed.
             const complete = page.loaded && !page.hasmore;
 
             return {rows: archivedvisible, count: complete ? archivedvisible.length : total, show: true};
@@ -1189,9 +1193,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         return {rows: page.rows, count: page.loaded ? page.rows.length : total, show: true};
     };
 
-    // The panel title's level comes from heading.ts: an h4 under core's own block-title h3,
-    // an h3 when hide_block_title has removed it (ADR-008, decision 3). The h5 class keeps
-    // the size, and keepFocus() finds the element by its class, so the level is free to move.
+    // The panel title's level comes from heading.ts. The h5 class keeps the size, and
+    // keepFocus() finds the element by its class, so the level is free to move.
     const Heading = sectionTag(config.headinglevel);
 
     return (
@@ -1199,9 +1202,8 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </Heading>
-            {/* The toolbar in the shape local_dimensions gives its own (ADR-009, decision 4): the
-                sort platter and the view toggle on one row, the search box and the Filter button on
-                the next, and the chips inside the panel that button opens. */}
+            {/* The sort platter and the view toggle on one row, the search box and the Filter
+                button on the next, and the chips inside the panel that button opens. */}
             <div className="compass-toolbar">
                 <Platter
                     label={labels.sortby}
@@ -1261,11 +1263,9 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                                 return (
                                     <li key={group.id}>
                                         {/* An anchor, not a button: the browser's own fragment
-                                            navigation is what scrolls the group into view, and it is
-                                            the whole point of an index on a long inventory. Opening
-                                            the group as well is new - the old anchor only scrolled to
-                                            it, leaving the reader to open what they had just asked
-                                            for. */}
+                                            navigation is what scrolls the group into view. The click
+                                            also opens the group, so the reader lands on its rows
+                                            rather than on a closed summary. */}
                                         <a
                                             href={`#${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
                                             className="d-flex justify-content-between text-decoration-none"
@@ -1329,10 +1329,20 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                                     busy={busy}
                                     toolbar={isdormant && slice.rows.length > 0 ? (
                                         <div className="compass-archiveall">
+                                            {/* Never the disabled attribute while its own run is
+                                                out: the focused button would drop the keyboard to
+                                                the body and "Archiving…" would be said to nobody
+                                                (see Reload.tsx). archiveAll() refuses a press
+                                                while busy. Bootstrap's disabled class is kept for
+                                                its look: its pointer-events: none passes a click
+                                                to the group's toolbar beneath, which has no
+                                                handler and no stretched link (see Star.tsx). */}
                                             <button
                                                 type="button"
-                                                className="btn btn-outline-secondary btn-sm"
-                                                disabled={busy}
+                                                className={busy
+                                                    ? 'btn btn-outline-secondary btn-sm disabled'
+                                                    : 'btn btn-outline-secondary btn-sm'}
+                                                aria-disabled={busy || undefined}
                                                 onClick={() => archiveAll(slice.rows)}
                                             >
                                                 {busy ? labels.archiving : `${labels.archiveall} (${slice.rows.length})`}

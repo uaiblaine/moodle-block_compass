@@ -3,7 +3,9 @@
 - **Status:** Accepted (2026-09-04, maintainer; implementation in Phase 3);
   amended 2026-09-04 during that implementation — fact 3 (`get_fieldset_sql()`
   takes no limit) and the per-sweep read overhead of `set_config()`, both found
-  against the source while writing the code
+  against the source while writing the code; amended 2026-09-24 — the `blocking`
+  key 5.2 does not read, the overhead traced to seven reads, and fact 5's line
+  (see Amendments at the end)
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent against the
   5.2 source and the bench of `docs/perf/2026-09-04-bench-postgres17.md`
@@ -63,7 +65,8 @@ Facts from the 5.2 source and from the fleet's own measurements that shaped it:
 
 5. **Cron already serialises scheduled tasks.** `\core\task\manager` takes a
    lock named after the task class before running it
-   (`lib/classes/task/manager.php:1067`), so two cron workers cannot run
+   (`lib/classes/task/manager.php:1067`; *amended 2026-09-24: line 1071, in
+   `get_next_scheduled_task()`*), so two cron workers cannot run
    `warm_active_users` at once; the task needs no lock of its own.
 
 6. **Core's own precedent for a time-budgeted, resumable task** is the search
@@ -96,6 +99,9 @@ registered in `db/tasks.php` as
     'dayofweek' => '*',
 ]
 ```
+
+*(Amended 2026-09-24: the `blocking` line is gone from `db/tasks.php`; 5.2 reads no
+such key — see the Amendments.)*
 
 — once a night at 04:00 site time by default, a random minute so that many
 sites on one cron host do not start together; administrators change the
@@ -227,7 +233,8 @@ writes the same cache entries a Dashboard visit writes.
   every batch, and the cursor reset plus the completion time when a sweep ends,
   with one more when the next `get_config()` reloads the plugin's config. A
   sweep that completes in one batch therefore pays about eight reads of
-  overhead whatever its size. Bypassing `set_config()` would skip the config
+  overhead whatever its size. *(Amended 2026-09-24: seven, traced read by read, and
+  now asserted as a bound — see the Amendments.)* Bypassing `set_config()` would skip the config
   cache invalidation and leave the next run resuming from a stale cursor, so
   the overhead is kept and the budget test pins the **per-user** cost by
   differencing two sweeps rather than asserting an absolute total. For the
@@ -331,3 +338,30 @@ Per-user fill cost: the same bench, 3.6 ms (50 enrolments) and 28 ms (3 000)
 | A `prewarm_batch` setting | The selection query costs the same at any batch size; the number only trades memory for cursor-write frequency, and 200 is a safe constant. |
 | Warm `details` for the warmed users | Per user × per course completion computation for people who may not return; the plan forbids it and the observers keep `details` correct without it. |
 | Schedule at a random hour (`'R'`) | Core's idiom for maintenance tasks, but this one exists to run off-peak: a fixed default hour with a random minute keeps it out of the morning. |
+
+## Amendments
+
+**2026-09-24: the `blocking` key was dead configuration.** The registration above carried
+`'blocking' => 0`, and nothing on 5.2 reads it: `task_base::is_blocking()` and
+`set_blocking()` were finally deprecated in 5.0 (MDL-81509, `lib/UPGRADING.md:719`) and
+removed in 5.2 (`:305-306`, MDL-87425), and no class under `lib/classes/task/` names the key. It is removed from `db/tasks.php`; the task is registered with its schedule
+alone, which changes nothing at run time. What `warm_active_users_test` now asserts in its
+place is the half of "always scheduled, gated by the setting" that the file decides: the
+default registration is not disabled (gate `task_registered_enabled`).
+
+**2026-09-24: the per-sweep overhead is seven reads, and the test bounds it.** Consequences
+said "about eight". Traced through core's `set_config()` and `get_config()` on 5.2, a run that
+starts a sweep and completes it in one batch pays exactly seven beyond its users: the plugin's
+config bundle reloaded by the first `get_config()`, because the previous run's last
+`set_config()` invalidated it; the window's `set_config()`, which reads its row before it
+writes; the bundle reloaded again by `config::group_depth()`, because that write invalidated
+it; the remaining count; the one selection; and the row reads of the two `set_config()` calls
+that end the sweep, the cursor reset and the completion time. Every `set_config()` invalidates
+the bundle even when the value is unchanged, because it compares the stored string with the
+int it is given strictly. `prewarm::run()`'s docblock carries the same accounting.
+`prewarm_test` keeps the differencing of two sweeps this record chose and now also bounds each
+sweep absolutely, at 1 + 7 and 3 + 7 (it was 1 + 8 and 3 + 8, which one extra read per sweep
+would not have reddened; gate `prewarm_overhead_extra_read`).
+
+**2026-09-24: fact 5 cites the wrong line.** The per-class lock is taken at
+`lib/classes/task/manager.php:1071`, in `get_next_scheduled_task()`; the fact itself stands.

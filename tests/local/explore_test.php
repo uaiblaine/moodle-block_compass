@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use stdClass;
 
 /**
- * The payload the browser renders once and then only filters (PLAN.md §2, §7; ADR-002).
+ * Tier 3: the payload the browser renders and filters, and the paged-mode rows() and search().
  *
  * Every fixture names its categories and courses so that alphabetical order and creation
  * order disagree: sorting is the whole contract of this class and a fixture whose names
@@ -89,7 +89,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * Empty the four definitions and drop the wrappers' memoised handles.
+     * Empty the plugin's six definitions.
      *
      * @return void
      */
@@ -100,9 +100,6 @@ final class explore_test extends advanced_testcase {
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'details')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -116,7 +113,6 @@ final class explore_test extends advanced_testcase {
     private function purge_user_caches(): void {
         cache::make('block_compass', 'inventory')->purge();
         cache::make('block_compass', 'details')->purge();
-        details::reset();
     }
 
     /**
@@ -303,7 +299,7 @@ final class explore_test extends advanced_testcase {
 
     /**
      * A course the user archived leaves its category and the total for the archived group,
-     * whose header travels without rows in BOTH modes (ADR-007, decision 2).
+     * whose header travels without rows in both modes.
      *
      * The archived rows never ship in the first payload, so archiving cannot grow the first
      * paint: the group says how many, and rows() answers on first open.
@@ -366,7 +362,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * A dormant course leaves its category for the dormant group, in both modes (ADR-007, decision 2).
+     * A dormant course leaves its category for the dormant group, in both modes.
      *
      * The group comes after the categories and only when it holds something. The headline
      * count is unchanged, because a dormant course is still an active enrolment; what shrinks
@@ -553,7 +549,6 @@ final class explore_test extends advanced_testcase {
 
         $DB->delete_records('course_categories', ['id' => $stale]);
         cache::make('block_compass', 'categorymeta')->purge();
-        category_meta::reset();
 
         $after = $this->build(1);
 
@@ -638,7 +633,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.6 and ADR-002: at most three reads per request with the user's layers cold and the shared layers warm.
+     * At most three reads per request with the user's layers cold and the shared layers warm.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * build once so core is warm — contexts, the capability check, config; purge inventory and
@@ -678,7 +673,7 @@ final class explore_test extends advanced_testcase {
      * inventory cached and validates it with the stamp statement — one read — then pays the
      * preference load and the filter preload like any request. The hit is proved before its
      * number is trusted: the stored stamp still equals the statement's, so the entry was
-     * validated rather than rebuilt (a stale hit costs the stamp AND the fill, and would
+     * validated rather than rebuilt (a stale hit costs the stamp and the fill, and would
      * exceed the bound), and the payload is identical to the warm build's.
      *
      * @return void
@@ -708,13 +703,13 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * Dormancy and the archived header cost no read of their own (ADR-007, decisions 1 and 2).
+     * Dormancy and the archived header cost no read of their own.
      *
      * The same protocol as the plain build budget, over a fixture that exercises both new
      * paths at once: a dormant course (so the dormant group is built and `dorm` computed) and
      * an archived one (so the archived population is resolved and its header counted). The
      * claim is that the read count is unchanged — the dormancy inputs are in the cached row,
-     * and the archived courses' meta comes back in the SAME get_many() as the active ones. The
+     * and the archived courses' meta comes back in the same get_many() as the active ones. The
      * payload is asserted too, or a cheap call that skipped both groups would pass the bound.
      *
      * @return void
@@ -806,7 +801,7 @@ final class explore_test extends advanced_testcase {
      *
      * @param int $groupid The group.
      * @param int $after Cursor: id of the last row held, 0 for the first page.
-     * @param string $chip all, new or favourites.
+     * @param string $chip all, new, favourites or pending.
      * @param string $sort name or recent.
      * @param int|null $pagesize Rows per page; null for the default.
      * @return array explore::rows()'s answer.
@@ -885,7 +880,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: the mode is paged one course above inventory_max, full at it.
+     * The mode is paged one course above inventory_max, full at it.
      *
      * The size is injected, so the threshold is exercised on five courses rather than 250. The
      * paged payload keeps the courses key on every group, empty: get_inventory's return
@@ -982,7 +977,7 @@ final class explore_test extends advanced_testcase {
      *
      * Five courses at two per page: two, two, one, hasmore true, true, false, each cursor the
      * id of the last row shipped. The three pages concatenated are full mode's rows for the
-     * group, byte for byte, so the client can render either through the same template.
+     * group, byte for byte, so the client can render either through the same component.
      *
      * @return void
      */
@@ -1013,7 +1008,7 @@ final class explore_test extends advanced_testcase {
         $this->assertSame($fullrows, array_merge($first['rows'], $second['rows'], $third['rows']));
         $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm'], array_keys($first['rows'][0]));
 
-        // The default page size holds all five; the constant is the ADR's hundred.
+        // The default page size of a hundred rows holds all five.
         $whole = $this->rows($alpha);
         $this->assertCount(5, $whole['rows']);
         $this->assertFalse($whole['hasmore']);
@@ -1085,6 +1080,87 @@ final class explore_test extends advanced_testcase {
         $this->assertCount(5, $all);
         $this->assertNotContains($foreign, $all);
         $this->assertNotContains($elsewhere, $all);
+    }
+
+    /**
+     * Names the collator calls equal are paged in course id order, the same on every request.
+     *
+     * "Unit 1 course" and "Unit 01 course" are different bytes and one name to core_collator's
+     * natural sort, which pads every run of digits before comparing. The course layer hands the
+     * population over in the order it was asked for when warm and in the database's order when
+     * cold, so an order that leaves such a pair to the input order can swap it between two
+     * requests, and a page boundary between them then repeats one course and loses the other.
+     * The course created second is enrolled first, so the warm population arrives with the higher
+     * id ahead of the lower; the lower id must still come first, page after page, in the name and
+     * recent sorts and in the search, on the first request and on the ones after it.
+     *
+     * Changes that must make it fail: dropping the course id tie-break from explore::order(), or
+     * ordering with core_collator alone, which keeps no order between names it calls equal.
+     *
+     * @return void
+     */
+    public function test_names_the_collator_calls_equal_are_paged_in_course_id_order(): void {
+        $alpha = (int) $this->tree()['alpha']->id;
+        $lower = (int) $this->course_in($alpha, 'Unit 1 course')->id;
+        $higher = (int) $this->course_in($alpha, 'Unit 01 course')->id;
+        $this->assertLessThan($higher, $lower);
+        $this->plugingen->enrol_at($this->userid, $higher, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $lower, self::NOW - 100 * DAYSECS);
+
+        foreach (['first request', 'second request'] as $pass) {
+            $first = $this->rows($alpha, 0, 'all', 'name', 1);
+            $second = $this->rows($alpha, $first['after'], 'all', 'name', 1);
+            $this->assertSame([$lower], $this->row_ids($first), "{$pass}: the first page");
+            $this->assertTrue($first['hasmore'], $pass);
+            $this->assertSame($lower, $first['after'], $pass);
+            $this->assertSame([$higher], $this->row_ids($second), "{$pass}: the second page");
+            $this->assertFalse($second['hasmore'], $pass);
+            $this->assertSame([$lower, $higher], $this->row_ids($this->rows($alpha, 0, 'all', 'recent')), "{$pass}: recent");
+            $this->assertSame([$lower, $higher], $this->row_ids($this->search('unit')), "{$pass}: search");
+        }
+    }
+
+    /**
+     * A run of digits in a name orders by its value, on the server and in the browser's flat list.
+     *
+     * "Unit 10 course" is created first, so the id order and a character-by-character comparison
+     * both put it ahead of "Unit 2 course"; the natural order puts it after. The server orders a
+     * group's rows through core_collator and the pages and the search through order(); the client
+     * sorts its flat list itself, and nothing runs the client in a test, so its comparator is read
+     * as text: every localeCompare() in the client sources compares digit runs by value.
+     *
+     * Changes that must make it fail: dropping the digit padding from explore::sort_key(), or the
+     * numeric option from the flat-list comparator in Explore.tsx.
+     *
+     * @return void
+     */
+    public function test_a_number_in_a_name_orders_by_value_on_the_server_and_in_the_client(): void {
+        $alpha = (int) $this->tree()['alpha']->id;
+        foreach (['Unit 10 course', 'Unit 2 course'] as $name) {
+            $this->plugingen->enrol_at($this->userid, (int) $this->course_in($alpha, $name)->id, self::NOW - 100 * DAYSECS);
+        }
+        $natural = ['Unit 2 course', 'Unit 10 course'];
+
+        $this->assertSame($natural, $this->course_names($this->build(1)['groups'][0]), 'full mode');
+        $this->assertSame($natural, $this->row_names($this->rows($alpha)), 'a page');
+        $this->assertSame($natural, $this->row_names($this->search('unit')), 'the search');
+
+        $root = dirname(__DIR__, 2);
+        $calls = 0;
+        foreach (array_merge(glob($root . '/js/esm/src/*.ts'), glob($root . '/js/esm/src/*.tsx')) as $path) {
+            // Each call with its whole argument list, parentheses matched recursively.
+            preg_match_all('/\.localeCompare(\((?:[^()]++|(?1))*+\))/', file_get_contents($path), $matches);
+            foreach ($matches[1] as $arguments) {
+                $calls++;
+                $this->assertStringContainsString(
+                    '{numeric: true}',
+                    $arguments,
+                    basename($path) . ": a name comparison that puts 'Unit 10' before 'Unit 2': localeCompare{$arguments}"
+                );
+            }
+        }
+        // Vacuity guard: the flat list's comparator must be among the calls read.
+        $this->assertGreaterThanOrEqual(1, $calls, 'no localeCompare() found in the client sources: has the flat-list sort moved?');
     }
 
     /**
@@ -1177,7 +1253,7 @@ final class explore_test extends advanced_testcase {
 
         $this->assertSame(['Kept course'], $this->row_names($this->rows($alpha)));
         $this->assertSame([$kept], $this->row_ids($this->search('course')), 'a search is over the courses in use');
-        // The archived group is the one way to the course (ADR-007, decision 2).
+        // The archived group is the one way to the course.
         $this->assertSame(['Archived course'], $this->row_names($this->rows(dormancy::GROUP_ARCHIVED)));
 
         // Control: the two courses differ by the preference and by nothing else.
@@ -1381,17 +1457,16 @@ final class explore_test extends advanced_testcase {
 
     /**
      * An application awaiting approval is a tier 3 row in its own category, carrying pend and
-     * nothing that an active course carries (ADR-009, decision 3) — and it is derived every way.
+     * nothing that an active course carries — and it is derived every way.
      *
      * Listed with pend: an application as submitted (status 1) and a deferred one (2), both new
      * enough and never opened, so a rule that read them as "new" or as "dormant" would show. Not
-     * listed: an apply row past its timeend, a suspended row on another method — both exactly as
-     * today — and a course holding an active manual enrolment beside an application, which is one
-     * NORMAL row, with the control that the pending pass alone over the same entry does return the
-     * course, so it is the exclusion and not the fixture. The favourites chip excludes a starred
-     * application; the pending chip keeps only applications; the group and the headline count them;
-     * and with the feature off every application is absent from every answer, which is the setting
-     * gate of decision 7.
+     * listed: an apply row past its timeend, a suspended row on another method, and a course
+     * holding an active manual enrolment beside an application, which is one normal row, with the
+     * control that the pending pass alone over the same entry does return the course, so it is the
+     * exclusion and not the fixture. The favourites chip excludes a starred application; the
+     * pending chip keeps only applications; the group and the headline count them; and with
+     * enable_pending off every application is absent from every answer.
      *
      * @return void
      */
@@ -1465,7 +1540,7 @@ final class explore_test extends advanced_testcase {
         sort($expectedhits);
         $this->assertSame($expectedhits, $found);
 
-        // The setting gate: off, every application is absent from every answer, as today.
+        // The setting gate: off, every application is absent from every answer.
         $off = $this->build_with(false);
         $this->assertSame(['Alpha faculty'], $this->group_names($off));
         $this->assertSame(2, $off['total']);
@@ -1532,7 +1607,7 @@ final class explore_test extends advanced_testcase {
      * Two custom fields and five courses, with the values that make every filtering case decidable.
      *
      * modality (select: Online, On campus, Hybrid) and certified (checkbox). Alfa is Online and
-     * certified; Bravo is On campus and certified; Charlie is Online, not certified; Delta has NO
+     * certified; Bravo is On campus and certified; Charlie is Online, not certified; Delta has no
      * modality and is certified; Echo has neither value. A third field, level, exists and is
      * eligible but not configured, and a text field never is.
      *
@@ -1565,7 +1640,7 @@ final class explore_test extends advanced_testcase {
 
     /**
      * Full mode ships the fields and each row's cf; paged mode applies the same selection and
-     * returns the same course ids (ADR-009, decision 5) — the parity that keeps the two modes
+     * returns the same course ids — the parity that keeps the two modes
      * from drifting, the way the matcher fixture pins the search rule.
      *
      * The expectation is computed from full mode's own cf pairs, the way the client would filter
@@ -1654,6 +1729,41 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
+     * A field added to filter_fields after the values were cached is answered without any purge.
+     *
+     * The coursefields layer keys its entries by course alone, and changing the setting fires no
+     * event, so an entry filled for the fields configured at the time would go on answering once
+     * another field is configured, and every course would take that field's default instead of
+     * its value. The fixture's level field is eligible but not configured at first, and Alfa
+     * holds Advanced (2) for it: after the first build the cached entry already carries it, and
+     * the build, page and search that configure level read it from there.
+     *
+     * Changes that must make it fail: filling the layer with the configured fields' ids instead
+     * of every eligible field's id in explore::values().
+     *
+     * @return void
+     */
+    public function test_a_field_configured_after_the_values_were_cached_is_answered_without_a_purge(): void {
+        [$courses, , $alpha] = $this->field_fixture();
+        $levelid = (int) filter_fields::eligible()['level']['id'];
+
+        $narrow = $this->build_with(false, ['modality']);
+        $this->assertSame([0, 1], $this->rows_by_id($narrow)[$courses['Alfa']]['cf']);
+        $entry = cache::make('block_compass', 'coursefields')->get($courses['Alfa']);
+        $this->assertIsArray($entry, 'the values are cached, so the next answers read this entry');
+        $this->assertSame(2, $entry[$levelid] ?? null, 'the entry holds the eligible field nobody configured yet');
+
+        // Configure level as well, with no purge and no event in between.
+        $fields = ['modality', 'level'];
+        $wide = $this->rows_by_id($this->build_with(false, $fields));
+        $this->assertSame([0, 1, 1, 2], $wide[$courses['Alfa']]['cf']);
+        $this->assertSame([0, 2], $wide[$courses['Bravo']]['cf'], 'no level value: the empty slot is no chip');
+        $advanced = [['field' => 'level', 'value' => 2]];
+        $this->assertSame([$courses['Alfa']], $this->row_ids($this->rows_with(false, $alpha, 'all', $advanced, $fields)));
+        $this->assertSame([$courses['Alfa']], $this->row_ids($this->search_with(false, 'course', $advanced, $fields)));
+    }
+
+    /**
      * A filter outside the allowlist is refused before any work, at the domain layer too.
      *
      * @return void
@@ -1690,12 +1800,12 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * The field values and the applications add no read to a build with the shared layers warm
-     * (ADR-009, decisions 3 and 5), and the two new layers each cost one read when cold.
+     * The field values and the applications add no read to a build with the shared layers warm,
+     * and the two new layers each cost one read when cold.
      *
      * Same protocol as the plain build budget, over a fixture that exercises both additions: two
      * fields configured with values on every row, and one application. Warm, the bound is the
-     * three of ADR-004; the payload is asserted too, or a cheap call that skipped the values or
+     * plain build's three; the payload is asserted too, or a cheap call that skipped the values or
      * the application would pass the bound.
      *
      * @return void
@@ -1721,7 +1831,7 @@ final class explore_test extends advanced_testcase {
         $this->assertSame([0, 1, 1, 1], $rows[$courses['Alfa']]['cf']);
         $this->assertLessThanOrEqual(3, $reads, "a warm build with fields and an application cost {$reads} reads; the budget is 3");
 
-        // Cold: the coursefields fill is exactly one read more; the vocabulary is core's handler.
+        // Cold coursefields: its fill costs at most one read more; the filterfields entry stays warm.
         cache::make('block_compass', 'coursefields')->purge();
         $this->plugingen->simulate_new_request();
         $meter = budget::start();
@@ -1732,7 +1842,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: a page costs at most three reads with the user layers cold and the shared layers warm.
+     * A page costs at most three reads with the user layers cold and the shared layers warm.
      *
      * Protocol as for build(): one call to warm core, purge inventory and details, reset the
      * per-request memos, measure the second call. Accounting: the inventory fill, the preference
@@ -1782,7 +1892,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: a search costs at most three reads with the user layers cold and the shared layers warm.
+     * A search costs at most three reads with the user layers cold and the shared layers warm.
      *
      * Same protocol and accounting as the page: fill, preferences, the filter preload of the
      * matched contexts. Every hit's group id comes from the warm category layer for free.

@@ -2,9 +2,10 @@ import{fill as l}from"./str";import{Fragment as c,jsx as e,jsxs as i}from"react/
 /**
  * The progress bar of a card.
  *
- * A course with completion configured but no progress for this user resolves to
- * the "no completion" text, never to 0% - ADR-001 fixed that meaning and it is the
- * difference between "you have done nothing" and "there is nothing to do".
+ * Callers draw it only for a known percentage: a null progress is never drawn as 0%,
+ * because "you have done nothing" and "there is nothing to do" are different facts.
+ * What shows instead is decided by completion() in Card.tsx, whose rule Row and RowCard
+ * follow.
  *
  * @module     block_compass/Progress
  * @copyright  2026 Anderson Blaine

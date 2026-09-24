@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The block's own page: its content on the base layout and nothing else (ADR-012, decision 1).
+ * The block's own page: its content on the base layout and nothing else.
  *
  * The navbar, the page heading and the footer are the theme's; there are no block regions, so
  * no drawer, no sticky blocks and no "Add a block" in editing mode. The context is the system's:
  * a user-context page makes core draw the viewer's picture and a Message button in the header,
  * and the one thing the system context would add, the administration tree in the secondary
  * navigation, is switched off. The renderable is the block's own, which needs no block instance;
- * the page asks for the ladder's second rung, under the theme's h1.
+ * the page puts its section headings at h2, under the theme's h1.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

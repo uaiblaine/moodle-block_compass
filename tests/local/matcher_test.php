@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
- * The PHP twin of js/esm/src/filter.ts, pinned step by step (ADR-004, fact 5).
+ * The PHP twin of js/esm/src/filter.ts, pinned step by step.
  *
  * Full mode matches in the browser and paged mode matches here, so the two rules
  * must agree bit for bit. The cases that matter most are the ones where the
@@ -88,7 +88,7 @@ final class matcher_test extends basic_testcase {
     /**
      * The rule is canonical decomposition, not transliteration.
      *
-     * The control is the shortcut ADR-004 rejects: core_text::specialtoascii() folds ø, so a
+     * The control is the rejected shortcut: core_text::specialtoascii() folds ø, so a
      * matcher built on it would pass every plain fixture and still disagree with the browser on
      * every Nordic name. The two outputs must differ here or the fixture proves nothing.
      *

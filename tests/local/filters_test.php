@@ -37,11 +37,11 @@ use stdClass;
  * The preload has to agree with core, and core does not test this case.
  *
  * filter_preload_activities() writes entries for module contexts and scores activation
- * with a squared-depth formula that disagrees with filter_get_active_in_context()'s SQL
- * whenever overrides contradict each other down a path. filters::preload() reproduces the
+ * with a squared-depth formula that can disagree with filter_get_active_in_context()'s SQL
+ * when overrides contradict each other down a path. filters::preload() reproduces the
  * SQL's rule instead — the deepest decision wins, MAX(active * depth) > -MIN(active * depth),
  * and local config comes from the target context alone — so nothing in core's suite covers
- * it and this file is the only guard (ADR-001).
+ * it and this file is the only guard.
  *
  * @package    block_compass
  * @category   test
@@ -174,8 +174,8 @@ final class filters_test extends advanced_testcase {
     /**
      * One read fills every context on every path, and asking again costs nothing.
      *
-     * The number is the point: the get_inventory budget of PLAN.md §6.6 allows one read for
-     * the filters of up to 1 500 courses, so anything that turns this into a per-context or
+     * The number is the point: the get_inventory budget allows one read for the filters of
+     * every course in the response, so anything that turns this into a per-context or
      * per-query cost breaks the budget rather than merely slowing things down.
      *
      * @return void

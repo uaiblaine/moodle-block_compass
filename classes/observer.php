@@ -29,13 +29,17 @@ use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use block_compass\local\filter_fields;
+use block_compass\local\inventory;
 use core\event\course_category_deleted;
 use core\event\course_category_updated;
 use core\event\course_deleted;
 use core\event\course_updated;
+use core\event\user_deleted;
 
 /**
- * Per-key cache invalidation (ADR-001): one delete per event, never a purge.
+ * Per-key cache invalidation: each event deletes the keys it affects, never a whole definition,
+ * except the rare custom field definition events, which purge the two field layers
+ * ({@see observer::customfield_changed()}).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -50,8 +54,8 @@ final class observer {
      */
     public static function course_updated(course_updated $event): void {
         course_meta::delete((int) $event->objectid);
-        // The custom field values are committed before this event fires (course/lib.php:2017-2026),
-        // so one delete keeps the sibling layer honest too (ADR-009, decision 5).
+        // Core's update_course() saves the custom field values before it triggers this event, so
+        // one delete keeps the sibling layer honest too.
         course_fields::delete((int) $event->objectid);
     }
 
@@ -70,9 +74,9 @@ final class observer {
      * A custom field definition or category changed: created, updated or deleted.
      *
      * The vocabulary of the filter panel is one entry for the whole site and is dropped whole.
-     * The per-course values go with it, because the set of ELIGIBLE fields may have changed —
+     * The per-course values go with it, because the set of eligible fields may have changed —
      * a new field, or one made visible to everyone — and no existing entry can carry a field it
-     * was written without. Both are rare administrator events (ADR-009, decision 5).
+     * was written without. Both are rare administrator events.
      *
      * @param \core\event\base $event One of core_customfield's field_created, field_updated,
      *     field_deleted or category_deleted events.
@@ -122,5 +126,25 @@ final class observer {
             return;
         }
         details::delete((int) $event->relateduserid, (int) $event->courseid);
+    }
+
+    /**
+     * An account was deleted: drop what the two user layers hold about it.
+     *
+     * The inventory entry is read before it is dropped, because it is the only list of the
+     * details keys the user can have: those keys are "<userid>_<courseid>" and a cache store
+     * cannot delete by prefix. delete_user() removes the enrolments before it raises this event
+     * (lib/moodlelib.php), so the database no longer knows the courses either. Progress cached for
+     * a course the entry does not list — no entry cached, or one that expired first — is out of
+     * reach here and lapses with the details TTL.
+     *
+     * @param user_deleted $event The event; objectid is the deleted user's id.
+     * @return void
+     */
+    public static function user_deleted(user_deleted $event): void {
+        $userid = (int) $event->objectid;
+        $courseids = inventory::cached_courseids($userid);
+        inventory::delete($userid);
+        details::delete_many($userid, $courseids);
     }
 }

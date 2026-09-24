@@ -29,7 +29,7 @@ use block_compass\local\prewarm;
 use core\task\scheduled_task;
 
 /**
- * Optional, selective, budgeted pre-warming (PLAN.md §6.4, ADR-003).
+ * Optional, selective, budgeted pre-warming.
  *
  * Always scheduled (db/tasks.php, 04:00 site time by default) and gated by the
  * enable_prewarm setting, so one switch controls the feature. A thin caller: the

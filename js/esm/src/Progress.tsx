@@ -16,9 +16,10 @@
 /**
  * The progress bar of a card.
  *
- * A course with completion configured but no progress for this user resolves to
- * the "no completion" text, never to 0% - ADR-001 fixed that meaning and it is the
- * difference between "you have done nothing" and "there is nothing to do".
+ * Callers draw it only for a known percentage: a null progress is never drawn as 0%,
+ * because "you have done nothing" and "there is nothing to do" are different facts.
+ * What shows instead is decided by completion() in Card.tsx, whose rule Row and RowCard
+ * follow.
  *
  * @module     block_compass/Progress
  * @copyright  2026 Anderson Blaine
@@ -36,10 +37,8 @@ type ProgressProps = {
 /**
  * The bar, and its text unless the caller is short of room.
  *
- * A tier 3 row is one line and already carries a name, a date and a star, so it takes the
- * compact form: the percentage is still announced, because it is the bar's own accessible
- * name rather than the text beside it (ADR-005 asks the skeleton to be sized like the value
- * it stands in for, and this is what makes that width honest).
+ * A tier 3 row has little room, so it takes the compact form: the percentage is still
+ * announced, because it is the bar's own accessible name rather than the text beside it.
  *
  * @param {object} props The percentage, the block labels and whether to drop the text;
  *     see ProgressProps.

@@ -2,7 +2,8 @@
 
 - **Status:** Accepted (2026-09-04, maintainer); amended 2026-09-04 with the
   category layer (the amendment at the end of this record; in-place notes mark
-  what it supersedes)
+  what it supersedes); amended 2026-09-24: account deletion drops the per-user
+  entries (the second amendment at the end)
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent, then verified claim by
   claim against the 5.2 source by an adversarial pass (38 claims, 9 corrected before this
@@ -127,7 +128,7 @@ rule and the accounting are in the amendment at the end of this record.
 | Value | `stamp` = `[count, maxtimemodified, maxtimeaccess]` and `rows` = list of `[courseid, timecreated, timeaccess, enrol, timeend]`; **no course data** |
 | Fill | one bounded query over the user's active enrolments (predicate of ADR-000 decision 13), one row per course (see "duplicate enrolments" below), `SITEID` excluded |
 | Validity | the stamp of ADR-002 (ADR-000 decision 15); 24 h TTL as a safety net only |
-| Invalidation from course events | **none** — the rule that makes the design hold |
+| Invalidation from course events | **none** — the rule that makes the design hold. *(Amended 2026-09-24: the entry is deleted with the account, from `user_deleted`, which is not a course event — see the second amendment.)* |
 
 Tier 3 renders it as: `inventory` → `coursemeta::get_many(courseids)` (misses
 filled in one query) → filter preload (one query) →
@@ -147,7 +148,7 @@ the preferences read outside the count; see the amendment and ADR-002.)*
 | Key | `<userid>_<courseid>`, both operands cast to `int` by the wrapper. `simplekeys` restricts keys to `[a-zA-Z0-9_]`, but MUC enforces that only under `debugging()` (`cache/classes/helper.php`), so the wrapper enforces the shape by construction and its test asserts it |
 | Value | the progress percentage as an integer 0–100, or **`null`** meaning "completion not available for this user in this course" (`progress::get_course_progress_percentage()` returned `null`). MUC tells a stored `null` from a miss — `cache::get()` reports a miss as `false` and `helper::result_found()` tests `!== false` — so the wrapper's `get_many()` returns `null` for "no completion" and `false` for "not cached", and the rule "an empty result is a cached value" holds without a sentinel |
 | Fill | `\core_completion\progress::get_course_progress_percentage($course, $userid)` (`completion/classes/progress.php`), only from `get_card_details` — never on the first-paint path |
-| Invalidation | observers on `\core\event\course_module_completion_updated` and `\core\event\course_completed` (both require `relateduserid`; `courseid` comes from the event base class): `delete("{$relateduserid}_{$courseid}")`. A change of completion criteria (`\core\event\course_completion_updated`, course-level, no user) and a course deletion cannot enumerate the affected users; the 1 h TTL bounds that staleness |
+| Invalidation | observers on `\core\event\course_module_completion_updated` and `\core\event\course_completed` (both require `relateduserid`; `courseid` comes from the event base class): `delete("{$relateduserid}_{$courseid}")`. A change of completion criteria (`\core\event\course_completion_updated`, course-level, no user) and a course deletion cannot enumerate the affected users; the 1 h TTL bounds that staleness. *(Amended 2026-09-24: on account deletion, the keys of every course the user's cached `inventory` entry lists are deleted too — see the second amendment.)* |
 | Skip | courses whose `coursemeta.enablecompletion` is 0 never get a `details` entry or a `pending` marker; the card says completion is not configured |
 
 **Hybrid first paint (ADR-000 decision 10).** `get_attention` calls
@@ -492,3 +493,33 @@ course moved (the `coursemeta` observer), then the deletion event.
 - `lib/moodlelib.php` (5.2): `check_user_preferences_loaded()` reloads
   `{user_preferences}` when `$user->preference` is unset or older than its
   lifetime.
+
+
+## Amendment (2026-09-24): account deletion drops the per-user entries
+
+Nothing above reached the two per-user layers when an account was deleted: account
+deletion is neither a course event nor one of the completion events, so a deleted user's
+`inventory` entry (each enrolment's dates and status, the last access, the star) stayed
+cached for up to its 24 h TTL and their `details` entries for up to 1 h. From version
+2026092401 an observer of `\core\event\user_deleted`, `observer::user_deleted()`, drops them.
+
+It reads the cached entry before deleting it, through `inventory::cached_courseids()` — the
+entry as cached, with no stamp statement and no fill, every row counted whether active or
+not — because that entry is the only list of the `details` keys the user can have:
+`delete_user()` removes the enrolments before it raises the event, and a cache store cannot
+delete by key prefix. It then deletes the entry and `details::delete_many($userid,
+$courseids)`. It costs no database read. Progress cached for a course the entry does not list
+(no entry cached, or one that expired first) is out of reach and lapses at the 1 h TTL; a
+deletion that does not go through `delete_user()` leaves the entry to its 24 h TTL.
+
+This is not the per-user invalidation from course events that this record rules out: one
+event concerns one user and a bounded set of keys. Pinned by
+`observer_test::test_deleting_an_account_drops_its_inventory_entry_and_the_progress_it_lists`,
+which calls the real `delete_user()` beside a bystander whose entries must survive, and by
+three mutation gates (`observer_user_deleted_inventory`, `observer_user_deleted_details`,
+`inventory_cached_courseids_raw`).
+
+### Evidence
+
+- `lib/moodlelib.php` (5.2): `delete_user()` (3603) calls `enrol_user_delete()` (3664) and
+  deletes the `user_enrolments` rows (3688) before it triggers `user_deleted` (3771–3786).

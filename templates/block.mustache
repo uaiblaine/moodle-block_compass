@@ -17,16 +17,13 @@
 {{!
     @template block_compass/block
 
-    The block shell: one React mount point, and nothing else of the block's own.
-
-    Every tier renders from the component since phase R3, tier 3 included, so this
-    template no longer carries a region for it.
+    The block shell: one React mount point, and nothing else of the block's own. Every
+    tier, tier 3 included, renders inside the component.
 
     The props arrive already JSON-encoded from the renderable, in one value, through a
-    triple stash - the same shape phase R1 arrived at, and for the same reason: the
-    quote helper corrupts any value carrying a doubled-brace pair, and JSON.stringify
-    in the producer does not. Nothing between here and React is an HTML context, so a
-    double stash would reach the reader as literal entities.
+    triple stash: the quote helper corrupts any value carrying a doubled-brace pair, and
+    json_encode() in the renderable does not. Nothing between here and React is an HTML
+    context, so a double stash would reach the reader as literal entities.
 
     The section's trailing content is what a reader sees if the component never
     mounts, which is silent apart from a console message. It says the block could not
@@ -37,10 +34,10 @@
     JavaScript off both messages appear, and both are true: one says what happened,
     the other says why.
 
-    Since ADR-011 the mount point names the bundle, one ES module built over Block.tsx by
-    the fleet's generic bundle step (js/esm/bundle.json), so the client arrives in one
-    request instead of twenty-five; the per-file outputs stay in js/esm/build for core's
-    own build check and are imported by nothing.
+    The mount point names the bundle: one ES module built from Block.tsx by a build step
+    outside core's grunt, opted into by js/esm/bundle.json, so the client arrives in one
+    request rather than one per module. The per-file outputs stay in js/esm/build for
+    core's own build check and are imported by nothing.
 
     Context variables required for this template:
     * props - the component's props, JSON-encoded by block_compass\output\block:

@@ -30,8 +30,8 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The coursefields wrapper (ADR-009, decision 5): one fill for many courses, a value for a
- * course with no rows, and a sibling of coursemeta that tier 1's writes cannot poison.
+ * The coursefields wrapper: one fill for many courses, a value for a course with no rows, and
+ * a sibling of coursemeta that tier 1's writes cannot poison.
  *
  * Every case purges the definition first, because cold is where a wrapper that never fills,
  * never stores or stores the wrong shape shows itself.
@@ -57,7 +57,6 @@ final class course_fields_test extends advanced_testcase {
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'coursemeta')->purge();
-        course_meta::reset();
         $this->plugingen = $this->getDataGenerator()->get_plugin_generator('block_compass');
     }
 
@@ -84,7 +83,7 @@ final class course_fields_test extends advanced_testcase {
     /**
      * One fill answers every course, a course with no rows is an empty array, and a warm read costs nothing.
      *
-     * The empty array is a cached VALUE: the third call below must cost nothing for the course
+     * The empty array is a cached value: the second call below must cost nothing for the course
      * that has no rows, or every tier 3 answer would re-ask the database for the courses that
      * carry no field value — most of them, on most sites.
      *
@@ -109,7 +108,8 @@ final class course_fields_test extends advanced_testcase {
         ksort($again);
         $this->assertSame($values, $again);
 
-        // The field list bounds the fill: asked for one field only, a cold course carries only it.
+        // The field list bounds the fill: asked for one field only, a cold course carries only it,
+        // which is why explore asks for every eligible field rather than the configured ones.
         cache::make('block_compass', 'coursefields')->purge();
         $narrow = course_fields::get_many([$both], [$modality]);
         $this->assertSame([$modality => 2], $narrow[$both]);
@@ -118,7 +118,7 @@ final class course_fields_test extends advanced_testcase {
     /**
      * With no field to read, nothing is read: every course is an empty array at zero cost.
      *
-     * This is what keeps every budget of a site with no filter configured exactly where it was.
+     * So a site with no filter configured pays no read for the layer in any budget.
      *
      * @return void
      */
@@ -160,7 +160,7 @@ final class course_fields_test extends advanced_testcase {
     }
 
     /**
-     * Tier 1's write into coursemeta leaves coursefields untouched: the poisoning ADR-009 exists to avoid.
+     * Tier 1's write into coursemeta leaves coursefields untouched, which is why the values have a cache of their own.
      *
      * cards::build() writes coursemeta entries from strip rows that carry no field columns
      * (course_meta::set_from_rows()). Had the values lived inside that entry, this write would

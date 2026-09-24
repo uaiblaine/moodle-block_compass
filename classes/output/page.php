@@ -20,17 +20,17 @@ use block_compass\local\config;
 use core\output\renderer_base;
 
 /**
- * The block's content on its own page (ADR-012, decision 1).
+ * The block's content on its own page.
  *
- * The same shell as the block's, asking for the ladder's second rung: on the page the sections
+ * The same shell as the block's, with its section headings at h2: on the page the sections
  * sit under the theme's h1, not under core's block title. Rendered through renderer_base::render(),
  * which resolves this class to the block_compass/page template by name - a wrapper carrying the
  * class the stylesheet is scoped to, around the block template as a partial.
  *
- * With hide_page_title on (ADR-012, amendment 4) the theme gets an empty heading, which core
- * renders as no heading element at all, and the page renders the block's name itself as a
- * visually hidden h1 at the top of its content: out of sight, in the accessibility tree, so
- * the ladder under it is unchanged.
+ * With hide_page_title on the theme gets an empty heading, which core renders as no heading
+ * element at all, and the page renders the block's name itself as a visually hidden h1 at the
+ * top of its content: out of sight, in the accessibility tree, so the heading levels under it
+ * are unchanged.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -55,7 +55,7 @@ class page extends block {
      * The heading to hand the theme: the block's name, or nothing while the title is hidden.
      *
      * An empty heading is core's own spelling for "no heading element"
-     * (lib/classes/output/context_header.php:116-117); the page then renders its own, hidden.
+     * ({@see \core\output\context_header::export_for_template()}); the page then renders its own, hidden.
      *
      * @return string
      */
@@ -90,7 +90,7 @@ class page extends block {
      *
      * A guest is refused the way the block refuses one. A page that is switched off redirects to
      * the Dashboard: a start page stored before the setting changed must land somewhere, and the
-     * Dashboard is where the block already is (ADR-012, decision 1).
+     * Dashboard is where the block already is.
      *
      * @return void
      * @throws \moodle_exception For a guest.

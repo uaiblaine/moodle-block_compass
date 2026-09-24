@@ -20,15 +20,13 @@
  * announces "list, N items" once and the ghost that closes the last strip is a proper
  * item of it.
  *
- * Since ADR-009 a strip's overflow - the new enrolments or favourites that did not fit -
- * is a link in its heading, "+N new", opening tier 3 on the matching chip, and not a
- * ghost card of its own: a ghost answers "how much more is there", the link answers
- * "where did the rest of this strip go". The one ghost card left is the tier 2 one, and
- * Block hands it to whichever strip renders last so that it closes tier 1's card grid.
+ * A strip's overflow - the new enrolments or favourites that did not fit - is a link in its
+ * heading, "+N new", opening tier 3 on the matching chip, and not a ghost card of its own: a
+ * ghost answers "how much more is there", the link answers "where did the rest of this strip
+ * go". The one ghost card is the tier 2 one, and Block hands it to whichever strip renders
+ * last so that it closes tier 1's card grid.
  *
- * The heading's level comes from heading.ts: an h4 under core's own block title, which
- * is the h3 (lib/templates/block.mustache), and an h3 when hide_block_title has removed
- * it (ADR-008, decision 3). Only the level moves - the h6 class keeps the size.
+ * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
  *
  * @module     block_compass/Strip
  * @copyright  2026 Anderson Blaine
@@ -71,7 +69,7 @@ const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, 
     const Heading = sectionTag(config.headinglevel);
 
     // A strip with no cards renders nothing, link included: an overflow link over an empty strip
-    // would point at rows the strip itself is not showing (ADR-009, decision 2).
+    // would point at rows the strip itself is not showing.
     if (!cards.length) {
         return null;
     }
@@ -79,8 +77,8 @@ const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, 
     return (
         <section className="compass-strip" data-strip={name} aria-labelledby={headingid}>
             <div className="compass-strip-head">
-                {/* Weight, never case: a heading is emphasised with fw-bold and nothing is written in
-                    capitals anywhere in the block (ADR-010, decision 8, and a static rule). */}
+                {/* Weight, never case: a heading is emphasised with fw-bold and nothing in the block is
+                    written in capitals (accessibility_rules_test::test_nothing_is_uppercase). */}
                 <Heading className="compass-strip-title h6 fw-bold text-muted mb-0" id={headingid}>{title}</Heading>
                 {overflow && (
                     <button

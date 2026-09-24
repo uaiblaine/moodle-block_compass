@@ -31,28 +31,29 @@ use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use block_compass\local\filter_fields;
+use block_compass\local\inventory;
 use completion_completion;
 use completion_info;
 use core\context\course as context_course;
 use core\event\course_viewed;
+use core\event\user_updated;
 use core_cache\cache;
 use core_course_category;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * ADR-001: one delete per event, never a purge, and never across layers.
+ * Course, category, completion and account events delete only the affected keys, never a whole
+ * definition.
  *
- * Every case here triggers the REAL core path that raises the event
- * (update_course, delete_course, core_course_category::update(), change_parent(),
- * delete_full(), delete_move(), completion_info::update_state,
- * completion_completion::mark_complete) rather than calling the observer, so
- * the test also proves db/events.php is registered — an observer registered
- * without a version bump silently never fires, and a direct call would not
- * notice. Each case carries a control that must survive: an entry the delete
- * had no business touching. Without it the test would still pass against an
- * observer that purged the whole definition, which is the exact mistake
- * ADR-001 exists to prevent. Absence is read from the raw definition, never
- * through a wrapper's get_many(), which would refill the miss and hide it.
+ * Only a custom field change purges, and only the two field layers. Every case but the last
+ * raises the event through the core code that fires it (update_course(), delete_course(),
+ * core_course_category's update(), change_parent(), delete_full() and delete_move(),
+ * completion_info::update_state(), completion_completion::mark_complete(), the custom field
+ * handler, delete_user()) rather than calling the observer, so it also pins the db/events.php
+ * entry, which a direct call would not notice missing. Each case carries a control that must
+ * survive, an entry the delete had no business touching, so an observer that purged the
+ * definition fails. Absence in the course, category, course-fields and inventory layers is read
+ * from the raw definition: their wrappers refill a miss from the database and would hide it.
  *
  * @package    block_compass
  * @category   test
@@ -75,7 +76,7 @@ final class observer_test extends advanced_testcase {
     }
 
     /**
-     * Start every case cold: MUC is reset between tests, so the wrappers must forget theirs too.
+     * Start every case cold: MUC is reset between tests, so every definition is purged.
      *
      * @return void
      */
@@ -83,14 +84,21 @@ final class observer_test extends advanced_testcase {
         parent::setUp();
 
         $this->resetAfterTest();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
+        cache::make('block_compass', 'inventory')->purge();
+    }
+
+    /**
+     * The raw inventory layer, for asserting absence without refilling it.
+     *
+     * @return cache
+     */
+    private function inventory(): cache {
+        return cache::make('block_compass', 'inventory');
     }
 
     /**
@@ -217,9 +225,9 @@ final class observer_test extends advanced_testcase {
     /**
      * A rename drops that course from the course layer, and touches nothing else.
      *
-     * The controls are the second course's entry (a course_updated on a course
-     * with 100 000 enrolments must not become 100 000 deletes) and the user's
-     * progress entry, which ADR-001 forbids any course event from invalidating.
+     * The controls are the second course's entry (one delete, not a purge) and the user's
+     * progress entry: course events never touch per-user entries, or one course_updated on a
+     * course with 100 000 enrolments would mean 100 000 deletes.
      *
      * @return void
      */
@@ -244,12 +252,11 @@ final class observer_test extends advanced_testcase {
     }
 
     /**
-     * A course update drops that course from the course-fields layer too, and no other (ADR-009).
+     * A course update drops that course from the course-fields layer too, and no other.
      *
-     * The real path again: update_course() commits the custom field values before it raises
-     * course_updated (course/lib.php:2017-2026), which is what makes one delete enough. The
-     * control that the observer reads the NEW value: the course's value is changed in the same
-     * update, and the next read returns it.
+     * update_course() saves the custom field values before it raises course_updated, which is
+     * what makes one delete enough (see observer::course_updated()). Control: the same update
+     * changes the course's value, and the next read returns the new one, not the cached one.
      *
      * @return void
      */
@@ -287,13 +294,12 @@ final class observer_test extends advanced_testcase {
 
     /**
      * A custom field created, updated or deleted, or its category deleted, drops the whole
-     * vocabulary and every course's values (ADR-009, decision 5).
+     * vocabulary and every course's values.
      *
-     * Each of the four events is raised through core's own path — save_field_configuration() for
+     * Each of the four events is raised through core's own path: save_field_configuration() for
      * created and updated (customfield/classes/api.php), delete_field_configuration() and
-     * delete_category() — so the case proves the db/events.php registrations as much as the
-     * observer. The control on each: the layers are seeded and non-empty before the event, and
-     * the vocabulary read after it reflects the change.
+     * delete_category(). The control on each: the layers are seeded and non-empty before the
+     * event, and the vocabulary read after it reflects the change.
      *
      * @return void
      */
@@ -345,8 +351,8 @@ final class observer_test extends advanced_testcase {
     /**
      * A deletion drops that course from the course layer, and leaves the others alone.
      *
-     * delete_course() fires no cache event of its own, so this observer is the
-     * only invalidation a deleted course ever gets (ADR-001).
+     * The coursemeta definition has no TTL and no invalidation events, so this observer is the
+     * only thing that ever drops a deleted course's entry.
      *
      * @return void
      */
@@ -368,13 +374,10 @@ final class observer_test extends advanced_testcase {
     /**
      * Renaming a category drops its entry from the category layer, and nothing else.
      *
-     * The real path: core_course_category::update() writes the row and raises
-     * course_category_updated with the category as objectid
-     * (course/classes/category.php:567-655), so the case proves the db/events.php
-     * registration as much as the observer. Two controls: the sibling's entry stays — a
-     * rename is one delete, never a purge — and the course layer entry of a course in the
-     * renamed category stays, because that layer stores the category's id and not its name
-     * (ADR-001 keeps the layers apart).
+     * core_course_category::update() writes the row and raises course_category_updated with the
+     * category as objectid. Two controls: the sibling's entry stays (a rename is one delete,
+     * never a purge), and so does the course-layer entry of a course in the renamed category,
+     * because that layer stores the category's id and not its name.
      *
      * @return void
      */
@@ -402,14 +405,12 @@ final class observer_test extends advanced_testcase {
     /**
      * Moving a category drops its entry and its descendants', and leaves the rest of the tree alone.
      *
-     * The real path: change_parent() rewrites the subtree — fix_course_sortorder() renumbers
-     * the descendants' course_categories.path and depth (lib/datalib.php:1051-1080,
-     * _fix_course_cats()) — and then raises course_category_updated for the MOVED category
-     * only (course/classes/category.php:2383-2403). Nothing fires for a descendant, whose
-     * stored path is nonetheless wrong from that moment, which is why the observer has to
-     * reach the subtree itself. The control proves the mechanism ran: the grandchild's row
-     * now sits under the new parent. The old parent, the new parent and an unrelated
-     * category are the purge controls — their paths did not change and their entries stay.
+     * change_parent() rewrites the descendants' path and depth through fix_course_sortorder()
+     * (_fix_course_cats() in lib/datalib.php), then raises course_category_updated for the moved
+     * category only. Nothing fires for a descendant, whose stored path is wrong from that moment,
+     * so the observer has to reach the subtree itself. Control: the leaf's row now sits under the
+     * new parent. The old parent, the new parent and an unrelated category keep their paths and
+     * their entries, so the drop is not a purge.
      *
      * @return void
      */
@@ -499,9 +500,8 @@ final class observer_test extends advanced_testcase {
     /**
      * Completing an activity drops that user's progress in that course, and no one else's.
      *
-     * The real path: completion_info::update_state() raises
-     * course_module_completion_updated from internal_set_data(), with the module
-     * context and relateduserid (lib/completionlib.php).
+     * completion_info::update_state() raises course_module_completion_updated from
+     * internal_set_data(), with the module context and relateduserid.
      *
      * @return void
      */
@@ -546,26 +546,92 @@ final class observer_test extends advanced_testcase {
     }
 
     /**
-     * An event naming no user deletes nothing.
+     * Deleting an account drops its inventory entry and the progress of every course it lists.
      *
-     * Both registered events always carry relateduserid, so no real path
-     * exercises the guard; the direct call is the only way to prove it is not
-     * turning a course-wide event into a delete of an arbitrary key.
+     * delete_user() raises user_deleted after it has removed the enrolments, so the observer
+     * learns the courses from the cached entry alone. The precondition that gives the absence a
+     * meaning: before the delete, each user's entry lists both courses and each progress entry is
+     * there. The control is a second user enrolled in the same courses, whose entry and progress
+     * survive, so a delete keyed on anything but the deleted user's id, or a purge, fails. The
+     * account row marked deleted proves the event fired.
+     *
+     * Changes that must make it fail: the user_deleted entry removed from db/events.php; the
+     * observer's inventory delete or its details delete removed; the entry read after it is dropped.
      *
      * @return void
      */
-    public function test_completion_updated_ignores_an_event_that_names_no_user(): void {
+    public function test_deleting_an_account_drops_its_inventory_entry_and_the_progress_it_lists(): void {
+        global $DB;
+
         $gen = $this->getDataGenerator();
-        $course = $gen->create_course();
-        $user = $gen->create_user();
-        $courseid = (int) $course->id;
-        $userid = (int) $user->id;
+        $first = (int) $gen->create_course()->id;
+        $second = (int) $gen->create_course()->id;
+        $doomed = $gen->create_user();
+        $doomedid = (int) $doomed->id;
+        $bystanderid = (int) $gen->create_user()->id;
+        foreach ([$doomedid, $bystanderid] as $userid) {
+            $gen->enrol_user($userid, $first);
+            $gen->enrol_user($userid, $second);
+            inventory::fill($userid);
+            details::set($userid, $first, 10);
+            details::set($userid, $second, 20);
+            $this->assertEqualsCanonicalizing([$first, $second], inventory::cached_courseids($userid));
+            $this->assertSame(10, details::get_many($userid, [$first])[$first]);
+            $this->assertSame(20, details::get_many($userid, [$second])[$second]);
+        }
+
+        delete_user($doomed);
+
+        $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
+        $this->assertFalse($this->inventory()->get($doomedid), 'the deleted account kept its inventory entry');
+        $this->assertFalse(details::get_many($doomedid, [$first])[$first], 'the deleted account kept its progress');
+        $this->assertFalse(details::get_many($doomedid, [$second])[$second], 'the deleted account kept its progress');
+        $this->assertNotFalse($this->inventory()->get($bystanderid));
+        $this->assertSame(10, details::get_many($bystanderid, [$first])[$first]);
+        $this->assertSame(20, details::get_many($bystanderid, [$second])[$second]);
+    }
+
+    /**
+     * An event naming no user, or no course, deletes nothing.
+     *
+     * Both registered events always carry both, so no real path exercises the guard; the direct
+     * calls are the only way to prove it does not turn a course-wide or a user-wide event into a
+     * delete of an arbitrary key. The entries seeded beside the user's own are the ones an
+     * unguarded observer would delete: 0_<courseid> for an event with no user, <userid>_0 for one
+     * with no course. The last call is the control: an event naming both deletes that one entry.
+     *
+     * Changes that must make it fail: either half of the guard removed.
+     *
+     * @return void
+     */
+    public function test_completion_updated_ignores_an_event_that_names_no_user_or_no_course(): void {
+        $gen = $this->getDataGenerator();
+        $courseid = (int) $gen->create_course()->id;
+        $userid = (int) $gen->create_user()->id;
+        $context = context_course::instance($courseid);
         details::set($userid, $courseid, 55);
+        details::set(0, $courseid, 56);
+        details::set($userid, 0, 57);
 
-        observer::completion_updated(course_viewed::create([
-            'context' => context_course::instance($courseid),
-        ]));
+        $nouser = course_viewed::create(['context' => $context]);
+        $nocourse = user_updated::create_from_userid($userid);
+        // Precondition: each event lacks exactly the half it is here for.
+        $this->assertEmpty($nouser->relateduserid);
+        $this->assertSame($courseid, (int) $nouser->courseid);
+        $this->assertSame($userid, (int) $nocourse->relateduserid);
+        $this->assertEmpty($nocourse->courseid);
 
+        observer::completion_updated($nouser);
+        observer::completion_updated($nocourse);
+
+        $this->assertSame(56, details::get_many(0, [$courseid])[$courseid], 'an event with no user deleted 0_<courseid>');
+        $this->assertSame(57, details::get_many($userid, [0])[0], 'an event with no course deleted <userid>_0');
         $this->assertSame(55, details::get_many($userid, [$courseid])[$courseid]);
+
+        observer::completion_updated(course_viewed::create(['context' => $context, 'relateduserid' => $userid]));
+
+        $this->assertFalse(details::get_many($userid, [$courseid])[$courseid]);
+        $this->assertSame(56, details::get_many(0, [$courseid])[$courseid]);
+        $this->assertSame(57, details::get_many($userid, [0])[0]);
     }
 }

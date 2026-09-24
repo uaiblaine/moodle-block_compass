@@ -14,19 +14,19 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Details for the tier 3 rows somebody is actually looking at (ADR-005).
+ * Details for the tier 3 rows somebody is actually looking at.
  *
  * One IntersectionObserver for the whole region, a pending set drained on a fixed interval,
  * and one request in flight at a time. A row registers itself as it appears and unregisters
  * as it goes, so no call site can be forgotten - which matters most in paged mode, where
  * every group arrives empty and every row is appended later.
  *
- * Three properties are the point of the design and each cost something to get right:
+ * Three properties the design depends on:
  *
  * - The interval is fixed, not a debounce reset by each new id. A continuous scroll never
  *   settles, so a debounce would send nothing at all until the finger stopped.
  * - A row that leaves before its id goes out is dropped from the set rather than deferred:
- *   scrolling past 300 rows must not queue 300 requests behind the reader.
+ *   scrolling past hundreds of rows must not queue their batches behind the rows in view.
  * - A row is filled once. Its element is unobserved the moment its answer lands, so
  *   scrolling back over it costs nothing, and ids the server declined (an enrolment that
  *   ended, say) are marked filled too or they would be asked for on every scroll.
@@ -142,10 +142,9 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
         } catch (e) {
             /*
              * Say so once, and stop waiting. Every id in the batch is marked answered below
-             * whether or not this succeeded, which is deliberate: a row that keeps its
-             * skeleton for ever is a lie, and re-asking on every scroll would hammer a server
-             * that has already failed. The row simply shows no progress, which is what it
-             * showed before this phase.
+             * whether or not this succeeded: a skeleton that never resolves misleads the
+             * reader, and re-asking on every scroll would hammer a server that has already
+             * failed. The row simply shows no progress.
              */
             if (!reported.current) {
                 reported.current = true;
@@ -211,9 +210,9 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
     /**
      * Register a row's element with the region's observer, and stop when it goes.
      *
-     * The observer is created here rather than in an effect, and that is not a detail:
-     * effects run children first, so a row would register against an observer its parent
-     * had not created yet and nothing would ever be watched.
+     * The observer is created here rather than in an effect: effects run children first, so
+     * a row would register against an observer its parent had not created yet and nothing
+     * would ever be watched.
      *
      * @param {number} id The course.
      * @param {object} element The element to watch.
@@ -259,8 +258,8 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
         };
     }, [drop, want]);
 
-    // The region is going: no observer, no interval, no request left waiting for a component
-    // that will not be there to receive it.
+    // The region is going: disconnect the observer and stop the interval so no further batch
+    // is sent. A batch already out still completes; its state updates then change nothing.
     useEffect(() => () => {
         observer.current?.disconnect();
         observer.current = null;

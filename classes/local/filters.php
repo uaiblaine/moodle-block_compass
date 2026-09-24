@@ -27,7 +27,7 @@ namespace block_compass\local;
 use core\context;
 
 /**
- * Fills the per-request filter cache core consults first, for many contexts at once (ADR-001).
+ * Fills the per-request filter cache core consults first, for many contexts at once.
  *
  * format_string() asks filter_manager for the active filters of a context, and
  * filter_get_active_in_context() (lib/filterlib.php) returns

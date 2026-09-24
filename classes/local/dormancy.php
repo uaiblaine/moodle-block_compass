@@ -25,12 +25,12 @@
 namespace block_compass\local;
 
 /**
- * The dormancy rule, in one place, so it has one home and one test (ADR-007, decision 1).
+ * The dormancy rule, in one place, so it has one home and one test.
  *
- * It costs nothing to compute: both inputs are already in the cached inventory row
- * (ADR-002 keeps ten integers per enrolment, timecreated and timeaccess among them), and
- * ADR-000 decision 15 put MAX(timeaccess) in the stamp precisely so this classification
- * would not go stale. No query, no cache, no field of its own anywhere.
+ * It costs nothing to compute: both inputs, timecreated and timeaccess, are already in
+ * the cached inventory row, and the inventory stamp carries MAX(timeaccess)
+ * (inventory::stamp()), so a new access refreshes the entry and the classification does
+ * not go stale. No query, no cache, no field of its own anywhere.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -41,8 +41,9 @@ final class dormancy {
      * @var int The group id of the collapsed dormant group.
      *
      * Negative on purpose: every other group id in the payload is a category id, and these two
-     * are not categories. The services validate them by name rather than letting a negative id
-     * fall through to a category lookup that would answer nothing (ADR-007, decision 2).
+     * are not categories. get_inventory_rows accepts these two negatives explicitly and refuses
+     * any other, rather than letting a negative id fall through to a category lookup that would
+     * answer nothing.
      */
     public const GROUP_DORMANT = -1;
 
@@ -54,8 +55,8 @@ final class dormancy {
      *
      * Calendar months, not a fixed number of days: an administrator who types 12 means a year
      * whatever its months are worth, and core computes such a threshold the same way
-     * (`strtotime('-3 months', $deletebefore)`, lib/statslib.php:1075). There is no MONTHSECS
-     * in core to use instead — only YEARSECS and DAYSECS exist (lib/moodlelib.php:42,52).
+     * (`strtotime('-3 months', $deletebefore)`, lib/statslib.php:1075). Core defines no
+     * MONTHSECS to use instead (lib/moodlelib.php).
      *
      * @param int $now Unix time to treat as now.
      * @param int|null $months Months of silence; null for the setting.
@@ -68,11 +69,11 @@ final class dormancy {
     }
 
     /**
-     * Whether a course has gone quiet for this user (PLAN.md §7).
+     * Whether a course has gone quiet for this user.
      *
      * Two clauses, and the second is the one a browser could not answer: a course that was
-     * never opened is dormant once the ENROLMENT is older than the threshold, and the client
-     * is never told when the enrolment happened (ADR-002 keeps the row to five keys).
+     * never opened is dormant once the enrolment is older than the threshold, and the client
+     * is never sent the enrolment date.
      *
      * @param array $course An inventory::courses() row.
      * @param int $threshold The instant from threshold().

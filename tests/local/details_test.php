@@ -31,7 +31,7 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The details wrapper (ADR-001, layer 2b).
+ * The details wrapper, the per-user progress layer.
  *
  * Two things this file exists to pin. The key shape, because simplekeys is only enforced
  * under debugging() and a colon in a key is unsafe in file-store paths, so nothing at
@@ -60,13 +60,12 @@ final class details_test extends advanced_testcase {
     }
 
     /**
-     * Purge the definition and drop the memoised cache instance: cold is where the bugs are.
+     * Purge the definition: cold is where the bugs are.
      *
      * @return void
      */
     private function purge_details_cache(): void {
         cache::make('block_compass', 'details')->purge();
-        details::reset();
     }
 
     /**
@@ -141,6 +140,39 @@ final class details_test extends advanced_testcase {
 
         $this->assertSame(42, $after[$tracked]);
         $this->assertFalse($after[$untracked]);
+    }
+
+    /**
+     * delete_many() drops the listed courses of that user, cached nulls included, and nothing else.
+     *
+     * Two controls: a course of the same user that is not listed, and another user's entry for a
+     * listed course, both of which survive. An empty list is accepted and deletes nothing.
+     *
+     * Changes that must make it fail: the keys built without the user id or without a course id,
+     * or a purge of the definition in place of the per-key delete.
+     *
+     * @return void
+     */
+    public function test_delete_many_drops_the_listed_courses_of_that_user_and_nothing_else(): void {
+        $this->resetAfterTest();
+        $this->purge_details_cache();
+        details::set(5, 101, 10);
+        details::set(5, 102, null);
+        details::set(5, 103, 30);
+        details::set(6, 101, 40);
+
+        details::delete_many(5, []);
+        $before = details::get_many(5, [101, 102]);
+        $this->assertSame(10, $before[101]);
+        $this->assertNull($before[102]);
+
+        details::delete_many(5, [101, 102]);
+
+        $after = details::get_many(5, [101, 102, 103]);
+        $this->assertFalse($after[101]);
+        $this->assertFalse($after[102], 'a cached null is an answer, and it goes too');
+        $this->assertSame(30, $after[103]);
+        $this->assertSame(40, details::get_many(6, [101])[101]);
     }
 
     /**
