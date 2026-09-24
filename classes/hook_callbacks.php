@@ -28,10 +28,11 @@ use moodle_page;
 /**
  * The block's hook callbacks (db/hooks.php).
  *
- * Both guard themselves the way the fleet's hook rule demands: the hook manager enumerates
- * db/hooks.php off disk with no installed-plugin filter and dispatch() has no try/catch, so a
+ * Both guard themselves: the hook manager enumerates db/hooks.php off disk with no
+ * installed-plugin filter and dispatch() has no try/catch (lib/classes/hook/manager.php), so a
  * copy deployed before its upgrade must not throw out of config.php for every request. Each
- * callback catches \Throwable and returns; neither reads $DB, a cache or a course.
+ * callback catches \Throwable and returns; neither queries $DB directly or reads the plugin's
+ * caches or a course.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -39,11 +40,11 @@ use moodle_page;
  */
 class hook_callbacks {
     /**
-     * The modules the block's client needs, in the order the loader would discover them.
+     * The modules the block's client needs.
      *
      * The six React itself needs - react_autoinit imports mount and profiler, mount imports
      * react and react-dom/client, the JSX runtime is imported by every component - and the one
-     * the block adds, its bundle (ADR-011, decision 2, facts 18 and 12).
+     * the block adds, its bundle.
      */
     public const PRELOADED = [
         'react',
@@ -58,23 +59,22 @@ class hook_callbacks {
     /**
      * Announce the seven modules at the top of the body, with absolute URLs, where the block is.
      *
-     * Two places (ADR-012, decision 4): the Dashboard, page type my-index under the mydashboard
-     * layout, when the block is on it - answered from the instances starting_output() loaded
-     * before the layout ran, so is_block_present() reads loaded data (lib/pagelib.php:1150-1151,
-     * 1817; lib/blocklib.php:247-263) - and the block's own page, whose type is
-     * blocks-compass-index under the base layout, which is the block. Each href is the import
-     * map's own loader for the ESM route followed by the specifier, the way the map builds its
-     * entries (lib/classes/output/requirements/import_map.php:79) with the revision
+     * Two places: the Dashboard, page type my-index under the mydashboard layout, when the block
+     * is on it - answered from the instances starting_output() loaded before the layout ran, so
+     * is_block_present() reads loaded data (lib/pagelib.php:1150-1151, 1817;
+     * lib/blocklib.php:247-263) - and the block's own page, whose type is blocks-compass-index
+     * under the base layout, which always shows the block. Each href is the import map's own
+     * loader for the ESM route followed by the specifier, the way the map builds its entries
+     * (lib/classes/output/requirements/import_map.php:79) with the revision
      * page_requirements_manager::get_jsrev() gives (-1 when cachejs is off), so the preload and
      * the loader's later request are one cache entry.
      *
-     * The top of the body and not the head, and this was measured: the head hook's output is
-     * written before the head code that carries the import map (core_renderer.php:178-240), and a
-     * module preload that precedes the map makes the browser ignore the map, so every bare
-     * specifier on the page fails to resolve and nothing mounts. The top-of-body hook's output
-     * follows the map and sits beside core's react_autoinit module script
-     * (page_requirements_manager.php:1796), and the seven fetches start while the parser is still
-     * on those lines - which is the whole point (ADR-011, amendment 5).
+     * The top of the body and not the head: the head hook's output is written before the head
+     * code that carries the import map (core_renderer::standard_head_html()), and a module
+     * preload that precedes the map makes the browser ignore the map, so every bare specifier on
+     * the page fails to resolve and nothing mounts. The top-of-body hook's output follows the map
+     * and core's react_autoinit module script (page_requirements_manager.php:1796), so the seven
+     * fetches start while the parser is still on those lines.
      *
      * @param before_standard_top_of_body_html_generation $hook The hook, carrying the renderer.
      * @return void
@@ -106,8 +106,8 @@ class hook_callbacks {
     /**
      * Whether this page is one the block's client will mount on.
      *
-     * The fleet's hook rule checks the layout as well as the type: a redirect interstitial keeps
-     * the origin's page type under another layout.
+     * The layout is checked as well as the type: a redirect interstitial keeps the origin's page
+     * type under the redirect layout (lib/weblib.php, redirect()).
      *
      * @param moodle_page $page The page being rendered.
      * @return bool
@@ -123,7 +123,7 @@ class hook_callbacks {
     }
 
     /**
-     * Offer the block's own page as a start page, while the page is enabled (ADR-012, decision 3).
+     * Offer the block's own page as a start page, while the page is enabled.
      *
      * The option's key is the page's local path, which core validates as a local URL on every
      * read (lib/moodlelib.php:10098-10115); its label is the block's name. Core dispatches this

@@ -14,13 +14,13 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The reload control at the content's top-right (ADR-010, decision 12).
+ * The reload control at the content's top-right.
  *
- * An icon-only button in a file of its own, so the static accessibility rule that reads the
- * icon-only files reads this one. It sits on the first row of the block's CONTENT, because the
+ * An icon-only button in a file of its own, because accessibility_rules_test reads the
+ * icon-only controls by file name. It sits on the first row of the block's content, because the
  * title bar beside it is core's and the plugin cannot reach it; and it re-fetches everything the
  * page holds - tier 1, and tier 3 as a fresh open when it is open. While the reload is out the
- * button is disabled and its glyph turns, unless the reader asked for less motion.
+ * button is aria-disabled and its glyph turns, unless the reader asked for less motion.
  *
  * @module     block_compass/Reload
  * @copyright  2026 Anderson Blaine
@@ -50,8 +50,8 @@ const Reload = ({busy, config, onReload}: ReloadProps) => {
 
     // Never the disabled attribute: it is applied in the render the button's own click causes,
     // and a focused element that becomes disabled drops the keyboard to the body, so the
-    // "Reloading…" label would be announced to nobody (ADR-010, amendment 9). aria-disabled
-    // says the same to assistive technology and the handler refuses a second press.
+    // "Reloading…" label would be announced to nobody. aria-disabled says the same to
+    // assistive technology and the handler refuses a second press.
     return (
         <button
             type="button"

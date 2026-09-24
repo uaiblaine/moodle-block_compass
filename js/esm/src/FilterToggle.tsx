@@ -17,9 +17,9 @@
  * The button that opens and closes the filter panel, with the count of pressed chips.
  *
  * aria-expanded says which way it will go and aria-controls names the panel, so a screen
- * reader hears "Filter, 2 active filters, collapsed" and knows where the panel is. The count
- * is what the mockup shows in the pill; the accessible name repeats it in words, because a
- * bare number beside a word is not a sentence (ADR-009, decision 4).
+ * reader hears "Filter, 2 active filters, collapsed" and knows where the panel is. The pill
+ * shows the bare count, hidden from assistive technology; the accessible name repeats it in
+ * words, because a bare number beside a word is not a sentence.
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine

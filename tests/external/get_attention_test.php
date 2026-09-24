@@ -178,14 +178,14 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * A favourite that also sits in Continue is drawn twice and counted once (ADR-009, decisions 1 and 2).
+     * A favourite that also sits in Continue is drawn twice and counted once.
      *
      * Four favourites, one of them the most recently opened course: the favourites strip lists
      * the first three by name, so the fourth is the heading link's count — the true total minus
-     * the strip's size, not the total minus every lit star on screen, which the old walk over all
-     * three strips would have made 0. And shown is the DISTINCT courses, so the ghost does not
-     * shrink by the repeat: recent, older, brandnew and three favourites, one of them recent
-     * again — five distinct of six, one for the ghost.
+     * the strip's size, not the total minus every lit star on screen, which would be 0 here. And
+     * shown counts distinct courses, so the ghost does not shrink by the repeat: recent, older,
+     * brandnew and three favourites, one of them recent again — five distinct of six, one for
+     * the ghost.
      *
      * @return void
      */
@@ -219,10 +219,10 @@ final class get_attention_test extends advanced_testcase {
      * The pending count travels through the allowlist, and it is what the setting and the plugin allow.
      *
      * The service reads the setting and the plugin's presence for itself, so the assertion
-     * follows the site: with enrol_apply installed the two applications are counted; on a runtime
-     * without it — the CI matrix installs only declared dependencies — the stored setting is
-     * forced off and the count is 0 over the same fixture, which is decision 7's rule and not a
-     * skipped test. Both branches assert that the three other counts are untouched.
+     * follows the site: with enrol_apply installed the two applications are counted; on a site
+     * without it the stored setting is forced off and the count is 0 over the same fixture,
+     * which is the rule under test rather than a skipped test. Both branches assert that the
+     * other counts are untouched.
      *
      * @return void
      */
@@ -280,7 +280,7 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * The teacher flag survives the allowlist, and is omitted for a learner (ADR-010, decision 10).
+     * The teacher flag survives the allowlist, and is omitted for a learner.
      *
      * @return void
      */
@@ -321,14 +321,14 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.6: six reads per request with the user's layers cold and the shared layers warm, plus one.
+     * Budget: six reads per request with the user's layers cold and the shared layers warm, plus one.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * call once so core is warm; purge inventory and details only; reset the per-request
      * memos a second call in one process would otherwise inherit — the filter preload, core's
      * request-mode category cache, the preference bundle — so the measured call pays what a
      * fresh request pays; measure the second call. Accounting: the four strip and count
-     * statements of §6.1, the preference load, the filter preload — six. coursemeta is
+     * statements, the preference load, the filter preload — six. coursemeta is
      * written from the strip rows (set_from_rows()) and costs nothing; categorymeta is warm
      * from the first call, the steady state of a busy site. The bound is asserted with the
      * number in the message, and the controls prove the call did the work.
@@ -367,10 +367,9 @@ final class get_attention_test extends advanced_testcase {
      * At most eight reads per request with every one of the plugin's caches cold: the seven above plus one.
      *
      * Same protocol, every definition purged — the first request after an install, an upgrade
-     * or a cache purge. The one extra read is the categorymeta fill for the cards' categories;
-     * coursemeta still costs nothing because the strip rows carry its columns. This is the
-     * bound the previous test could not see: with core's request-scoped category cache warm
-     * between two calls of one process, the category read never showed.
+     * or a cache purge. The one extra read is the categorymeta fill for the cards' categories,
+     * which the previous test keeps warm; coursemeta still costs nothing because the strip rows
+     * carry its columns.
      *
      * @return void
      */

@@ -20,11 +20,11 @@ use advanced_testcase;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The remembered toolbar is read through an allowlist, field by field (ADR-010, decision 9).
+ * The remembered toolbar is read through an allowlist, field by field.
  *
- * The client writes whatever it holds through core's own route, which cleans a PARAM_RAW
- * value not at all; so the reader is the guard, and each test below removes one of its
- * checks in the mind's eye and shows what would leak.
+ * The client writes whatever it holds through core's preferences endpoint, which leaves a
+ * PARAM_RAW value uncleaned, so the reader is the guard; each test below pins one of its
+ * checks.
  *
  * @package    block_compass
  * @category   test

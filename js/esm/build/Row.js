@@ -2,20 +2,17 @@ import{useEffect as x,useRef as N}from"react";import y from"./Archive";import R 
 /**
  * One row of the tier 3 list view.
  *
- * A row registers itself with the details store when it mounts and stops when it goes
- * (ADR-005): the observer decides when the row is close enough to the viewport to be worth
- * a request, and the batch that answers brings progress and the image, the latter for the
- * cards view to use should the reader switch. The row itself draws no image.
+ * A row registers itself with the details store when it mounts and stops when it goes: the
+ * observer decides when the row is close enough to the viewport to be worth a request, and
+ * the batch that answers brings progress and the image, the latter for the cards view to use
+ * should the reader switch. The row itself draws no image.
  *
- * An enrolment application awaiting approval (ADR-009, decision 3) is a row like the others
- * except where it cannot be: its name links to the course's enrolment page, not into the course,
- * it carries an "Awaiting approval" badge inside that link, and it has no star, no archive
- * control and no progress - nor does it register for details, since the batch would decline it.
- * The name is clamped to two lines with the whole name in its title attribute (decision 10).
- *
- * Since ADR-010 the star toggles here too, beside the archive control (decision 6), and "No
- * completion configured" is said only to a viewer who is not a learner of the course, when
- * completion is off (decision 10).
+ * An enrolment application awaiting approval is a row like the others except where it cannot
+ * be: its name links to the course's enrolment page, not into the course, it carries an
+ * "Awaiting approval" badge inside that link, and it has no star, no archive control and no
+ * progress - nor does it register for details, since the batch drops courses the user is not
+ * actively enrolled in. The name is clamped to two lines with the whole name in its title
+ * attribute.
  *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine

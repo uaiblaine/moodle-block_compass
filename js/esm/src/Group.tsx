@@ -17,9 +17,9 @@
  * One category group of tier 3: a disclosure holding its rows.
  *
  * The chevron in the summary is core's own pair, the two a course section header draws,
- * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph
- * (ADR-010, decision 7). The disclosure stays a native details/summary: core's button and its
- * aria-expanded exist for a div that cannot disclose on its own.
+ * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph.
+ * The disclosure stays a native details/summary: core's button and its aria-expanded exist
+ * for a div that cannot disclose on its own.
  *
  * @module     block_compass/Group
  * @copyright  2026 Anderson Blaine
@@ -79,11 +79,8 @@ const Group = ({
 
     /**
      * A card inside a group prints no category, because the group's own header is the
-     * category and sits one line above it.
-     *
-     * ADR-005 says a tier 3 card's category "is the enclosing group's name", and it is -
-     * that is where the flat view gets it from. Printing it again on every card inside the
-     * group it names is what that reads as on screen, which only the browser showed.
+     * category and sits one line above it. The flat list names each row's group instead;
+     * see categoryof in Explore.tsx.
      *
      * @returns {string} Nothing: the heading above already said it.
      */
@@ -94,10 +91,10 @@ const Group = ({
      * be put back somewhere deliberate - otherwise it falls to the body and a keyboard user
      * loses their place in a list they just made longer.
      *
-     * Two cases, and R3 shipped only the first until review caught it. While more pages
-     * remain the button is still there and still the right target. When the last page
-     * arrives the button unmounts, so focus goes to the first row that page added, which is
-     * why the caller sends the index it starts at rather than a bare flag.
+     * Two cases. While more pages remain the button is still there and still the right
+     * target. When the last page arrives the button unmounts, so focus goes to the first row
+     * that page added, which is why the caller sends the index it starts at rather than a
+     * bare flag.
      */
     useEffect(() => {
         if (focusfrom === null || loading) {
@@ -146,7 +143,7 @@ const Group = ({
                 disclosure as well, and a control that opens and acts at once is two surprises. */}
             {toolbar}
             {/* A page that failed shows the way back inside the group it belongs to; pressing it
-                asks for the page again (ADR-010, decision 12). */}
+                asks for the group again from its first page. */}
             {failed && (
                 <div className="compass-group-retry">
                     <RetryNotice

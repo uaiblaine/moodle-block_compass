@@ -28,10 +28,11 @@ use core\context\system as context_system;
 use stdClass;
 
 /**
- * Continue, New and Favourites, plus the counts the ghosts need (PLAN.md §6.1, ADR-001).
+ * Continue, New and Favourites, plus the counts the ghosts need.
  *
  * Four database reads, every one bounded by a LIMIT or an aggregate, never a
- * scan of the user's whole enrolment set. Every query yields one row per
+ * scan of the user's whole enrolment set; past hidden_courses::SQL_LIMIT hidden
+ * courses, one more count per chunk of them. Every strip query yields one row per
  * course (EXISTS predicates or a grouped derived table over the user's active
  * enrolments), carries the columns course_meta::select_sql() needs so the
  * course layer is filled from the rows, and excludes the courses the user hid
@@ -42,7 +43,7 @@ use stdClass;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class attention {
-    /** @var string Component of the core course star (ADR-000, decision 8). */
+    /** @var string Component of the core course star, shared with the Course overview block. */
     public const FAVOURITE_COMPONENT = 'core_course';
 
     /** @var string Item type of the core course star. */
@@ -69,7 +70,7 @@ final class attention {
     /** @var bool Whether the user may see courses with visible = 0 (system-context capability, evaluated once). */
     private bool $seehidden;
 
-    /** @var bool Whether enrolment applications awaiting approval are counted (ADR-009, decision 3). */
+    /** @var bool Whether enrolment applications awaiting approval are counted. */
     private bool $pending;
 
     /**
@@ -101,11 +102,10 @@ final class attention {
     /**
      * The three strips and the counts.
      *
-     * Continue and New are exclusive between themselves, priority Continue › New (they are
-     * disjoint by construction: one needs a last access, the other its absence). The
-     * favourites strip lists every favourite, whether or not the course also sits in Continue
-     * or New — repetition is deliberate (ADR-009, decision 1), which is why no id shown above
-     * is removed from it and why it is fetched at max plus the hidden margin alone. Rows are
+     * Continue and New are disjoint by construction: one needs a last access, the other its
+     * absence. The favourites strip does not skip a course that also sits in Continue or New,
+     * which is why no id shown above is removed from it and why it is fetched at max plus the
+     * hidden margin alone. Rows are
      * stdClass objects carrying course_meta::select_sql()'s columns, isfavourite, and the
      * strip's own columns (timeaccess; timecreated, timeend, enrol, enrolenddate).
      *
@@ -225,8 +225,8 @@ final class attention {
 
     /**
      * Scalar subquery: the id of the active enrolment row that carries the course's
-     * earliest active timecreated (lowest id on a tie). Shared by the New strip and
-     * the inventory so both always describe the same row.
+     * earliest active timecreated (lowest id on a tie). inventory::keep_earliest() applies
+     * the same rule in PHP, so the New strip and the inventory describe the same row.
      *
      * @param string $derivedalias Alias of the per-course derived table exposing courseid and timecreated.
      * @param string $suffix Placeholder suffix, unique within the statement.
@@ -289,11 +289,11 @@ final class attention {
      * at most one row thanks to its unique index and the single course-context
      * write path of the core star. Index: user_enrolments (userid).
      *
-     * The pending count is NOT subtracted on the chunked path below (ADR-009, decision 3): a
-     * course that is both archived and applied to is a state Compass cannot produce — a pending
-     * row carries no archive control — so past hidden_courses::SQL_LIMIT the count is reported
-     * unrestricted, bounded by what the learner archived in the Course overview block and then
-     * applied to, rather than paying a second statement for it.
+     * The pending count is not subtracted on the chunked path below: a course that is both
+     * archived and applied to is a state Compass cannot produce — a pending row carries no
+     * archive control — so past hidden_courses::SQL_LIMIT the count is reported unrestricted,
+     * off at most by what the learner archived in the Course overview block and then applied
+     * to, rather than paying a second statement for it.
      *
      * @return array total, new, favourites, pending — all int.
      */
@@ -323,11 +323,11 @@ final class attention {
      * to a list of course ids (used to count the archived subset).
      *
      * The applications awaiting approval travel as a scalar subquery beside the three
-     * aggregates and NOT as a fourth SUM(CASE …) over the derived table (ADR-009, decision 3):
+     * aggregates and not as a fourth SUM(CASE …) over the derived table:
      * per_course_enrolments_sql() binds the active status, so a pending row is not in that
      * table at all, and widening its predicate to reach one would silently grow total, newcount
-     * and favcount by every application. The subquery leaves all three provably untouched. It
-     * is 0 when the feature is off and on the restricted (chunk) path, where counts() ignores it.
+     * and favcount by every application. The subquery leaves all three untouched. It is 0 when
+     * the feature is off and on the restricted (chunk) path, where counts() ignores it.
      *
      * @param int[]|null $onlycourses Restrict to these course ids; null for all.
      * @return array total, new, favourites, pending — all int.
@@ -368,11 +368,11 @@ final class attention {
     /**
      * Scalar subquery: how many distinct courses the user holds an enrolment application in.
      *
-     * pending::where_sql() is the rule — enrol_apply's own, verbatim: on an apply instance, not
-     * active, period still open — under the same site, visibility and hidden-set clauses as the
-     * aggregates beside it, and excluding any course where the user also holds an ACTIVE
-     * enrolment on another method, because that is a course they can enter and the active
-     * enrolment wins (inventory::pending() applies the same exclusion at read time). Index:
+     * pending::where_sql() is the rule — on an apply instance, not active, period still open —
+     * under the same site, visibility and hidden-set clauses as the aggregates beside it, and
+     * excluding any course where the user also holds an active enrolment on another method,
+     * because that is a course they can enter and the active enrolment wins
+     * (inventory::pending() applies the same exclusion at read time). Index:
      * user_enrolments (userid) foreign key; enrol primary key; course primary key.
      *
      * @param array $params Placeholders, extended in place.
@@ -433,8 +433,8 @@ final class attention {
     }
 
     /**
-     * EXISTS predicate: the user holds an active enrolment in the course (the
-     * enrol_get_my_courses() rule, ADR-000 decision 13).
+     * EXISTS predicate: the user holds an active enrolment in the course, by the rule
+     * enrol_get_my_courses() applies (lib/enrollib.php).
      *
      * @param string $courseidexpr SQL expression of the course id.
      * @param string $suffix Placeholder suffix, unique within the statement.
@@ -487,8 +487,8 @@ final class attention {
     }
 
     /**
-     * Visibility rule (ADR-000, decision 12): hidden courses only for the
-     * system-context capability holder.
+     * Visibility rule: hidden courses only for a holder of moodle/course:viewhiddencourses
+     * in the system context, evaluated once in the constructor.
      *
      * @param string $alias Alias of {course} in the statement.
      * @return string Empty, or an AND clause.

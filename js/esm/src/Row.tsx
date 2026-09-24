@@ -16,20 +16,17 @@
 /**
  * One row of the tier 3 list view.
  *
- * A row registers itself with the details store when it mounts and stops when it goes
- * (ADR-005): the observer decides when the row is close enough to the viewport to be worth
- * a request, and the batch that answers brings progress and the image, the latter for the
- * cards view to use should the reader switch. The row itself draws no image.
+ * A row registers itself with the details store when it mounts and stops when it goes: the
+ * observer decides when the row is close enough to the viewport to be worth a request, and
+ * the batch that answers brings progress and the image, the latter for the cards view to use
+ * should the reader switch. The row itself draws no image.
  *
- * An enrolment application awaiting approval (ADR-009, decision 3) is a row like the others
- * except where it cannot be: its name links to the course's enrolment page, not into the course,
- * it carries an "Awaiting approval" badge inside that link, and it has no star, no archive
- * control and no progress - nor does it register for details, since the batch would decline it.
- * The name is clamped to two lines with the whole name in its title attribute (decision 10).
- *
- * Since ADR-010 the star toggles here too, beside the archive control (decision 6), and "No
- * completion configured" is said only to a viewer who is not a learner of the course, when
- * completion is off (decision 10).
+ * An enrolment application awaiting approval is a row like the others except where it cannot
+ * be: its name links to the course's enrolment page, not into the course, it carries an
+ * "Awaiting approval" badge inside that link, and it has no star, no archive control and no
+ * progress - nor does it register for details, since the batch drops courses the user is not
+ * actively enrolled in. The name is clamped to two lines with the whole name in its title
+ * attribute.
  *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
@@ -70,8 +67,8 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
     const {labels} = config;
     const opened = row.opened || 0;
     const pending = !!row.pend;
-    // The enrolment page takes the COURSE id (enrol/index.php:28,43), so both URLs are a function
-    // of the one integer every row carries and nothing travels for the link (ADR-009, decision 3).
+    // The enrolment page takes the course id (enrol/index.php:28,43), so both URLs are a function
+    // of the one integer every row carries and nothing travels for the link.
     const url = pending
         ? `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`
         : `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
@@ -106,10 +103,8 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
                 {pending && labels.pendingmeta}
                 {!pending && (opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened)}
             </span>
-            {/* Four states, and the last is absence on purpose: waiting shows a skeleton, a
-                tracked course shows its bar, a course with completion off tells a teacher so -
-                the one reader who can act on it - and shows a learner nothing, because for them
-                absence is not a fact worth stating (ADR-010, decision 10). */}
+            {/* Waiting shows a skeleton, then the rule of Card.tsx completion(): a bar when
+                there is one, "No completion configured" to a teacher only, else nothing. */}
             {!pending && waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
             {answered && detail.hascompletion && detail.progress !== null && (
                 <div className="compass-row-progress">
@@ -119,7 +114,7 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
             {answered && !detail.hascompletion && detail.teacher && (
                 <span className="compass-row-nocompletion small text-muted">{labels.nocompletion}</span>
             )}
-            {/* The star that toggles, beside the archive control (ADR-010, decision 6). */}
+            {/* The star that toggles, beside the archive control. */}
             {!pending && config.favouritesenabled && (
                 <Star
                     courseid={row.id}

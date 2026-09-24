@@ -16,18 +16,15 @@
 /**
  * A platter of pills: one row of toggle buttons on an inset track, one of them raised.
  *
- * The shape local_dimensions gives its filter tabs (ADR-009, decision 4), rewritten as a
- * component rather than reached as an AMD module, which a React component cannot import
- * (ADR-006). Its amd/src/filter_tabs_nav.js was read as the specification: a masked scroller
- * that hides its scrollbar, a sliding indicator under the first pressed pill, two scroll
- * paddles that appear only when the row overflows and disable at each edge, the arrow keys
- * moving focus between pills with wrap-around, and a ResizeObserver that recomputes when the
- * layout changes - which is also what makes the platter right once a hidden panel is shown,
- * since a hidden element lays out nothing.
+ * It has a masked scroller that hides its scrollbar, a sliding indicator under the first pressed
+ * pill, two scroll paddles that appear only when the row overflows and disable at each edge,
+ * the arrow keys moving focus between pills with wrap-around, and a ResizeObserver that
+ * recomputes when the layout changes - which is also what makes the platter right once a
+ * hidden panel is shown, since a hidden element lays out nothing.
  *
  * The paddles are decorative and mouse-only: aria-hidden with tabindex -1, the markup axe's own
  * aria-hidden-focus rule names as the fix, because the arrow keys already move between pills
- * and two more tab stops per platter would double every group's cost to a keyboard user.
+ * and a keyboard user would otherwise pay two more tab stops per platter.
  *
  * Selection is the caller's: this draws what it is given and reports a press.
  *
@@ -233,8 +230,7 @@ const Platter = ({items, onPress, label, labelledby}: PlatterProps) => {
                     ))}
                 </div>
             </div>
-            {/* Decorative and mouse-only: the arrow keys already move between pills, and a paddle
-                in the tab order would add two stops to every group (ADR-009, decision 4). */}
+            {/* Decorative and mouse-only; see the file comment. */}
             <button
                 type="button"
                 className={`compass-paddle compass-paddle-left${scrollable ? '' : ' compass-paddle-hidden'}`}

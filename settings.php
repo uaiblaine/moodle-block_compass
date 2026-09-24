@@ -56,7 +56,7 @@ if ($ADMIN->fulltree) {
         PARAM_INT
     ));
 
-    // Above this many courses tier 3 switches to the paged mode of ADR-004.
+    // Above this many courses tier 3 switches to paged mode: group headers first, rows fetched per group.
     $settings->add(new admin_setting_configtext(
         'block_compass/inventory_max',
         get_string('inventory_max', 'block_compass'),
@@ -79,7 +79,7 @@ if ($ADMIN->fulltree) {
         1
     ));
 
-    // Months of silence after which tier 3 gathers a course into the dormant group (ADR-007).
+    // Months of silence after which tier 3 gathers a course into the dormant group.
     $settings->add(new admin_setting_configtext(
         'block_compass/dormant_months',
         get_string('dormant_months', 'block_compass'),
@@ -88,7 +88,7 @@ if ($ADMIN->fulltree) {
         PARAM_INT
     ));
 
-    // The view tier 3 opens in for a viewer who has never chosen one (ADR-005, decision 4).
+    // The view tier 3 opens in for a viewer who has never chosen one.
     // A select rather than a text field: the value is compared against a fixed vocabulary,
     // and admin_setting_configtext defaults to PARAM_RAW and would validate nothing.
     $settings->add(new admin_setting_configselect(
@@ -109,8 +109,7 @@ if ($ADMIN->fulltree) {
         0
     ));
 
-    // The category line on cards (ADR-010, decision 11): on unless explicitly off, the shape of
-    // enable_favourites; a client switch, so the payload does not move either way.
+    // The category line on cards; see config::category_shown().
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/show_category',
         get_string('show_category', 'block_compass'),
@@ -118,8 +117,8 @@ if ($ADMIN->fulltree) {
         1
     ));
 
-    // The block's own page (ADR-012): off by default; on, /blocks/compass/index.php renders the
-    // block's content alone and "Compass" appears among the start page choices.
+    // The block's own page: off by default; on, /blocks/compass/index.php renders the block's
+    // content alone and "Compass" appears among the start page choices.
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/enable_page',
         get_string('enable_page', 'block_compass'),
@@ -127,7 +126,7 @@ if ($ADMIN->fulltree) {
         0
     ));
 
-    // The page's title (ADR-012, amendment 4): hidden from sight, kept for assistive technology.
+    // The page's title: hidden from sight, kept for assistive technology.
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/hide_page_title',
         get_string('hide_page_title', 'block_compass'),
@@ -135,11 +134,11 @@ if ($ADMIN->fulltree) {
         0
     ));
 
-    // The filter panel of the full course list (ADR-009, decisions 5 and 7). The choices are the
-    // site's own eligible course custom fields — select and checkbox, visible to everyone — read
-    // from the filterfields layer, and admin_setting_configmultiselect drops any submitted value
-    // absent from them (lib/adminlib.php:3687-3728). Not during install or upgrade, when the
-    // custom field tables may not be there to ask; the default is empty either way.
+    // The filter panel of the full course list. The choices are the site's eligible course
+    // custom fields — select and checkbox, visible to everyone — read from the filterfields
+    // layer, and admin_setting_configmultiselect::write_setting() drops any submitted value
+    // absent from them. Not during install or upgrade, when the custom field tables may not be
+    // there to ask; the default is empty either way.
     $filterchoices = [];
     if (!during_initial_install() && empty($CFG->upgraderunning)) {
         foreach (\block_compass\local\filter_fields::eligible() as $shortname => $field) {
@@ -166,8 +165,8 @@ if ($ADMIN->fulltree) {
         $filterchoices
     ));
 
-    // Applications awaiting approval (ADR-009, decision 3): off by default, and forced off without
-    // the enrol_apply plugin, which is what the accessor checks (config::pending_enabled()).
+    // Applications awaiting approval: off by default, and forced off without the enrol_apply
+    // plugin, which is what config::pending_enabled() checks.
     $settings->add(new admin_setting_configcheckbox(
         'block_compass/enable_pending',
         get_string('enable_pending', 'block_compass'),
@@ -175,7 +174,7 @@ if ($ADMIN->fulltree) {
         0
     ));
 
-    // Pre-warming (ADR-003): the scheduled task is always registered and gated by this switch.
+    // Pre-warming: the scheduled task is always registered and gated by enable_prewarm below.
     $settings->add(new admin_setting_heading(
         'block_compass/prewarm',
         get_string('prewarm', 'block_compass'),
@@ -197,10 +196,8 @@ if ($ADMIN->fulltree) {
         PARAM_INT
     ));
 
-    // The configduration setting takes (name, visiblename, description, defaultsetting, defaultunit),
-    // stores seconds and lets the admin pick the unit (lib/adminlib.php:3963); the default unit is
-    // minutes so the 600 s default reads as 10 minutes. set_min_duration() returns void
-    // (lib/adminlib.php:3982), so it is called on a variable rather than chained.
+    // Stored in seconds; MINSECS as the default unit shows the 600 s default as 10 minutes.
+    // set_min_duration() returns void, so it cannot be chained onto the constructor.
     $prewarmbudget = new admin_setting_configduration(
         'block_compass/prewarm_budget_seconds',
         get_string('prewarm_budget_seconds', 'block_compass'),

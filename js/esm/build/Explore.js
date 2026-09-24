@@ -2,24 +2,22 @@ import{useCallback as m,useEffect as S,useId as xe,useMemo as M,useRef as k,useS
 /**
  * Tier 3: the inventory, grouped by category, filtered and reordered in place.
  *
- * Two modes, decided by the server (ADR-004). In FULL mode one request brings every
- * row and the toolbar only re-renders what is already held - no request is made for
- * a filter the browser can answer, which is non-negotiable 5 of PLAN.md. In PAGED
- * mode the groups arrive with counts only: a group fetches its rows on first open
- * and page by page, the chip and the sort are parameters of those fetches, and the
- * search box asks the server, because the rows are not here to search.
+ * Two modes, decided by the server. In full mode one request brings every row but the
+ * archive's (see pagedgroup()) and the toolbar only re-renders what is already held - no
+ * request is made for a filter the browser can answer. In paged mode the groups arrive with
+ * counts only: a group fetches its rows on first open and page by page, the chip, the field
+ * selection and the sort are parameters of those fetches, and the search box asks the
+ * server, because the rows are not here to search.
  *
- * Since R4 the section also owns two things that cut across both modes: the viewer's
- * choice between the list and the cards, which is a re-render and a preference write and
- * nothing more, and the details store, which fetches progress and the course image for the
- * rows that actually reach the viewport (ADR-005). Neither knows about the mode, because a
- * row is a row however it arrived.
+ * Two things cut across both modes: the viewer's choice between the list and the cards,
+ * which is a re-render and a preference write and nothing more, and the details store,
+ * which fetches progress and the course image for the rows that actually reach the
+ * viewport. Neither knows about the mode, because a row is a row however it arrived.
  *
- * Since ADR-010: the section is scrolled into view and given the keyboard on every press that
- * opens or re-aims it (decision 1); the toolbar starts as the viewer left it and is remembered
- * in one preference the shell validates (decision 9); the star toggles here too, patching the
- * row and refreshing tier 1 (decision 6); the cards grid carries a column count (decision 4);
- * and every failure has a way back (decision 12).
+ * The section is scrolled into view and given the keyboard on every press that opens or
+ * re-aims it; the toolbar starts as the viewer left it and is remembered in one preference
+ * the shell validates; the star toggles here too, patching the row and refreshing tier 1;
+ * and every failure has a way back.
  *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine

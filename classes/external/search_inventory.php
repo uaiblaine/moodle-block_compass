@@ -35,7 +35,7 @@ use core_external\external_value;
 use core_text;
 
 /**
- * The search box of paged mode, for users above inventory_max (ADR-004).
+ * The search box of paged mode, for users above inventory_max.
  *
  * Full mode filters the rows already in the browser; above the threshold they
  * are not there, so the same rule — every word of the query a substring of the
@@ -54,7 +54,7 @@ use core_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class search_inventory extends external_api {
-    /** @var int Longest query accepted, in characters; far beyond any course name, and a bound on the normaliser. */
+    /** @var int Characters of the query kept; the rest is cut off, which bounds the normaliser's work. */
     public const QUERY_MAX_LENGTH = 200;
 
     /**
@@ -91,7 +91,7 @@ class search_inventory extends external_api {
         $userid = (int) $USER->id;
         self::validate_context(context_user::instance($userid));
 
-        // The allowlist half of the filter check, before the population is resolved (ADR-009).
+        // The allowlist half of the filter check, before the population is resolved.
         filter_fields::validate($params['filters']);
 
         // Bound the input before the domain normalises it: core_text::substr($text, $start, $len)

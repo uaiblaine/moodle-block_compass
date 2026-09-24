@@ -43,7 +43,7 @@ declare global {
     /* eslint-disable-next-line no-unused-vars */
     interface Window {
         require?: RequireJs,
-        /* Moodle's own page globals. Core's ESM reads these the same way: lib/js/esm/src/profiler.ts. */
+        /* Moodle's own page globals; see the file comment. */
         M: {cfg: {wwwroot: string, jsrev: number}},
     }
 }
@@ -51,7 +51,7 @@ declare global {
 /**
  * Load one AMD module through RequireJS.
  *
- * @param {string} name Frankenstyle module name, for instance block_compass/explore.
+ * @param {string} name AMD module name, e.g. 'core/notification'.
  * @returns {Promise} Resolves with the module, rejects when RequireJS is absent or the load fails.
  */
 export const amd = <T>(name: string): Promise<T> => new Promise<T>((resolve, reject) => {

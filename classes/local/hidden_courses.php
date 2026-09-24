@@ -25,7 +25,7 @@
 namespace block_compass\local;
 
 /**
- * Reads the Course overview block's hidden-course preferences (ADR-000, decision 16).
+ * Reads the Course overview block's hidden-course preferences, which Compass shares as its archive.
  *
  * The preference names carry the course ids, so the hidden set is known before
  * any query runs and can be excluded in SQL. get_user_preferences() loads every
@@ -42,9 +42,10 @@ final class hidden_courses {
     /**
      * @var int Above this many hidden courses the exclusion moves from SQL to PHP.
      *
-     * The limit is about bound parameters, not correctness: both CI databases accept far
-     * more. Past it the strips are filtered in PHP with a margin and the counts subtract
-     * the archived subset in chunks of this size, so the answer stays exact.
+     * The limit bounds the parameter list and is not needed for correctness: PostgreSQL
+     * and MariaDB both accept far more. Past it the strips are filtered in PHP with a
+     * margin and the counts subtract the archived subset in chunks of this size, so the
+     * answer stays exact.
      */
     public const SQL_LIMIT = 500;
 

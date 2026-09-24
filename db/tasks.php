@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Scheduled tasks of the Compass block (ADR-003).
+ * Scheduled tasks of the Compass block.
  *
  * One task, off-peak by default — 04:00 site time at a random minute, so many sites
  * on one cron host do not start together — and gated by the enable_prewarm setting

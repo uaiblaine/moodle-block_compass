@@ -29,11 +29,11 @@ use basic_testcase;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The rule PLAN.md §7 states, both clauses and both boundaries (ADR-007, decision 1).
+ * The dormancy rule: both clauses and both boundaries.
  *
  * A basic_testcase: the rule reads two integers off a row and touches nothing else, which is
- * the point of it costing zero reads. The threshold is checked as calendar months, since
- * that is what an administrator means by "12" and what core computes such limits as.
+ * the point of it costing zero reads. The threshold is checked as calendar months; see
+ * {@see dormancy::threshold()} for why.
  *
  * @package    block_compass
  * @category   test
@@ -59,9 +59,8 @@ final class dormancy_test extends basic_testcase {
     /**
      * The threshold is calendar months back from now, not a fixed number of days.
      *
-     * Twelve months before 2026-09-06 is 2025-09-06, whatever the intervening months were
-     * worth; 365 days would land on 2025-09-06 too this year but not across a leap year,
-     * which is the whole reason to pin the calendar form.
+     * Twelve months before 2026-09-06 is 2025-09-06, which 365 days would also reach; the
+     * 36-month case crosses 29 February 2024, where a count of days would land a day late.
      *
      * @return void
      */
@@ -87,7 +86,7 @@ final class dormancy_test extends basic_testcase {
     }
 
     /**
-     * Clause B: a never-opened course is dormant once the ENROLMENT is old enough.
+     * Clause B: a never-opened course is dormant once the enrolment is old enough.
      *
      * This is the clause a browser could not answer, because the row it holds carries no
      * enrolment date. The control is the opened course enrolled at the same old instant, which

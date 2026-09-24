@@ -34,7 +34,7 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The thin caller of prewarm::run() (ADR-003, "The task").
+ * The thin caller of {@see \block_compass\local\prewarm::run()}.
  *
  * Two things are the task's own and are pinned here: the setting gate, which is
  * why the task can always be scheduled — off, it says so and touches nothing;
@@ -128,9 +128,9 @@ final class warm_active_users_test extends advanced_testcase {
     /**
      * Registered in db/tasks.php nightly at four, at a random minute, not blocking, and named.
      *
-     * get_default_scheduled_task() reads db/tasks.php off disk for the task's component, so this
-     * pins the file and not the row the install wrote; a task registered without a version bump
-     * would still be missing from {task_scheduled}, which is what the first assertion sees.
+     * The first assertion reads the row the install wrote in {task_scheduled}; after it,
+     * get_default_scheduled_task() reads db/tasks.php off disk, so the schedule asserted is the
+     * file's, not an administrator's edit of the row.
      *
      * @return void
      */

@@ -29,20 +29,19 @@ use basic_testcase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
- * The half of the accessibility audit that axe cannot see (ADR-008, decision 3).
+ * The half of the accessibility audit that axe cannot see.
  *
- * Phase 7 makes the audit a gate rather than a document: core's axe step rides inside
- * the four Behat scenarios, and this file reads what that step cannot. Three reasons
- * something lands here rather than there. A rule may need a state no scenario reaches -
- * the dark theme is a token swap nothing in the feature toggles. It may need a
- * relationship axe measures only when both halves are on screen, while the static form
- * survives a component nobody put in a scenario - the heading ladder. Or axe-core 4.10.3
- * may simply not implement the criterion, as with target size (WCAG 2.2 2.5.8).
+ * Core's axe step runs inside the Behat scenarios, and this file reads what that step
+ * cannot. Three reasons something lands here rather than there. A rule may need a state
+ * no scenario reaches - the dark theme is a token swap nothing in the feature toggles. It
+ * may need a relationship axe measures only when both halves are on screen, while the
+ * static form survives a component nobody put in a scenario - the heading ladder. Or the
+ * axe run may not check the criterion: axe-core 4.10.3, which core ships, has its target
+ * size rule (WCAG 2.2 2.5.8) disabled by default.
  *
- * The discipline is the sibling file's, and for the sibling file's reason: two drafts of
- * bootstrap_compat_test once passed while blind to the very defect they were written for.
- * So every rule here carries a vacuity guard asserting it had something to check, and a
- * rule that matches nothing is the finding, not a pass.
+ * As in bootstrap_compat_test, every rule carries a vacuity guard asserting it had
+ * something to check: a negative rule that matches nothing passes while blind to the
+ * defect it was written for.
  *
  * @package    block_compass
  * @category   test
@@ -103,7 +102,7 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * The tag ends at the first closing angle bracket, which an arrow function in a later
      * attribute would bring forward - so a rule reading these tags asserts about the
-     * attributes written BEFORE any handler, which is where a name belongs anyway.
+     * attributes written before any handler, which is where a name belongs anyway.
      *
      * @param string $contents The source.
      * @param string $name The element name.
@@ -149,8 +148,7 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Named rather than counted: a glob that silently stops matching turns every rule in
      * this file into a pass over nothing, which is the failure mode the whole file exists
-     * to prevent. Archive and Star are the two icon-only controls, Card and RowCard the
-     * two card titles, Strip and Explore the two section titles, and the stylesheet is
+     * to prevent. Each named component is one a rule below reads, and the stylesheet is
      * where the token pairing and the target size are declared.
      *
      * @return void
@@ -221,8 +219,8 @@ final class accessibility_rules_test extends basic_testcase {
         /*
          * Vacuity guard, and the sharpest one in the file: the rule is a negative, so it
          * passes when the regex has stopped reading the attribute at all. Counting the
-         * deliberate -1 values - the decorative duplicate link on a card, the focus target
-         * of the tier 3 title - proves the pattern still finds a tabindex where one is.
+         * deliberate -1 values - such as the decorative duplicate link on a card and the
+         * tier 3 focus targets - proves the pattern still finds a tabindex where one is.
          */
         $this->assertGreaterThanOrEqual(
             1,
@@ -262,12 +260,12 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The icon-only buttons name themselves.
      *
-     * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
-     * without an aria-label a screen reader announces "button" and the user is told to
-     * press something unnamed. Since ADR-009 the list/cards switch (ViewToggle) is two such
-     * buttons and the Filter button (FilterToggle) hides its own text and count from the
-     * accessibility tree to say them as one sentence. Every button tag in these four files
-     * must carry the attribute.
+     * Archive, Star and Reload render a glyph and nothing else, and the glyph is aria-hidden,
+     * so without an aria-label a screen reader announces "button" and the user is told to
+     * press something unnamed. The list/cards switch (ViewToggle) is two such buttons, and
+     * the Filter button (FilterToggle) hides its own text and count from the accessibility
+     * tree to say them as one sentence. Every button tag in these five files must carry the
+     * attribute.
      *
      * @return void
      */
@@ -280,7 +278,7 @@ final class accessibility_rules_test extends basic_testcase {
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
             $tags = $this->tags($files[$file], 'button');
-            // Vacuity guard: this file's whole purpose is one button, so finding none is the bug.
+            // Vacuity guard: each file exists to render such a button, so finding none is the bug.
             $this->assertNotEmpty($tags, "{$file}: no button tag found, so the rule checked nothing");
             foreach ($tags as $tag) {
                 $this->assertMatchesRegularExpression(
@@ -296,8 +294,8 @@ final class accessibility_rules_test extends basic_testcase {
      * Every toolbar grouping carries a name.
      *
      * role="group" tells a screen reader that the buttons inside belong together and then
-     * says nothing about what they do; unnamed, the three tier 3 toolbars are read as
-     * three anonymous groups of buttons in a row.
+     * says nothing about what they do; unnamed, the tier 3 toolbar's platters and view
+     * switch are read as anonymous groups of buttons in a row.
      *
      * @return void
      */
@@ -318,7 +316,7 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: the tier 3 toolbars are the groups, and there are three of them.
+        // Vacuity guard: Platter and ViewToggle each write one.
         $this->assertGreaterThanOrEqual(1, $groups, 'no role="group" found: has the tier 3 toolbar changed?');
     }
 
@@ -330,10 +328,10 @@ final class accessibility_rules_test extends basic_testcase {
      * all. A heading of this plugin's at the block title's own level reads as a sibling of
      * the block rather than as a section inside it, and one rung too low under a hidden
      * title skips a level. So every level this plugin writes is a function of that one fact,
-     * chosen in heading.ts and nowhere else: sections h4 under the title and h3 without it,
-     * card titles one rung below. A literal heading tag in a component is a rung chosen
-     * without asking, which is why none is allowed. axe's heading-order cannot see the first
-     * case: sibling h3s skip no level.
+     * chosen in heading.ts and nowhere else: sections h4 under the title, h3 without it and
+     * h2 on the block's own page, card titles one rung below. A literal heading tag in a
+     * component is a rung chosen without asking, which is why none is allowed. axe's
+     * heading-order cannot see the first case: sibling h3s skip no level.
      *
      * The exact file lists are the point - a new component with a heading has to choose
      * its rung deliberately and land in one of them.
@@ -366,9 +364,9 @@ final class accessibility_rules_test extends basic_testcase {
         // Vacuity guard: the React sources must have been read at all.
         $this->assertGreaterThanOrEqual(1, $scanned, 'no React source scanned: has js/esm/src moved?');
 
-        // The helper pins the three ladders (ADR-012, decision 2): 4 under core's block title, 3
-        // without it, 2 on the block's own page under the theme's h1 - and a level it does not
-        // know reads as 4, the Dashboard's.
+        // The helper pins the three ladders: 4 under core's block title, 3 without it, 2 on the
+        // block's own page under the theme's h1 - and a level it does not know reads as 4, the
+        // Dashboard's.
         $this->assertArrayHasKey('js/esm/src/heading.ts', $sources, 'heading.ts is where the rungs are chosen');
         $helper = $sources['js/esm/src/heading.ts'];
         $this->assertMatchesRegularExpression(
@@ -415,10 +413,10 @@ final class accessibility_rules_test extends basic_testcase {
      * text token is a second name that dark mode overrides and the plain one is left to
      * the rings and the borders.
      *
-     * The rule pins the PAIRING, not the ratio: no source can compute a contrast, and the
-     * measurement is the driven pass's. The dark selector is the one dark mechanism 5.2 has,
-     * the attribute Bootstrap 5.3 moves its tokens under; a .theme-dark class is emitted by
-     * nothing in the 5.2 checkout or in the fleet's themes, so a rule for it would be dead.
+     * The rule pins the pairing, not the ratio: no source can compute a contrast, so the ratio
+     * is measured in a browser. The dark selector is the one dark mechanism 5.2 has, the
+     * attribute Bootstrap 5.3 moves its tokens under; nothing in Moodle 5.2 or in Boost Union
+     * emits a .theme-dark class, so a rule for it would be dead.
      *
      * @return void
      */
@@ -464,19 +462,19 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * Every colour-mode override is scoped to the html element or to body, and to nothing deeper.
      *
-     * The host writes data-bs-theme in one of two places and the block has to follow both: core
-     * puts it on the html element, theme_moove puts it on document.body (amd/src/darkmode.js:35)
-     * and redefines the whole --bs-* set there. An override anchored at :root sees only the first,
-     * which is how the brand text kept its 3.02:1 light value on moove's dark body.
+     * The host writes data-bs-theme in one of two places and the block has to follow both: Moodle
+     * 5.3's theme_boost puts it on the html element (5.2's core writes it nowhere), theme_moove
+     * puts it on document.body (amd/src/darkmode.js) and redefines the whole --bs-* set there. An
+     * override anchored at :root sees only the first, and would leave the brand text at its 3.02:1
+     * light value on moove's dark body.
      *
-     * Going the other way, a BARE [data-bs-theme="dark"] .block_compass would match through any
+     * Going the other way, a bare [data-bs-theme="dark"] .block_compass would match through any
      * ancestor at any depth - CSS descendant combinators have no nearest-ancestor-wins rule - and
-     * theme_boost_union really does set this same attribute on its navbar alone. So the scope must
-     * be html or body: wide enough for both hosts, narrow enough that no deeper scope reaches the
-     * block.
+     * theme_boost_union sets this same attribute on its navbar alone. So the scope must be html or
+     * body: wide enough for both hosts, narrow enough that no deeper scope reaches the block.
      *
-     * Mutations that must redden it: re-anchor one arm at :root; drop the "body" from an arm,
-     * leaving a bare attribute selector.
+     * Changes that must make it fail: re-anchoring one arm at :root; dropping the "body" from an
+     * arm, leaving a bare attribute selector.
      *
      * @return void
      */
@@ -520,8 +518,8 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * WCAG 2.2 2.5.8 sets the minimum at 24 by 24, and btn-link btn-sm p-0 computes to
      * about 23: the Bootstrap padding utility is !important, so nothing but an explicit
-     * box brings it back. axe-core 4.10.3 does not check target size at all, which is why
-     * the rule is here and not in the Behat step.
+     * box brings it back. axe-core 4.10.3 ships its target size rule disabled by default,
+     * which is why the rule is here and not in the Behat step.
      *
      * @return void
      */
@@ -558,11 +556,10 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A course name is at most two lines, and the whole name rides in a title attribute.
      *
-     * ADR-009, decision 10, the maintainer's own note: a name of several lines breaks the layout,
-     * and the concern is the layout and not the payload. The clamp is Boost's own .clamp-2 pattern
-     * under this plugin's .compass-clamp, and every element carrying that class also carries a
-     * title, so hovering a clamped name shows it in full. axe reads neither: nothing in a
-     * scenario renders a name long enough to clamp.
+     * A name of several lines breaks the layout. The clamp is Boost's own .clamp-2 pattern under
+     * this plugin's .compass-clamp, and every element carrying that class also carries a title,
+     * so hovering a clamped name shows it in full. axe reads neither: nothing in a scenario
+     * renders a name long enough to clamp.
      *
      * @return void
      */
@@ -603,10 +600,10 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A list row wraps rather than overflowing the block.
      *
-     * The row is a flex line of a name, a date, a progress bar and two controls. Measured at
-     * 375 CSS px in the driven pass of ADR-008, the unwrapped line overflowed the block by
-     * 19 px, which at 320 px is the horizontal scroll WCAG 1.4.10 forbids. axe does not
-     * measure reflow, and no scenario runs at that width, so the source is the only reader.
+     * The row is a flex line of a name, a date, a progress bar and two controls. Unwrapped, it
+     * overflows the block by about 19 px at a 375 CSS px viewport already, and WCAG 1.4.10
+     * forbids horizontal scrolling at 320 px. axe does not measure reflow, and no scenario runs
+     * at that width, so the source is the only reader.
      *
      * @return void
      */
@@ -663,8 +660,8 @@ final class accessibility_rules_test extends basic_testcase {
      * The page template's h1 must carry visually-hidden - the recipe that keeps an element in
      * the accessibility tree - and none of the spellings that remove it: d-none, hidden, or an
      * aria-hidden attribute. And the stylesheet's no-title rules, keyed on the body class, may
-     * collapse the theme's empty header but never display: none or visibility: hidden anything
-     * (ADR-012, amendment 4). The vacuity guards are the h1 and the rules themselves.
+     * collapse the theme's empty header but never display: none or visibility: hidden anything.
+     * The vacuity guards are the h1 and the rules themselves.
      *
      * @return void
      */
@@ -729,10 +726,10 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * The disabled attribute is applied in the render the control's own click causes, and a
      * focused element that becomes disabled drops the keyboard to the body: the "Reloading…"
-     * label is then announced to nobody, and the next Tab starts at the top of the page
-     * (ADR-010, amendment 9). The two components that render such a control are read; "Show
-     * more" in Group.tsx keeps its disabled attribute on purpose, because Explore moves focus
-     * after a page deliberately (R3). The vacuity guard is the button tag itself, in each file.
+     * label is then announced to nobody, and the next Tab starts at the top of the page. The
+     * two components that render such a control are read; "Show more" in Group.tsx keeps its
+     * disabled attribute on purpose, because Explore moves focus after a page deliberately. The
+     * vacuity guard is the button tag itself, in each file.
      *
      * @return void
      */
@@ -758,9 +755,9 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * Nothing is written in capitals: a heading is emphasised with weight, never with case.
      *
-     * The maintainer's rule (ADR-010, decision 8), general on purpose. Bootstrap's text-uppercase
-     * and a text-transform declaration are the two ways to shout, and the strip heading - the
-     * one place that used to - is the vacuity guard: it must exist and carry a weight class.
+     * The rule covers every source, not only headings. Bootstrap's text-uppercase and a
+     * text-transform declaration are the two ways to shout, and the strip heading is the
+     * vacuity guard: it must exist and carry a weight class.
      *
      * @return void
      */
@@ -795,9 +792,9 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The tier 3 cards are a grid whose column count the client sets, so a lone card keeps its column.
      *
-     * ADR-010, decision 4: three classes name three counts, the stylesheet draws each as a fixed
-     * repeat over minmax(0, 1fr), and RowList picks the class from the count it is handed. Neither
-     * axe nor a scenario measures a column, so the source is the only reader.
+     * Three classes name three counts, the stylesheet draws each as a fixed repeat over
+     * minmax(0, 1fr), and RowList picks the class from the count it is handed. Neither axe nor
+     * a scenario measures a column, so the source is the only reader.
      *
      * @return void
      */
@@ -833,7 +830,7 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * On a card the star takes the top-right corner, on a disc, and the badge the top-left.
      *
-     * ADR-010, decision 5. The star's disc is what keeps the control at 3:1 over a photograph
+     * The star's disc is what keeps the control at 3:1 over a photograph
      * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The two card
      * components must render the star for the rule to be about anything.
      *

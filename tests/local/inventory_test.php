@@ -34,10 +34,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use stdClass;
 
 /**
- * ADR-002 turned into tests: the entry, the stamp, and what each aggregate catches.
+ * The user layer: the entry, the stamp, and what each aggregate catches.
  *
  * Two kinds of case live here and they need different fixtures. The stamp is about
- * writes, so each of its tests makes ONE real change through the core API that
+ * writes, so each of its tests makes one real change through the core API that
  * performs it — never by writing the column the aggregate reads — and asserts both
  * that the stamp moved and that the entry was rebuilt. Activeness is about time, so
  * its tests build the entry once and read it at several instants: nothing is written
@@ -84,7 +84,7 @@ final class inventory_test extends advanced_testcase {
     }
 
     /**
-     * Empty the three definitions and drop the wrappers' memoised handles.
+     * Empty the three definitions; the wrappers' reset() methods have no memo left to clear.
      *
      * @return void
      */
@@ -127,9 +127,9 @@ final class inventory_test extends advanced_testcase {
     /**
      * Make sure the course has exactly one enabled instance of the given enrolment plugin.
      *
-     * A fresh self instance is created DISABLED (the plugin's own default), and a disabled
-     * method is not an active enrolment, so a fixture wanting two active rows has to enable
-     * it. set_field() is used on purpose: enabling through update_status() would stamp
+     * The self instance a new course gets by default is created disabled (enrol_self's status
+     * setting), and a disabled method is not an active enrolment, so a fixture wanting two
+     * active rows has to enable it. set_field() is used on purpose: enabling through update_status() would stamp
      * {enrol}.timemodified and move a stamp the test has not asked to move.
      *
      * @param int $courseid The course.
@@ -181,7 +181,7 @@ final class inventory_test extends advanced_testcase {
      * Three controls carry the case. The doubly enrolled course proves the rows are keyed
      * by enrolment and not by course. The star on a course the user left proves the
      * favourite aggregates are not restricted to the join, and the last access on another
-     * left course is the MOST RECENT of the fixture, so maxaccess can only be right if that
+     * left course is the most recent of the fixture, so maxaccess can only be right if that
      * subquery is unjoined too — a stamp derived any other way would disagree with the
      * statement on the next hit and recompute for ever.
      *
@@ -264,7 +264,7 @@ final class inventory_test extends advanced_testcase {
         $this->assertSame(inventory::STAMP_FIELDS, array_keys($entry['stamp']));
         $this->assertSame(4, $entry['stamp']['enrolments']);
         $this->assertSame(max($expectedkeys), $entry['stamp']['maxid']);
-        // The most recent access is on the course the user LEFT, and the star count includes it.
+        // The most recent access is on the course the user left, and the star count includes it.
         $this->assertSame(self::NOW - 30 * MINSECS, $entry['stamp']['maxaccess']);
         $this->assertSame(2, $entry['stamp']['favourites']);
         $this->assertSame(
@@ -388,8 +388,8 @@ final class inventory_test extends advanced_testcase {
      * A suspension made through the core API moves maxuemodified and rebuilds the entry.
      *
      * The suspension goes through update_user_enrol(), which is what stamps
-     * {user_enrolments}.timemodified; writing the status column directly is precisely the
-     * enrol_ldap bypass ADR-002 records as a known limit, and would prove nothing.
+     * {user_enrolments}.timemodified; writing the status column directly is what enrol_ldap
+     * does, a known limit of the stamp, and would prove nothing.
      *
      * @return void
      */
@@ -461,7 +461,7 @@ final class inventory_test extends advanced_testcase {
      *
      * user_accesstime_log() (lib/datalib.php) inserts the {user_lastaccess} row at once for a
      * first visit, so nothing has to be waited for; it needs a logged-in, non-guest $USER,
-     * which is why this is one of the few cases here that logs anybody in.
+     * which is why this is the one case here that logs anybody in.
      *
      * @return void
      */
@@ -531,7 +531,7 @@ final class inventory_test extends advanced_testcase {
      *
      * The row is deleted and re-inserted with the timestamps of the one it replaces, so the
      * count and both timemodified maxima come back identical: exactly the case a
-     * count-and-time stamp cannot see. Asserting that maxid is the ONLY field that moved is
+     * count-and-time stamp cannot see. Asserting that maxid is the only field that moved is
      * what makes this a test of maxid rather than of the fixture.
      *
      * @return void
@@ -595,7 +595,7 @@ final class inventory_test extends advanced_testcase {
         $hidden = hidden_courses::ids($this->userid);
         $this->assertSame([(int) $archived->id], $hidden);
         $this->assertSame([(int) $kept->id], array_keys(inventory::courses($after, self::NOW, $hidden)));
-        // The complement (ADR-007, decision 2): the same active test over exactly the hidden set,
+        // The complement: the same active test over exactly the hidden set,
         // so the two calls partition the entry and nothing is in both or in neither.
         $this->assertSame([(int) $archived->id], array_keys(inventory::courses($after, self::NOW, $hidden, true)));
     }
@@ -696,7 +696,7 @@ final class inventory_test extends advanced_testcase {
 
         $entry = inventory::get($this->userid);
 
-        // Control: the suspended enrolment IS in the entry; it is the read that drops it.
+        // Control: the suspended enrolment is in the entry; it is the read that drops it.
         $this->assertCount(2, $entry['rows']);
         $this->assertSame([(int) $control->id], array_keys(inventory::courses($entry, self::NOW)));
     }
@@ -727,7 +727,7 @@ final class inventory_test extends advanced_testcase {
      * Of several active enrolments in one course, the earliest wins and an equal one ties on id.
      *
      * The two cases pull in opposite directions on purpose: in the first course the earlier
-     * enrolment has the HIGHER id, so an implementation that simply kept the first row it met
+     * enrolment has the higher id, so an implementation that simply kept the first row it met
      * would answer with the later one; in the second both were created at the same instant,
      * which is the only case where the id decides.
      *
@@ -782,7 +782,7 @@ final class inventory_test extends advanced_testcase {
 
     /**
      * The eleventh integer is the enrol instance id on an "apply" instance and 0 on every other
-     * method, on the same fill (ADR-009, decision 3).
+     * method, on the same fill.
      *
      * @return void
      */
@@ -807,13 +807,13 @@ final class inventory_test extends advanced_testcase {
     }
 
     /**
-     * pending() lists the applications awaiting a decision and nothing else (ADR-009, decision 3).
+     * pending() lists the applications awaiting a decision and nothing else.
      *
      * Listed: an application as submitted (ENROL_USER_SUSPENDED) and one deferred (2), both with
      * the period open. Not listed: an apply row past its timeend (re-suspended after approval), a
      * suspended manual row (another method), an active apply row (an active course — courses()
      * lists it), a course where an active manual enrolment sits beside an application (the
-     * active pass's ids are excluded, and the control that it is the EXCLUSION doing it is the
+     * active pass's ids are excluded, and the control that it is the exclusion doing it is the
      * same pass run without them), an archived application (the hidden set), and a row written
      * before the eleventh integer existed, which reads as 0.
      *
@@ -854,7 +854,7 @@ final class inventory_test extends advanced_testcase {
         $this->assertSame($submittedue, $pending[$submitted]['ueid']);
         $this->assertFalse($pending[$submitted]['isfavourite']);
 
-        // Control: run without the active ids, the same pass DOES return the doubly enrolled
+        // Control: run without the active ids, the same pass does return the doubly enrolled
         // course, so it is the exclusion that removes it and not the fixture.
         $this->assertArrayHasKey($both, inventory::pending($entry, self::NOW, [$archived], []));
         // And without the hidden set the archived application is back.

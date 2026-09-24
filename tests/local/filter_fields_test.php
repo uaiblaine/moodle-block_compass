@@ -31,8 +31,8 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The filterfields wrapper (ADR-009, decision 5): which fields are offered, how their chips are
- * keyed, what the configured subset is, and what a filters parameter may say.
+ * The filterfields wrapper: which fields are offered, how their chips are keyed, what the
+ * configured subset is, and what a filters parameter may say.
  *
  * @package    block_compass
  * @category   test

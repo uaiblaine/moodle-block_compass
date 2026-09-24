@@ -30,22 +30,22 @@ use core_cache\cache;
 use core_course\customfield\course_handler;
 
 /**
- * Wrapper of the block_compass/filterfields definition (ADR-009, decision 5).
+ * Wrapper of the block_compass/filterfields definition.
  *
- * One entry for the whole site, listing every ELIGIBLE course custom field — the select and
+ * One entry for the whole site, listing every eligible course custom field — the select and
  * checkbox types, visible to everyone — with its id, shortname, raw name, type, the raw
  * option list of a select and its default value key. The whole eligible set and not the
  * configured subset, so a change to the filter_fields setting invalidates nothing and simply
  * reads fewer entries out of it. Filled through core's own handler, which owns the
- * shared-category merge, and cached precisely because that fill is two recordsets plus one
- * query per shared category — three reads each on the PostgreSQL meter against one on
- * MariaDB, a number that must never sit inside a per-request budget. Dropped by the four
- * core_customfield observers of db/events.php.
+ * shared-category merge, and cached because that fill is two recordsets plus one query per
+ * shared category, and a recordset's read count varies by database
+ * ({@see \block_compass\local\budget}), so no per-request budget can hold it. Dropped by the
+ * four core_customfield observers of db/events.php.
  *
  * Nothing formatted is stored: names and options are formatted at response time in the
- * configuration context, as core's own field and option formatting does
- * (customfield/classes/field_controller.php:261-267 and
- * customfield/field/select/classes/field_controller.php:50-67).
+ * configuration context (the system context for courses), as core's own formatting does
+ * ({@see \core_customfield\field_controller::get_formatted_name()} and
+ * {@see \customfield_select\field_controller::get_options()}).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -86,8 +86,8 @@ final class filter_fields {
      *
      * The type restriction is the difference between a finite vocabulary and an open list;
      * the visibility restriction is a security rule: this plugin reads {customfield_data}
-     * directly rather than through can_view(), so a chip over a teachers-only field would be
-     * an oracle for its value (course/classes/customfield/course_handler.php:81-90).
+     * directly rather than through {@see \core_course\customfield\course_handler::can_view()},
+     * so a chip over a teachers-only field would be an oracle for its value.
      *
      * @return array The stored entry.
      */
@@ -112,7 +112,7 @@ final class filter_fields {
             ];
             if ($type === 'select') {
                 // Core's own parsing of the option textarea, one option per line, with the empty
-                // "no selection" slot at 0 (customfield/field/select/classes/field_controller.php:56-66).
+                // "no selection" slot at 0 (see \customfield_select\field_controller::get_options()).
                 $raw = trim((string) ($field->get_configdata_property('options') ?? ''));
                 $options = $raw === '' ? [] : preg_split("/\s*\n\s*/", $raw, -1, PREG_SPLIT_NO_EMPTY);
                 foreach (array_values($options) as $index => $option) {
@@ -162,8 +162,8 @@ final class filter_fields {
      *
      * A select has one chip per option, keyed the way core stores the choice — the option's
      * 1-based index, 0 being "no selection" and never a chip; a checkbox has two, yes (1) and
-     * no (0), exactly the two words core's own data controller exports
-     * (customfield/field/checkbox/classes/data_controller.php:83-86).
+     * no (0), the two words core exports
+     * ({@see \customfield_checkbox\data_controller::export_value()}).
      *
      * @param array $field An entry from eligible().
      * @return array Value key => formatted label, in display order.
@@ -185,7 +185,7 @@ final class filter_fields {
      * The top-level fields array of a tier 3 response: the configured groups, in order.
      *
      * Each carries its key (the shortname), its label and its ordered values, so the chips exist
-     * in both modes before any group opens. A row's cf refers to a field by its INDEX in this
+     * in both modes before any group opens. A row's cf refers to a field by its index in this
      * list and to a value by its key (explore::cf()).
      *
      * @param array $configured Entries from configured().

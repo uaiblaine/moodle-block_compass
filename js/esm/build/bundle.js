@@ -2,14 +2,9 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * Substituting into a language string that carries a placeholder.
  *
- * There is no core/str for ESM (ADR-006), so strings reach the client already
- * translated, placeholder and all: get_string() was called in PHP with no $a, and
- * what arrives still reads "{$a} courses". Only the client knows the number.
- *
- * The replacement is given as a FUNCTION rather than a string on purpose: passed a
- * string, "$&", "$'" and "$1" in the value would be read by replace() as
- * substitution patterns, so a course named with a dollar and an ampersand would come
- * out mangled. A function receives the value verbatim.
+ * There is no core/str for ESM, so strings reach the client already translated,
+ * placeholder and all: get_string() was called in PHP with no $a, and what arrives
+ * still reads "{$a} courses". Only the client knows the number.
  *
  * @module     block_compass/str
  * @copyright  2026 Anderson Blaine
@@ -18,9 +13,10 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * The progress bar of a card.
  *
- * A course with completion configured but no progress for this user resolves to
- * the "no completion" text, never to 0% - ADR-001 fixed that meaning and it is the
- * difference between "you have done nothing" and "there is nothing to do".
+ * Callers draw it only for a known percentage: a null progress is never drawn as 0%,
+ * because "you have done nothing" and "there is nothing to do" are different facts.
+ * What shows instead is decided by completion() in Card.tsx, whose rule Row and RowCard
+ * follow.
  *
  * @module     block_compass/Progress
  * @copyright  2026 Anderson Blaine
@@ -29,14 +25,12 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * The favourite star: the core course star, toggled without a reload.
  *
- * The write goes to core's own service (ADR-000, decision 8), so the star agrees
- * with the Course overview block and this plugin owns no favourite rows.
+ * The write goes to core_course_set_favourite_courses, so the star agrees with the
+ * Course overview block and this plugin owns no favourite rows.
  *
- * The icons arrive as server-rendered markup, which is why they are set as inner
- * HTML. There is no pix helper for ESM any more than there is a string helper: the
- * shell calls $OUTPUT->pix_icon() once and ships the result, exactly as a Mustache
- * template would have received it from the pix section. The trust boundary is the
- * same one the fleet's triple-stash rule draws - core's own output, not user data.
+ * The icons arrive as server-rendered markup, because there is no pix helper for ESM:
+ * the shell renders each pix_icon once (classes/output/block.php) and ships the result.
+ * Setting it as inner HTML is safe because it is core's own output, never user data.
  *
  * @module     block_compass/Star
  * @copyright  2026 Anderson Blaine
@@ -48,9 +42,9 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * A heading of this plugin's sits one rung under whatever is above it, and the shell says
  * what that is through one number, headinglevel: 4 under core's block title, an h3
  * (lib/templates/block.mustache); 3 when hide_block_title has removed it; 2 on the block's
- * own page, under the theme's h1 (ADR-008, decision 3; ADR-012, decision 2). The level is
- * chosen here, nowhere else: a literal tag in a component would be a rung chosen without
- * asking (tests/local/accessibility_rules_test.php pins the three ladders).
+ * own page, under the theme's h1. The level is chosen here, nowhere else: a literal tag in a
+ * component would be a rung chosen without asking (tests/local/accessibility_rules_test.php
+ * pins the three ladders).
  *
  * @module     block_compass/heading
  * @copyright  2026 Anderson Blaine
@@ -59,34 +53,24 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * One tier 1 card.
  *
- * Since R2 the card is a component rather than a Mustache template: it renders from the
- * payload block_compass_get_attention returned and re-renders when the star or the
- * progress changes, which is what makes patching one card cheap. The title's level comes
- * from heading.ts, one rung under the strip heading (ADR-008, decision 3), and the title is
- * clamped to two lines with the whole name in its title attribute (ADR-009, decision 10).
- *
- * Since ADR-010 the star sits in the image's top-right corner on a contrast disc and the badge
- * in the top-left (decision 5), the category line follows the show_category setting (decision
- * 11), and "No completion configured" is said only to a viewer who is not a learner of the
- * course, when completion is off (decision 10).
+ * It renders from the block_compass_get_attention payload and re-renders when the star or
+ * the progress changes, which is what makes patching one card cheap. The title's level comes
+ * from heading.ts, one rung under the strip heading, and the title is clamped to two lines
+ * with the whole name in its title attribute. The star sits in the image's top-right corner
+ * on a contrast disc, the badge in the top-left, and the category line follows the
+ * show_category setting.
  *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The ghost card: a count, not a load (PLAN.md section 2, tier 2).
+ * The ghost card of tier 2: a count, not a load.
  *
- * A button, because pressing it opens tier 3 in place; it navigates nowhere. Since
- * ADR-009 there is ONE ghost card - the tier 2 one, the last item of tier 1's last
- * strip, standing for every course not represented above - and what did not fit a
- * strip is a link in that strip's heading instead. The kind still decides which chip
- * tier 3 opens on, and the heading links and the pending notice reuse it.
- *
- * In phase R1 this component found the block root and its configuration by walking
- * the DOM, because it was mounted alone from a Mustache template. Phase R2 renders
- * it inside the block, so it takes what it needs as props and touches nothing
- * outside itself - the compromise R1 recorded, removed by the phase that could.
+ * A button, because pressing it opens tier 3 in place; it navigates nowhere. There is one
+ * ghost card, the last item of tier 1's last strip, standing for every course not represented
+ * above; what did not fit a strip is a link in that strip's heading instead. The kind decides
+ * which chip tier 3 opens on, and the heading links and the pending notice reuse it.
  *
  * @module     block_compass/Ghost
  * @copyright  2026 Anderson Blaine
@@ -99,15 +83,13 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * announces "list, N items" once and the ghost that closes the last strip is a proper
  * item of it.
  *
- * Since ADR-009 a strip's overflow - the new enrolments or favourites that did not fit -
- * is a link in its heading, "+N new", opening tier 3 on the matching chip, and not a
- * ghost card of its own: a ghost answers "how much more is there", the link answers
- * "where did the rest of this strip go". The one ghost card left is the tier 2 one, and
- * Block hands it to whichever strip renders last so that it closes tier 1's card grid.
+ * A strip's overflow - the new enrolments or favourites that did not fit - is a link in its
+ * heading, "+N new", opening tier 3 on the matching chip, and not a ghost card of its own: a
+ * ghost answers "how much more is there", the link answers "where did the rest of this strip
+ * go". The one ghost card is the tier 2 one, and Block hands it to whichever strip renders
+ * last so that it closes tier 1's card grid.
  *
- * The heading's level comes from heading.ts: an h4 under core's own block title, which
- * is the h3 (lib/templates/block.mustache), and an h3 when hide_block_title has removed
- * it (ADR-008, decision 3). Only the level moves - the h6 class keeps the size.
+ * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
  *
  * @module     block_compass/Strip
  * @copyright  2026 Anderson Blaine
@@ -116,18 +98,15 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * A platter of pills: one row of toggle buttons on an inset track, one of them raised.
  *
- * The shape local_dimensions gives its filter tabs (ADR-009, decision 4), rewritten as a
- * component rather than reached as an AMD module, which a React component cannot import
- * (ADR-006). Its amd/src/filter_tabs_nav.js was read as the specification: a masked scroller
- * that hides its scrollbar, a sliding indicator under the first pressed pill, two scroll
- * paddles that appear only when the row overflows and disable at each edge, the arrow keys
- * moving focus between pills with wrap-around, and a ResizeObserver that recomputes when the
- * layout changes - which is also what makes the platter right once a hidden panel is shown,
- * since a hidden element lays out nothing.
+ * It has a masked scroller that hides its scrollbar, a sliding indicator under the first pressed
+ * pill, two scroll paddles that appear only when the row overflows and disable at each edge,
+ * the arrow keys moving focus between pills with wrap-around, and a ResizeObserver that
+ * recomputes when the layout changes - which is also what makes the platter right once a
+ * hidden panel is shown, since a hidden element lays out nothing.
  *
  * The paddles are decorative and mouse-only: aria-hidden with tabindex -1, the markup axe's own
  * aria-hidden-focus rule names as the fix, because the arrow keys already move between pills
- * and two more tab stops per platter would double every group's cost to a keyboard user.
+ * and a keyboard user would otherwise pay two more tab stops per platter.
  *
  * Selection is the caller's: this draws what it is given and reports a press.
  *
@@ -136,7 +115,7 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The filter panel of tier 3: chip groups on platters, one value per group (ADR-009, decision 4).
+ * The filter panel of tier 3: chip groups on platters, one value per group.
  *
  * The Status group first - All, New, Favourites and, when the feature is on, Awaiting approval -
  * then one group per course custom field the administrator chose, then one Clear control shared
@@ -145,9 +124,9 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * Groups combine with AND. Every group is named by a visible label through aria-labelledby, and
  * the label is not a heading: the panel is a control, not a section.
  *
- * The panel is a plain block toggled with the hidden property and never a Bootstrap collapse:
- * Bootstrap's display utilities are !important and would defeat [hidden], which is the rule
- * bootstrap_compat_test already enforces.
+ * The panel is a plain block toggled with the hidden property, never a Bootstrap collapse, and
+ * it carries no display utility: those are !important and would defeat [hidden]
+ * (bootstrap_compat_test enforces that).
  *
  * @module     block_compass/FilterPanel
  * @copyright  2026 Anderson Blaine
@@ -157,34 +136,33 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * The button that opens and closes the filter panel, with the count of pressed chips.
  *
  * aria-expanded says which way it will go and aria-controls names the panel, so a screen
- * reader hears "Filter, 2 active filters, collapsed" and knows where the panel is. The count
- * is what the mockup shows in the pill; the accessible name repeats it in words, because a
- * bare number beside a word is not a sentence (ADR-009, decision 4).
+ * reader hears "Filter, 2 active filters, collapsed" and knows where the panel is. The pill
+ * shows the bare count, hidden from assistive technology; the accessible name repeats it in
+ * words, because a bare number beside a word is not a sentence.
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The way back from every failure (ADR-010, decision 12).
+ * The way back from every failure.
  *
- * block_feedback_tracker's RetryNotice as a React component: amber rather than error red,
- * because the failure is recoverable; role="alert", so it is announced; "Try again", which
- * replays the loader that failed; and "Reload page" as the last resort. Stateless on purpose:
- * the parent owns the retry callback and the in-flight flag, so the button can disable itself
- * while a retry is running.
+ * Amber rather than error red, because the failure is recoverable; role="alert", so it is
+ * announced; "Try again", which replays the loader that failed; and "Reload page" as the last
+ * resort. The parent owns the retry callback and the in-flight flag; while a retry runs, Try
+ * again is aria-disabled and refuses a second press (see Reload.tsx for why not disabled).
  *
  * @module     block_compass/RetryNotice
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The one control that archives a course or brings it back (ADR-007, decision 4).
+ * The one control that archives a course or brings it back.
  *
  * Icon-only, named by its aria-label with the course in it, so a screen reader hears
  * "Archive Course 2" and not "button". The same component sits in a row and in a card,
- * which is what keeps the two views' accessible names identical - the Behat scenario
- * ADR-007 specifies asserts exactly these names.
+ * which is what keeps the two views' accessible names identical - the Behat feature
+ * clicks the control by exactly this name.
  *
  * @module     block_compass/Archive
  * @copyright  2026 Anderson Blaine
@@ -196,16 +174,16 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * No DOM access, so every function is testable in isolation and the components
  * stay about rendering.
  *
- * **normalise() and matches() have a twin in PHP** — classes/local/matcher.php —
- * and the two must stay equal step for step, because full mode filters here and
- * paged mode filters there (ADR-004): the same query must find the same courses
- * whichever side answers. One fixture of query/name pairs pins both, built by
- * tests/generator/lib.php and consumed by matcher_test.php. Change a line here and
- * that fixture has to fail; if it does not, the fixture is the thing to fix.
+ * normalise() and matches() have a PHP twin, classes/local/matcher.php, and the two must
+ * stay equal step for step: full mode filters here and paged mode filters there, and the
+ * same query must find the same courses whichever side answers. The query/name pairs of
+ * block_compass_generator::search_pairs() define the rule; matcher_test and explore_test
+ * run them against the PHP side only, as no test executes this file, so check a change
+ * here against those pairs.
  *
  * The steps are, in order: NFD, strip the combining marks U+0300-U+036F,
  * lower-case, trim. Not core_text::specialtoascii(), which also folds o-slash,
- * eszett and ae - characters NFD leaves alone, so a query for "strom" must NOT
+ * eszett and ae - characters NFD leaves alone, so a query for "strom" must not
  * find "Strøm".
  *
  * @module     block_compass/filter
@@ -215,58 +193,52 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * One row of the tier 3 list view.
  *
- * A row registers itself with the details store when it mounts and stops when it goes
- * (ADR-005): the observer decides when the row is close enough to the viewport to be worth
- * a request, and the batch that answers brings progress and the image, the latter for the
- * cards view to use should the reader switch. The row itself draws no image.
+ * A row registers itself with the details store when it mounts and stops when it goes: the
+ * observer decides when the row is close enough to the viewport to be worth a request, and
+ * the batch that answers brings progress and the image, the latter for the cards view to use
+ * should the reader switch. The row itself draws no image.
  *
- * An enrolment application awaiting approval (ADR-009, decision 3) is a row like the others
- * except where it cannot be: its name links to the course's enrolment page, not into the course,
- * it carries an "Awaiting approval" badge inside that link, and it has no star, no archive
- * control and no progress - nor does it register for details, since the batch would decline it.
- * The name is clamped to two lines with the whole name in its title attribute (decision 10).
- *
- * Since ADR-010 the star toggles here too, beside the archive control (decision 6), and "No
- * completion configured" is said only to a viewer who is not a learner of the course, when
- * completion is off (decision 10).
+ * An enrolment application awaiting approval is a row like the others except where it cannot
+ * be: its name links to the course's enrolment page, not into the course, it carries an
+ * "Awaiting approval" badge inside that link, and it has no star, no archive control and no
+ * progress - nor does it register for details, since the batch drops courses the user is not
+ * actively enrolled in. The name is clamped to two lines with the whole name in its title
+ * attribute.
  *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * One card of the tier 3 cards view (ADR-005).
+ * One card of the tier 3 cards view.
  *
  * The same row as the list draws, drawn as a card: it registers with the details store the
  * same way and shows the same batch's answer, which is what makes the switch between the
- * views free. What the card adds is what the batch already
- * brings: the image, and progress. Its category is the group it sits in, so nothing new
- * travels for that either.
+ * views free. What the card adds is what the batch already brings: the image, and progress.
+ * Its category is the name of a group the payload already carries, so nothing new travels
+ * for that either.
  *
  * The title's level comes from heading.ts, on the same rung as a tier 1 card's: one under
- * the panel title, which is one under core's block title when that renders (ADR-008,
- * decision 3). The h6 class keeps the size, and the title is clamped to two lines with the
- * whole name in its title attribute (ADR-009, decision 10).
+ * the panel title. The h6 class keeps the size, and the title is clamped to two lines with
+ * the whole name in its title attribute. The star sits in the image's top-right corner on a
+ * contrast disc, the badge in the top-left, and the category line follows the show_category
+ * setting. The progress area follows the rule of Card.tsx completion(): a bar when there is one,
+ * "No completion configured" only to a viewer who is not a learner of the course, else nothing.
  *
- * An enrolment application awaiting approval (ADR-009, decision 3) links to the course's
- * enrolment page, carries the "Awaiting approval" badge where a new card carries "New", and
- * has no star, no archive control and no progress; it registers for no details either.
- *
- * Since ADR-010 the star is the one that toggles and sits in the image's top-right corner on a
- * contrast disc, the badge in the top-left (decisions 5 and 6); the category line follows the
- * show_category setting (decision 11); and "No completion configured" is said only to a viewer
- * who is not a learner of the course (decision 10).
+ * An enrolment application awaiting approval links to the course's enrolment page, carries
+ * the "Awaiting approval" badge where a new card carries "New", and has no star, no archive
+ * control and no progress; it registers for no details either.
  *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The rows of one group, or of the flat list, in the view the reader chose (ADR-005).
+ * The rows of one group, or of the flat list, in the view the reader chose.
  *
  * The one place that knows there are two views. The cards view is a grid whose column
  * count the caller decides - three without the category index, two with it, one under 640 px
- * of section width - so a lone card on the last line keeps its column (ADR-010, decision 4).
+ * of section width - so a lone card on the last line keeps its column.
  *
  * @module     block_compass/RowList
  * @copyright  2026 Anderson Blaine
@@ -276,22 +248,21 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * One category group of tier 3: a disclosure holding its rows.
  *
  * The chevron in the summary is core's own pair, the two a course section header draws,
- * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph
- * (ADR-010, decision 7). The disclosure stays a native details/summary: core's button and its
- * aria-expanded exist for a div that cannot disclose on its own.
+ * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph.
+ * The disclosure stays a native details/summary: core's button and its aria-expanded exist
+ * for a div that cannot disclose on its own.
  *
  * @module     block_compass/Group
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The list/cards switch of tier 3: two icon-only buttons, one pressed (ADR-009, decision 6).
+ * The list/cards switch of tier 3: two icon-only buttons, one pressed.
  *
- * Only the appearance changed from the two text buttons of R4 - the mechanism is untouched, and
- * each button keeps an aria-label carrying the word its text carried, so a Behat step that clicks
- * the "Cards" button still resolves: Moodle matches a button by its aria-label too
+ * Each button's aria-label carries the view's name, so a Behat step that clicks the "Cards"
+ * button resolves: Moodle matches a button by its aria-label too
  * (lib/behat/classes/partial_named_selector.php). The icons are core's own list and grid glyphs,
- * server-rendered and shipped as props because there is no pix helper for ESM (ADR-006).
+ * server-rendered and shipped as props because there is no pix helper for ESM.
  *
  * @module     block_compass/ViewToggle
  * @copyright  2026 Anderson Blaine
@@ -319,29 +290,28 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * The only module that talks to the server.
  *
- * core/ajax is an AMD module and a React component cannot import one (ADR-006), so
- * it is reached through the bridge, once, and every call goes through here. Phase R2
- * had this file borrow the AMD repository through that same bridge because tier 3
- * still used it; R3 removed the AMD half, so this is now the repository itself.
+ * The core/ajax and core_user/repository modules are AMD, which an ES module cannot import,
+ * so they are loaded through the bridge in amd.ts; every web service call and preference
+ * write of the client goes through here.
  *
  * @module     block_compass/repository
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * Details for the tier 3 rows somebody is actually looking at (ADR-005).
+ * Details for the tier 3 rows somebody is actually looking at.
  *
  * One IntersectionObserver for the whole region, a pending set drained on a fixed interval,
  * and one request in flight at a time. A row registers itself as it appears and unregisters
  * as it goes, so no call site can be forgotten - which matters most in paged mode, where
  * every group arrives empty and every row is appended later.
  *
- * Three properties are the point of the design and each cost something to get right:
+ * Three properties the design depends on:
  *
  * - The interval is fixed, not a debounce reset by each new id. A continuous scroll never
  *   settles, so a debounce would send nothing at all until the finger stopped.
  * - A row that leaves before its id goes out is dropped from the set rather than deferred:
- *   scrolling past 300 rows must not queue 300 requests behind the reader.
+ *   scrolling past hundreds of rows must not queue their batches behind the rows in view.
  * - A row is filled once. Its element is unobserved the moment its answer lands, so
  *   scrolling back over it costs nothing, and ids the server declined (an enrolment that
  *   ended, say) are marked filled too or they would be asked for on every scroll.
@@ -354,9 +324,8 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  * The shapes the server sends and the shell exports.
  *
  * These mirror the return structures declared in classes/external/ and the array
- * classes/output/block.php builds. They are the one place where the two sides are
- * written down together, and the type check is what keeps them in step - nothing
- * else does, since a web service answers at runtime.
+ * classes/output/block.php builds, and must be kept in step with them by hand: the type
+ * check holds the client to these types, but nothing checks the types against the PHP.
  *
  * @module     block_compass/types
  * @copyright  2026 Anderson Blaine
@@ -365,37 +334,35 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
 /**
  * Tier 3: the inventory, grouped by category, filtered and reordered in place.
  *
- * Two modes, decided by the server (ADR-004). In FULL mode one request brings every
- * row and the toolbar only re-renders what is already held - no request is made for
- * a filter the browser can answer, which is non-negotiable 5 of PLAN.md. In PAGED
- * mode the groups arrive with counts only: a group fetches its rows on first open
- * and page by page, the chip and the sort are parameters of those fetches, and the
- * search box asks the server, because the rows are not here to search.
+ * Two modes, decided by the server. In full mode one request brings every row but the
+ * archive's (see pagedgroup()) and the toolbar only re-renders what is already held - no
+ * request is made for a filter the browser can answer. In paged mode the groups arrive with
+ * counts only: a group fetches its rows on first open and page by page, the chip, the field
+ * selection and the sort are parameters of those fetches, and the search box asks the
+ * server, because the rows are not here to search.
  *
- * Since R4 the section also owns two things that cut across both modes: the viewer's
- * choice between the list and the cards, which is a re-render and a preference write and
- * nothing more, and the details store, which fetches progress and the course image for the
- * rows that actually reach the viewport (ADR-005). Neither knows about the mode, because a
- * row is a row however it arrived.
+ * Two things cut across both modes: the viewer's choice between the list and the cards,
+ * which is a re-render and a preference write and nothing more, and the details store,
+ * which fetches progress and the course image for the rows that actually reach the
+ * viewport. Neither knows about the mode, because a row is a row however it arrived.
  *
- * Since ADR-010: the section is scrolled into view and given the keyboard on every press that
- * opens or re-aims it (decision 1); the toolbar starts as the viewer left it and is remembered
- * in one preference the shell validates (decision 9); the star toggles here too, patching the
- * row and refreshing tier 1 (decision 6); the cards grid carries a column count (decision 4);
- * and every failure has a way back (decision 12).
+ * The section is scrolled into view and given the keyboard on every press that opens or
+ * re-aims it; the toolbar starts as the viewer left it and is remembered in one preference
+ * the shell validates; the star toggles here too, patching the row and refreshing tier 1;
+ * and every failure has a way back.
  *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * The reload control at the content's top-right (ADR-010, decision 12).
+ * The reload control at the content's top-right.
  *
- * An icon-only button in a file of its own, so the static accessibility rule that reads the
- * icon-only files reads this one. It sits on the first row of the block's CONTENT, because the
+ * An icon-only button in a file of its own, because accessibility_rules_test reads the
+ * icon-only controls by file name. It sits on the first row of the block's content, because the
  * title bar beside it is core's and the plugin cannot reach it; and it re-fetches everything the
  * page holds - tier 1, and tier 3 as a fresh open when it is open. While the reload is out the
- * button is disabled and its glyph turns, unless the reader asked for less motion.
+ * button is aria-disabled and its glyph turns, unless the reader asked for less motion.
  *
  * @module     block_compass/Reload
  * @copyright  2026 Anderson Blaine
@@ -406,13 +373,12 @@ import{Fragment as Vn,useCallback as Me,useEffect as Gt,useRef as Fo,useState as
  *
  * Everything the block shows is rendered from here: the loading and error states,
  * the three strips, the cards, the one ghost card, the pending notice, the empty state,
- * the live region - and, once a ghost or a heading link has been pressed, tier 3. Until phase R3 tier 3 was an AMD
- * module writing into a region beside this tree; it is a component now, so opening
- * it is a state change and no code outside React touches the block's DOM.
+ * the live region - and, once a ghost or a heading link has been pressed, tier 3. Opening
+ * tier 3 is a state change, and no code outside React touches the block's DOM.
  *
- * Since ADR-010 the block also owns the reload control at the content's top-right, the
- * "Reconnecting…" line the repository's bounded retry reports through, and the amber notice
- * with a way back from a failed first paint (decision 12).
+ * The block also owns the reload control at the content's top-right, the "Reconnecting…"
+ * line the repository's bounded retry reports through, and the amber notice with a way back
+ * from a failed first paint.
  *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine

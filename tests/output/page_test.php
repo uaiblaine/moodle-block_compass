@@ -49,9 +49,9 @@ final class page_test extends advanced_testcase {
     /**
      * The page's shell is the block's, asking for the second rung, inside the stylesheet's scope.
      *
-     * The wrapper carries block_compass - the one class every rule of styles.css is written
-     * under - and not core's block card chrome; the mount point is the same bundle; and the
-     * props are the block's own with headinglevel 2 (ADR-012, decisions 1 and 2).
+     * The wrapper carries block_compass, the class styles.css scopes the block's rules to, and
+     * not core's block card chrome; the mount point is the same bundle; and the props are the
+     * block's own with headinglevel 2.
      *
      * @return void
      */
@@ -70,7 +70,7 @@ final class page_test extends advanced_testcase {
     }
 
     /**
-     * The Dashboard's shell still decides between 4 and 3 from the setting, as before the page.
+     * The Dashboard's shell decides between 4 and 3 from hide_block_title; a level asked for wins.
      *
      * @return void
      */
@@ -94,8 +94,7 @@ final class page_test extends advanced_testcase {
      * an empty heading, the body gets the class, and the page renders the name as a hidden h1.
      *
      * The control is the shown half: the same page without the setting hands the theme the name
-     * and renders no h1 of its own, so the h1 that appears is the setting's doing (ADR-012,
-     * amendment 4).
+     * and renders no h1 of its own, so the h1 that appears is the setting's doing.
      *
      * @return void
      */

@@ -30,21 +30,22 @@ use core_collator;
 use core_text;
 
 /**
- * Builds every tier 3 payload (PLAN.md §2, §6.5, §7; ADR-002, ADR-004, ADR-009).
+ * Builds every tier 3 payload.
  *
  * The inventory gives the courses; the course layer gives their names, visibility and
  * category; the category layer gives the group each course rolls up to at the configured
- * depth. One private resolution feeds three answers: build() — the grouped inventory with
- * every row in full mode, or the group headers alone in paged mode, above inventory_max;
+ * depth. One private resolution, resolve(), feeds three answers: build() — the grouped inventory
+ * with every row in full mode, or the group headers alone in paged mode, above inventory_max;
  * rows() — one page of one group; search() — the server-side search of paged mode, matching
  * the way the browser matches in full mode. Names are formatted only for the rows a response
- * ships, after one bulk filter preload of their contexts. Since ADR-007 the population is two:
- * the active courses, grouped by category with the dormant ones gathered into a group of their
- * own, and the archived courses, which travel as a header alone and page on first open. Since
- * ADR-009 the first population also holds the learner's enrolment applications awaiting
- * approval — rows in their category groups carrying pend — and every row may carry the values
- * of the course custom fields the administrator chose as filters, read from the coursefields
- * layer. No SQL of its own: the entry and the shared layers are the only sources, so the stamp
+ * ships, after one bulk filter preload of their contexts.
+ *
+ * There are two populations: the listed courses, grouped by category with the dormant ones
+ * gathered into a group of their own, which also hold the learner's enrolment applications
+ * awaiting approval (rows carrying pend) when that feature is on; and the archived courses,
+ * which travel as a header alone and page on first open. Every row may carry the values of the
+ * course custom fields configured as filters, read from the coursefields layer. No SQL of its
+ * own: the inventory entry and the shared layers are the only sources, so the inventory stamp
  * is the single validity check in both modes.
  *
  * @package    block_compass
@@ -52,24 +53,24 @@ use core_text;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class explore {
-    /** @var int Rows per page of one group in paged mode (ADR-004, "Rows of a group"). */
+    /** @var int Rows per page of one group in paged mode. */
     public const PAGE_SIZE = 100;
 
-    /** @var int Most rows a server-side search returns; 'truncated' says when it cut (ADR-004, "Search"). */
+    /** @var int Most rows a server-side search returns; 'truncated' says when it cut. */
     public const SEARCH_LIMIT = 50;
 
     /** @var int Shortest normalised query the search answers; anything shorter returns nothing. */
     public const SEARCH_MIN_LENGTH = 2;
 
-    /** @var string[] The chips a listing can be narrowed by (ADR-004; pending since ADR-009). */
+    /** @var string[] The chips a listing can be narrowed by. */
     public const CHIPS = ['all', 'new', 'favourites', 'pending'];
 
     /**
      * The get_inventory payload for one user: full mode, or headers only above the threshold.
      *
      * The mode is a function of the rows full mode would ship — the response's total, after
-     * the hidden set and the visibility filter (ADR-004): one more than inventory_max and the
-     * groups travel as headers with courses => [] (the key stays: get_inventory::execute_returns()
+     * the hidden set and the visibility filter: one more than inventory_max and the groups
+     * travel as headers with courses => [] (the key stays: get_inventory::execute_returns()
      * requires it), and the client fetches rows through rows() as groups are opened.
      *
      * @param int $userid The viewer.
@@ -111,8 +112,8 @@ final class explore {
             'categories' => $categories,
             'groupof' => $groupof,
         ] = $resolved;
-        // The archived rows never travel here (ADR-007, decision 2), so they do not count
-        // towards the threshold either: the mode is about what the browser holds.
+        // The archived rows never travel here, so they do not count towards the threshold
+        // either: the mode is about what the browser holds.
         $paged = count($meta) > $inventorymax;
 
         $contexts = [];
@@ -136,13 +137,13 @@ final class explore {
             }
             filters::preload(array_values($contexts));
             // The field values of every shipped row, from the sibling layer: one read when cold,
-            // none when warm, nothing at all when no field is configured (ADR-009, decision 5).
+            // none when warm, nothing at all when no field is configured.
             $values = self::values(array_keys($meta), $fields);
         }
 
-        // A dormant course leaves its category for the dormant group, so a year-old course
-        // stops padding the category a learner is working in (ADR-007, decision 2). A course
-        // appears once: here or there, never both. An application is never dormant.
+        // A dormant course leaves its category for the dormant group, so a long-untouched course
+        // stops padding the category a learner is working in. A course appears once: here or
+        // there, never both. An application is never dormant.
         $groups = [];
         $dormant = self::special_group(dormancy::GROUP_DORMANT);
         foreach ($meta as $courseid => $entrymeta) {
@@ -186,8 +187,7 @@ final class explore {
             $groups[$groupid]['count']++;
         }
 
-        // Locale-aware natural order, case-insensitive unless CASE_SENSITIVE is set
-        // (core_collator::asort(), lib/classes/collator.php). asort keeps keys, and a
+        // Locale-aware natural order (core_collator). The collator's asort keeps keys, and a
         // non-contiguous integer-keyed list serialises as a JSON object, so both lists are
         // re-indexed after sorting. Paged groups hold no rows to sort.
         if (!$paged) {
@@ -204,8 +204,8 @@ final class explore {
 
         // The two groups that are not categories come after the categories, in this order,
         // and only when they hold something: an empty "Dormant (0)" is noise. The archived
-        // group is a header alone in BOTH modes — its rows arrive through rows() on first
-        // open — so archiving never grows the first paint (ADR-007, decision 2).
+        // group is a header alone in both modes — its rows arrive through rows() on first
+        // open — so archiving never grows the first paint.
         if ($dormant['count'] > 0) {
             $groups[] = $dormant;
         }
@@ -239,19 +239,19 @@ final class explore {
     }
 
     /**
-     * One page of one group in paged mode (ADR-004, "Rows of a group").
+     * One page of one group in paged mode.
      *
      * The population is resolve()'s — the same rows the headers counted — narrowed to the
-     * group, then to the chip and the custom-field selection, ordered whole on the RAW coursemeta
+     * group, then to the chip and the custom-field selection, ordered whole on the raw coursemeta
      * fullname (or by last access, newest first, then raw name for 'recent') and cut at the
      * cursor: the page starts after the row whose id is $after, or at the first row when $after
      * is 0 or names no row in this order — the course left the inventory between pages, or the
      * id is someone else's course — and the client re-renders the group from the page rather
      * than appending. Only the page's names are formatted, after one filter preload of their
      * contexts: ordering on the raw name costs nothing for the rows not shipped, and differs
-     * from the formatted order only for names whose filters change their leading characters
-     * (ADR-004's recorded limit). A group the user has no course in yields an empty page and no
-     * error. The filters are validated against the allowlist before any work (ADR-009, decision 5).
+     * from the formatted order only for names whose filters change their leading characters,
+     * a known limit. A group the user has no course in yields an empty page and no error. The
+     * filters are validated against the allowlist before any work.
      *
      * Reads: resolve()'s plus one filter preload when the page is not empty, plus one
      * coursefields fill when a field is configured and the layer is cold — 3 with the shared
@@ -261,7 +261,7 @@ final class explore {
      * @param int $now Unix time to treat as now.
      * @param int $groupid The group: a category id at the group depth, or one of dormancy's two
      *     reserved ids — GROUP_DORMANT for the dormant courses of every category, GROUP_ARCHIVED for
-     *     the courses the user archived, which no category group holds (ADR-007, decision 2).
+     *     the courses the user archived, which no category group holds.
      * @param int $after Id of the last row the client holds; 0 for the first page.
      * @param string $chip 'all', 'new' (never opened, enrolled inside the new window), 'favourites'
      *     (the core star, on a course the user can enter) or 'pending' (an application awaiting
@@ -379,7 +379,7 @@ final class explore {
     }
 
     /**
-     * The server-side search of paged mode (ADR-004, "Search").
+     * The server-side search of paged mode.
      *
      * The rule filter.ts applies in full mode, through matcher: query and name lower-cased and
      * stripped of diacritics, the query split on whitespace, a course matching when every word
@@ -390,9 +390,8 @@ final class explore {
      * ordered by raw name and capped at $limit, 'truncated' saying when the cap cut; only the
      * shipped names are formatted, after one filter preload. A query shorter than
      * SEARCH_MIN_LENGTH once normalised is answered without work, before anything that could
-     * read or throw. The custom-field selection is applied to the matches (ADR-009, decision 5):
-     * a search in paged mode is over the same population and a filter the browser cannot apply
-     * is not a filter the browser may skip.
+     * read or throw. The custom-field selection is applied to the matches: the browser does not
+     * hold these rows, so it cannot apply the filter itself.
      *
      * Reads: resolve()'s plus one filter preload when something matched — 3 with the shared
      * layers warm (stamp, preferences, filters); none for a query too short.
@@ -464,7 +463,7 @@ final class explore {
         // A hit names the group that holds it, and a dormant course is held by the dormant
         // group, not by its category: that is the group the client opens for it. The archived
         // courses are not in this population at all — a search is over the courses a learner
-        // is working with, and the archived group is the one way to the rest (ADR-007).
+        // is working with, and the archived group is the one way to the rest.
         $rows = self::ship($ids, $courses, $meta, $now, $newwindow, $threshold, $values, $fields);
         foreach ($rows as $courseid => $row) {
             $categoryid = $meta[$courseid]['category'];
@@ -479,24 +478,26 @@ final class explore {
     /**
      * The populations every tier 3 answer is a function of: the user's listed courses — active
      * and, when the feature is on, awaiting approval — with the group each rolls up to, and
-     * beside them the courses the user archived (ADR-007, ADR-009).
+     * beside them the courses the user archived.
      *
-     * The inventory gives the active courses with the hidden ones left out, then the pending
+     * The inventory gives the active courses with the archived ones left out, then the pending
      * ones — a third pass with a predicate of its own, given the active pass's course ids so an
-     * active enrolment on a second method wins (inventory::pending()) — and the hidden ones on
+     * active enrolment on a second method wins (inventory::pending()) — and the archived ones on
      * their own through the active test (inventory::courses(), both modes); the course layer
-     * gives names, visibility and category for every population IN ONE READ — a single
-     * get_many() over the union — with moodle/course:viewhiddencourses evaluated once at the
-     * system context (ADR-000, decision 12), never per row; the category layer gives the courses'
+     * gives names, visibility and category for every population in one read — a single
+     * get_many() over the union. moodle/course:viewhiddencourses is evaluated once, at the
+     * system context, never per row: a teacher's own hidden course therefore does not appear
+     * here, although it does in the Course overview block. The category layer gives the courses'
      * categories and then the ancestors that form the groups — each list one read when cold,
      * none when warm. An id the layer cannot resolve (a category deleted under a course) is
      * absent from 'categories' and 'groupof': such a course groups under its own category id,
      * named "Uncategorised", rather than aborting the page. Nothing is formatted and no filter is
-     * preloaded here: each caller preloads exactly the contexts of the names it ships (ADR-004,
-     * fact 3). build(), rows() and search() all route through here, so the three cannot drift apart.
+     * preloaded here: each caller preloads exactly the contexts of the names it ships.
+     * build(), rows() and search() all route through here, so the three cannot drift apart.
      *
-     * Reads: 1 for the inventory (stamp or fill; 2 on a stale hit or an empty fill), 1 for the
-     * preference bundle, 1 per cold shared-layer list (coursemeta; categorymeta twice on a nested site).
+     * Reads: 1 for the inventory (stamp or fill; more on a stale hit or an empty fill, see
+     * inventory::get()), 1 for the preference bundle, 1 per cold shared-layer list (coursemeta;
+     * categorymeta twice on a nested site).
      *
      * @param int $userid The viewer.
      * @param int $now Unix time to treat as now.
@@ -506,7 +507,7 @@ final class explore {
      *     population), 'meta' (course id => course_meta entry of a listed course, visibility
      *     applied), 'archived' and 'archivedmeta' (the same pair for the courses the user
      *     archived), 'categories' (category id => category_meta entry, group ancestors included,
-     *     for the LISTED courses only — the archived group does not group by category), 'groupof'
+     *     for the listed courses only — the archived group does not group by category), 'groupof'
      *     (category id => group category id). Every list empty when there is nothing to show in
      *     either population.
      */
@@ -517,8 +518,8 @@ final class explore {
         $hidden = hidden_courses::ids($userid);
         $active = inventory::courses($entry, $now, $hidden);
         $archived = inventory::courses($entry, $now, $hidden, true);
-        // Every population row says whether it is an application: the archived ones never are,
-        // because a pending row carries no archive control (ADR-009, decision 3).
+        // Every population row says whether it is an application. An archived one never is: that
+        // population passes the active test, and an application carries no archive control.
         foreach ($archived as &$archivedcourse) {
             $archivedcourse['pending'] = false;
         }
@@ -538,7 +539,7 @@ final class explore {
             return $empty;
         }
 
-        // The course layer: names, visibility, category, context for EVERY population — one
+        // The course layer: names, visibility, category, context for every population — one
         // get_many() over the union, so the archived group costs no read of its own; misses are
         // filled in one statement whichever list they come from.
         $allmeta = course_meta::get_many(array_merge(array_keys($courses), array_keys($archived)));
@@ -588,7 +589,7 @@ final class explore {
      * The custom-field values of the given courses, from the coursefields layer.
      *
      * Nothing is read when no field is configured: the layer is asked only for the ids of the
-     * configured fields, and the empty question costs nothing (ADR-009, decision 5).
+     * configured fields, and the empty question costs nothing.
      *
      * @param int[] $courseids The courses.
      * @param array $fields Entries from filter_fields::configured().
@@ -650,11 +651,11 @@ final class explore {
     /**
      * Order candidates the way the client orders full mode, on the raw name.
      *
-     * By name through core_collator::asort_array_of_arrays_by_key() (lib/classes/collator.php:317,
-     * locale-aware, keys kept), the counterpart of explore.js byName(); for 'recent' the last
-     * access, newest first, is layered on top with a stable usort — PHP's sorts are stable since
-     * 8.0, so equal timestamps keep the collator's name order and never-opened rows (timeaccess
-     * 0) sink to the end, as explore.js byRecent() has them.
+     * By name through {@see \core_collator::asort_array_of_arrays_by_key()} (locale-aware, keys
+     * kept), the counterpart of the flat-list sort in Explore.tsx; for 'recent' the last access,
+     * newest first, is layered on top with a stable usort — PHP's sorts are stable since 8.0, so
+     * equal timestamps keep the collator's name order and never-opened rows (timeaccess 0) sink
+     * to the end, as they do in the client.
      *
      * @param array $candidates Entries with 'id', 'rawname' and 'timeaccess'.
      * @param string $sort 'recent' for last access first; anything else for name.
@@ -665,12 +666,12 @@ final class explore {
         $candidates = array_values($candidates);
 
         /*
-         * A cursor needs a TOTAL order: two courses the sort cannot separate must still come back
+         * A cursor needs a total order: two courses the sort cannot separate must still come back
          * in the same order on every page, or one of them repeats and the other vanishes across a
          * page boundary. core_collator exposes no pairwise comparator (its Collator is protected),
          * so byte-identical names are separated here by id; usort is stable since PHP 8.0, so every
          * other pair keeps the position the collator gave it. Names the collator calls equal
-         * without being byte-identical stay unseparated — ADR-004, known limits.
+         * without being byte-identical stay unseparated, a known limit.
          */
         usort($candidates, static function (array $a, array $b): int {
             return $a['rawname'] === $b['rawname'] ? $a['id'] <=> $b['id'] : 0;
@@ -680,7 +681,7 @@ final class explore {
             // Compare on the timestamp alone: usort is stable, and the name order above is now
             // total, so courses sharing a timestamp — every never-opened one shares 0 — keep that
             // order. Breaking the tie by id here instead would order the never-opened by creation,
-            // where ADR-004 says "by timeaccess descending then name".
+            // not by name as the client does.
             $byrecent = static function (array $a, array $b): int {
                 return $b['timeaccess'] <=> $a['timeaccess'];
             };
@@ -695,7 +696,7 @@ final class explore {
      *
      * The favourites chip excludes an application: its star may be lit (core's star service does
      * not test enrolment), but a course the learner cannot enter is reachable through All or
-     * through its own chip only (ADR-009, decision 3).
+     * through its own chip only.
      *
      * @param string $chip 'new', 'favourites', 'pending', or anything else for all.
      * @param array $course A resolve() course row.
@@ -721,8 +722,8 @@ final class explore {
      * Whether a course passes the custom-field selection: every selected field holds the selected value.
      *
      * A course with no stored value takes the field's default, as core displays it
-     * (customfield/field/select/classes/data_controller.php:51-60, checkbox :73-75); groups
-     * combine with AND, and an empty selection constrains nothing (ADR-009, decision 4).
+     * ({@see \customfield_select\data_controller::get_default_value()} and its checkbox twin);
+     * groups combine with AND, and an empty selection constrains nothing.
      *
      * @param array $values Field id => stored value for this course.
      * @param array $selection Shortname => value key, from filter_fields::validate().
@@ -741,10 +742,10 @@ final class explore {
     }
 
     /**
-     * Whether an enrolment is new: never opened and created inside the window (ADR-001, ADR-002).
+     * Whether an enrolment is new: never opened and created inside the window.
      *
      * An application is never new: it has no active enrolment, and calling it new would put
-     * applications under the New chip (ADR-009, decision 3).
+     * applications under the New chip.
      *
      * @param array $course A resolve() course row.
      * @param int $now Unix time to treat as now.
@@ -758,8 +759,8 @@ final class explore {
     /**
      * Whether a course has gone quiet — dormancy::is_dormant(), except that an application never has.
      *
-     * A fresh application would otherwise be filed under Dormant by the never-opened clause, which
-     * contradicts "the chip is the only thing that isolates them" (ADR-009, decision 3).
+     * An application older than the threshold would otherwise be filed under Dormant by the
+     * never-opened clause; applications stay in their category groups, isolated by their own chip.
      *
      * @param array $course A resolve() course row.
      * @param int $threshold The instant from dormancy::threshold().
@@ -771,15 +772,15 @@ final class explore {
 
     /**
      * A row's cf: the field index and the value key, in pairs, for the configured fields the
-     * course holds a chip-able value for (ADR-009, decision 5).
+     * course holds a chip-able value for.
      *
-     * Positional integers rather than a named map, and the choice is load-bearing: at three
-     * fields the flat list costs 19 bytes a row against 45, and the named shape is the one that
-     * takes the saturated 250-row response over the 40 KB ceiling. The index is the field's
-     * position in the response's top-level fields array; the value key is the one the field's
-     * values carry (filter_fields::values()). A course with no stored value takes the field's
-     * default, as core displays it; a value no chip is drawn for — a select's empty slot — is
-     * left out, and a row with nothing to say carries no cf at all.
+     * Positional integers rather than a named map: at three fields the flat list costs 19 bytes
+     * a row against 45, and the named shape takes a full 250-row response over the 40 KB payload
+     * budget of get_inventory. The index is the field's position in the response's top-level
+     * fields array; the value key is the one the field's values carry (filter_fields::values()).
+     * A course with no stored value takes the field's default, as core displays it; a value no
+     * chip is drawn for — a select's empty slot — is left out, and a row with nothing to say
+     * carries no cf at all.
      *
      * @param array $values Field id => stored value for this course.
      * @param array $fields Entries from filter_fields::configured(), in payload order.
@@ -801,14 +802,14 @@ final class explore {
     }
 
     /**
-     * One tier 3 row, the shape get_inventory::execute_returns() pins: id, name, opened, new, fav,
-     * dorm, then pend only on an application and cf only when the row holds a field value.
+     * One tier 3 row, the shape {@see \block_compass\external\get_inventory_rows::row_fields()} pins:
+     * id, name, opened, new, fav, dorm, then pend only on an application and cf only when the row
+     * holds a field value.
      *
-     * dorm is the answer and not the inputs (ADR-007, decision 1): the browser holds opened but
-     * not the enrolment date, and the threshold is a site setting it does not have. pend and cf
-     * are OMITTED rather than sent false or empty, because a VALUE_OPTIONAL return key the array
-     * leaves out never enters the response, and that is the zero-cost shape — measured: a row
-     * without either is byte-identical to the row before ADR-009 (ADR-009, fact 15).
+     * dorm is the answer and not the inputs: the browser holds opened but not the enrolment
+     * date, and the threshold is a site setting it does not have. pend and cf are omitted rather
+     * than sent false or empty, because a VALUE_OPTIONAL return key the array leaves out never
+     * enters the response, so a row without either costs nothing for them.
      *
      * @param array $course A resolve() course row.
      * @param string $name The course name, formatted.
@@ -839,8 +840,8 @@ final class explore {
 
     /**
      * A course's display name: the raw fullname formatted in the course context, unescaped —
-     * every sink of this payload escapes for itself (Mustache double stashes, textContent,
-     * PARAM_TEXT return fields).
+     * every sink of this payload escapes for itself (PARAM_TEXT return fields, React text and
+     * attribute rendering).
      *
      * @param array $entrymeta A course_meta entry.
      * @param context $context The course context, rebuilt from the entry.
@@ -852,10 +853,9 @@ final class explore {
 
     /**
      * A group's display name: the category's name formatted in its own context, as
-     * core_course_category::get_formatted_name() does it — "format_string($this->name, true,
-     * array('context' => $context) + $options)" (course/classes/category.php:2539-2546) — with
-     * the context rebuilt from the entry, so no read; or "Uncategorised" when the category no
-     * longer exists. Never the empty string: a group needs a label to be reachable.
+     * {@see \core_course_category::get_formatted_name()} does, with the context rebuilt from the
+     * entry, so no read; or "Uncategorised" when the category no longer exists. Never the empty
+     * string: a group needs a label to be reachable.
      *
      * @param array|null $category A category_meta entry, or null when the id could not be resolved.
      * @return string

@@ -16,14 +16,9 @@
 /**
  * Substituting into a language string that carries a placeholder.
  *
- * There is no core/str for ESM (ADR-006), so strings reach the client already
- * translated, placeholder and all: get_string() was called in PHP with no $a, and
- * what arrives still reads "{$a} courses". Only the client knows the number.
- *
- * The replacement is given as a FUNCTION rather than a string on purpose: passed a
- * string, "$&", "$'" and "$1" in the value would be read by replace() as
- * substitution patterns, so a course named with a dollar and an ampersand would come
- * out mangled. A function receives the value verbatim.
+ * There is no core/str for ESM, so strings reach the client already translated,
+ * placeholder and all: get_string() was called in PHP with no $a, and what arrives
+ * still reads "{$a} courses". Only the client knows the number.
  *
  * @module     block_compass/str
  * @copyright  2026 Anderson Blaine
@@ -32,6 +27,10 @@
 
 /**
  * Put a value into a language string's placeholder.
+ *
+ * The replacement is a function rather than a string: replace() reads "$&", "$'" and "$1" in
+ * a replacement string as substitution patterns, so a course name holding one of them would
+ * come out mangled. A function's return is inserted verbatim.
  *
  * @param {string} template The translated string, possibly carrying the placeholder.
  * @param {string} value What replaces it.
@@ -43,8 +42,8 @@ export const fill = (template: string | undefined, value: string): string =>
 /**
  * Put several values into a language string's object placeholders.
  *
- * The PHP side writes {$a->name} for a string whose $a is an object (lib/moodlelib.php's
- * get_string()); this is the client's half of that convention.
+ * A language string whose $a is an object writes {$a->name}; this is the client's half of
+ * the substitution core_string_manager_standard::get_string() does in PHP.
  *
  * @param {string} template The translated string, possibly carrying {$a->name} placeholders.
  * @param {object} values What replaces each one, keyed by name.

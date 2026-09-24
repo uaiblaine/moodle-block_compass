@@ -18,13 +18,12 @@
  *
  * Everything the block shows is rendered from here: the loading and error states,
  * the three strips, the cards, the one ghost card, the pending notice, the empty state,
- * the live region - and, once a ghost or a heading link has been pressed, tier 3. Until phase R3 tier 3 was an AMD
- * module writing into a region beside this tree; it is a component now, so opening
- * it is a state change and no code outside React touches the block's DOM.
+ * the live region - and, once a ghost or a heading link has been pressed, tier 3. Opening
+ * tier 3 is a state change, and no code outside React touches the block's DOM.
  *
- * Since ADR-010 the block also owns the reload control at the content's top-right, the
- * "Reconnecting…" line the repository's bounded retry reports through, and the amber notice
- * with a way back from a failed first paint (decision 12).
+ * The block also owns the reload control at the content's top-right, the "Reconnecting…"
+ * line the repository's bounded retry reports through, and the amber notice with a way back
+ * from a failed first paint.
  *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
@@ -48,8 +47,8 @@ import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting} from
  * The chip tier 3 opens on, per kind of control that opened it.
  *
  * The ghost carries none: "Explore all" opens tier 3 as the reader left it, which is what
- * remembering the toolbar is for (ADR-010, decisions 1 and 9). The heading links and the
- * pending notice press their chip over the remembered one.
+ * remembering the toolbar is for. The heading links and the pending notice press their chip
+ * over the remembered one.
  */
 const CHIP_OF_KIND: Record<GhostKind, string | null> = {
     tier2: null,
@@ -58,7 +57,7 @@ const CHIP_OF_KIND: Record<GhostKind, string | null> = {
     pending: 'pending',
 };
 
-/** Get_card_details refuses more than this many ids, so the client batches. */
+/** The card details service refuses more ids than this in one call (cards::DETAILS_BATCH). */
 const DETAILS_BATCH = 24;
 
 type NotificationModule = {
@@ -68,9 +67,9 @@ type NotificationModule = {
 /**
  * Apply a change to every strip that holds a course.
  *
- * Since ADR-009 a favourite may sit in Continue or New AND in the favourites strip, so
- * a change to a course can touch two cards; the map over all three strips is what keeps
- * them agreeing, and which strips hold the course stays the server's decision.
+ * A favourite may sit in Continue or New and in the favourites strip, so a change to a
+ * course can touch two cards; the map over all three strips is what keeps them agreeing,
+ * and which strips hold the course stays the server's decision.
  *
  * @param {object} data The payload.
  * @param {number} courseid The course to change.
@@ -93,12 +92,11 @@ const withCard = (data: Attention, courseid: number, change: (card: CourseCard) 
 /**
  * The block.
  *
- * The props ARE the configuration: data-react-props is parsed and handed to the
+ * The props are the configuration: data-react-props is parsed and handed to the
  * component as its props object, so what the shell exports is what arrives here.
- * Wrapping it in a `config` key was this component's first bug, and an instructive
- * one - React renders nothing, unmounts, and says so only in the console, which is
- * the silent failure ADR-006 names. Nothing types the gap between a Mustache
- * template and a component; the Behat scenario is what catches it.
+ * Nesting the fields under a key of their own renders nothing, and the error shows
+ * only in the console. Nothing type-checks the gap between the Mustache template and
+ * this component; the Behat scenario is what catches it.
  *
  * @param {object} config Everything classes/output/block.php exported; see BlockConfig.
  * @returns {object} The rendered block.
@@ -114,16 +112,16 @@ const Block = (config: BlockConfig) => {
     // The chip the last press implies, or null for "as the reader left it" (the ghost).
     const [chip, setChip] = useState<string | null>(null);
     // Bumped by every press that opens or re-aims tier 3, so a tier 3 that is already open
-    // scrolls into view again; never by a render (ADR-010, decision 1).
+    // scrolls into view again; never by a render.
     const [reveal, setReveal] = useState(0);
-    // Bumped by the reload control: tier 3 remounts under it, a fresh open (decision 12).
+    // Bumped by the reload control: tier 3 remounts under it, a fresh open.
     const [reloadkey, setReloadkey] = useState(0);
     const [reloading, setReloading] = useState(false);
     // Which attempt the repository's bounded retry is on, while it is; null otherwise.
     const [reconnecting, setReconnecting] = useState<Reconnecting | null>(null);
     // Tier 3's toolbar as it is now, and the JSON last read or written for it: a reload remounts
     // Explore under a new key, and a remount seeded from the props - parsed once, at page load -
-    // would revert a sort, chip, selection or view changed since (ADR-010, amendment 9).
+    // would revert a sort, chip, selection or view changed since.
     const kept = useRef<KeptToolbar | null>(null);
     // The counter is what makes a repeat announceable: React writes nothing when the text
     // is identical, so a screen reader would hear the first "X added to favourites" and
@@ -159,11 +157,12 @@ const Block = (config: BlockConfig) => {
      * Both halves live in one function, and the sequence number is why: pressing Try
      * again while a fill is still running must not let the old run write into the new
      * payload. Every write checks that it is still the current run first - the same
-     * guard explore.js uses for a superseded page fetch.
+     * guard Explore uses for a superseded page fetch.
      *
      * @param {boolean} keep Whether to keep the cards on screen while the new payload
-     *     travels. False on first paint and on Try again; true after an archive, where the
-     *     strips are merely stale and blanking them would read as a failure.
+     *     travels. False on first paint and on Try again; true for a refresh (after a tier 3
+     *     archive or favourite, and on reload), where the strips are merely stale and blanking
+     *     them would read as a failure.
      * @returns {Promise} Resolves when the payload and its details are in state, or
      *     when the failure is.
      */
@@ -245,9 +244,9 @@ const Block = (config: BlockConfig) => {
     }, [load]);
 
     // When the browser comes back online and tier 1 is in its error state, one retry the reader
-    // should never have to ask for (ADR-010, decision 12). Listening always and deciding in the
-    // handler, as Explore does: a listener attached only once the error is set would miss an
-    // online event fired while the wrapper's own attempts were still running.
+    // should never have to ask for. Listening always and deciding in the handler, as Explore
+    // does: a listener attached only once the error is set would miss an online event fired
+    // while the repository's own retries were still running.
     useEffect(() => {
         /**
          * Load again, once, on the online event, if tier 1 is in its error state.
@@ -265,9 +264,10 @@ const Block = (config: BlockConfig) => {
     }, [error, load]);
 
     /**
-     * Tier 3 changed which courses exist for this user, so tier 1 is stale (ADR-007,
-     * decision 3): the strips and all three ghost counts are the server's decision, and the
-     * client cannot patch them without reimplementing which strip a course lands in.
+     * Tier 3 changed which courses exist for this user, so tier 1 is stale: the strips and
+     * the counts behind the ghost, the overflow links and the pending notice are the server's
+     * decision, and the client cannot patch them without reimplementing which strip a course
+     * lands in.
      *
      * @returns {Promise} Resolves when tier 1 has been fetched again.
      */
@@ -275,9 +275,9 @@ const Block = (config: BlockConfig) => {
 
     /**
      * Everything the page holds, again: tier 1 through load, tier 3 as a fresh open under a
-     * new key when it is open (ADR-010, decision 12) - with the toolbar as it is now, from the
-     * kept ref, and without the scroll and focus a press would bring: the reveal counter goes
-     * back to zero, because a reload is not a gesture towards tier 3 (decision 1).
+     * new key when it is open - with the toolbar as it is now, from the kept ref, and without
+     * the scroll and focus a press would bring: the reveal counter goes back to zero, because
+     * a reload is not a gesture towards tier 3.
      *
      * @returns {Promise} Resolves when tier 1 has been fetched again.
      */
@@ -319,10 +319,8 @@ const Block = (config: BlockConfig) => {
     /**
      * Open tier 3, or re-aim it, on the chip the pressed control implies.
      *
-     * Until phase R3 this reached an AMD module through the bridge and tier 3 rendered
-     * into a region beside React's tree. It is a component now, so opening it is a state
-     * change and nothing outside this tree is touched. The reveal counter is what makes the
-     * press scroll tier 3 into view and hand it the keyboard, every time (ADR-010, decision 1).
+     * The reveal counter is what makes the press scroll tier 3 into view and hand it the
+     * keyboard, every time.
      *
      * @param {string} kind What was pressed - the ghost, a heading link or the pending
      *     notice; it decides the chip.
@@ -360,9 +358,8 @@ const Block = (config: BlockConfig) => {
         }
         : {};
     /*
-     * One ghost card, the last item of the last strip that has cards, standing for tier 2 as it
-     * always did (ADR-009, decision 2): only its position moved, out of a region of its own and
-     * into tier 1's grid. It hides once tier 3 is open, because then it has nothing left to open.
+     * One ghost card, the last item of the last strip that has cards, standing for tier 2. It
+     * hides once tier 3 is open, because then it has nothing left to open.
      */
     const ghost: StripGhost | null = data && data.counts.more > 0 && !exploring
         ? {count: data.counts.more, text: labels.ghost_more, cta: labels.ghost_explore}
@@ -375,7 +372,7 @@ const Block = (config: BlockConfig) => {
     return (
         <div>
             {/* The block's own top-right corner: the title bar beside it is core's, so the reload
-                control sits on the first row of the content (ADR-010, decision 12). */}
+                control sits on the first row of the content. */}
             <div className="compass-content-head">
                 <Reload busy={reloading} config={config} onReload={reloadAll} />
             </div>
@@ -407,9 +404,9 @@ const Block = (config: BlockConfig) => {
                         onToggleFavourite={toggleFavourite}
                         onExplore={explore}
                     />
-                    {/* The one notice an application gets in tier 1 (ADR-009, decision 3): a line
-                        under New enrolments - or where that strip would be - and a link-styled
-                        button, because it acts on the page and navigates nowhere. */}
+                    {/* The one notice an application gets in tier 1: a line under New enrolments -
+                        or where that strip would be - and a link-styled button, because it acts
+                        on the page and navigates nowhere. */}
                     {strip.name === 'new' && pendingcount > 0 && (
                         <p className="compass-strip-note small text-muted" data-region="pending-notice">
                             {fill(labels.pendingnotice, String(pendingcount))}
@@ -427,7 +424,7 @@ const Block = (config: BlockConfig) => {
                 </Fragment>
             ))}
             {/* No strip has cards, yet there are courses: the ghost has no grid to close and
-                stands alone, as it did before ADR-009 moved it into the strips. */}
+                stands alone. */}
             {ghost && laststrip === null && (
                 <div className="compass-ghost-wrap">
                     <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />

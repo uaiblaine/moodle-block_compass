@@ -35,7 +35,8 @@ use core\event\course_deleted;
 use core\event\course_updated;
 
 /**
- * Per-key cache invalidation (ADR-001): one delete per event, never a purge.
+ * Per-key cache invalidation: one delete per event, except the rare custom field definition
+ * events, which purge the two field layers ({@see observer::customfield_changed()}).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -50,8 +51,8 @@ final class observer {
      */
     public static function course_updated(course_updated $event): void {
         course_meta::delete((int) $event->objectid);
-        // The custom field values are committed before this event fires (course/lib.php:2017-2026),
-        // so one delete keeps the sibling layer honest too (ADR-009, decision 5).
+        // Core's update_course() saves the custom field values before it triggers this event, so
+        // one delete keeps the sibling layer honest too.
         course_fields::delete((int) $event->objectid);
     }
 
@@ -70,9 +71,9 @@ final class observer {
      * A custom field definition or category changed: created, updated or deleted.
      *
      * The vocabulary of the filter panel is one entry for the whole site and is dropped whole.
-     * The per-course values go with it, because the set of ELIGIBLE fields may have changed —
+     * The per-course values go with it, because the set of eligible fields may have changed —
      * a new field, or one made visible to everyone — and no existing entry can carry a field it
-     * was written without. Both are rare administrator events (ADR-009, decision 5).
+     * was written without. Both are rare administrator events.
      *
      * @param \core\event\base $event One of core_customfield's field_created, field_updated,
      *     field_deleted or category_deleted events.

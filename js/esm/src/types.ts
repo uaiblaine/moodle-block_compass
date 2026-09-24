@@ -17,9 +17,8 @@
  * The shapes the server sends and the shell exports.
  *
  * These mirror the return structures declared in classes/external/ and the array
- * classes/output/block.php builds. They are the one place where the two sides are
- * written down together, and the type check is what keeps them in step - nothing
- * else does, since a web service answers at runtime.
+ * classes/output/block.php builds, and must be kept in step with them by hand: the type
+ * check holds the client to these types, but nothing checks the types against the PHP.
  *
  * @module     block_compass/types
  * @copyright  2026 Anderson Blaine
@@ -50,7 +49,7 @@ export type CourseCard = {
     deadlinetext: string,
     actiontext: string,
     // Present, and true, only when completion is off and the viewer is not a learner of the
-    // course: the one reader "No completion configured" is said to (ADR-010, decision 10).
+    // course: the one reader "No completion configured" is said to.
     teacher?: boolean,
 };
 
@@ -84,7 +83,7 @@ export type CardDetail = {
 };
 
 /**
- * What a tier 3 row learns once it has been seen (ADR-005).
+ * What a tier 3 row learns once it has been seen.
  *
  * The same batch answers both views, image included, so switching between them costs no
  * request: a row filled while the list was showing is a card the moment the cards are.
@@ -97,21 +96,21 @@ export type RowDetail = {
     hasimage: boolean,
 };
 
-/**
- * The tier 3 toolbar as the viewer left it (ADR-010, decision 9): the shell reads the
- * block_compass_explore preference, validates its shape, and ships the survivors. Whether a
- * field in cf is still configured is decided when the inventory's fields array arrives.
- */
-/** Which attempt the repository's bounded retry is on (ADR-010, decision 12). */
+/** Which attempt the repository's bounded retry is on. */
 export type Reconnecting = {attempt: number, attempts: number};
 
 /**
  * Tier 3's toolbar as it is now, kept by Block across a reload's remount, and the JSON of the
  * state last read from or written to the preference, so the remounted Explore neither reverts
- * a change nor writes a state that is already stored (ADR-010, amendment 9).
+ * a change nor writes a state that is already stored.
  */
 export type KeptToolbar = {explore: ExploreState, view: string, remembered: string};
 
+/**
+ * The tier 3 toolbar as the viewer left it: the shell reads the block_compass_explore
+ * preference, validates its shape, and ships the survivors. Whether a field in cf is still
+ * configured is decided when the inventory's fields array arrives.
+ */
 export type ExploreState = {
     sort: string,
     chip: string,
@@ -128,9 +127,9 @@ export type Strip = {
 /**
  * Everything the shell hands the client, as one props object.
  *
- * Labels are resolved in PHP and shipped whole because there is no core/str for ESM
- * (ADR-006): a string the client needs is a key here or it does not exist. Icons are
- * server-rendered markup for the same reason - there is no pix helper either.
+ * Labels are resolved in PHP and shipped whole because there is no core/str for ESM: a
+ * string the client needs is a key here or it does not exist. Icons are server-rendered
+ * markup for the same reason - there is no pix helper either.
  */
 export type BlockConfig = {
     labels: Record<string, string>,
@@ -154,14 +153,14 @@ export type BlockConfig = {
     showindex: boolean,
     showcategory: boolean,
     // Where the block is, as a heading level for its sections: 4 under core's block title, 3
-    // with the title hidden, 2 on the block's own page under the theme's h1 (ADR-012).
+    // with the title hidden, 2 on the block's own page under its h1. See heading.ts.
     headinglevel: number,
     view: string,
     explore: ExploreState,
 };
 
 /**
- * The two group ids that are not categories (ADR-007, decision 2).
+ * The two group ids that are not categories; dormancy::GROUP_DORMANT and GROUP_ARCHIVED in PHP.
  *
  * Negative on purpose: every other group id in the payload is a category id. The dormant
  * group is a re-grouping of rows the browser already holds; the archived group is a header
@@ -175,8 +174,8 @@ export const GROUP_ARCHIVED = -2;
  *
  * pend is present, and true, only on an enrolment application awaiting approval; cf is
  * present only when the row holds a custom-field value, as a flat list read in pairs — the
- * field's index in the payload's fields array, then the value key (ADR-009). Both are omitted
- * rather than sent false or empty, because omission is the zero-cost shape on the wire.
+ * field's index in the payload's fields array, then the value key. Both are omitted rather
+ * than sent false or empty, because omission costs nothing on the wire.
  */
 export type InventoryRow = {
     id: number,
@@ -195,7 +194,7 @@ export type FilterValue = {
     label: string,
 };
 
-/** One custom-field chip group, as get_inventory's fields array names it (ADR-009, decision 5). */
+/** One custom-field chip group, as get_inventory's fields array names it. */
 export type FilterField = {
     key: string,
     label: string,
@@ -211,7 +210,7 @@ export type FilterParam = {
 /** A search hit is a row that also says which group it belongs to. */
 export type SearchRow = InventoryRow & {groupid: number};
 
-/** One category group of tier 3. In paged mode `courses` is empty (ADR-004). */
+/** One group of tier 3. `courses` is empty in paged mode, and for the archived group in both modes. */
 export type InventoryGroup = {
     id: number,
     name: string,

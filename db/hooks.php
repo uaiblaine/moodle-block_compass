@@ -18,10 +18,9 @@
  * Hook callbacks of the Compass block.
  *
  * Two callbacks, both guarded in the class that hosts them: the top-of-body hook that announces
- * the client's modules with modulepreload where the block is - after the import map, which the
- * head hook would precede and thereby disable (ADR-011, decision 2 and amendment 5; ADR-012,
- * decision 4) - and the home page hook that offers the block's own page as the site's start
- * page while the page is enabled (ADR-012, decision 3).
+ * the client's modules with modulepreload where the block is - after the import map, which a
+ * preload in the head would disable ({@see \block_compass\hook_callbacks}) - and the home page
+ * hook that offers the block's own page as the site's start page while the page is enabled.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

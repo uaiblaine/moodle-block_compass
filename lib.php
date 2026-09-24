@@ -23,26 +23,20 @@
  */
 
 /**
- * The user preferences this plugin writes, for core to clean and to guard (ADR-005, decision 4).
+ * The user preferences this plugin writes, for core to clean and to guard.
  *
  * Three parts, and each does something the others do not. The type is what cleaning runs
  * first. The choices list is what constrains the vocabulary: core_user::clean_preference()
- * returns the definition's default for a value outside it
- * (lib/classes/user.php:1328-1338), while PARAM_ALPHA alone would happily store any run of
- * letters. The permission callback governs who may write, not what, so it cannot stand in
- * for either. Core's own block declares all three for the same reason
- * (blocks/myoverview/lib.php:82-98).
+ * returns the definition's default for a value outside it, and core's preference route then
+ * refuses the write, while PARAM_ALPHA alone would store any run of letters. The permission
+ * callback governs who may write, not what, so it cannot stand in for either. Core's own
+ * block declares all three the same way (block_myoverview_user_preferences()).
  *
- * The second preference is the tier 3 toolbar as the viewer left it (ADR-010, decision 9): one
- * JSON object, so it is PARAM_RAW with no choices - the router refuses any value cleaning would
- * change, and a JSON string is what PARAM_RAW leaves alone - and the validation belongs to the
- * reader, explore_preference::read(), which keeps only what the current configuration can draw.
- * Core stores JSON in a preference the same way (course/format/classes/base.php:861), and
- * block_myoverview declares a PARAM_RAW preference beside its PARAM_ALPHA ones.
- *
- * Everything is fully qualified on purpose: a file whose only top-level constructs are
- * function definitions must not carry the MOODLE_INTERNAL guard, and no import statement
- * should invite one back.
+ * The second preference is the tier 3 toolbar as the viewer left it: one JSON object, so it is
+ * PARAM_RAW with no choices - the route refuses any value cleaning would change, and PARAM_RAW
+ * leaves a JSON string alone - and the validation belongs to the reader,
+ * {@see \block_compass\local\explore_preference::read()}, which keeps only what the current
+ * configuration can draw.
  *
  * @return array The definitions, keyed by preference name.
  */
@@ -65,13 +59,11 @@ function block_compass_user_preferences(): array {
 }
 
 /**
- * The plugin's own icons, for the Font Awesome icon system (ADR-010, decision 2).
+ * The plugin's own icons, for the Font Awesome icon system.
  *
- * Core's map carries no archive glyph at all, and the eye it lent the archive control read as
- * "open this course"; Font Awesome 6.7.2, which 5.2 ships, has both boxes. Registered the way
- * mod_forum and tool_lp register theirs (mod/forum/lib.php, admin/tool/lp/lib.php): the map is
- * merged by icon_system_fontawesome::get_icon_name_map(), and a class without a family prefix
- * is rendered as "fa fa-box-archive".
+ * Core's map carries no archive glyph; Font Awesome 6.7.2, which Moodle 5.2 ships, has both
+ * boxes. The map is merged by {@see \core\output\icon_system_fontawesome::get_icon_name_map()},
+ * which renders a class without a family prefix as "fa fa-box-archive".
  *
  * @return array Icon key => Font Awesome class.
  */

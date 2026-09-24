@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Web service: progress for a batch of visible cards.
+ * Web service: progress and course image for a batch of visible cards.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -33,14 +33,13 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * Computes and caches progress for the courses the client marks pending (ADR-000, decision 10),
- * and since ADR-005 answers with the course image as well.
+ * Progress, computed and cached when it is not cached yet, and the course image for a batch
+ * of courses the client is showing.
  *
  * Batches of at most cards::DETAILS_BATCH ids; ids the user is not actively
  * enrolled in are dropped, not reported. Both halves of the client call it: tier 1 for the
  * cards get_attention marked pending, tier 3 for the rows that entered the viewport. The
- * image is what tier 3's cards view draws and what tier 1 already had, so the batch carries
- * it once for whoever asked.
+ * image is for tier 3's cards view; tier 1 already has it from get_attention.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

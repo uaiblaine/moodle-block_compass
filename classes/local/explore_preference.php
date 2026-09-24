@@ -25,19 +25,19 @@
 namespace block_compass\local;
 
 /**
- * Reader of the block_compass_explore preference (ADR-010, decision 9).
+ * Reader of the block_compass_explore preference.
  *
  * One JSON object holds the sort, the status chip, the pressed value of each custom-field group
  * and whether the filter panel is open. The client writes it through core's own preference
  * route, which cleans a PARAM_RAW value not at all; so the reading is where the validation is,
- * and it is a validation of SHAPE at zero cost: a sort or a chip outside the vocabulary, a
+ * and it is a validation of shape at zero cost: a sort or a chip outside the vocabulary, a
  * pending chip while the feature is off, a field key that is not a shortname or a value that is
  * not an integer are dropped, and what survives ships as the client's initial state. Whether a
  * field is still configured, and whether its value is still one of the field's keys, is decided
  * when the inventory arrives with its fields array (js/esm/src/Explore.tsx): the shell renders
- * the block without a database or cache read (PLAN.md §3.2, non-negotiable 2), and the eligible
- * fields live in a cache that may be cold. The two paging services validate the same selection
- * a third time, by the allowlist of filter_fields::validate(), before any work.
+ * the block without a database or cache read, and the eligible fields live in a cache that may
+ * be cold. The two paging services validate the same selection a third time, by the allowlist
+ * of filter_fields::validate(), before any work.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -56,8 +56,8 @@ final class explore_preference {
     /**
      * The state the toolbar starts in for a viewer who never changed it.
      *
-     * The panel is open at first render, so its platters are on screen when axe reads the
-     * block (ADR-009, decision 8).
+     * The filter panel starts open, so its chips are on screen at first render; the Behat
+     * accessibility (axe) check relies on that to audit them.
      *
      * @return array sort, chip, cf (shortname => value key) and panel.
      */
@@ -68,8 +68,7 @@ final class explore_preference {
     /**
      * The viewer's stored state, validated, or the defaults.
      *
-     * Reading a preference is not the data access the shell is forbidden: get_user_preferences()
-     * answers from the bundle the session already carries.
+     * A preference read is allowed in the shell ({@see \block_compass\output\block::view()}).
      *
      * @param bool|null $pendingenabled Whether the pending chip may be kept; null for the setting.
      * @return array sort, chip, cf and panel, each within its vocabulary.
@@ -108,7 +107,7 @@ final class explore_preference {
         if (isset($decoded['cf']) && is_array($decoded['cf'])) {
             foreach ($decoded['cf'] as $field => $value) {
                 // A shortname is what filter_fields keys its entries by, and a value key is an
-                // option index or a checkbox state (ADR-009, decision 5): anything else is noise.
+                // option index or a checkbox state: anything else is noise.
                 if (!is_string($field) || $field === '' || clean_param($field, PARAM_ALPHANUMEXT) !== $field) {
                     continue;
                 }

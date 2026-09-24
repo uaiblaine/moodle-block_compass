@@ -31,7 +31,7 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The details wrapper (ADR-001, layer 2b).
+ * The details wrapper, the per-user progress layer.
  *
  * Two things this file exists to pin. The key shape, because simplekeys is only enforced
  * under debugging() and a colon in a key is unsafe in file-store paths, so nothing at

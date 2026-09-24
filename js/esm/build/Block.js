@@ -4,13 +4,12 @@ import{Fragment as te,useCallback as v,useEffect as R,useRef as B,useState as p}
  *
  * Everything the block shows is rendered from here: the loading and error states,
  * the three strips, the cards, the one ghost card, the pending notice, the empty state,
- * the live region - and, once a ghost or a heading link has been pressed, tier 3. Until phase R3 tier 3 was an AMD
- * module writing into a region beside this tree; it is a component now, so opening
- * it is a state change and no code outside React touches the block's DOM.
+ * the live region - and, once a ghost or a heading link has been pressed, tier 3. Opening
+ * tier 3 is a state change, and no code outside React touches the block's DOM.
  *
- * Since ADR-010 the block also owns the reload control at the content's top-right, the
- * "Reconnecting…" line the repository's bounded retry reports through, and the amber notice
- * with a way back from a failed first paint (decision 12).
+ * The block also owns the reload control at the content's top-right, the "Reconnecting…"
+ * line the repository's bounded retry reports through, and the amber notice with a way back
+ * from a failed first paint.
  *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine

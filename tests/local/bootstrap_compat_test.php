@@ -29,14 +29,14 @@ use basic_testcase;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
- * Scans templates, JavaScript sources and the stylesheet for what no gate reads.
+ * Checks the Bootstrap vocabulary of the templates, the React sources and the stylesheet.
  *
- * Nothing in the pipeline reads a class name out of a Mustache or JS file, and
- * the fleet shipped the same Bootstrap defect class several times with CI green
- * (CLAUDE.md, "Moodle 5.2-only"). This plugin is Bootstrap 5 only: the Bootstrap
- * 4 names that Moodle 5.x still bridges are deprecated with a red outline under
- * behat and disappear in Moodle 6.0, so their mere presence is the defect. And
- * every badge states its text colour, because Bootstrap 5's default is white.
+ * phpcs, the Mustache lint and stylelint never read a class name out of markup, so this
+ * test is the only check on it. The plugin is Bootstrap 5 only: the Bootstrap 4 names that
+ * Moodle 5.x still bridges (theme/boost/scss/moodle/bs4-compat.scss for classes, whose rules
+ * outline them in red on Behat and theme-designer sites, and theme/boost/amd/src/bs4-compat.js
+ * for data attributes) are deprecated and removed in Moodle 6.0 (MDL-84465), so their presence
+ * is the defect. Every badge states its text colour, because Bootstrap 5's default is white.
  *
  * @package    block_compass
  * @category   test
@@ -45,7 +45,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  */
 #[CoversNothing]
 final class bootstrap_compat_test extends basic_testcase {
-    /** @var string[] Bootstrap 4 class families that resolve on 5.x only through the deprecated bridge. */
+    /** @var string[] Bootstrap 4 class names and data-API attributes that 5.x resolves only through the deprecated bridge. */
     private const BS4_PATTERNS = [
         '/\b(?:ml|mr|pl|pr)-(?:0|1|2|3|4|5|auto|n1|n2|n3|n4|n5)\b/',
         '/\btext-(?:left|right)\b/',
@@ -62,12 +62,10 @@ final class bootstrap_compat_test extends basic_testcase {
     ];
 
     /**
-     * A badge's class attribute, under both spellings the client writes.
+     * A badge's class attribute, as class="..." (Mustache) or className="..." (TSX).
      *
-     * ONE pattern, shared by the rule and by the guard that proves the rule reads both
-     * languages. Two copies would let the guard pass while the rule went blind, which is
-     * the shape this whole file exists to prevent - and the first draft of the guard had
-     * exactly that bug.
+     * One pattern, shared by the badge rule and by the check that the rule still reads TSX,
+     * so the check cannot pass while the rule has gone blind.
      */
     private const BADGE_ATTRIBUTE = '/\bclass(?:Name)?="([^"]*\bbadge\b[^"]*)"/';
 
@@ -79,14 +77,8 @@ final class bootstrap_compat_test extends basic_testcase {
     private function sources(): array {
         $root = dirname(__DIR__, 2);
         $files = [];
-        /*
-         * js/esm/src joins the scan in phase R1 (ADR-006): the class names of the client
-         * are moving out of templates/ and amd/src/ into .tsx, and this file is the only
-         * thing in any pipeline that reads a class name -- phpcs reads PHP, the Mustache
-         * lint reads structure, stylelint reads CSS, and eslint reads neither vocabulary
-         * nor contrast. A migration that left this list alone would carry the protection
-         * away with the markup it protects.
-         */
+        // Every place the plugin writes a class name. The client's markup is in js/esm/src; a
+        // new markup location must join this list, or the rules below never read it.
         $paths = array_merge(
             glob($root . '/templates/*.mustache'),
             glob($root . '/js/esm/src/*.ts'),
@@ -103,20 +95,16 @@ final class bootstrap_compat_test extends basic_testcase {
     /**
      * The scan sees the files it is meant to see.
      *
-     * A scan is only worth what it reads, and every one of these paths is a place this
-     * plugin writes a Bootstrap class name. The React source is named explicitly rather
-     * than left to the count: a glob that silently stops matching is how this defect
-     * class ships, and the count alone would still pass with js/esm/src empty.
+     * One file per place the plugin writes markup is named rather than counted: a glob that
+     * stopped matching would leave a count passing with js/esm/src empty.
      *
      * @return void
      */
     public function test_the_scan_covers_templates_javascript_and_the_stylesheet(): void {
         $files = $this->sources();
 
-        // One file per place the plugin writes markup, named rather than counted: a glob
-        // that silently stops matching is how this defect class ships, and a count alone
-        // would pass with js/esm/src empty. Since R3 there is one template left - the shell
-        // - and every class name the client writes is in a .tsx.
+        // The templates are the shell, the page wrapper and the preload links; every card,
+        // row and toolbar class is written in a .tsx.
         $this->assertArrayHasKey('templates/block.mustache', $files);
         $this->assertArrayHasKey('js/esm/src/Card.tsx', $files);
         $this->assertArrayHasKey('js/esm/src/Row.tsx', $files);
@@ -144,16 +132,9 @@ final class bootstrap_compat_test extends basic_testcase {
     /**
      * Every badge pairs its background with an explicit text colour.
      *
-     * Bootstrap 4 badges had no colour, Bootstrap 5 badges default to white; the
-     * failing cases are disjoint between the branches and the light backgrounds
-     * (secondary, warning, light) fail on 5.x.
-     *
-     * The attribute is matched under both spellings because the client writes markup in
-     * two languages during the React migration (ADR-006): a Mustache template writes
-     * class="..." and a .tsx writes className="...". Reading only the first would have
-     * left every badge React renders unchecked from the phase that writes one - a green
-     * gate over the exact defect class this file exists for, which is how it has shipped
-     * four times elsewhere in the fleet. Found and closed in R1, before R2 writes a badge.
+     * Bootstrap 5 badges default to white text, which is unreadable on the light
+     * backgrounds (secondary, warning, light): those need text-dark, the rest text-white.
+     * The attribute is read in both spellings, {@see self::BADGE_ATTRIBUTE}.
      *
      * @return void
      */
@@ -183,13 +164,8 @@ final class bootstrap_compat_test extends basic_testcase {
         // The rule must have had something to check, or a renamed class silently disables it.
         $this->assertGreaterThanOrEqual(1, $badges, 'no badge found: has the card template lost its New badge?');
 
-        /*
-         * And it must have checked a badge on EACH side of the migration, which the count
-         * above cannot tell: while one Mustache badge survives in tier 3, dropping the
-         * className half of the regex would leave every React badge unread and the total
-         * still non-zero. Phase R1 recorded this gate as owed by the phase that wrote the
-         * first .tsx badge; this is that phase.
-         */
+        // The total above could be met by a Mustache badge alone; this count proves the
+        // className spelling of the pattern still reads the React badges.
         $reactbadges = 0;
         foreach ($this->sources() as $file => $contents) {
             if (!str_ends_with($file, '.tsx')) {
@@ -208,18 +184,11 @@ final class bootstrap_compat_test extends basic_testcase {
     /**
      * Nothing carries both the hidden attribute and a Bootstrap display utility.
      *
-     * Bootstrap writes its display utilities as `display: flex !important`, and Boost's
-     * own reset writes `[hidden] { display: none !important; }`. The two have the SAME
-     * specificity, so source order decides, and the utility comes later: an element with
-     * both is permanently visible however carefully the JavaScript sets `hidden`.
-     *
-     * This shipped in this plugin from Phase 1 to R1 - the error region carried `d-flex`,
-     * so every Dashboard showed an empty warning with a Try again button - and no gate in
-     * the fleet could see it. phpcs reads PHP, the Mustache lint reads structure,
-     * stylelint reads the stylesheet, and Behat's "I should see" never asks whether an
-     * empty span is displayed. Only opening the page found it, which is not a gate.
-     *
-     * The rule is general: put the layout in a plugin class guarded by :not([hidden]).
+     * Bootstrap writes its display utilities as `display: flex !important`, and its reboot
+     * writes `[hidden] { display: none !important; }`. The two have the same specificity and
+     * the utilities come later in the sheet, so an element carrying both is always visible,
+     * whatever the JavaScript does with `hidden`. Put the layout in a plugin class guarded by
+     * :not([hidden]) instead, as styles.css does for .compass-error and .compass-fpanel.
      *
      * @return void
      */
@@ -249,13 +218,12 @@ final class bootstrap_compat_test extends basic_testcase {
     }
 
     /**
-     * A badge's classes are a literal, so that the rule above can read them.
+     * A badge's classes are a literal, so that the badge rule can read them.
      *
-     * The check above is a regex over an attribute value, which a computed JSX className
-     * defeats: className={cx('badge', tone)} carries a badge the scan cannot see, and it
-     * would pass in silence. Rather than pretend the regex is cleverer than it is, the
-     * construct is banned in this plugin's React sources - a badge names its classes as a
-     * string, and anything conditional picks between whole literals.
+     * {@see self::test_every_badge_states_its_text_colour()} reads a quoted attribute value,
+     * so a computed className={cx('badge', tone)} would carry a badge it cannot see. React
+     * sources therefore write a badge's className as a string literal; a conditional badge
+     * picks between whole elements, as Row.tsx does for its New and pending badges.
      *
      * @return void
      */

@@ -36,7 +36,7 @@ use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Progress for the cards the client marks pending (ADR-000, decision 10).
+ * Progress for the cards the client marks pending, and for tier 3 rows in view.
  *
  * The expensive path on purpose: it loads course_modinfo, which is why the
  * first paint never calls it. What this pins is the batch ceiling, the guest
@@ -222,7 +222,7 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
-     * The teacher flag survives the allowlist and is omitted for a learner (ADR-010, decision 10).
+     * The teacher flag survives the allowlist and is omitted for a learner.
      *
      * @return void
      */
@@ -290,7 +290,7 @@ final class get_card_details_test extends advanced_testcase {
     /**
      * The computed answer is written to the details cache, and the second call costs less.
      *
-     * Protocol: assert the cache is cold FIRST — a "the cache made this cheap"
+     * Protocol: assert the cache is cold first — a "the cache made this cheap"
      * test that never checked passes just as well when the cache is broken.
      * The saving is core's, not the plugin's: cards::details() recomputes on
      * every call by design, so what gets cheaper the second time is
@@ -329,9 +329,9 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
-     * Budget (CLAUDE.md §6.6 row): one read when nothing must be computed — the enrolment
-     * check — whether the course tracks no completion or its progress is already cached;
-     * the course records are read only for a course whose progress must be computed.
+     * Budget: one read when nothing must be computed — the enrolment check — whether the
+     * course tracks no completion or its progress is already cached; the course records are
+     * read only for a course whose progress must be computed.
      *
      * Protocol: warm core and the course layer with a first call, then measure.
      *
@@ -352,7 +352,7 @@ final class get_card_details_test extends advanced_testcase {
         $this->assertSame(1, $meter->reads(), 'a course without completion costs the enrolment check only');
 
         // The completable course has no completion-tracked activity, so its cached answer is
-        // null — a value, not a miss: it must not be recomputed (ADR-001, layer 2b).
+        // null — a value, not a miss: it must not be recomputed.
         $this->assertNull(details::get_many((int) $user->id, [(int) $completable->id])[(int) $completable->id]);
         $meter = budget::start();
         cards::details((int) $user->id, [(int) $completable->id]);
@@ -366,7 +366,7 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
-     * The image travels with the details, and a course without one says so (ADR-005, decision 3).
+     * The image travels with the details, and a course without one says so.
      *
      * Read through clean_returnvalue(), so this also proves the two fields are on the
      * allowlist: an undeclared key is stripped in silence, which is exactly the failure a
@@ -399,14 +399,14 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
-     * Budget: the image is free warm and is the call's new variable cost cold (ADR-005, decision 3).
+     * Budget: the image is free warm and is the call's new variable cost cold.
      *
-     * The §6.6 figure is a warm one and stays one read — that is the assertion the plugin's
+     * The budget figure is a warm one and stays one read — that is the assertion the plugin's
      * budget promise rests on. Cold, one image is three: the enrolment check, the get_course()
-     * core's datasource runs (course/classes/cache/course_image.php:58-65) and the one file-area
-     * query behind get_course_overviewfiles(). It is three rather than four because the batch's
-     * course contexts are warmed from the course layer first — delete that loop and this number
-     * moves, which is the point of asserting it exactly.
+     * core's datasource runs (course/classes/cache/course_image.php, load_for_cache()) and the
+     * one file-area query behind get_course_overviewfiles(). It is three rather than four
+     * because the batch's course contexts are warmed from the course layer first. Changes that
+     * must make it fail: deleting that warming, which moves the cold count.
      *
      * @return void
      */
@@ -422,10 +422,9 @@ final class get_card_details_test extends advanced_testcase {
         cards::details((int) $user->id, [(int) $course->id]);
 
         /*
-         * The context cache is emptied before each measurement, and without that this test
-         * would be measuring nothing: creating a course leaves its context in the per-request
-         * static cache, so context_course::instance() would be free whether or not the code
-         * warmed anything, and the mutation that deletes the warming would redden nothing.
+         * The context cache is emptied before each measurement: creating a course leaves its
+         * context in the per-request static cache, so context_course::instance() would be free
+         * whether or not the code under test warmed it.
          */
         context_helper::reset_caches();
         $meter = budget::start();

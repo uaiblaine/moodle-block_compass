@@ -14,11 +14,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The rows of one group, or of the flat list, in the view the reader chose (ADR-005).
+ * The rows of one group, or of the flat list, in the view the reader chose.
  *
  * The one place that knows there are two views. The cards view is a grid whose column
  * count the caller decides - three without the category index, two with it, one under 640 px
- * of section width - so a lone card on the last line keeps its column (ADR-010, decision 4).
+ * of section width - so a lone card on the last line keeps its column.
  *
  * @module     block_compass/RowList
  * @copyright  2026 Anderson Blaine

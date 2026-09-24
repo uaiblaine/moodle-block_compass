@@ -32,7 +32,7 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The coursemeta wrapper (ADR-001, layer 1).
+ * The coursemeta wrapper, the shared course layer.
  *
  * Every case starts by purging the definition, because cold is exactly when the bugs show:
  * purge_all_caches() runs on every install and upgrade, and a warm path hides a wrapper that
@@ -123,9 +123,9 @@ final class course_meta_test extends advanced_testcase {
      * A cold get_many() costs one read whatever the number of ids, and a warm one costs none.
      *
      * Protocol (classes/local/budget.php): run it once so core is warm, purge only this
-     * plugin's definition, then measure. Key order differs between the two paths — the cold
-     * one returns hits before the rows it just fetched — so the arrays are sorted before
-     * being compared.
+     * plugin's definition, then measure. Key order is not part of the contract — a fill returns
+     * the hits first and then the fetched rows in database order — so the arrays are sorted
+     * before being compared.
      *
      * @return void
      */
@@ -191,9 +191,9 @@ final class course_meta_test extends advanced_testcase {
     /**
      * set_from_rows() fills the cache from a query the caller already ran.
      *
-     * This is what keeps the first paint inside six reads: rows 1 to 3 of the accounting table
-     * in ADR-001 select the course and context columns themselves, so the entries are written
-     * from those rows and coursemeta never needs a fill query of its own.
+     * This is what keeps the first paint inside six reads: the three strip queries of attention
+     * select the course and context columns themselves, so the entries are written from those
+     * rows and coursemeta never needs a fill query of its own.
      *
      * @return void
      */
@@ -258,9 +258,9 @@ final class course_meta_test extends advanced_testcase {
     /**
      * delete() makes the next read pay for the course again.
      *
-     * This is the whole invalidation path of layer 1: the course_updated and course_deleted
-     * observers call it, one key at a time, and it has to actually clear both the store and
-     * the static acceleration array behind it.
+     * This is the whole invalidation path of the course layer: the course_updated and
+     * course_deleted observers call it, one key at a time, and it has to clear both the store
+     * and the static acceleration in front of it.
      *
      * @return void
      */

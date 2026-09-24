@@ -38,17 +38,17 @@ use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Tier 3 in full mode: one call, every active course, grouped by category (ADR-002).
+ * Tier 3 in full mode: one call, every active course, grouped by category.
  *
  * Three things are pinned here and nowhere else. The shape of the payload,
  * because execute_returns() is an allowlist and clean_returnvalue() drops
  * silently whatever it does not declare — so the tests compare key sets, not
  * only values. The plain spelling of every name that reaches a PARAM_TEXT
- * field: the client renders rows through Mustache double stashes and
- * textContent, which escape for themselves, so an entity arriving here would be
- * drawn literally, and a bare "<" surviving into the field would throw
- * invalid_response_exception and kill the whole response for that learner. And
- * the read budget of PLAN.md §6.6, measured as a fresh request pays it.
+ * field: the client renders names as React text, which escapes for itself, so
+ * an entity arriving here would be drawn literally, and a bare "<" surviving
+ * into the field would throw invalid_response_exception and kill the whole
+ * response for that learner. And the read budget, measured as a fresh request
+ * pays it.
  *
  * @package    block_compass
  * @category   test
@@ -61,7 +61,7 @@ final class get_inventory_test extends advanced_testcase {
      * A user with three courses across two categories.
      *
      * One course is opened, one is a brand-new starred enrolment and one is an
-     * old enrolment never opened, so every boolean of a row has both values
+     * old enrolment never opened, so opened, new and fav each take both values
      * somewhere in the payload. Flat, the two categories are top-level and form
      * two groups; nested, both sit under one "Faculty" category and roll up to a
      * single group at depth 1 — the ancestor the category layer has to fetch in
@@ -109,7 +109,10 @@ final class get_inventory_test extends advanced_testcase {
     }
 
     /**
-     * Purge every one of this plugin's definitions: the fully cold state of a fresh install.
+     * Purge coursemeta, categorymeta, details and inventory: the fully cold state of a fresh install.
+     *
+     * coursefields and filterfields are not purged: the budget tests configure no filter field,
+     * and without one neither layer is read.
      *
      * @return void
      */
@@ -249,14 +252,14 @@ final class get_inventory_test extends advanced_testcase {
     }
 
     /**
-     * fields, cf and pend survive the allowlist, and pend is OMITTED on every row that is not an
-     * application (ADR-009, decision 5 and fact 15).
+     * fields, cf and pend survive the allowlist, and pend is omitted on every row that is not an
+     * application.
      *
      * The field half runs on every site. The pending half follows the site the way get_attention's
      * does: with enrol_apply present the application is a row with pend; on a runtime without it
-     * the stored setting is forced off and the application is absent, as today. Both branches
-     * assert that no active row carries a pend key — the omission that makes the zero-cost shape a
-     * tested property — and that no row carries an enrol instance id.
+     * the setting reads as off and the application is absent. Both branches assert that no active
+     * row carries a pend key, which keeps an ordinary row's wire shape unchanged, and that no row
+     * carries an enrol instance id.
      *
      * @return void
      */
@@ -302,18 +305,17 @@ final class get_inventory_test extends advanced_testcase {
     }
 
     /**
-     * The worst case the feature can produce stays under the 40 KB ceiling (ADR-009, decision 5).
+     * The worst case the custom-field and pending rows can produce stays under the 40 KB ceiling.
      *
-     * 250 courses in 6 groups — the inventory_max threshold — with FILTER_FIELDS_MAX fields set
-     * on EVERY row and EVERY row an application: what an enrolment drive looks like under decision
-     * 3's rule, and the saturation of both additions at once. The response is cleaned through
+     * 250 courses in 6 groups — the default inventory_max, so the largest full-mode payload — with
+     * FILTER_FIELDS_MAX fields set on every row and every row an application: an enrolment drive,
+     * and the saturation of both additions at once. The response is cleaned through
      * execute_returns() and encoded the way lib/ajax/service.php encodes it — json_encode() at
-     * default flags — and measured in bytes. Names are 18 characters, the development site's
-     * measured average; ADR-009 recorded 34 172 bytes for this shape, and the total moves by about
-     * 250 bytes per character of average name length, so the number is stated in the message
-     * rather than only the pass. The controls: 250 rows, every one carrying pend and three pairs.
-     * The domain is called with the feature injected on, so the measurement does not depend on
-     * enrol_apply being installed; the rows are the same rows the service ships.
+     * default flags — and measured in bytes. Names are 18 characters, a realistic average; the
+     * total moves by about 250 bytes per character of average name length, so the message states
+     * the measured size rather than only the pass. The controls: 250 rows, every one carrying
+     * pend and three pairs. The domain is called with the feature injected on, so the measurement
+     * does not depend on enrol_apply being installed; the rows are the same rows the service ships.
      *
      * @return void
      */
@@ -361,8 +363,8 @@ final class get_inventory_test extends advanced_testcase {
                 ];
             }
         }
-        // The 750 value rows go straight to the table: the shape is core's own, and the data
-        // controller would cost a second per row for a fixture whose only job is to be large.
+        // The 750 value rows go straight to the table in core's own shape: through the data
+        // controller, a fixture whose only job is to be large would be slow to build.
         $DB->insert_records('customfield_data', $data);
         $this->setUser($user);
 
@@ -395,7 +397,7 @@ final class get_inventory_test extends advanced_testcase {
     /**
      * A course and a category whose names hold an ampersand and tag-shaped text survive as plain text.
      *
-     * The fixture is a bare "&" plus "<3" on BOTH names, not a balanced tag:
+     * The fixture is a bare "&" plus "<3" on both names, not a balanced tag:
      * format_string() strips a tag identically in both escape modes, so "<b>x</b>"
      * would prove nothing. Two failures are covered at once — the service
      * throwing invalid_response_exception because a raw "<" reached PARAM_TEXT,
@@ -437,20 +439,18 @@ final class get_inventory_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.6: three reads per request with the user's layers cold and the shared layers warm, plus one.
+     * Three reads per request with the user's layers cold and the shared layers warm, plus one.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * call once so core is warm; purge inventory and details only; reset the per-request
-     * memos a second call in one process would otherwise inherit — the filter preload, core's
-     * request-mode category cache, the preference bundle — so the measured call pays what a
-     * fresh request pays; measure the second call. Accounting: the inventory fill, the
+     * memos a second call in one process would otherwise inherit, so the measured call pays
+     * what a fresh request pays; measure the second call. Accounting: the inventory fill, the
      * preference load, the filter preload — three. coursemeta and categorymeta are warm from
      * the first call, the steady state of a busy site. The controls prove the call did the
      * work: three courses, rolled up into the one ancestor group.
-     * The web service pays one read more than the domain method: validate_context() needs the
-     * user's context object and the context cache starts empty every request, so
-     * context_user::instance() reads {context} once per request — as core's own per-user
-     * services do. The domain-level bounds (attention::build(), explore::build()) hold without it.
+     * The web service pays one read more than explore::build(): the context cache starts empty
+     * every request, so the context_user::instance() that validate_context() needs reads
+     * {context} once per request — as core's own per-user services do.
      *
      * @return void
      */
@@ -523,7 +523,7 @@ final class get_inventory_test extends advanced_testcase {
     /**
      * At most seven reads per request with every one of the plugin's caches cold (six plus the context).
      *
-     * Same protocol, every definition purged — the first request after an install, an upgrade
+     * Same protocol, every layer it reads purged — the first request after an install, an upgrade
      * or a cache purge. Accounting: the inventory fill, the preference load, the coursemeta
      * fill, the filter preload, the categorymeta fill for the courses' categories and the
      * categorymeta fill for the ancestor that forms the group — six. The nested fixture is

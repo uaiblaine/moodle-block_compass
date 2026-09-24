@@ -17,10 +17,10 @@
 {{!
     @template block_compass/page
 
-    The block's content on its own page (ADR-012, decision 1): a wrapper carrying the class
-    core puts on the block's section, block_compass, which is the one class the stylesheet is
-    scoped to - and not core's block card chrome, which is drawer furniture with an instance id
-    behind it - around the block template as a partial, fed the same props.
+    The block's content on its own page: the block template as a partial, fed the same props,
+    inside a wrapper carrying block_compass - the class core puts on the block's section and
+    the one the stylesheet is scoped to - but not core's block card chrome, which needs a
+    block instance behind it.
 
     Context variables required for this template:
     * props - the component's props, JSON-encoded by block_compass\output\page: the block's,

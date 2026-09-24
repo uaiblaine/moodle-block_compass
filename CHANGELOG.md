@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Changed
+
+- **Code comments audited against Moodle's comment guidance**, version 2026092400. Every
+  comment in the PHP, TypeScript, Mustache, CSS, Behat and workflow sources was checked against the
+  code it describes and rewritten where it was wrong or where it carried planning history rather
+  than a fact: 141 comments that contradicted their code were corrected, and every reference to
+  ADR numbers, phases, decisions and the development environment left the source (they stay in
+  `docs/` and the git history). Comments only - the token stream of every source file is unchanged.
+  `js/esm/build` is rebuilt because the per-file outputs carry the modules' docblocks; the bundle
+  itself is byte-identical.
+
 ### Fixed
 
 - **The dark-mode override now follows the host wherever it writes the colour-mode attribute**,

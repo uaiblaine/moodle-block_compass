@@ -30,9 +30,9 @@ use core_privacy\local\request\writer;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The block stores one thing of its own, and this is what says so.
+ * The block stores two preferences of its own, and the provider declares and exports them.
  *
- * The preference is exported into the system context, not the user's: that is where
+ * Preferences are exported into the system context, not the user's: that is where
  * writer::export_user_preference() puts every preference
  * (privacy/classes/local/request/writer.php:127-135), so a test reading the user context
  * would find nothing and pass for the wrong reason.
@@ -60,9 +60,9 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
-     * The remembered toolbar is exported as the JSON the viewer's own browser wrote (ADR-010, decision 9).
+     * The remembered toolbar is exported as the JSON the viewer's own browser wrote.
      *
-     * The first half is the control: a viewer who never opened tier 3 has nothing to export.
+     * The first half is the control: a viewer with no stored toolbar has nothing to export.
      *
      * @return void
      */
@@ -88,13 +88,12 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
-     * The plugin counts as compliant, which is a statement about the pair of interfaces.
+     * The plugin counts as compliant: it implements the metadata provider and a data provider.
      *
-     * Core's own compliance test sweeps every component, and nothing in this plugin's
-     * pipeline runs it: moodle-plugin-ci runs the component's own testsuite. So the check is
-     * made here, where it is part of the phase that made it necessary — a metadata provider
+     * Core's own compliance test sweeps every component but is not in the plugin's testsuite,
+     * which is all moodle-plugin-ci runs, so the check is repeated here. A metadata provider
      * without a data provider passes every other test in this file and fails this one
-     * (privacy/classes/manager.php:143-159).
+     * ({@see \core_privacy\manager::component_is_compliant()}).
      *
      * @return void
      */
@@ -132,12 +131,10 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
-     * A stored value the plugin cannot draw is exported as it is, not as a view.
+     * A stored value the plugin cannot draw is exported as it is, not relabelled as a view.
      *
-     * Everywhere else in the plugin such a value falls back to something renderable, because
-     * a view React does not know renders nothing. An export is the one place where that
-     * would be wrong: it answers "what is held about me", so labelling an unknown token
-     * "List" would tell the person they chose something they never chose.
+     * Elsewhere such a value falls back to a view the client can render; the export must not
+     * ({@see provider::export_user_preferences()}).
      *
      * @return void
      */
@@ -150,7 +147,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
         $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');
 
         $this->assertSame('sideways', $exported->block_compass_view->value);
-        // Control: the same export names a value it does know.
+        // Not relabelled as the default view.
         $this->assertNotSame(get_string('view_list', 'block_compass'), $exported->block_compass_view->value);
     }
 }

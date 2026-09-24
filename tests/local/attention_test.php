@@ -31,7 +31,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use stdClass;
 
 /**
- * One test per rule of PLAN.md §6.1 and ADR-000 decisions 11 to 14.
+ * One test per rule of the tier 1 strips and counts.
  *
  * Every fixture is expressed against a fixed instant passed to the constructor,
  * never against time(), and every test carries a control the rule must leave
@@ -103,7 +103,7 @@ final class attention_test extends advanced_testcase {
      *
      * @param int $max Cards per strip.
      * @param int $newdays Days of the "new" window.
-     * @param bool $pending Whether applications awaiting approval are counted (ADR-009).
+     * @param bool $pending Whether applications awaiting approval are counted.
      * @return array attention::build()'s result.
      */
     private function build(int $max = 3, int $newdays = 30, bool $pending = false): array {
@@ -159,7 +159,7 @@ final class attention_test extends advanced_testcase {
 
     /**
      * Continue and New stay exclusive between themselves; the favourites strip lists every
-     * favourite, the ones already shown in Continue or New included (ADR-009, decision 1).
+     * favourite, the ones already shown in Continue or New included.
      *
      * Two controls. A favourite that sits in neither Continue nor New ("CCC") must appear exactly
      * once, in the favourites strip, so the test is not satisfied by a strip that merely copies
@@ -204,7 +204,7 @@ final class attention_test extends advanced_testcase {
 
     /**
      * The count of enrolment applications awaiting approval is enrol_apply's own rule and it
-     * leaves the three other counts alone (ADR-009, decision 3).
+     * leaves the three other counts alone.
      *
      * Counted: an application as submitted, at ENROL_USER_SUSPENDED — what apply() writes and
      * where every application stays until a manager acts — and one deferred to the waiting list
@@ -212,9 +212,9 @@ final class attention_test extends advanced_testcase {
      * once-approved enrolment), a suspended row on another method, an active row on an apply
      * instance (a course the learner can enter), a course where an active manual enrolment sits
      * beside a pending application (the active enrolment wins), and an archived course's
-     * application. The control that stops the whole test being vacuous: total, new and
-     * favourites are identical with the feature on and off, which is the whole reason the count
-     * is a scalar subquery and not a fourth aggregate.
+     * application. The control that stops the test being vacuous: total, new and favourites are
+     * identical with the feature on and off, which is why the count is a scalar subquery and not
+     * a fourth aggregate.
      *
      * @return void
      */
@@ -263,7 +263,7 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
-     * The pending count rides inside the counts statement and adds no read (ADR-009, decision 3).
+     * The pending count rides inside the counts statement and adds no read.
      *
      * Same protocol as the four-read budget below, with the feature on and a fixture that makes
      * the count non-zero — a cheap statement that skipped the subquery would pass a read bound
@@ -429,8 +429,8 @@ final class attention_test extends advanced_testcase {
 
         $this->assertSame([(int) $accessed['control']->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $fresh['control']->id], $this->ids($tier['new']));
-        // The only active star is on the course New shows, and the favourites strip lists it too
-        // (ADR-009, decision 1); the three inactive stars are on courses the strip must not reach.
+        // The only active star is on the course New shows, and the favourites strip lists it too;
+        // the three inactive stars are on courses the strip must not reach.
         $this->assertSame([(int) $fresh['control']->id], $this->ids($tier['favourites']));
         $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0], $tier['counts']);
     }
@@ -565,8 +565,8 @@ final class attention_test extends advanced_testcase {
      *
      * The padding ids need not exist: only their number decides which path runs. Above
      * the limit the counts statement cannot bind the set either, so the archived subset
-     * is counted in chunks and subtracted (ADR-001, amended); the counts are asserted
-     * with the archived course as the control.
+     * is counted in chunks and subtracted; the counts are asserted with the archived
+     * course as the control.
      *
      * @return void
      */
@@ -711,7 +711,7 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.1: the three strips and the counts are four bounded queries, no more.
+     * The three strips and the counts are four bounded queries, no more.
      *
      * Protocol (classes/local/budget.php): the constructor's two per-request costs —
      * the preference load behind hidden_courses::ids() and the system-context
@@ -750,8 +750,8 @@ final class attention_test extends advanced_testcase {
     /**
      * How many of the fixture user's enrolments in a course are active right now.
      *
-     * The predicate is the one ADR-000 decision 13 quotes from enrol_get_my_courses(),
-     * so a precondition written with it cannot drift from what the queries look for.
+     * The predicate is enrol_get_my_courses()'s active-enrolment test, the one the queries
+     * use, so a precondition written with it cannot drift from what the queries look for.
      *
      * @param int $courseid The course.
      * @return int

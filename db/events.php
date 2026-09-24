@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Event observers (ADR-001).
+ * Event observers that keep the plugin's caches in step with core ({@see \block_compass\observer}).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -49,9 +49,9 @@ $observers = [
         'eventname' => '\core\event\course_completed',
         'callback' => '\block_compass\observer::completion_updated',
     ],
-    // The filter panel's vocabulary (ADR-009, decision 5): a field definition or an option list
-    // changes through the field configuration form, never through update_course(), so these
-    // four are what keep the filterfields and coursefields layers honest.
+    // The filter panel's vocabulary: a field definition or an option list changes through the
+    // field configuration form, never through update_course(), so these four are what keep the
+    // filterfields and coursefields layers honest.
     [
         'eventname' => '\core_customfield\event\field_created',
         'callback' => '\block_compass\observer::customfield_changed',

@@ -29,12 +29,13 @@ use core_completion\progress;
 use stdClass;
 
 /**
- * Wrapper of the block_compass/details definition (ADR-001, layer 2b).
+ * Wrapper of the block_compass/details definition.
  *
- * Key: "<userid>_<courseid>", both cast to int here because MUC checks the key
- * charset only under debugging(). Value: the progress percentage as an integer,
- * or null meaning "completion is not available for this user in this course" —
- * a cached answer, distinct from a miss, which MUC reports as false.
+ * Key: "<userid>_<courseid>", both typed int here because MUC checks the simplekeys
+ * charset only under debugging() (cache/classes/helper.php). Value: the progress
+ * percentage as an integer, or null meaning "completion is not available for this
+ * user in this course" — a cached answer, distinct from a miss, which MUC reports
+ * as false.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -53,8 +54,8 @@ final class details {
     }
 
     /**
-     * Kept for callers that purge the definition and then reset the wrapper; there is no
-     * per-request memo to clear (see cache()).
+     * A no-op kept for the tests that purge the definition and then reset the wrapper; there
+     * is no per-request memo to clear (see cache()).
      *
      * @return void
      */

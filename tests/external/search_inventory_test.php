@@ -37,7 +37,7 @@ use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The server-side search of paged mode (ADR-004, "Search").
+ * The server-side search of paged mode.
  *
  * The matching rule itself is pinned in matcher_test and explore_test; what
  * belongs here is the service layer: the guest gate, the key set of every hit
@@ -101,7 +101,10 @@ final class search_inventory_test extends advanced_testcase {
     }
 
     /**
-     * Purge every one of this plugin's definitions: the fully cold state of a fresh install.
+     * Purge coursemeta, categorymeta, details and inventory: the fully cold state of a fresh install.
+     *
+     * coursefields and filterfields are not purged: the budget tests configure no filter field,
+     * and without one neither layer is read.
      *
      * @return void
      */
@@ -230,7 +233,8 @@ final class search_inventory_test extends advanced_testcase {
      * A name holding an ampersand and tag-shaped text is found and arrives as plain text.
      *
      * A bare "<" surviving into PARAM_TEXT would throw invalid_response_exception and kill the
-     * whole response; an "&amp;" would be drawn literally by the client's textContent sink.
+     * whole response; an "&amp;" would be drawn literally by the client's React text, which
+     * escapes for itself.
      *
      * @return void
      */
@@ -278,7 +282,7 @@ final class search_inventory_test extends advanced_testcase {
     }
 
     /**
-     * The custom-field filters narrow the hits, and one outside the allowlist is refused (ADR-009).
+     * The custom-field filters narrow the hits, and one outside the allowlist is refused.
      *
      * A search in paged mode is over the same population as the pages, and a filter the browser
      * cannot apply is not one it may skip. The control is the unfiltered search over the same
@@ -341,7 +345,7 @@ final class search_inventory_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: three reads per request with the user's layers cold and the shared layers warm, plus one.
+     * Three reads per request with the user's layers cold and the shared layers warm, plus one.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * call once so core is warm; purge inventory and details only; reset the per-request memos

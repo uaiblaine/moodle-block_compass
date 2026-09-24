@@ -27,7 +27,7 @@ namespace block_compass\local;
 use core_cache\cache;
 
 /**
- * Wrapper of the block_compass/coursefields definition (ADR-009, decision 5).
+ * Wrapper of the block_compass/coursefields definition.
  *
  * Key: course id. Value: field id => stored intvalue, for the eligible fields the course has a
  * data row for — the column both eligible types use
@@ -40,8 +40,8 @@ use core_cache\cache;
  *
  * A sibling of coursemeta and deliberately not a key inside it: cards.php writes coursemeta
  * entries from tier 1's strip rows, which carry no field columns, and a field-less entry
- * written there would be read here as "no values" — a wrong answer with a green suite. A
- * definition of its own cannot be poisoned by a caller that does not know about it.
+ * written there would be read here as "no values". A definition of its own cannot be
+ * written by a caller that does not know about it.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

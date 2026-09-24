@@ -33,7 +33,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use stdClass;
 
 /**
- * The payload the browser renders once and then only filters (PLAN.md §2, §7; ADR-002).
+ * Tier 3: the payload the browser renders and filters, and the paged-mode rows() and search().
  *
  * Every fixture names its categories and courses so that alphabetical order and creation
  * order disagree: sorting is the whole contract of this class and a fixture whose names
@@ -89,7 +89,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * Empty the four definitions and drop the wrappers' memoised handles.
+     * Empty the plugin's six definitions; the wrappers' reset() methods have no memo left to clear.
      *
      * @return void
      */
@@ -303,7 +303,7 @@ final class explore_test extends advanced_testcase {
 
     /**
      * A course the user archived leaves its category and the total for the archived group,
-     * whose header travels without rows in BOTH modes (ADR-007, decision 2).
+     * whose header travels without rows in both modes.
      *
      * The archived rows never ship in the first payload, so archiving cannot grow the first
      * paint: the group says how many, and rows() answers on first open.
@@ -366,7 +366,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * A dormant course leaves its category for the dormant group, in both modes (ADR-007, decision 2).
+     * A dormant course leaves its category for the dormant group, in both modes.
      *
      * The group comes after the categories and only when it holds something. The headline
      * count is unchanged, because a dormant course is still an active enrolment; what shrinks
@@ -638,7 +638,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * PLAN.md §6.6 and ADR-002: at most three reads per request with the user's layers cold and the shared layers warm.
+     * At most three reads per request with the user's layers cold and the shared layers warm.
      *
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()):
      * build once so core is warm — contexts, the capability check, config; purge inventory and
@@ -678,7 +678,7 @@ final class explore_test extends advanced_testcase {
      * inventory cached and validates it with the stamp statement — one read — then pays the
      * preference load and the filter preload like any request. The hit is proved before its
      * number is trusted: the stored stamp still equals the statement's, so the entry was
-     * validated rather than rebuilt (a stale hit costs the stamp AND the fill, and would
+     * validated rather than rebuilt (a stale hit costs the stamp and the fill, and would
      * exceed the bound), and the payload is identical to the warm build's.
      *
      * @return void
@@ -708,13 +708,13 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * Dormancy and the archived header cost no read of their own (ADR-007, decisions 1 and 2).
+     * Dormancy and the archived header cost no read of their own.
      *
      * The same protocol as the plain build budget, over a fixture that exercises both new
      * paths at once: a dormant course (so the dormant group is built and `dorm` computed) and
      * an archived one (so the archived population is resolved and its header counted). The
      * claim is that the read count is unchanged — the dormancy inputs are in the cached row,
-     * and the archived courses' meta comes back in the SAME get_many() as the active ones. The
+     * and the archived courses' meta comes back in the same get_many() as the active ones. The
      * payload is asserted too, or a cheap call that skipped both groups would pass the bound.
      *
      * @return void
@@ -806,7 +806,7 @@ final class explore_test extends advanced_testcase {
      *
      * @param int $groupid The group.
      * @param int $after Cursor: id of the last row held, 0 for the first page.
-     * @param string $chip all, new or favourites.
+     * @param string $chip all, new, favourites or pending.
      * @param string $sort name or recent.
      * @param int|null $pagesize Rows per page; null for the default.
      * @return array explore::rows()'s answer.
@@ -885,7 +885,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: the mode is paged one course above inventory_max, full at it.
+     * The mode is paged one course above inventory_max, full at it.
      *
      * The size is injected, so the threshold is exercised on five courses rather than 250. The
      * paged payload keeps the courses key on every group, empty: get_inventory's return
@@ -982,7 +982,7 @@ final class explore_test extends advanced_testcase {
      *
      * Five courses at two per page: two, two, one, hasmore true, true, false, each cursor the
      * id of the last row shipped. The three pages concatenated are full mode's rows for the
-     * group, byte for byte, so the client can render either through the same template.
+     * group, byte for byte, so the client can render either through the same component.
      *
      * @return void
      */
@@ -1013,7 +1013,7 @@ final class explore_test extends advanced_testcase {
         $this->assertSame($fullrows, array_merge($first['rows'], $second['rows'], $third['rows']));
         $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm'], array_keys($first['rows'][0]));
 
-        // The default page size holds all five; the constant is the ADR's hundred.
+        // The default page size of a hundred rows holds all five.
         $whole = $this->rows($alpha);
         $this->assertCount(5, $whole['rows']);
         $this->assertFalse($whole['hasmore']);
@@ -1177,7 +1177,7 @@ final class explore_test extends advanced_testcase {
 
         $this->assertSame(['Kept course'], $this->row_names($this->rows($alpha)));
         $this->assertSame([$kept], $this->row_ids($this->search('course')), 'a search is over the courses in use');
-        // The archived group is the one way to the course (ADR-007, decision 2).
+        // The archived group is the one way to the course.
         $this->assertSame(['Archived course'], $this->row_names($this->rows(dormancy::GROUP_ARCHIVED)));
 
         // Control: the two courses differ by the preference and by nothing else.
@@ -1381,17 +1381,16 @@ final class explore_test extends advanced_testcase {
 
     /**
      * An application awaiting approval is a tier 3 row in its own category, carrying pend and
-     * nothing that an active course carries (ADR-009, decision 3) — and it is derived every way.
+     * nothing that an active course carries — and it is derived every way.
      *
      * Listed with pend: an application as submitted (status 1) and a deferred one (2), both new
      * enough and never opened, so a rule that read them as "new" or as "dormant" would show. Not
-     * listed: an apply row past its timeend, a suspended row on another method — both exactly as
-     * today — and a course holding an active manual enrolment beside an application, which is one
-     * NORMAL row, with the control that the pending pass alone over the same entry does return the
-     * course, so it is the exclusion and not the fixture. The favourites chip excludes a starred
-     * application; the pending chip keeps only applications; the group and the headline count them;
-     * and with the feature off every application is absent from every answer, which is the setting
-     * gate of decision 7.
+     * listed: an apply row past its timeend, a suspended row on another method, and a course
+     * holding an active manual enrolment beside an application, which is one normal row, with the
+     * control that the pending pass alone over the same entry does return the course, so it is the
+     * exclusion and not the fixture. The favourites chip excludes a starred application; the
+     * pending chip keeps only applications; the group and the headline count them; and with
+     * enable_pending off every application is absent from every answer.
      *
      * @return void
      */
@@ -1465,7 +1464,7 @@ final class explore_test extends advanced_testcase {
         sort($expectedhits);
         $this->assertSame($expectedhits, $found);
 
-        // The setting gate: off, every application is absent from every answer, as today.
+        // The setting gate: off, every application is absent from every answer.
         $off = $this->build_with(false);
         $this->assertSame(['Alpha faculty'], $this->group_names($off));
         $this->assertSame(2, $off['total']);
@@ -1532,7 +1531,7 @@ final class explore_test extends advanced_testcase {
      * Two custom fields and five courses, with the values that make every filtering case decidable.
      *
      * modality (select: Online, On campus, Hybrid) and certified (checkbox). Alfa is Online and
-     * certified; Bravo is On campus and certified; Charlie is Online, not certified; Delta has NO
+     * certified; Bravo is On campus and certified; Charlie is Online, not certified; Delta has no
      * modality and is certified; Echo has neither value. A third field, level, exists and is
      * eligible but not configured, and a text field never is.
      *
@@ -1565,7 +1564,7 @@ final class explore_test extends advanced_testcase {
 
     /**
      * Full mode ships the fields and each row's cf; paged mode applies the same selection and
-     * returns the same course ids (ADR-009, decision 5) — the parity that keeps the two modes
+     * returns the same course ids — the parity that keeps the two modes
      * from drifting, the way the matcher fixture pins the search rule.
      *
      * The expectation is computed from full mode's own cf pairs, the way the client would filter
@@ -1690,12 +1689,12 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * The field values and the applications add no read to a build with the shared layers warm
-     * (ADR-009, decisions 3 and 5), and the two new layers each cost one read when cold.
+     * The field values and the applications add no read to a build with the shared layers warm,
+     * and the two new layers each cost one read when cold.
      *
      * Same protocol as the plain build budget, over a fixture that exercises both additions: two
      * fields configured with values on every row, and one application. Warm, the bound is the
-     * three of ADR-004; the payload is asserted too, or a cheap call that skipped the values or
+     * plain build's three; the payload is asserted too, or a cheap call that skipped the values or
      * the application would pass the bound.
      *
      * @return void
@@ -1721,7 +1720,7 @@ final class explore_test extends advanced_testcase {
         $this->assertSame([0, 1, 1, 1], $rows[$courses['Alfa']]['cf']);
         $this->assertLessThanOrEqual(3, $reads, "a warm build with fields and an application cost {$reads} reads; the budget is 3");
 
-        // Cold: the coursefields fill is exactly one read more; the vocabulary is core's handler.
+        // Cold coursefields: its fill costs at most one read more; the filterfields entry stays warm.
         cache::make('block_compass', 'coursefields')->purge();
         $this->plugingen->simulate_new_request();
         $meter = budget::start();
@@ -1732,7 +1731,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: a page costs at most three reads with the user layers cold and the shared layers warm.
+     * A page costs at most three reads with the user layers cold and the shared layers warm.
      *
      * Protocol as for build(): one call to warm core, purge inventory and details, reset the
      * per-request memos, measure the second call. Accounting: the inventory fill, the preference
@@ -1782,7 +1781,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * ADR-004: a search costs at most three reads with the user layers cold and the shared layers warm.
+     * A search costs at most three reads with the user layers cold and the shared layers warm.
      *
      * Same protocol and accounting as the page: fill, preferences, the filter preload of the
      * matched contexts. Every hit's group id comes from the warm category layer for free.

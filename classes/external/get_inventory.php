@@ -33,24 +33,25 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * The light list behind tier 3 (PLAN.md §2): one row per active course, grouped.
+ * The light list behind tier 3: one row per listed course, grouped.
  *
  * Two modes, decided server-side from the number of courses full mode would
- * ship (ADR-004): up to inventory_max the response is 'full' and every group
- * carries its rows; above it the response is 'paged', every group carries an
- * empty courses list — the key stays, execute_returns() requires it — and the
- * client fetches rows through get_inventory_rows and searches through
- * search_inventory. Rows carry short keys — id, name, opened, new, fav, dorm,
+ * ship: up to inventory_max the response is 'full' and every group carries its
+ * rows; above it the response is 'paged', every group carries an empty courses
+ * list — the key stays, execute_returns() requires it — and the client fetches
+ * rows through get_inventory_rows and searches through search_inventory. The
+ * archived group is a header alone in both modes; its rows always come through
+ * get_inventory_rows. Rows carry short keys — id, name, opened, new, fav, dorm,
  * and pend and cf only when they apply — because each repeats once per course
- * in a payload the client holds whole: measured at 34 172 bytes raw at the
- * 250-course threshold with every row an application carrying three field
- * values, the worst case the feature produces (ADR-009, fact 15). The top-level
- * fields array names the custom-field chip groups, so they exist in both modes
- * before any group opens. Read-only, current user
+ * in a payload the client holds whole: the worst case, 250 rows each carrying
+ * three field values, must stay under 40 000 bytes
+ * ({@see \block_compass\local\config::FILTER_FIELDS_MAX}).
+ * The top-level fields array names the custom-field chip groups, so they exist
+ * in both modes before any group opens. Read-only, current user
  * only; three database reads per request in either mode with the user's
  * inventory cold and the shared layers warm (fill, preferences, filters), three
  * on a valid hit (the stamp instead of the fill), one more per cold shared
- * layer — at most six fully cold (ADR-002) — plus the one read
+ * layer — at most six with every plugin cache cold — plus the one read
  * validate_context() costs here, the user context, since the context cache
  * starts empty every request.
  *

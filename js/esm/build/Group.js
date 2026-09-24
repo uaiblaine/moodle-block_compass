@@ -3,9 +3,9 @@ import{useCallback as C,useEffect as E,useRef as g}from"react";import B from"./R
  * One category group of tier 3: a disclosure holding its rows.
  *
  * The chevron in the summary is core's own pair, the two a course section header draws,
- * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph
- * (ADR-010, decision 7). The disclosure stays a native details/summary: core's button and its
- * aria-expanded exist for a div that cannot disclose on its own.
+ * shown and hidden by core's icons-collapse-expand rule with less padding around the glyph.
+ * The disclosure stays a native details/summary: core's button and its aria-expanded exist
+ * for a div that cannot disclose on its own.
  *
  * @module     block_compass/Group
  * @copyright  2026 Anderson Blaine

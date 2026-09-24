@@ -14,13 +14,12 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The list/cards switch of tier 3: two icon-only buttons, one pressed (ADR-009, decision 6).
+ * The list/cards switch of tier 3: two icon-only buttons, one pressed.
  *
- * Only the appearance changed from the two text buttons of R4 - the mechanism is untouched, and
- * each button keeps an aria-label carrying the word its text carried, so a Behat step that clicks
- * the "Cards" button still resolves: Moodle matches a button by its aria-label too
+ * Each button's aria-label carries the view's name, so a Behat step that clicks the "Cards"
+ * button resolves: Moodle matches a button by its aria-label too
  * (lib/behat/classes/partial_named_selector.php). The icons are core's own list and grid glyphs,
- * server-rendered and shipped as props because there is no pix helper for ESM (ADR-006).
+ * server-rendered and shipped as props because there is no pix helper for ESM.
  *
  * @module     block_compass/ViewToggle
  * @copyright  2026 Anderson Blaine
