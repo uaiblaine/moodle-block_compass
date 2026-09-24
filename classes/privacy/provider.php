@@ -36,6 +36,15 @@ use core_privacy\local\request\writer;
  * Everything else it shows is core's — courses, enrolments, favourites, the archived-course
  * preferences of the Course overview block — and stays core's to export and to delete.
  *
+ * Two caches keyed by user hold copies derived from that core data: the inventory (each
+ * enrolment's dates and status, the last access, the star) and the progress per course. They
+ * are not exported, since they say nothing core's own export does not. When an account is
+ * deleted, {@see \block_compass\observer::user_deleted()} drops the user's inventory entry and
+ * the progress entries of every course it lists. Whatever the observer cannot reach is bounded
+ * by the TTLs in db/caches.php: an hour for progress in a course no cached inventory entry
+ * lists, a day for an inventory entry left behind by any deletion that does not go through
+ * delete_user().
+ *
  * Both interfaces are needed: a component counts as compliant only when it implements the
  * metadata provider and a data provider ({@see \core_privacy\manager::component_is_compliant()}),
  * and user_preference_provider is only the second of those. No deletion method is owed — the

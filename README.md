@@ -175,13 +175,13 @@ beside them (`CLAUDE.md` §6.6):
 
 | Endpoint | Reads per request | Payload |
 |---|---|---|
-| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold — plus 1 at the web-service layer (the user-context lookup) | ≤ 20 KB |
+| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup) | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer | ≤ 40 KB |
 | `get_inventory` (paged mode, headers) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 12 KB (≈ 115 bytes per row) |
 | `search_inventory` (50 hits) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 7 KB (≈ 115 bytes per row plus ≈ 18 for the group id) |
 | `get_card_details` (24 ids) | 1 when every answer is cached or untracked; + 1 + completion for the courses that must be computed | ≤ 10 KB |
-| pre-warming task, per user | 1 with the shared layers warm, up to 4 cold — plus 1 selection read per batch of 200 and 1 count per run | n/a |
+| pre-warming task, per user | 1 with the shared layers warm, up to 4 cold — plus a fixed overhead per run: 1 count, 1 selection read per batch of 200, 1 per plugin-configuration write and up to 2 reloads of the plugin's configuration (7 for a sweep started and finished in one batch) | n/a |
 
 So paged mode costs, per learner interaction, one request of at most 3 reads and
 12 KB to open a group or to fetch its next 100 rows, and one of at most 3 reads
@@ -425,20 +425,28 @@ contains the 2.1 AA the plan asked for. It is enforced rather than described.
   accessible name, the run reddened with three `button-name` violations, and went
   green again when the name was restored.
 - **`tests/local/accessibility_rules_test.php` reads what axe cannot**, scanning
-  the client sources and the stylesheet for eighteen rules: that the scan found its
-  sources at all, that every image states an `alt` attribute, that no positive
+  the client sources and the stylesheet for twenty-four rules, once it has checked
+  that the scan found its sources at all and that its tag reader reads a tag to its
+  own end: that every image states an `alt` attribute, that no positive
   `tabindex` exists anywhere, that the stylesheet never removes an outline
   without replacing it, that every icon-only button names itself (the archive
   control, the star, the list/cards toggle and the Filter button), that every
   `role="group"` carries a name (the platters included), that the heading ladder
   follows the block title, that brand-coloured text goes through the paired
-  token, that the archive control declares a minimum target box, that a list
+  token and its dark-mode override is scoped to `html` or `body`, that the archive
+  control declares a minimum target box, that a list
   row wraps instead of overflowing, that every course name is clamped to
   two lines with the whole name in a `title` attribute, that nothing is written
   in capitals, that the cards grid counts its columns in the stylesheet and the
   client alike, that the card's star sits on a contrast disc in one corner and
   the badge in the other, that a control which disables itself while busy stays
-  focusable, that icon-only glyphs carry no margin, that the accordion's
+  focusable (the reload control, *Try again*, the star, *Clear filters* and
+  *Archive all*), that an archive puts the keyboard back even when its group has
+  left the page, that opening the full course list takes the keyboard once per
+  press, that a star set in the strips reaches the full list, that notifications
+  go through the one module that cannot fail unhandled, that a string's every
+  placeholder is filled, that every class the stylesheet styles is rendered, that
+  icon-only glyphs carry no margin, that the accordion's
   chevron flows inline, and that the page's hidden title is hidden from sight
   only — core's `visually-hidden` on the `<h1>`, and no `display: none` in the
   no-title rules. Each rule carries a guard asserting it had something to
@@ -519,7 +527,10 @@ provider and `user_preference_provider`.
 
 Everything else it shows belongs to core and stays core's to export and to
 delete. Courses, enrolments and progress are read, never copied: what the plugin
-keeps of them are derived, expiring copies in MUC caches. Two rows a learner's
+keeps of them are derived, expiring copies in MUC caches. When an account is
+deleted, the plugin drops that user's cached course list and progress at once,
+from an observer of core's `user_deleted` event; anything the observer cannot reach
+expires with the cache (within an hour for progress, a day for the course list). Two rows a learner's
 actions do create are core's own and are written through core's own services:
 the favourite star (the `core_favourites` subsystem, component `core_course`,
 itemtype `courses`, the same star the Course overview block sets) and the
@@ -546,7 +557,7 @@ Testing
   shows the block alone and serves as the start page. Each of the five carries
   core's axe step; the second runs with the block title hidden, so that
   configuration is measured too. Logic lives in PHPUnit.
-- **111 mutation gates.** `mutations/gates.conf` names one guard per line together
+- **More than 130 mutation gates.** `mutations/gates.conf` names one guard per line together
   with the test that must redden when it is broken; `mdl mutate` breaks each in
   turn and runs the suite. A guard that reddens nothing is the finding.
 - **The matrix**: `MOODLE_502_STABLE` on PHP 8.3 and 8.4, against PostgreSQL and

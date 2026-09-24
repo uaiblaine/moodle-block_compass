@@ -26,18 +26,19 @@
  */
 
 /**
- * Put a value into a language string's placeholder.
+ * Put a value into every placeholder of a language string.
  *
- * The replacement is a function rather than a string: replace() reads "$&", "$'" and "$1" in
- * a replacement string as substitution patterns, so a course name holding one of them would
- * come out mangled. A function's return is inserted verbatim.
+ * Every occurrence, as core_string_manager_standard::get_string() replaces them in PHP. Split
+ * and join rather than replace(): with a string pattern replace() stops at the first one, and
+ * join inserts the value verbatim, where a replacement string would read "$&", "$'" or "$1" in
+ * a course name as a substitution pattern.
  *
  * @param {string} template The translated string, possibly carrying the placeholder.
  * @param {string} value What replaces it.
  * @returns {string} The filled string, or the empty string when the template is missing.
  */
 export const fill = (template: string | undefined, value: string): string =>
-    (template || '').replace('{$a}', () => value);
+    (template || '').split('{$a}').join(value);
 
 /**
  * Put several values into a language string's object placeholders.

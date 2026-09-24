@@ -64,7 +64,8 @@ the one page where no check is needed, because the page is the block.
    `block_compass.php:102-103` only instantiates it and renders it through the core renderer.
    A page can do the same two lines.
 6. **The stylesheet is scoped by one class.** Every rule in `styles.css` is written under
-   `.block_compass` (the tokens on `.block_compass, .compass-dialogue`, `styles.css:8-9`), which
+   `.block_compass` (the tokens on `.block_compass, .compass-dialogue`, `styles.css:8-9`;
+   *amended 2026-09-24: on `.block_compass` alone — see amendment 5*), which
    core puts on the block's `<section>` through `block_base::html_attributes()`
    (`blocks/moodleblock.class.php:434-450`). Nothing selects on `.block`, `.card`,
    `data-block` or `data-instance-id`. A page reproduces the one class on a wrapper of its own and
@@ -540,3 +541,17 @@ hidden `<h1>`'s class. Docs: README settings row and section, CHANGELOG, CLAUDE.
 technology, or remove it with `set_heading('')`; (2) the reload control in the page's top-right
 corner, off its own row; (3) leave the theme's 47 px; (4) the name `hide_page_title`, mirroring
 `hide_block_title`. Answered: hide; yes; yes; yes — the decision above stands as written.
+
+## Amendment 5 (2026-09-24): the dialogue selector is gone
+
+Fact 6 quotes the token rule as `.block_compass, .compass-dialogue`. No template or component
+rendered `.compass-dialogue`: the one dialogue the client opens is core's save and cancel
+confirmation, which the theme paints. From version 2026092401 the selector is removed from the
+token rule and from both arms of the dark-mode override, and the tokens are declared on
+`.block_compass` alone; a surface the plugin painted inside something core relocates would need
+the declaration repeated on its own root. The fact itself is unchanged — every rule is still
+written under `.block_compass`, so the page's wrapper inherits them. A static rule,
+`accessibility_rules_test::test_every_styled_class_is_rendered`, now fails any `compass-*`
+class the stylesheet styles and nothing renders (gate `css_no_dead_selector`); it also found
+`.compass-row-star`, dead since the tier 3 star became the shared `Star` component, and removed
+with it.

@@ -135,12 +135,23 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
                     </div>
                 );
             })}
+            {/* Never the disabled attribute: the press that releases the last filter would disable
+                the focused button in the render it causes, dropping the keyboard to the body (see
+                Reload.tsx). aria-disabled says it, and the handler refuses the press. Bootstrap's
+                disabled class is kept for its look: its pointer-events: none passes a click to the
+                panel beneath, which has no handler and no stretched link (see Star.tsx). */}
             <div>
                 <button
                     type="button"
-                    className="btn btn-sm btn-outline-secondary rounded-pill compass-clear"
-                    disabled={pressed === 0}
-                    onClick={onClear}
+                    className={pressed === 0
+                        ? 'btn btn-sm btn-outline-secondary rounded-pill compass-clear disabled'
+                        : 'btn btn-sm btn-outline-secondary rounded-pill compass-clear'}
+                    aria-disabled={pressed === 0 || undefined}
+                    onClick={() => {
+                        if (pressed > 0) {
+                            onClear();
+                        }
+                    }}
                 >
                     {labels.clearfilters}
                 </button>

@@ -32,7 +32,6 @@ defined('MOODLE_INTERNAL') || die();
 $tasks = [
     [
         'classname' => '\block_compass\task\warm_active_users',
-        'blocking' => 0,
         'minute' => 'R',
         'hour' => '4',
         'day' => '*',

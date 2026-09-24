@@ -73,12 +73,19 @@ final class prewarm {
      * ends the sweep); per user 1 (the fill) with the shared layers warm — up to 4 cold (fill,
      * coursemeta, categorymeta for the courses' categories, categorymeta for the group ancestors),
      * 2 for a user with no enrolment at all (an empty fill runs the stamp statement,
-     * inventory::fill()); and 1 per config write, because set_config() reads the row before it
-     * decides between insert and update. The config writes are: the window once per sweep, the
-     * cursor after every full batch and at a budget stop, and at completion the cursor reset plus
-     * the completion time — so a sweep that completes in one batch writes three times. Bypassing
-     * set_config() to save those reads would skip the config cache invalidation and leave the next
-     * run reading a stale cursor.
+     * inventory::fill()); 1 per config write, because set_config() reads the row before it decides
+     * between insert and update; and 1 per reload of the plugin's config bundle. The config writes
+     * are: the window when a run starts a sweep (or finds the window missing), the cursor after
+     * every full batch and at a budget stop, and at completion the cursor reset plus the completion
+     * time. Each write invalidates the bundle, even with the value unchanged, because set_config()
+     * compares the stored string with the int it is given strictly. So the run's first get_config()
+     * reloads it unless something has read it since the previous run's last write, and a run that
+     * starts a sweep reloads it once more, in config::group_depth() after the window's write;
+     * nothing reads it after the other writes, so they cost no reload within the run. A run that
+     * starts a sweep and completes it in one batch therefore costs 7 reads beyond its users: 2
+     * reloads, 3 writes, the count and the selection, the bound prewarm_test's budget test asserts.
+     * Bypassing set_config() to save those reads would skip the config cache invalidation and leave
+     * the next run reading a stale cursor.
      *
      * @param int|null $batchsize Users per selection; null for BATCH_SIZE.
      * @param int|null $budgetseconds Seconds before the run stops between users; null for the setting.

@@ -53,13 +53,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(category_meta::class)]
 final class category_meta_test extends advanced_testcase {
     /**
-     * Purge the definition and drop anything the wrapper memoises.
+     * Purge the definition.
      *
      * @return void
      */
     private function purge_category_meta_cache(): void {
         cache::make('block_compass', 'categorymeta')->purge();
-        category_meta::reset();
     }
 
     /**

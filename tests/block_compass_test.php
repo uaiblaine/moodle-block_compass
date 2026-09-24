@@ -140,7 +140,7 @@ final class block_compass_test extends advanced_testcase {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
         }
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
-        $this->assertArrayNotHasKey('hide', $props['icons'], 'the eye is gone (ADR-010, decision 2)');
+        $this->assertArrayNotHasKey('hide', $props['icons'], 'the archive control is drawn with the archive boxes, not the eye');
         // The category line and the remembered toolbar.
         $this->assertTrue($props['showcategory']);
         // Where the block is, as a heading level: under core's block title, an h3, so 4.

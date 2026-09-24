@@ -29,14 +29,17 @@ use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use block_compass\local\filter_fields;
+use block_compass\local\inventory;
 use core\event\course_category_deleted;
 use core\event\course_category_updated;
 use core\event\course_deleted;
 use core\event\course_updated;
+use core\event\user_deleted;
 
 /**
- * Per-key cache invalidation: one delete per event, except the rare custom field definition
- * events, which purge the two field layers ({@see observer::customfield_changed()}).
+ * Per-key cache invalidation: each event deletes the keys it affects, never a whole definition,
+ * except the rare custom field definition events, which purge the two field layers
+ * ({@see observer::customfield_changed()}).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -123,5 +126,25 @@ final class observer {
             return;
         }
         details::delete((int) $event->relateduserid, (int) $event->courseid);
+    }
+
+    /**
+     * An account was deleted: drop what the two user layers hold about it.
+     *
+     * The inventory entry is read before it is dropped, because it is the only list of the
+     * details keys the user can have: those keys are "<userid>_<courseid>" and a cache store
+     * cannot delete by prefix. delete_user() removes the enrolments before it raises this event
+     * (lib/moodlelib.php), so the database no longer knows the courses either. Progress cached for
+     * a course the entry does not list — no entry cached, or one that expired first — is out of
+     * reach here and lapses with the details TTL.
+     *
+     * @param user_deleted $event The event; objectid is the deleted user's id.
+     * @return void
+     */
+    public static function user_deleted(user_deleted $event): void {
+        $userid = (int) $event->objectid;
+        $courseids = inventory::cached_courseids($userid);
+        inventory::delete($userid);
+        details::delete_many($userid, $courseids);
     }
 }

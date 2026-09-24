@@ -37,7 +37,6 @@ export type CourseCard = {
     hascompletion: boolean,
     progress: number | null,
     pending: boolean,
-    nodata: boolean,
     iscomplete: boolean,
     isfavourite: boolean,
     isnew: boolean,
@@ -98,6 +97,14 @@ export type RowDetail = {
 
 /** Which attempt the repository's bounded retry is on. */
 export type Reconnecting = {attempt: number, attempts: number};
+
+/**
+ * A star toggled in tier 1, handed to tier 3 so that the rows it holds for the course agree.
+ *
+ * A new object per toggle, so that one repeating the previous toggle's values is still applied:
+ * tier 3's own star may have changed the row in between.
+ */
+export type StarChange = {courseid: number, favourite: boolean};
 
 /**
  * Tier 3's toolbar as it is now, kept by Block across a reload's remount, and the JSON of the

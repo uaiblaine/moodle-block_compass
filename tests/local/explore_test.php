@@ -89,7 +89,7 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * Empty the plugin's six definitions; the wrappers' reset() methods have no memo left to clear.
+     * Empty the plugin's six definitions.
      *
      * @return void
      */
@@ -100,9 +100,6 @@ final class explore_test extends advanced_testcase {
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'details')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -116,7 +113,6 @@ final class explore_test extends advanced_testcase {
     private function purge_user_caches(): void {
         cache::make('block_compass', 'inventory')->purge();
         cache::make('block_compass', 'details')->purge();
-        details::reset();
     }
 
     /**
@@ -553,7 +549,6 @@ final class explore_test extends advanced_testcase {
 
         $DB->delete_records('course_categories', ['id' => $stale]);
         cache::make('block_compass', 'categorymeta')->purge();
-        category_meta::reset();
 
         $after = $this->build(1);
 
@@ -1085,6 +1080,87 @@ final class explore_test extends advanced_testcase {
         $this->assertCount(5, $all);
         $this->assertNotContains($foreign, $all);
         $this->assertNotContains($elsewhere, $all);
+    }
+
+    /**
+     * Names the collator calls equal are paged in course id order, the same on every request.
+     *
+     * "Unit 1 course" and "Unit 01 course" are different bytes and one name to core_collator's
+     * natural sort, which pads every run of digits before comparing. The course layer hands the
+     * population over in the order it was asked for when warm and in the database's order when
+     * cold, so an order that leaves such a pair to the input order can swap it between two
+     * requests, and a page boundary between them then repeats one course and loses the other.
+     * The course created second is enrolled first, so the warm population arrives with the higher
+     * id ahead of the lower; the lower id must still come first, page after page, in the name and
+     * recent sorts and in the search, on the first request and on the ones after it.
+     *
+     * Changes that must make it fail: dropping the course id tie-break from explore::order(), or
+     * ordering with core_collator alone, which keeps no order between names it calls equal.
+     *
+     * @return void
+     */
+    public function test_names_the_collator_calls_equal_are_paged_in_course_id_order(): void {
+        $alpha = (int) $this->tree()['alpha']->id;
+        $lower = (int) $this->course_in($alpha, 'Unit 1 course')->id;
+        $higher = (int) $this->course_in($alpha, 'Unit 01 course')->id;
+        $this->assertLessThan($higher, $lower);
+        $this->plugingen->enrol_at($this->userid, $higher, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $lower, self::NOW - 100 * DAYSECS);
+
+        foreach (['first request', 'second request'] as $pass) {
+            $first = $this->rows($alpha, 0, 'all', 'name', 1);
+            $second = $this->rows($alpha, $first['after'], 'all', 'name', 1);
+            $this->assertSame([$lower], $this->row_ids($first), "{$pass}: the first page");
+            $this->assertTrue($first['hasmore'], $pass);
+            $this->assertSame($lower, $first['after'], $pass);
+            $this->assertSame([$higher], $this->row_ids($second), "{$pass}: the second page");
+            $this->assertFalse($second['hasmore'], $pass);
+            $this->assertSame([$lower, $higher], $this->row_ids($this->rows($alpha, 0, 'all', 'recent')), "{$pass}: recent");
+            $this->assertSame([$lower, $higher], $this->row_ids($this->search('unit')), "{$pass}: search");
+        }
+    }
+
+    /**
+     * A run of digits in a name orders by its value, on the server and in the browser's flat list.
+     *
+     * "Unit 10 course" is created first, so the id order and a character-by-character comparison
+     * both put it ahead of "Unit 2 course"; the natural order puts it after. The server orders a
+     * group's rows through core_collator and the pages and the search through order(); the client
+     * sorts its flat list itself, and nothing runs the client in a test, so its comparator is read
+     * as text: every localeCompare() in the client sources compares digit runs by value.
+     *
+     * Changes that must make it fail: dropping the digit padding from explore::sort_key(), or the
+     * numeric option from the flat-list comparator in Explore.tsx.
+     *
+     * @return void
+     */
+    public function test_a_number_in_a_name_orders_by_value_on_the_server_and_in_the_client(): void {
+        $alpha = (int) $this->tree()['alpha']->id;
+        foreach (['Unit 10 course', 'Unit 2 course'] as $name) {
+            $this->plugingen->enrol_at($this->userid, (int) $this->course_in($alpha, $name)->id, self::NOW - 100 * DAYSECS);
+        }
+        $natural = ['Unit 2 course', 'Unit 10 course'];
+
+        $this->assertSame($natural, $this->course_names($this->build(1)['groups'][0]), 'full mode');
+        $this->assertSame($natural, $this->row_names($this->rows($alpha)), 'a page');
+        $this->assertSame($natural, $this->row_names($this->search('unit')), 'the search');
+
+        $root = dirname(__DIR__, 2);
+        $calls = 0;
+        foreach (array_merge(glob($root . '/js/esm/src/*.ts'), glob($root . '/js/esm/src/*.tsx')) as $path) {
+            // Each call with its whole argument list, parentheses matched recursively.
+            preg_match_all('/\.localeCompare(\((?:[^()]++|(?1))*+\))/', file_get_contents($path), $matches);
+            foreach ($matches[1] as $arguments) {
+                $calls++;
+                $this->assertStringContainsString(
+                    '{numeric: true}',
+                    $arguments,
+                    basename($path) . ": a name comparison that puts 'Unit 10' before 'Unit 2': localeCompare{$arguments}"
+                );
+            }
+        }
+        // Vacuity guard: the flat list's comparator must be among the calls read.
+        $this->assertGreaterThanOrEqual(1, $calls, 'no localeCompare() found in the client sources: has the flat-list sort moved?');
     }
 
     /**
@@ -1650,6 +1726,41 @@ final class explore_test extends advanced_testcase {
         }
         // A configured shortname that is not eligible is dropped, not answered with an empty group.
         $this->assertSame(['certified'], array_column($this->build_with(false, ['code', 'gone', 'certified'])['fields'], 'key'));
+    }
+
+    /**
+     * A field added to filter_fields after the values were cached is answered without any purge.
+     *
+     * The coursefields layer keys its entries by course alone, and changing the setting fires no
+     * event, so an entry filled for the fields configured at the time would go on answering once
+     * another field is configured, and every course would take that field's default instead of
+     * its value. The fixture's level field is eligible but not configured at first, and Alfa
+     * holds Advanced (2) for it: after the first build the cached entry already carries it, and
+     * the build, page and search that configure level read it from there.
+     *
+     * Changes that must make it fail: filling the layer with the configured fields' ids instead
+     * of every eligible field's id in explore::values().
+     *
+     * @return void
+     */
+    public function test_a_field_configured_after_the_values_were_cached_is_answered_without_a_purge(): void {
+        [$courses, , $alpha] = $this->field_fixture();
+        $levelid = (int) filter_fields::eligible()['level']['id'];
+
+        $narrow = $this->build_with(false, ['modality']);
+        $this->assertSame([0, 1], $this->rows_by_id($narrow)[$courses['Alfa']]['cf']);
+        $entry = cache::make('block_compass', 'coursefields')->get($courses['Alfa']);
+        $this->assertIsArray($entry, 'the values are cached, so the next answers read this entry');
+        $this->assertSame(2, $entry[$levelid] ?? null, 'the entry holds the eligible field nobody configured yet');
+
+        // Configure level as well, with no purge and no event in between.
+        $fields = ['modality', 'level'];
+        $wide = $this->rows_by_id($this->build_with(false, $fields));
+        $this->assertSame([0, 1, 1, 2], $wide[$courses['Alfa']]['cf']);
+        $this->assertSame([0, 2], $wide[$courses['Bravo']]['cf'], 'no level value: the empty slot is no chip');
+        $advanced = [['field' => 'level', 'value' => 2]];
+        $this->assertSame([$courses['Alfa']], $this->row_ids($this->rows_with(false, $alpha, 'all', $advanced, $fields)));
+        $this->assertSame([$courses['Alfa']], $this->row_ids($this->search_with(false, 'course', $advanced, $fields)));
     }
 
     /**

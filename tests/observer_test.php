@@ -31,26 +31,29 @@ use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use block_compass\local\filter_fields;
+use block_compass\local\inventory;
 use completion_completion;
 use completion_info;
 use core\context\course as context_course;
 use core\event\course_viewed;
+use core\event\user_updated;
 use core_cache\cache;
 use core_course_category;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Course, category and completion events delete only the affected keys, never a whole definition.
+ * Course, category, completion and account events delete only the affected keys, never a whole
+ * definition.
  *
  * Only a custom field change purges, and only the two field layers. Every case but the last
  * raises the event through the core code that fires it (update_course(), delete_course(),
  * core_course_category's update(), change_parent(), delete_full() and delete_move(),
  * completion_info::update_state(), completion_completion::mark_complete(), the custom field
- * handler) rather than calling the observer, so it also pins the db/events.php entry, which a
- * direct call would not notice missing. Each case carries a control that must survive, an entry
- * the delete had no business touching, so an observer that purged the definition fails.
- * Absence in the course, category and course-fields layers is read from the raw definition:
- * their wrappers' get_many() refill a miss from the database and would hide it.
+ * handler, delete_user()) rather than calling the observer, so it also pins the db/events.php
+ * entry, which a direct call would not notice missing. Each case carries a control that must
+ * survive, an entry the delete had no business touching, so an observer that purged the
+ * definition fails. Absence in the course, category, course-fields and inventory layers is read
+ * from the raw definition: their wrappers refill a miss from the database and would hide it.
  *
  * @package    block_compass
  * @category   test
@@ -73,7 +76,7 @@ final class observer_test extends advanced_testcase {
     }
 
     /**
-     * Start every case cold: MUC is reset between tests, so the wrappers must forget theirs too.
+     * Start every case cold: MUC is reset between tests, so every definition is purged.
      *
      * @return void
      */
@@ -81,14 +84,21 @@ final class observer_test extends advanced_testcase {
         parent::setUp();
 
         $this->resetAfterTest();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
+        cache::make('block_compass', 'inventory')->purge();
+    }
+
+    /**
+     * The raw inventory layer, for asserting absence without refilling it.
+     *
+     * @return cache
+     */
+    private function inventory(): cache {
+        return cache::make('block_compass', 'inventory');
     }
 
     /**
@@ -536,26 +546,92 @@ final class observer_test extends advanced_testcase {
     }
 
     /**
-     * An event naming no user deletes nothing.
+     * Deleting an account drops its inventory entry and the progress of every course it lists.
      *
-     * Both registered events always carry relateduserid, so no real path
-     * exercises the guard; the direct call is the only way to prove it is not
-     * turning a course-wide event into a delete of an arbitrary key.
+     * delete_user() raises user_deleted after it has removed the enrolments, so the observer
+     * learns the courses from the cached entry alone. The precondition that gives the absence a
+     * meaning: before the delete, each user's entry lists both courses and each progress entry is
+     * there. The control is a second user enrolled in the same courses, whose entry and progress
+     * survive, so a delete keyed on anything but the deleted user's id, or a purge, fails. The
+     * account row marked deleted proves the event fired.
+     *
+     * Changes that must make it fail: the user_deleted entry removed from db/events.php; the
+     * observer's inventory delete or its details delete removed; the entry read after it is dropped.
      *
      * @return void
      */
-    public function test_completion_updated_ignores_an_event_that_names_no_user(): void {
+    public function test_deleting_an_account_drops_its_inventory_entry_and_the_progress_it_lists(): void {
+        global $DB;
+
         $gen = $this->getDataGenerator();
-        $course = $gen->create_course();
-        $user = $gen->create_user();
-        $courseid = (int) $course->id;
-        $userid = (int) $user->id;
+        $first = (int) $gen->create_course()->id;
+        $second = (int) $gen->create_course()->id;
+        $doomed = $gen->create_user();
+        $doomedid = (int) $doomed->id;
+        $bystanderid = (int) $gen->create_user()->id;
+        foreach ([$doomedid, $bystanderid] as $userid) {
+            $gen->enrol_user($userid, $first);
+            $gen->enrol_user($userid, $second);
+            inventory::fill($userid);
+            details::set($userid, $first, 10);
+            details::set($userid, $second, 20);
+            $this->assertEqualsCanonicalizing([$first, $second], inventory::cached_courseids($userid));
+            $this->assertSame(10, details::get_many($userid, [$first])[$first]);
+            $this->assertSame(20, details::get_many($userid, [$second])[$second]);
+        }
+
+        delete_user($doomed);
+
+        $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
+        $this->assertFalse($this->inventory()->get($doomedid), 'the deleted account kept its inventory entry');
+        $this->assertFalse(details::get_many($doomedid, [$first])[$first], 'the deleted account kept its progress');
+        $this->assertFalse(details::get_many($doomedid, [$second])[$second], 'the deleted account kept its progress');
+        $this->assertNotFalse($this->inventory()->get($bystanderid));
+        $this->assertSame(10, details::get_many($bystanderid, [$first])[$first]);
+        $this->assertSame(20, details::get_many($bystanderid, [$second])[$second]);
+    }
+
+    /**
+     * An event naming no user, or no course, deletes nothing.
+     *
+     * Both registered events always carry both, so no real path exercises the guard; the direct
+     * calls are the only way to prove it does not turn a course-wide or a user-wide event into a
+     * delete of an arbitrary key. The entries seeded beside the user's own are the ones an
+     * unguarded observer would delete: 0_<courseid> for an event with no user, <userid>_0 for one
+     * with no course. The last call is the control: an event naming both deletes that one entry.
+     *
+     * Changes that must make it fail: either half of the guard removed.
+     *
+     * @return void
+     */
+    public function test_completion_updated_ignores_an_event_that_names_no_user_or_no_course(): void {
+        $gen = $this->getDataGenerator();
+        $courseid = (int) $gen->create_course()->id;
+        $userid = (int) $gen->create_user()->id;
+        $context = context_course::instance($courseid);
         details::set($userid, $courseid, 55);
+        details::set(0, $courseid, 56);
+        details::set($userid, 0, 57);
 
-        observer::completion_updated(course_viewed::create([
-            'context' => context_course::instance($courseid),
-        ]));
+        $nouser = course_viewed::create(['context' => $context]);
+        $nocourse = user_updated::create_from_userid($userid);
+        // Precondition: each event lacks exactly the half it is here for.
+        $this->assertEmpty($nouser->relateduserid);
+        $this->assertSame($courseid, (int) $nouser->courseid);
+        $this->assertSame($userid, (int) $nocourse->relateduserid);
+        $this->assertEmpty($nocourse->courseid);
 
+        observer::completion_updated($nouser);
+        observer::completion_updated($nocourse);
+
+        $this->assertSame(56, details::get_many(0, [$courseid])[$courseid], 'an event with no user deleted 0_<courseid>');
+        $this->assertSame(57, details::get_many($userid, [0])[0], 'an event with no course deleted <userid>_0');
         $this->assertSame(55, details::get_many($userid, [$courseid])[$courseid]);
+
+        observer::completion_updated(course_viewed::create(['context' => $context, 'relateduserid' => $userid]));
+
+        $this->assertFalse(details::get_many($userid, [$courseid])[$courseid]);
+        $this->assertSame(56, details::get_many(0, [$courseid])[$courseid]);
+        $this->assertSame(57, details::get_many($userid, [0])[0]);
     }
 }

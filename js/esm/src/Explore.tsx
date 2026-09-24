@@ -30,8 +30,8 @@
  *
  * The section is scrolled into view and given the keyboard on every press that opens or
  * re-aims it; the toolbar starts as the viewer left it and is remembered in one preference
- * the shell validates; the star toggles here too, patching the row and refreshing tier 1;
- * and every failure has a way back.
+ * the shell validates; the star toggles here too, patching the row and refreshing tier 1,
+ * and a star toggled in tier 1 patches the row here; and every failure has a way back.
  *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
@@ -48,10 +48,10 @@ import Platter from './Platter';
 import RetryNotice from './RetryNotice';
 import RowList from './RowList';
 import ViewToggle from './ViewToggle';
-import {amd} from './amd';
 import {matches, normalise, passesChip, passesSelection} from './filter';
 import type {RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
+import {confirmAction, notify} from './notify';
 import {fill, fillObject} from './str';
 import {
     getInventory, getInventoryRows, isTransportFailure, searchInventory, setArchived, setExplorePreference, setFavourite,
@@ -61,6 +61,7 @@ import {useRowDetails} from './rowdetails';
 import {GROUP_ARCHIVED, GROUP_DORMANT} from './types';
 import type {
     BlockConfig, ExploreState, FilterField, FilterParam, Inventory, InventoryRow, KeptToolbar, Reconnecting, SearchRow,
+    StarChange,
 } from './types';
 
 /** The status chips, in the order the panel draws them; the pending one only when the feature is on. */
@@ -90,6 +91,7 @@ type ExploreProps = {
     config: BlockConfig,
     chip: string | null,
     reveal: number,
+    starred: StarChange | null,
     reconnecting: Reconnecting | null,
     kept: RefObject<KeptToolbar | null>,
     announce: (text: string) => void,
@@ -149,11 +151,6 @@ const scrollBehavior = (): 'auto' | 'smooth' => {
     return reduced || document.body.classList.contains('behat-site') ? 'auto' : 'smooth';
 };
 
-type NotificationModule = {
-    addNotification: (notification: {message: string, type: string}) => void,
-    saveCancelPromise: (title: string, question: string, savelabel: string) => Promise<unknown>,
-};
-
 /**
  * What one group has fetched, in paged mode.
  *
@@ -174,28 +171,14 @@ type PageState = {
 const EMPTY_PAGE: PageState = {rows: [], after: 0, hasmore: false, loaded: false, loading: false, failed: false};
 
 /**
- * Report a failure the way the rest of the client does.
- *
- * @param {string} message The already-translated message.
- * @returns {Promise} Resolves once the notification is up.
- */
-const notify = async(message: string): Promise<void> => {
-    try {
-        const notification = await amd<NotificationModule>('core/notification');
-        notification.addNotification({message, type: 'error'});
-    } catch (e) {
-        // There is nowhere left to say it: the notifier itself did not load.
-    }
-};
-
-/**
  * Tier 3.
  *
- * @param {object} props The block config, the chip to open on, the block's assertive live
- *     region and the callback that refetches tier 1; see ExploreProps.
+ * @param {object} props The block config, the chip to open on, the press counter, the last
+ *     star tier 1 toggled, the block's assertive live region and the callback that refetches
+ *     tier 1; see ExploreProps.
  * @returns {object} The rendered section.
  */
-const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
+const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
     const {labels} = config;
     const titleid = useId();
     const searchid = useId();
@@ -747,6 +730,9 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
     const statuschips = config.pendingenabled ? STATUS_CHIPS : STATUS_CHIPS.filter((key) => key !== 'pending');
     const pressedcount = (chip !== 'all' && statuschips.includes(chip) ? 1 : 0) + Object.keys(selection).length;
 
+    // The last press the effect below has acted on.
+    const revealed = useRef(0);
+
     /*
      * Every press that opens or re-aims tier 3: the chip the press implies, when it implies
      * one - the ghost keeps the remembered one instead - then the section is scrolled to the
@@ -754,11 +740,15 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      * anything inside it. Keyed on the counter rather than on the chip, so a remembered chip
      * survives the mount and a second press of the same link scrolls again. A tier 3 that
      * would open on its own has no press and moves nothing.
+     *
+     * Once per press: the effect also runs when chooseChip changes, which it does when a paged
+     * payload lands after the press, and by then the reader may have moved on.
      */
     useEffect(() => {
-        if (reveal === 0) {
+        if (reveal === 0 || reveal === revealed.current) {
             return;
         }
+        revealed.current = reveal;
         if (pressedchip !== null) {
             chooseChip(pressedchip);
         }
@@ -918,6 +908,17 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
             : current));
     }, []);
 
+    // A star toggled in tier 1 reaches the rows held here the way this tier's own toggle does,
+    // through withRow: the row's star, the Favourites chip's count and the facets follow with no
+    // request (see StarChange for why each toggle is a new object).
+    useEffect(() => {
+        if (starred === null) {
+            return;
+        }
+        const {courseid, favourite} = starred;
+        withRow(courseid, (row) => ({...row, fav: favourite}));
+    }, [starred, withRow]);
+
     /**
      * Toggle the core course star of one row.
      *
@@ -951,22 +952,26 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      * An archived row unmounts with its button, so focus would fall to the body and a
      * keyboard user would lose their place in the list they just changed. The target is
      * decided before the write, while the control is still there: the group's own summary
-     * when the row is in a group, the section title otherwise. It is used only if focus has
-     * actually been lost.
+     * when the row is in a group, the section title otherwise. The title also stands in when
+     * the group has left with its rows - the dormant group does once every course in it is
+     * archived - because a summary no longer in the document takes no focus. It is used only
+     * if focus has actually been lost.
      *
      * @returns {Function} Puts focus back, if it fell to the body.
      */
     const keepFocus = useCallback((): (() => void) => {
         const origin = document.activeElement as HTMLElement | null;
-        const target = origin?.closest('.compass-group')?.querySelector<HTMLElement>('summary')
-            ?? section.current?.querySelector<HTMLElement>('.compass-explore-title')
-            ?? null;
+        const summary = origin?.closest('.compass-group')?.querySelector<HTMLElement>('summary') ?? null;
 
         return () => {
             const active = document.activeElement;
-            if (target && (active === null || active === document.body || !document.contains(active))) {
-                target.focus();
+            if (active !== null && active !== document.body && document.contains(active)) {
+                return;
             }
+            const target = summary !== null && document.contains(summary)
+                ? summary
+                : section.current?.querySelector<HTMLElement>('.compass-explore-title') ?? null;
+            target?.focus();
         };
     }, []);
 
@@ -1006,8 +1011,7 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
      *
      * Only what the browser knows to be dormant is written: in full mode that is the dormant
      * group's rows; in paged mode it is the rows the group has fetched so far, and the button
-     * says how many. The confirmation is core's own dialogue, so the reader gets the same
-     * modal, focus handling and Escape behaviour as everywhere else in Moodle.
+     * says how many. The confirmation is core's own dialogue (see confirmAction() in notify.ts).
      *
      * @param {object[]} rows The dormant rows the browser holds.
      * @returns {Promise} Resolves when the run has ended, whichever way.
@@ -1016,15 +1020,12 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         if (busy || rows.length === 0) {
             return;
         }
-        const notification = await amd<NotificationModule>('core/notification');
-        try {
-            await notification.saveCancelPromise(
-                labels.archiveall,
-                fill(labels.archiveallconfirm, String(rows.length)),
-                labels.confirm
-            );
-        } catch (e) {
-            // Cancelled, or the dialogue was dismissed: nothing to do and nothing to say.
+        const confirmed = await confirmAction(
+            labels.archiveall,
+            fill(labels.archiveallconfirm, String(rows.length)),
+            labels.confirm
+        );
+        if (!confirmed) {
             return;
         }
         const refocus = keepFocus();
@@ -1102,12 +1103,19 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
         /**
          * Compare two rows by their normalised names, which is what the eye reads.
          *
+         * A run of digits compares by its value, so "Unit 2" comes before "Unit 10" and "Unit 01"
+         * ties with "Unit 1", as in the server's order (explore::order()). Three things differ from
+         * that order: case and accents are folded away by normalise() before comparing, so names
+         * differing only in them tie here; the locale is the browser's default rather than the
+         * one of the user's Moodle language; and a tie keeps the order the rows arrived in
+         * (sort() is stable), where the server puts the lower course id first.
+         *
          * @param {object} a One row.
          * @param {object} b Another row.
          * @returns {number} The comparison.
          */
         const byname = (a: InventoryRow, b: InventoryRow): number =>
-            (normalised.get(a.id) || '').localeCompare(normalised.get(b.id) || '');
+            (normalised.get(a.id) || '').localeCompare(normalised.get(b.id) || '', undefined, {numeric: true});
         rows.sort(sort === 'recent'
             ? (a, b) => ((b.opened || 0) - (a.opened || 0)) || byname(a, b)
             : byname);
@@ -1321,10 +1329,20 @@ const Explore = ({config, chip: pressedchip, reveal, reconnecting, kept, announc
                                     busy={busy}
                                     toolbar={isdormant && slice.rows.length > 0 ? (
                                         <div className="compass-archiveall">
+                                            {/* Never the disabled attribute while its own run is
+                                                out: the focused button would drop the keyboard to
+                                                the body and "Archiving…" would be said to nobody
+                                                (see Reload.tsx). archiveAll() refuses a press
+                                                while busy. Bootstrap's disabled class is kept for
+                                                its look: its pointer-events: none passes a click
+                                                to the group's toolbar beneath, which has no
+                                                handler and no stretched link (see Star.tsx). */}
                                             <button
                                                 type="button"
-                                                className="btn btn-outline-secondary btn-sm"
-                                                disabled={busy}
+                                                className={busy
+                                                    ? 'btn btn-outline-secondary btn-sm disabled'
+                                                    : 'btn btn-outline-secondary btn-sm'}
+                                                aria-disabled={busy || undefined}
                                                 onClick={() => archiveAll(slice.rows)}
                                             >
                                                 {busy ? labels.archiving : `${labels.archiveall} (${slice.rows.length})`}

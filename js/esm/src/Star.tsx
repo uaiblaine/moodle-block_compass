@@ -66,11 +66,16 @@ const Star = ({courseid, fullname, favourite, config, onToggle}: StarProps) => {
         }
     };
 
+    // Never the disabled attribute: it would be applied in the render the star's own click
+    // causes, and a focused element that becomes disabled drops the keyboard to the body (see
+    // Reload.tsx). Nor Bootstrap's disabled class, which sets pointer-events: none, so a second
+    // click on a card's star would fall through to the stretched link beneath and open the
+    // course. aria-disabled says it to assistive technology and click() refuses the press.
     return (
         <button
             type="button"
             className="compass-star btn btn-link p-1"
-            disabled={busy}
+            aria-disabled={busy || undefined}
             aria-pressed={favourite}
             aria-label={favourite ? labels.removefromfavourites : labels.addtofavourites}
             onClick={click}

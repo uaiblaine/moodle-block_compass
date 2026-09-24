@@ -4,7 +4,9 @@
   Implementation in Phase 8. Answers of 2026-09-07 folded in: Phase 8 ships inside `v5.2-r1`;
   the pending row links to the course enrolment page; the remaining items were resolved by
   measurement (see decision 5 and Evidence); and the maintainer's note on long course names
-  became decision 10 on acceptance.
+  became decision 10 on acceptance. Amended 2026-09-24: the eligible fill of `coursefields`,
+  which the amendments of 2026-09-07 recorded, was not what the code did until then (see the
+  amendment of 2026-09-24, after them).
 - **Date:** 2026-09-07
 - **Deciders:** Anderson Blaine (maintainer), who settled decisions 1 to 9 below on
   2026-09-07 against `docs/mockup-favourites-filters-pending.html`, whose legend D1–D8
@@ -827,7 +829,9 @@ the class also carries a `title`, with the usual vacuity guard over the count.
   is that the payload test is now expected to confirm it.
 - **What the shared layer costs.** `coursefields` is one entry per course carrying at most three
   small integers, filled once per course per change and shared by every user on the site — the
-  cheapest thing in the cache. `filterfields` is one entry for the whole site. Neither is
+  cheapest thing in the cache. *(Amended 2026-09-07 and 2026-09-24: one small integer per
+  eligible field the course has a data row for, whatever is configured; `FILTER_FIELDS_MAX`
+  bounds the filters shown, not the entry — see the amendments.)* `filterfields` is one entry for the whole site. Neither is
   per-user, so neither touches the 272 KB / 122 KB inventory figures of
   `docs/perf/2026-09-04-bench-postgres17.md:63-74`.
 - **The counts statement gains a subquery and not a read**, and the reason it is a scalar subquery
@@ -1240,6 +1244,22 @@ now carries, recorded here rather than left to be inferred from a diff, as ADR-0
   `enrol_apply` installed the application is counted and listed, and on a runtime without it the
   same fixture under the same stored setting yields 0 and no row — decision 7's forced-off,
   asserted rather than skipped.
+
+## Amendment (2026-09-24): the eligible fill of `coursefields` is now the code's
+
+The first bullet of the amendments above recorded the eligible fill as "a fact the code now
+carries", and it was not: until version 2026092401 `explore::values()` asked
+`course_fields::get_many()` for the configured fields' ids only, and the entry, keyed by course
+id alone, recorded nothing of which fields had filled it. The failure was the one that bullet
+gave as the reason for the eligible fill: once an administrator added a field to
+`filter_fields`, its chip group appeared and matched no course until the course was edited or a
+`core_customfield` event purged the layer. The fill now passes
+`array_column(filter_fields::eligible(), 'id')` — the `filterfields` entry `configured()` has
+just read, so it costs no read — and `cf()` and the selection read the configured ids out of the
+wider entry. `filter_fields` still has no `set_updatedcallback`, because a change to it has
+nothing to invalidate. Pinned by
+`explore_test::test_a_field_configured_after_the_values_were_cached_is_answered_without_a_purge`
+(gate `explore_values_eligible`).
 
 ## Questions for the maintainer
 

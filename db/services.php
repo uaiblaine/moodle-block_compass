@@ -35,7 +35,9 @@ $functions = [
     'block_compass_get_inventory' => [
         'classname' => 'block_compass\external\get_inventory',
         'methodname' => 'execute',
-        'description' => 'Tier 3 of the Compass block for the current user: every active course, grouped by category.',
+        'description' => 'Tier 3 of the Compass block for the current user: the listed courses (active enrolments and, '
+            . 'when enabled, applications awaiting approval) grouped by category, with the dormant group, the archived '
+            . 'group\'s header and the custom-field filters; above the inventory size threshold, the group headers alone.',
         'type' => 'read',
         'ajax' => true,
     ],
@@ -56,7 +58,7 @@ $functions = [
     'block_compass_get_card_details' => [
         'classname' => 'block_compass\external\get_card_details',
         'methodname' => 'execute',
-        'description' => 'Progress for a batch of the current user\'s courses.',
+        'description' => 'Progress and course image for a batch of the current user\'s courses.',
         'type' => 'read',
         'ajax' => true,
     ],

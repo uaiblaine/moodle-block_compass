@@ -27,9 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
-use block_compass\local\category_meta;
 use block_compass\local\config;
-use block_compass\local\course_meta;
 use block_compass\local\details;
 use core_cache\cache;
 use core_external\external_api;
@@ -83,9 +81,6 @@ final class get_attention_test extends advanced_testcase {
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -99,7 +94,6 @@ final class get_attention_test extends advanced_testcase {
     private function purge_user_caches(): void {
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        details::reset();
     }
 
     /**
@@ -393,6 +387,67 @@ final class get_attention_test extends advanced_testcase {
             8,
             $reads,
             "get_attention cost {$reads} reads with every plugin cache cold; the budget is 8 (7 + the categorymeta fill)."
+        );
+    }
+
+    /**
+     * With favourites off the strip is empty, its overflow 0, and its query is not run.
+     *
+     * Same protocol as the six-read budget above, measured twice over one fixture: with the
+     * feature on, then off. The only favourite is the course Continue shows, so both answers draw
+     * the same distinct courses, and the one read between the two measurements is the strip's own
+     * query; the counts still see the star.
+     *
+     * Changes that must make it fail: building tier 1 without the setting, or querying the
+     * favourites strip whatever the setting, and emptying it only afterwards.
+     *
+     * @return void
+     */
+    public function test_favourites_off_empties_the_strip_and_costs_one_read_less(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $user = $gen->create_user();
+        $now = time();
+        $recent = $gen->create_course(['enablecompletion' => 1]);
+        $brandnew = $gen->create_course(['enablecompletion' => 1]);
+        $plugin->enrol_at((int) $user->id, (int) $recent->id, $now - 40 * DAYSECS);
+        $plugin->enrol_at((int) $user->id, (int) $brandnew->id, $now - 2 * DAYSECS);
+        $plugin->access_at((int) $user->id, (int) $recent->id, $now - HOURSECS);
+        $plugin->favourite((int) $user->id, (int) $recent->id);
+        $this->setUser($user);
+
+        $answers = [];
+        $reads = [];
+        foreach (['on' => 1, 'off' => 0] as $state => $setting) {
+            set_config('enable_favourites', $setting, 'block_compass');
+            get_attention::execute();
+            $this->purge_user_caches();
+            $plugin->simulate_new_request();
+            $meter = budget::start();
+            $answers[$state] = get_attention::execute();
+            $reads[$state] = $meter->reads();
+        }
+
+        $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $this->assertSame([(int) $recent->id], $ids($answers['on']['favourites']));
+        $this->assertTrue($answers['on']['favouritesenabled']);
+        $this->assertSame([], $answers['off']['favourites']);
+        $this->assertFalse($answers['off']['favouritesenabled']);
+        $this->assertSame(0, $answers['off']['counts']['favouritesmore']);
+        foreach ($answers as $state => $data) {
+            $this->assertSame([(int) $recent->id], $ids($data['continue']), "continue with favourites {$state}");
+            $this->assertSame([(int) $brandnew->id], $ids($data['new']), "new with favourites {$state}");
+            $this->assertSame(2, $data['counts']['total'], "total with favourites {$state}");
+            $this->assertSame(2, $data['counts']['shown'], "shown with favourites {$state}");
+        }
+        $this->assertLessThanOrEqual(7, $reads['on'], "get_attention cost {$reads['on']} reads with favourites on; the bound is 7");
+        $this->assertSame(
+            $reads['on'] - 1,
+            $reads['off'],
+            "get_attention cost {$reads['off']} reads with favourites off and {$reads['on']} with them on; "
+                . 'the strip query is the one read between them'
         );
     }
 

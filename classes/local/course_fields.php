@@ -69,8 +69,12 @@ final class course_fields {
      * Index: customfield_data (instanceid, fieldid, component, area, itemid), unique
      * (lib/db/install.xml, customfield_data). Bounded by the two id lists.
      *
+     * An entry is stored under the course id alone, with no record of the fields that filled it,
+     * so a caller passes every eligible field and never a subset: an entry filled for fewer fields
+     * would later answer a wider question as if the missing fields had no value.
+     *
      * @param int[] $courseids Course ids.
-     * @param int[] $fieldids Ids of the eligible fields (filter_fields::eligible()).
+     * @param int[] $fieldids Ids of every eligible field (filter_fields::eligible()).
      * @return array Course id => [field id => intvalue], every requested course present.
      */
     public static function get_many(array $courseids, array $fieldids): array {

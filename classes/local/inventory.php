@@ -253,6 +253,27 @@ final class inventory {
     }
 
     /**
+     * The courses the cached entry lists, read as it is cached: no stamp statement and no fill.
+     *
+     * For dropping what the cache holds about a user ({@see \block_compass\observer::user_deleted()}),
+     * which must cost no query and must not write a fresh entry. Every row counts, active or not:
+     * progress may have been cached while an enrolment that has since ended was still active.
+     *
+     * @param int $userid The user.
+     * @return int[] Distinct course ids; empty when nothing is cached.
+     */
+    public static function cached_courseids(int $userid): array {
+        $entry = self::cache()->get($userid);
+        $courseids = [];
+        // A miss is false; reading its rows through the null-coalescing operator gives null, with no warning.
+        foreach ($entry['rows'] ?? [] as $row) {
+            $courseids[(int) $row[self::COURSEID]] = true;
+        }
+
+        return array_keys($courseids);
+    }
+
+    /**
      * One entry per course the user is actively enrolled in now, from the stored rows.
      *
      * Active is the enrol_get_my_courses() rule evaluated at $now. Of several

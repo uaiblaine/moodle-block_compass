@@ -49,6 +49,11 @@ $observers = [
         'eventname' => '\core\event\course_completed',
         'callback' => '\block_compass\observer::completion_updated',
     ],
+    // Account deletion drops the user's inventory entry and the progress entries it lists.
+    [
+        'eventname' => '\core\event\user_deleted',
+        'callback' => '\block_compass\observer::user_deleted',
+    ],
     // The filter panel's vocabulary: a field definition or an option list changes through the
     // field configuration form, never through update_course(), so these four are what keep the
     // filterfields and coursefields layers honest.

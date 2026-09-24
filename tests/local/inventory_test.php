@@ -84,7 +84,7 @@ final class inventory_test extends advanced_testcase {
     }
 
     /**
-     * Empty the three definitions; the wrappers' reset() methods have no memo left to clear.
+     * Empty the three definitions.
      *
      * @return void
      */
@@ -92,8 +92,6 @@ final class inventory_test extends advanced_testcase {
         cache::make('block_compass', 'inventory')->purge();
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'details')->purge();
-        course_meta::reset();
-        details::reset();
     }
 
     /**
@@ -889,5 +887,46 @@ final class inventory_test extends advanced_testcase {
         $reads = $meter->reads();
         $this->assertSame(1, $reads, "the rebuild after delete() cost {$reads} reads; a fill is 1");
         $this->assertSame($entry, $rebuilt);
+    }
+
+    /**
+     * cached_courseids() lists every course of the cached entry, costs no read and writes nothing.
+     *
+     * The suspended enrolment is the control for "every row": courses() leaves it out, this must
+     * not, because progress may have been cached while it was active. The cold half proves the
+     * method never fills: a miss answers nothing and leaves the layer empty. The warm half proves
+     * it never validates: the stamp statement would cost a read.
+     *
+     * Changes that must make it fail: reading through get() or fill(), or listing only the courses
+     * courses() keeps.
+     *
+     * @return void
+     */
+    public function test_cached_courseids_lists_every_course_of_the_cached_entry_without_a_read(): void {
+        $active = (int) $this->course('Active course')->id;
+        $suspended = (int) $this->course('Suspended course')->id;
+        $this->plugingen->enrol_at($this->userid, $active, self::NOW - 10 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - 10 * DAYSECS, 'manual', ENROL_USER_SUSPENDED);
+        $this->purge_plugin_caches();
+
+        $meter = budget::start();
+        $cold = inventory::cached_courseids($this->userid);
+        $coldreads = $meter->reads();
+
+        $this->assertSame([], $cold);
+        $this->assertSame(0, $coldreads);
+        $this->assertFalse(cache::make('block_compass', 'inventory')->get($this->userid), 'a miss wrote an entry');
+
+        $entry = inventory::fill($this->userid);
+        $this->assertSame([$active], array_keys(inventory::courses($entry, self::NOW)));
+        $meter = budget::start();
+        $warm = inventory::cached_courseids($this->userid);
+        $warmreads = $meter->reads();
+
+        sort($warm);
+        $expected = [$active, $suspended];
+        sort($expected);
+        $this->assertSame($expected, $warm);
+        $this->assertSame(0, $warmreads, 'the cached entry was validated or refilled');
     }
 }

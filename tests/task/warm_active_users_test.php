@@ -126,11 +126,16 @@ final class warm_active_users_test extends advanced_testcase {
     }
 
     /**
-     * Registered in db/tasks.php nightly at four, at a random minute, not blocking, and named.
+     * Registered in db/tasks.php nightly at four, at a random minute, enabled, and named.
      *
      * The first assertion reads the row the install wrote in {task_scheduled}; after it,
      * get_default_scheduled_task() reads db/tasks.php off disk, so the schedule asserted is the
-     * file's, not an administrator's edit of the row.
+     * file's, not an administrator's edit of the row. Enabled is the half of "always scheduled,
+     * gated by the setting" that the file decides. Blocking is not asserted because 5.2 has no
+     * such thing: task_base::is_blocking() was removed (MDL-87425) and core reads no blocking key
+     * from db/tasks.php.
+     *
+     * Changes that must make it fail: a different schedule, or the task disabled in db/tasks.php.
      *
      * @return void
      */
@@ -146,6 +151,7 @@ final class warm_active_users_test extends advanced_testcase {
         $this->assertSame('*', $default->get_day());
         $this->assertSame('*', $default->get_month());
         $this->assertSame('*', $default->get_day_of_week());
+        $this->assertFalse($default->get_disabled(), 'the task is disabled in db/tasks.php; the setting is the only switch');
 
         $this->assertTrue(get_string_manager()->string_exists('task_warm_active_users', 'block_compass'));
         $this->assertSame(get_string('task_warm_active_users', 'block_compass'), (new warm_active_users())->get_name());

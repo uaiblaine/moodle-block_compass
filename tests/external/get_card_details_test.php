@@ -305,7 +305,6 @@ final class get_card_details_test extends advanced_testcase {
         $courseid = (int) $course->id;
         $userid = (int) $user->id;
         $this->setUser($user);
-        details::reset();
         cache::make('block_compass', 'details')->purge();
         $this->assertFalse(details::get_many($userid, [$courseid])[$courseid]);
 

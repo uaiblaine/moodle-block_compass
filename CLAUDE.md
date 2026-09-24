@@ -174,7 +174,9 @@ Tier 1 is four bounded, indexed queries plus one count. Indexes verified in
 | Counts | one statement over the same derived table: `COUNT(*)`, `SUM(CASE …)` new-and-never-accessed, `SUM(CASE …)` favourited | index on `userid` |
 
 **Budget: at most 6 database reads, every one bounded by `LIMIT` or an indexed
-aggregate.** `attention_max` defaults to 3, so tier 1 is at most 9 cards plus
+aggregate** — one fewer with `enable_favourites` off, because `attention::build()`
+does not query a strip nobody is shown (the counts keep their favourites aggregate,
+which costs no read of its own). `attention_max` defaults to 3, so tier 1 is at most 9 cards plus
 ghosts. Progress comes from the `details` cache and the image from core's own
 `course_image` cache: `get_attention` returns the progress of cards whose `details` entry is
 cached and marks the others `pending`, and the client fetches those through
@@ -197,9 +199,9 @@ entries. Hence two layers with different keys and different invalidation.
 |---|---|---|---|---|
 | `coursemeta` | application | `courseid` | raw `fullname`/`shortname`, category **id**, `visible`, `enablecompletion`, the six context preload columns — no image (core's `course_image` cache), no category name (`categorymeta`: core's `coursecatrecords` cache is request-scoped), nothing formatted | per-key `delete()` in observers of `\core\event\course_updated` and `course_deleted`; shared by every user; no TTL |
 | `categorymeta` | application | `categoryid` | raw `name`, `path`, `depth`, the six preload columns of the **category** context — nothing formatted | per-key `delete()` in observers of `\core\event\course_category_updated` (plus the descendants' keys: a move rewrites their paths and the event cannot tell a move from a rename — one `LIKE` over the category table, from the observer) and `course_category_deleted`; shared by every user; no TTL |
-| `inventory` | application | `userid` | the seven-field stamp plus one row per **enrolment** keyed by `user_enrolments.id` (ten integers, ADR-002) — **no course data**; "active" is decided at read time | stamp validation (§6.3); safety TTL 24 h |
-| `details` | application | `<userid>_<courseid>` (no `:` in MUC keys) | progress percentage as int, or `null` = "no completion" (a cached value; a miss is `false`) | per-key `delete()` in observers of the user's `course_module_completion_updated` and `course_completed`; TTL 1 h bounds criteria changes and deletions |
-| `coursefields` | application | `courseid` | field id => stored `intvalue` of every ELIGIBLE course custom field the course has a row for; `[]` is a value (ADR-009) — a sibling of `coursemeta`, never a key inside it, because `cards.php` writes that layer from tier 1 rows that carry no field columns | per-key `delete()` in `course_updated` and `course_deleted`; purged whole by the four `core_customfield` observers |
+| `inventory` | application | `userid` | the seven-field stamp plus one row per **enrolment** keyed by `user_enrolments.id` (eleven integers: ADR-002's ten plus the `apply` instance id of ADR-009) — **no course data**; "active" is decided at read time | stamp validation (§6.3); safety TTL 24 h; deleted with the account (`user_deleted` observer) |
+| `details` | application | `<userid>_<courseid>` (no `:` in MUC keys) | progress percentage as int, or `null` = "no completion" (a cached value; a miss is `false`) | per-key `delete()` in observers of the user's `course_module_completion_updated` and `course_completed`; on account deletion, the keys of every course the user's cached `inventory` entry lists (`delete_many()`); TTL 1 h bounds criteria changes and whatever deletion cannot reach |
+| `coursefields` | application | `courseid` | field id => stored `intvalue` of every ELIGIBLE course custom field the course has a row for, whatever `filter_fields` configures — so a setting change invalidates nothing and callers read the configured ids out of the entry; `[]` is a value (ADR-009) — a sibling of `coursemeta`, never a key inside it, because `cards.php` writes that layer from tier 1 rows that carry no field columns | per-key `delete()` in `course_updated` and `course_deleted`; purged whole by the four `core_customfield` observers |
 | `filterfields` | application | one key | every eligible course custom field (select and checkbox, visible to everyone) with raw name, raw options and default — the whole eligible set, so a `filter_fields` change invalidates nothing | purged by `core_customfield`'s `field_created`, `field_updated`, `field_deleted`, `category_deleted` |
 
 Store: **Redis recommended for all six** (documented in the README with the
@@ -255,7 +257,8 @@ resuming at id X". As built:
 - **Selection**: users with `{user}.lastaccess >= :since`, `deleted = 0`,
   `suspended = 0`, `id > :cursor`, `ORDER BY id`, in batches of
   `prewarm::BATCH_SIZE` = 200 (a constant, not a setting) through
-  `$DB->get_fieldset_sql()` with a limit — the primary key drives the keyset,
+  `$DB->get_records_sql()` with `$limitnum` (`get_fieldset_sql()` takes no limit on
+  5.2; ADR-003 fact 3) — the primary key drives the keyset,
   the `lastaccess` window is the filter. Once per run, before the loop, one
   `COUNT(*)` of the remaining users feeds the opening trace line; per-batch
   lines report in-memory counters and cost no query.
@@ -282,14 +285,21 @@ resuming at id X". As built:
   + 60)` is called at the start knowing it is a no-op under CLI; the `$stopat`
   check is the real protection. A user is never left half warmed.
 - **No lock of its own**: cron takes one per task class before running it
-  (`lib/classes/task/manager.php:1067`).
+  (`lib/classes/task/manager.php:1071`, in `get_next_scheduled_task()`).
 
 `run(?int $batchsize = null, ?int $budgetseconds = null, ?int $now = null,
 ?callable $trace = null)` returns `warmed`, `batches`, `completed`, `cursor`,
 `remaining` (the count at the start) and `elapsed`; `$trace` defaults to a
 closure calling `mtrace()`, and tests pass their own to capture the lines. Cost
 per user: 1 read in the steady state (the fill), up to 4 with the shared layers
-cold; plus one selection read per batch and one count per run. Without a shared
+cold, 2 for a user with no enrolment at all (an empty fill runs the stamp
+statement). Beyond the users, a run pays one count, one selection per batch, one
+read per `set_config()` (it reads the row before it writes: the window when a sweep
+starts, the cursor after every full batch and at a budget stop, the cursor reset and
+`prewarm_lastsweep` at completion) and up to two reloads of the plugin's config
+bundle, which every `set_config()` invalidates even for an unchanged value — **7**
+for a run that starts a sweep and completes it in one batch, the bound
+`prewarm_test` asserts; `prewarm::run()`'s docblock itemises it. Without a shared
 in-memory store the task writes to the cron node's own file cache, which the web
 nodes never read — on a multi-node site without Redis it warms nothing for
 anyone (the README and `enable_prewarm_desc` say so). Warming `coursemeta` is
@@ -321,20 +331,25 @@ visibility filter → `category_meta` for the categories and their group
 ancestors → group id per course):
 
 - `block_compass_get_inventory_rows` → `explore::rows($userid, $now, $groupid,
-  $after, $chip, $sort)`: one page of one group. Keeps the courses whose group
-  id equals `$groupid`, applies the **chip** (`all`; `new` = never opened and
-  `timecreated > now − new_days`; `favourites` = starred), orders on the **raw**
-  `coursemeta.fullname` with `core_collator` (`name`) or by `timeaccess`
-  descending then raw name (`recent`), finds `$after` (0 = start; an id no
+  $after, $chip, $sort, $filters)`: one page of one group. Keeps the courses whose group
+  id equals `$groupid` (a category id, or the reserved `-1` dormant / `-2` archived),
+  applies the **chip** (`all`; `new` = never opened and
+  `timecreated > now − new_days`; `favourites` = starred, an application excluded;
+  `pending` = an application awaiting approval) and the custom-field `filters`, orders on the **raw**
+  `coursemeta.fullname` in `core_collator`'s natural order (`name`) — compared through
+  collation sort keys (`explore::sort_key()`) with ties to the lower course id, so
+  the order a cursor walks is total even for names the collator calls equal — or by
+  `timeaccess` descending then that order (`recent`), finds `$after` (0 = start; an id no
   longer in the order = start again), takes the next `explore::PAGE_SIZE` = 100
   ids, and **only then** runs `filters::preload` over those contexts and
-  formats those names. Returns `groupid`, `rows` (exactly the full-mode row:
-  `id`, `name`, `opened` int|null, `new`, `fav`), `hasmore` and `after` (the
+  formats those names. Returns `groupid`, `rows` (the full-mode row:
+  `id`, `name`, `opened` int|null, `new`, `fav`, `dorm`, plus `pend` and `cf` when
+  they apply), `hasmore` and `after` (the
   last id shipped, 0 when none). A group the user has no course in returns an
   empty page, no error. Chips and sort are **parameters** here and of nothing
   else: header counts stay the group's total.
 - `block_compass_search_inventory` → `explore::search($userid, $now, $query)`:
-  server-side search **in PHP, with `filter.js`'s rule**.
+  server-side search **in PHP, with `filter.ts`'s rule**.
   `classes/local/matcher.php` reproduces `normalise()` step for step —
   `Normalizer::normalize($text, Normalizer::FORM_D)`, strip U+0300–U+036F,
   `core_text::strtolower()`, `trim()` — and `matches()`: split the normalised
@@ -348,8 +363,8 @@ ancestors → group id per course):
   shipped names are formatted, after one `filters::preload`; each row is the
   full-mode row plus `groupid`. The service truncates the raw `PARAM_RAW` query
   to 200 characters (`core_text::substr`) before handing it over. `intl` is
-  required by 5.2 (`admin/environment.xml:5402`), so `Normalizer` is always
-  there.
+  required by 5.2 (`admin/environment.xml:5197`, in the 5.2 block), so `Normalizer`
+  is always there.
 
 The client (`js/esm/src/Explore.tsx` since R3) reads `mode` once. In `paged`:
 every group renders **closed** with its count (full mode opens the first);
@@ -375,13 +390,13 @@ between visits.
 
 | Endpoint | Reads per request | Server p95, plugin caches cold | Payload |
 |---|---|---|---|
-| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
+| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer (the user-context lookup) | 300 ms | ≤ 40 KB |
 | `get_inventory` (degraded, headers) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the group contexts) — plus 1 at the web-service layer (the user-context lookup) | 150 ms | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the page's contexts) — plus 1 at the web-service layer | 200 ms | ≤ 12 KB (≈ 115 bytes per row, ADR-002) |
 | `search_inventory` (50 hits) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the matched contexts) — plus 1 at the web-service layer | 300 ms | ≤ 7 KB (≈ 115 bytes per row plus ≈ 18 for `groupid`) |
 | `get_card_details` (24 ids) | 1 (the active-enrolment check that stops id enumeration) when every answer is cached or untracked; + 1 + completion for the courses that must be computed | 200 ms | ≤ 10 KB |
-| `prewarm::run()` (task, per user) | 1 (the fill) with the shared layers warm, up to 4 cold — plus 1 selection read per batch of 200 and 1 count per run | n/a: bounded by `prewarm_budget_seconds` | n/a |
+| `prewarm::run()` (task, per user) | 1 (the fill) with the shared layers warm, up to 4 cold — plus a fixed overhead per run: 1 count, 1 selection per batch of 200, 1 per `set_config()` and up to 2 config-bundle reloads (7 for a sweep started and completed in one batch) | n/a: bounded by `prewarm_budget_seconds` | n/a |
 
 - `classes/local/budget.php` wraps `$DB->perf_get_reads()`
   (`lib/dml/moodle_database.php`, verified on 5.2): take a reading, run the
@@ -468,18 +483,18 @@ phases raised decisions of their own:
 
 | ADR | Decision | Written before | Status |
 |---|---|---|---|
-| ADR-001 | two-layer cache (`coursemeta` / `categorymeta` / `inventory` / `details`), keys, invalidation, store; amended in Phase 2 with the category layer | Phase 1 | Accepted |
+| ADR-001 | two-layer cache (`coursemeta` / `categorymeta` / `inventory` / `details`), keys, invalidation, store; amended in Phase 2 with the category layer, and on 2026-09-24 with the account-deletion observer | Phase 1 | Accepted |
 | ADR-002 | stamp validation of `inventory` (seven aggregates over enrolments, methods, last access and favourites, one statement) instead of observers | Phase 2 | Accepted |
-| ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
-| ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.js` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3 |
+| ADR-003 | optional, selective, budgeted pre-warming: `fill()` not `get()`, keyset selection, persisted cursor and window, budget checked between users | Phase 3 | Accepted (2026-09-04), implemented in Phase 3; amended 2026-09-24 (the dead `blocking` key, the overhead traced to 7 reads) |
+| ADR-004 | degraded `paged` mode above `inventory_max`: mode derived from the entry, two paging services, search in PHP with the `filter.ts` rule — supersedes ADR-000 decision 18 (recorded as decision 23) | Phase 3 | Accepted (2026-09-04), implemented in Phase 3; amended 2026-09-24 (a total name order, numbers compared by value in the client) |
 | ADR-005 | lazy details for tier 3, the list/cards view, virtualisation deferred; **revised before acceptance** under ADR-006 decision 8, so its two client-mechanism passages describe what a row must do rather than which file does it | Phase R4 | Accepted (2026-09-04), implemented in R4 with one deviation recorded in the record itself |
 | ADR-006 | **the client is React**: the whole browser half moves to `js/esm/src`, in four phases R1–R4; supersedes nothing, and states the price — 213 KB of React, a silent failure mode, no client tests, and the lint and type gates core does not provide | Phase R1 | Accepted (2026-09-04); R1–R4 implemented — the AMD tree is gone |
 | ADR-007 | dormancy and archiving: the two tier 3 groups that are not categories (`-1` dormant, `-2` archived), the archive written to the Course overview block's own preferences through core's router endpoint, the fourth Behat scenario | Phase 5 | Accepted (2026-09-06), implemented in Phase 5 |
 | ADR-008 | the accessibility audit is a **gate**, not a document: core's axe step inside the four scenarios plus a static rules test; the documentation is English only; `v5.2-r1` ships at `MATURITY_BETA` | Phase 7 | Accepted (2026-09-07), implemented in Phase 7 |
-| ADR-009 | complete favourites (exclusivity superseded for that strip), one ghost card with heading overflow links, enrol_apply applications awaiting approval as tier 3 rows plus a notice (never a card; the plugin's own predicate, not `status = 2`), the toolbar as a sort platter, an icon toggle and a filter panel, course custom fields as chip groups with two sibling caches, two settings (`filter_fields`, `enable_pending`), a two-line name clamp with a tooltip; Phase 8 ships inside `v5.2-r1` | Phase 8 | Accepted (2026-09-07), implemented in Phase 8 |
+| ADR-009 | complete favourites (exclusivity superseded for that strip), one ghost card with heading overflow links, enrol_apply applications awaiting approval as tier 3 rows plus a notice (never a card; the plugin's own predicate, not `status = 2`), the toolbar as a sort platter, an icon toggle and a filter panel, course custom fields as chip groups with two sibling caches, two settings (`filter_fields`, `enable_pending`), a two-line name clamp with a tooltip; Phase 8 ships inside `v5.2-r1` | Phase 8 | Accepted (2026-09-07), implemented in Phase 8; amended 2026-09-24 (`coursefields` really filled with every eligible field) |
 | ADR-010 | twelve decisions from the maintainer's list: scroll and focus into tier 3, the archive box glyphs, zero chips hidden, a column-counted cards grid, the star and badge corners, the star in tier 3, core's chevrons, no uppercase, the remembered toolbar (`block_compass_explore`), the teacher-only completion notice, `show_category`, and resilience (reload control, bounded retry, amber notice in every error state) | Phase 9 | Accepted (2026-09-08), implemented in Phase 9 |
 | ADR-011 | client delivery: one bundle through a generic moodle-dev build step opted in by `js/esm/bundle.json`, seven `modulepreload` hints from a top-of-body hook on the Dashboard with the block and on the block's own page, and two batched reads (`course_image` `get_many`, one `uncategorised` string) — the answer to the cold-load waterfall measured against core's timeline service | Phase 10 | Accepted (2026-09-08), implemented in Phase 10 |
-| ADR-012 | a page of the block's own at `/blocks/compass/index.php` on the `base` layout in the system context, behind `enable_page`, offered as the start page through `core_user\hook\extend_default_homepage`; a third rung of the heading ladder (`headinglevel` 4/3/2); the top-of-body hook listening on the Dashboard only with the block present and on the page always | Phase 10 | Accepted (2026-09-11), implemented in Phase 10; amendment 4 (`hide_page_title`, the h1 kept visually hidden) accepted and implemented 2026-09-11 |
+| ADR-012 | a page of the block's own at `/blocks/compass/index.php` on the `base` layout in the system context, behind `enable_page`, offered as the start page through `core_user\hook\extend_default_homepage`; a third rung of the heading ladder (`headinglevel` 4/3/2); the top-of-body hook listening on the Dashboard only with the block present and on the page always | Phase 10 | Accepted (2026-09-11), implemented in Phase 10; amendment 4 (`hide_page_title`, the h1 kept visually hidden) accepted and implemented 2026-09-11; amendment 5 (2026-09-24) records the dead `.compass-dialogue` selector's removal |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -494,8 +509,9 @@ sessions (`local_quiz_summary_option` does this well).
 ## Code layout (target, PLAN.md §5)
 
 ```
-block_compass.php            Shell: title, applicable_formats, has_config, can_block_be_added,
-                             get_content() renders output\block — no data access here, ever
+block_compass.php            Shell: title, applicable_formats, specialization (hide_block_title), has_config,
+                             instance_allow_multiple (false), get_content() renders output\block — no data
+                             access here, ever
 index.php                    The block's own page (ADR-012): require_login, page::require_access()
                              (no guest; off → redirect to /my/), system context, base layout, no
                              secondary navigation, output\page rendered between header and footer
@@ -541,7 +557,7 @@ classes/
     inventory.php            user layer: fill, seven-field stamp, active rows at read time (Phase 2)
     explore.php              inventory → groups by category depth, names formatted (Phase 2); the mode
                              decision, rows() and search() over one shared population helper (Phase 3)
-    matcher.php              filter.js's normalise() and matches() in PHP — the server-side search's
+    matcher.php              filter.ts's normalise() and matches() in PHP — the server-side search's
                              rule, pinned to the client's by a parity fixture (Phase 3)
     prewarm.php              the pre-warming sweep: keyset selection, cursor/since/lastsweep in plugin
                              config, budget between users, warm one user = fill + shared layers (Phase 3)
@@ -558,8 +574,11 @@ classes/
                              (pending only while the feature is on), field keys as shortnames with
                              integer values, and the panel flag — the guard, since the value is
                              PARAM_RAW and core cleans it not at all (Phase 9, ADR-010)
-  observer.php               per-key cache deletes on the six events of db/events.php (Phase 1; the two
-                             category events in Phase 2)
+  observer.php               per-key cache deletes on the seven course, category, completion and account
+                             events of db/events.php (Phase 1; the two category events in Phase 2;
+                             user_deleted, which drops the user's inventory entry and the details keys it
+                             lists, since 2026092401), and whole purges of filterfields and coursefields
+                             on the four core_customfield ones (Phase 8)
   hook_callbacks.php         db/hooks.php callbacks, each catching \Throwable: the top-of-body hook writing
                              seven modulepreload hints where the block is (after the import map - a preload
                              in the head disables the map; my-index + mydashboard with
@@ -594,11 +613,15 @@ js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since
                              repository (every web service, through the bridge to core/ajax, with
                              the bounded retry over reads that fail in transit, Phase 9),
                              amd (the RequireJS bridge — the only file that knows about it),
+                             notify (core/notification's two uses, an error notification and the
+                             save/cancel confirmation, both settling without rejecting; the only
+                             client file that loads that module, which a static rule enforces),
                              filter (normalise, match, relative time, chips — the PHP twin of the
                              first two is classes/local/matcher.php and the pair is pinned by a
                              fixture), heading (the section and card heading levels, chosen from
                              the headinglevel prop — no component writes a heading tag itself,
-                             ADR-008, ADR-012), str (placeholder substitution), types (the payload shapes)
+                             ADR-008, ADR-012), str (placeholder substitution, every {$a} as core's
+                             get_string() does), types (the payload shapes)
 js/esm/bundle.json           the marker that opts the plugin into moodle-dev's generic bundle step
                              (entry src/Block.tsx, outfile build/bundle.js; ADR-011, decision 1)
 js/esm/build/                tracked build output — rebuilt by mdl grunt, committed with src: the
@@ -609,9 +632,10 @@ templates/                   block (the React mount point naming @moodle/lms/blo
                              block partial, for index.php) and preload (the modulepreload links the
                              top-of-body hook writes). Every card, row, group and toolbar is a component
 db/                          access.php, services.php (five read functions), caches.php (six
-                             definitions), events.php (six course/category/completion observers plus
-                             four core_customfield ones), tasks.php (warm_active_users, 04:00, random
-                             minute; Phase 3), hooks.php (the two callbacks above; Phase 10). NO
+                             definitions), events.php (seven course/category/completion/account
+                             observers plus four core_customfield ones), tasks.php (warm_active_users,
+                             04:00, random minute, no blocking key — 5.2 reads none; Phase 3), hooks.php
+                             (the two callbacks above; Phase 10). NO
                              install.xml, NO upgrade.php with schema steps, and
                              no uninstall.php purge: the plugin owns no rows outside MUC and the
                              three prewarm_* plugin-config rows, which core's uninstall removes
@@ -628,9 +652,10 @@ tests/                       PHPUnit per area; generator; budget tests beside ea
 `get_content()` runs only for logged-in non-guests, instantiates
 `\block_compass\output\block`, renders it and returns. It reads no `$DB`, no
 cache, no course. `applicable_formats()` is `['my' => true]` (the Dashboard) —
-widening it is a maintainer decision recorded in ADR-000. `can_block_be_added()`
-mirrors any hard precondition so an admin cannot place a block that will render
-nothing. Every label the JS needs is exported once from the renderable as one
+widening it is a maintainer decision recorded in ADR-000 — and
+`instance_allow_multiple()` is false. The block has no hard precondition, so it
+does not override `can_block_be_added()`; if it ever gains one, that method mirrors
+it, so an admin cannot place a block that will render nothing. Every label the JS needs is exported once from the renderable as one
 JSON props object, which the template hands to React through `data-react-props`
 (ADR-006); strings are never fetched from JS, because for an ES module there is
 no `core/str` to fetch them with.
@@ -652,11 +677,12 @@ parameters), and `search_inventory` once per settled query (300 ms debounce,
 ≥ 2 characters after normalisation, ≤ 50 hits rendered into the flat list in
 place of the groups). Neither is a filter the browser could apply itself — the
 rows are not in the browser — so non-negotiable 5 holds. The only other calls
-are to core's own: the star (`core_course_set_favourite_courses`), the view
-preference and the archive (Phase 5), both through `core_user/repository`'s
-`setUserPreferences` to core's own preferences endpoint — the one that looks the
-definition up, asks the permission callback and refuses a value cleaning would
-change. An archive is the one action that makes the browser's copy of BOTH tiers
+are to core's own: the star (`core_course_set_favourite_courses`), the view and
+toolbar preferences and the archive (Phase 5), through `core_user/repository` to
+core's own preferences endpoint — `setUserPreferences` for the preferences and for
+archiving, `setUserPreference` for bringing a course back, one at a time — the
+endpoint that looks the definition up, asks the permission callback and refuses a
+value cleaning would change. An archive is the one action that makes the browser's copy of BOTH tiers
 wrong at once, so it is followed by one `get_attention` and one `get_inventory`
 — the two calls the page made on load — rather than by any local patching. Filtering, grouping and the
 side index work on the inventory already in the browser in `full` mode; in
@@ -673,7 +699,7 @@ Writing happens in the browser through core's own
 `core_course_set_favourite_courses`, so the star agrees between the two blocks
 and Compass owns no favourite rows, no toggle service, no privacy entry and no
 uninstall purge for them. Two consequences to keep in view: `enable_favourites`
-only hides the UI (the core service stays callable), and the core service
+only hides the UI and skips the strip's query (the core service stays callable), and the core service
 verifies the course exists but not that the user is enrolled — a favourite on a
 course the user left is core's behaviour, and the strip does not show it
 because tier 1 joins active enrolments. The enabled check is one helper treating
@@ -686,15 +712,17 @@ Archiving reuses `block_myoverview_hidden_course_<courseid>` (`1`, or `null` to
 delete the row — how core's own block brings a course back), so hiding in Compass
 hides in the Course overview block and vice versa (ADR-000 decision 16, built in
 Phase 5 under ADR-007). Reads go through `get_user_preferences()` in
-`classes/local/`; writes happen in the browser through `core_user/repository`'s
-`setUserPreferences`, which posts to core's **router** endpoint — not the legacy
+`classes/local/`; writes happen in the browser through `core_user/repository`
+(`setUserPreferences` to archive, `setUserPreference` to bring back, below), which
+posts to core's **router** endpoint — not the legacy
 `core_user_update_user_preferences` decision 16 named; ADR-007 corrects that. The
 two differ where it matters: the router validates each item and **abandons the
 rest of the batch on the first it cannot write**, with no transaction (measured
 live), while the legacy function silently skips it. So `repository.ts` archives in
 batches of 50, a failed batch stops and both tiers reload rather than retrying
-over a partial write, and "archive all" asks first through `core/notification`'s
-`saveCancelPromise`. **Bringing back goes one course at a time through the
+over a partial write, and "archive all" asks first through `confirmAction()` in
+`notify.ts` (core/notification's `saveCancelPromise`; a dialogue that fails to load
+counts as a cancel, because an action nobody confirmed is not taken). **Bringing back goes one course at a time through the
 single-preference route**, because the batch route's body is a map of strings and a
 `null` in it is a 500 (measured; ADR-007 amendment) — the single route is the one
 core's own block uses for exactly this. Core declares the family in `blocks/myoverview/lib.php`
@@ -713,7 +741,11 @@ core rejects a preferences write for any family no callback declares.
 
 Each definition in `db/caches.php` has exactly one wrapper class in
 `classes/local/` (six definitions, six wrappers: `course_meta`,
-`category_meta`, `inventory`, `details`, `course_fields`, `filter_fields`) exposing `get_many()`, `set()` and `invalidate()`; callers
+`category_meta`, `inventory`, `details`, `course_fields`, `filter_fields`) exposing
+what its layer needs and nothing more — reads through `get_many()` (`get()` and
+`fill()` for `inventory`, `eligible()` for `filter_fields`), writes through
+`set_from_rows()` or `set()`, drops through `delete()`, `delete_many()`,
+`delete_descendants()` or `purge()`; there is no `invalidate()`. Callers
 never `\core_cache\cache::make()` themselves. That is where the stamp
 validation, the TTL choices and the "no course data inside `inventory`"
 invariant live, and where a test can assert them. Cache keys carry no `:`
@@ -734,9 +766,15 @@ Four rules the fleet paid for elsewhere and this plugin inherits:
   process (`\core\session\manager::set_user()` in CLI, adhoc tasks and "log in
   as"), and the failure is one person's inventory handed to the next
   (`theme_boost_union_fundaseg`).
-- **Every privacy `delete_*` path invalidates the user's entries** in
-  `inventory` and `details` as well as deleting rows; a provider that leaves
-  derived data cached has erased nothing (`mod_interactivevideo`).
+- **Deleting an account drops what the caches hold about it**; a provider that leaves
+  derived data cached has erased nothing (`mod_interactivevideo`). Here the privacy provider owns
+  no `delete_*` path (its data is two preferences, which core deletes), so the per-user
+  layers are dropped by `observer::user_deleted()`: it reads the cached `inventory`
+  entry first (`inventory::cached_courseids()` — no stamp, no fill, every row), because
+  once `delete_user()` has removed the enrolments that entry is the only list of the
+  user's `details` keys and a store cannot delete by prefix, then deletes the entry and
+  those keys. What it cannot reach lapses at the TTLs (1 h `details`, 24 h
+  `inventory`). A `delete_*` path added later invalidates the same two layers.
 - **Every cache test purges first.** Cold is exactly when a bug shows —
   `purge_all_caches()` runs on every install and upgrade — and the warm path
   hides it (`local_groupdist`). `simpledata => true` is a static-acceleration
@@ -777,8 +815,8 @@ Four rules the fleet paid for elsewhere and this plugin inherits:
   `$DB->sql_like()` with the escaped parameter.
 - Cross-DB: CI runs PostgreSQL and MariaDB; `MAX()` on an int column is
   portable while `NULLS FIRST` is not. The pre-warming selection binds `:since`
-  and `:cursor` once each and passes the batch size as `get_fieldset_sql()`'s
-  limit rather than as a `LIMIT` literal.
+  and `:cursor` once each and passes the batch size as `get_records_sql()`'s
+  `$limitnum` (`get_fieldset_sql()` takes none) rather than as a `LIMIT` literal.
 
 ### Core APIs this plugin builds on (verified on the 5.2 checkout)
 
@@ -803,6 +841,9 @@ Four rules the fleet paid for elsewhere and this plugin inherits:
   `course_category_updated` is created with `objectid` and `context` only, at
   every site in `course/classes/category.php`, so it cannot tell a move from a
   rename — the reason its observer also drops the descendants' entries.
+  `\core\event\user_deleted` is raised by `delete_user()` after it has removed the
+  user's enrolments (`lib/moodlelib.php`), which is why its observer reads the course
+  list out of the cached entry rather than the database.
 - Category records: `core_course_category::get_many()` reads core's
   `coursecatrecords` cache, which is `MODE_REQUEST` (`lib/db/caches.php`) —
   one read per request for every id, however often it was fetched before. The
@@ -829,9 +870,11 @@ field (a bare `<` in a name otherwise fails the whole response); `PARAM_URL` for
 image URLs; the `mode` field of `get_inventory` is `PARAM_ALPHA` with a literal
 check against `full` / `paged`. The two Phase 3 functions check their
 vocabularies **before any work**: `get_inventory_rows` throws
-`invalid_parameter_exception` for a `chip` outside `all` / `new` / `favourites`
-or a `sort` outside `name` / `recent` (both `PARAM_ALPHA`, defaults `all` and
-`name`; `groupid` `PARAM_INT` required; `after` `PARAM_INT` default 0), and
+`invalid_parameter_exception` for a `chip` outside `all` / `new` / `favourites` /
+`pending` (`explore::CHIPS`), a `sort` outside `name` / `recent` (both `PARAM_ALPHA`,
+defaults `all` and `name`), a negative `groupid` other than the reserved `-1` / `-2`
+(`PARAM_INT`, required; `after` `PARAM_INT` default 0) or a field named twice in
+`filters`, and
 `search_inventory` takes `query` as `PARAM_RAW` — the domain normalises it —
 truncated to 200 characters with `core_text::substr` before the call. Their
 class docblocks state the honest per-request budget: 3 reads with the shared
@@ -889,10 +932,11 @@ things about writing them here are not obvious and were paid for in R1:
   in core type-checks anything. A type error is invisible to eslint and reaches
   the browser as a component that mounts nothing.
 - **A badge names its classes in a string literal.** `bootstrap_compat_test`
-  reads the attribute with a regex — it accepts both `class="…"` and
-  `className="…"` since R1 — and a computed `className={…}` defeats it, so the
-  construct is banned outright and a test asserts the ban. Anything conditional
-  picks between whole literals.
+  reads the attribute with a regex — `class` or `className`, double- or
+  single-quoted — and a computed `className={…}` defeats it, so the
+  construct is banned outright and a test asserts the ban, reading the expression to
+  its matching brace so a template literal's `${…}` does not end it early. Anything
+  conditional picks between whole literals.
 - **A heading tag is never written literally in a component.** `js/esm/src/heading.ts`
   exports `sectionTag()` and `titleTag()`, both a function of the `headinglevel` prop the
   shell exports: 4 under core's own block-title `<h3>` (sections `<h4>`, card titles `<h5>`),
@@ -911,7 +955,7 @@ things about writing them here are not obvious and were paid for in R1:
   on its dark body is 3.02:1 against the 4.5:1 floor, and Bootstrap's dark emphasis
   tint of a brand is no safer — a navy brand measured 3.28:1. Outlines, borders and
   backgrounds keep the plain token and clear their own 3:1.
-- **That override is scoped to html-or-body, in four selectors, and never to `:root`
+- **That override is scoped to html-or-body, in two selectors, and never to `:root`
   alone** (2026-09-12). It was `:root[data-bs-theme="dark"] .block_compass`, and on
   5.2 that anchor sees nothing: `theme_boost` does not listen to core's
   `before_html_attributes` hook on this branch and ships no `enablecolourmodes`
@@ -940,8 +984,9 @@ things about writing them here are not obvious and were paid for in R1:
   triple-stash one: core's own output, never user data.
 
 **Nothing is AMD any more.** R3 deleted the last three modules and four templates;
-`core/ajax` and `core/notification` are the only AMD left anywhere near this plugin
-and both are reached through `js/esm/src/amd.ts`.
+`core/ajax`, `core/notification` and `core_user/repository` are the only AMD left
+anywhere near this plugin, all reached through `js/esm/src/amd.ts` — `core/ajax` and
+`core_user/repository` from `repository.ts`, `core/notification` from `notify.ts` alone.
 
 Tier 3, whose behaviour is the most intricate thing here:
 
@@ -958,7 +1003,16 @@ Tier 3, whose behaviour is the most intricate thing here:
   page replaces what is held instead of appending.
 - **Debounce 150 ms in full mode, 300 in paged** — one costs a request, the other
   does not. A query shorter than two characters normalised is never sent, because
-  the server would refuse it.
+  the server would answer it with no rows (`explore::SEARCH_MIN_LENGTH`).
+- **One name order on both sides.** The server orders a group's rows with
+  `core_collator`'s natural sort (`build()`), and pages and search hits through
+  collation sort keys of the naturalised raw name with ties to the lower course id
+  (`explore::order()`); full mode's flat list sorts in the browser with
+  `localeCompare(…, {numeric: true})`, so "Unit 2" precedes "Unit 10" everywhere.
+  Three differences remain on purpose, stated at `byname()` in `Explore.tsx`: case and
+  accents are folded by `normalise()`, the locale is the browser's, and a tie keeps
+  arrival order. `explore_test` reads every `localeCompare()` in the client for the
+  numeric option.
 - **The live region says what is true of the mode it is in.** Full mode announces
   a count. Paged mode has no total to announce until every group is open, so a chip
   or sort change announces `filterupdated`, which says the counts are unfiltered
@@ -996,10 +1050,17 @@ Tier 3, whose behaviour is the most intricate thing here:
   (`reloadBoth()` and Block's `load(true)`), because the strips and the ghost counts are
   the server's decision; a paged-mode search is re-run too, because its hits are state of
   their own; and the keyboard is put back deliberately (`keepFocus()`), because the row
-  that held the control has left the page — the R3 "Show more" lesson again.
+  that held the control has left the page — the R3 "Show more" lesson again. The target
+  is the group's summary, checked when it is used: once *Archive all* has emptied the
+  dormant group the summary has left too, and the section title stands in.
+- **A star reaches the other tier without a request.** Tier 3's own toggle refreshes tier 1
+  through `onChanged`; a toggle in tier 1 patches the strips and hands Explore a `starred`
+  prop — a new `StarChange` object per toggle, so a repeat of the previous values still
+  applies — which Explore applies through `withRow`, so the row's star, the Favourites
+  chip's count and the facets follow.
 - **The toolbar is a platter, a toggle and a panel (ADR-009, Phase 8).** `Platter.tsx` is
-  `local_dimensions`' filter tabs rewritten as a component — read as a specification, never
-  imported (ADR-006): masked scroller, sliding indicator under the pressed pill, paddles that
+  `local_dimensions`' filter tabs (`amd/src/filter_tabs_nav.js`) rewritten as a component —
+  read as a specification, never imported (ADR-006) and not kept in step with it: masked scroller, sliding indicator under the pressed pill, paddles that
   are `aria-hidden` with `tabIndex={-1}`, arrow keys with wrap-around, a `ResizeObserver` that
   also makes the first paint right after a hidden panel is shown. One value per group, groups
   AND together; the Status group's *All* chip releases it and a field group is released by
@@ -1025,7 +1086,10 @@ Tier 3, whose behaviour is the most intricate thing here:
   link bump a `reveal` counter; `Explore.tsx` scrolls the section into view and focuses it with
   `preventScroll`, without easing under `prefers-reduced-motion` or on a `behat-site` body, where
   a click must not land on a moving element. The ghost restores the remembered chip
-  (`CHIP_OF_KIND.tier2 = null`); a heading link presses its own.
+  (`CHIP_OF_KIND.tier2 = null`); a heading link presses its own. It acts **once per
+  press**: a ref records the last `reveal` handled, because the effect also re-runs
+  when `chooseChip` changes — which it does when a paged payload lands after the press,
+  by which time the reader may have moved on.
 - **Resilience is three things, each in one place (ADR-010, decision 12).** `repository.ts`
   retries a read that failed in transit — a rejection without an `errorcode`, or one made while
   `navigator.onLine` is false — after 1 s and 3 s plus up to 500 ms of jitter, telling the one
@@ -1038,8 +1102,14 @@ Tier 3, whose behaviour is the most intricate thing here:
   because a remount seeded from the props would revert whatever changed since page load, and
   resetting the reveal counter so the remount does not scroll and focus tier 3 like a press.
   The reload button and every *Try again* are `aria-disabled` while busy, never `disabled` (a
-  focused element that becomes disabled drops the keyboard to the body — a static rule reads the
-  two files), and the shared notice puts focus on the group's summary or the reload control when
+  focused element that becomes disabled drops the keyboard to the body), and so are the other
+  controls that disable themselves in the render their own press causes: the star while its
+  write is out (without Bootstrap's `disabled` class either, whose `pointer-events: none` would
+  pass a second click to a card's stretched link), *Clear filters* once its press has released
+  the last filter, and *Archive all* while its run is out — each handler refuses the press
+  itself. `accessibility_rules_test::test_the_busy_controls_stay_focusable` reads the five
+  files. "Show more" and the archive control keep `disabled` on purpose, because focus is
+  moved deliberately after them. The shared notice puts focus on the group's summary or the reload control when
   its own button leaves the page. An `online` event retries whatever was waiting; tier 1 listens
   always and decides in the handler. Writes are never retried: a favourite or an archive that
   failed reloads instead.
@@ -1057,8 +1127,12 @@ Tier 3, whose behaviour is the most intricate thing here:
   the fetch on the current view would make the switch cost a request per row filled
   before it, and ADR-005 chose the free switch knowingly.
 - Root class `.block_compass` is what core already puts on the block wrapper (`html_attributes()` in `blocks/moodleblock.class.php`), so
-  scope styles and tokens there and repeat the token block on any element core
-  relocates (`core/modal` dialogues appended to `body`). Custom properties use
+  scope styles and tokens there and repeat the token block on any element the plugin
+  paints inside something core relocates (a `core/modal` dialogue is appended to
+  `body`). None exists today: the one dialogue the client opens is core's own
+  confirmation, which the theme paints, so the tokens sit on `.block_compass` alone and
+  `accessibility_rules_test` fails any `compass-*` class the stylesheet styles but no
+  template or component renders. Custom properties use
   the frankenstyle prefix `--block_compass-*` with the `--bs-*` fallback chain;
   inner classes use `compass-*`. Never declare `--mds-*`.
 - Reduced motion honoured; favourite toggles announced through an assertive
@@ -1136,10 +1210,12 @@ the following defaults flip, deliberately:
   `block_feedback_tracker`'s suite weekday-dependent.
 - Generated user names are random: never tell two users apart by rendered
   name; assert on ids.
-- `set_config()` writes the DB but memoised readers keep old values; read
-  settings through one helper and reset it in tests.
+- `set_config()` writes the DB but a memoised reader keeps the old value. Settings
+  are read through one helper, `local\config`, which calls `get_config()` on every
+  call and memoises nothing, so a test's `set_config()` is seen at once; keep it that
+  way rather than adding a cache and a reset for tests.
 - **Matcher parity fixture.** The server-side search is correct only while
-  `matcher::normalise()` / `matches()` equal `filter.js`'s `normalise()` /
+  `matcher::normalise()` / `matches()` equal `filter.ts`'s `normalise()` /
   `matches()`. One PHPUnit fixture of query/name pairs pins it — "Strøm" (NFD
   leaves ø alone, so "strom" must **not** match), "straße", "Ação" against
   "acao", a two-word query in the other order than the name's, a word absent
@@ -1162,8 +1238,11 @@ the following defaults flip, deliberately:
   that does create one.
 - Budget tests of the Phase 3 services measure with `simulate_new_request()`
   between the warm-up and the measured call: headers ≤ 3, rows ≤ 3, search ≤ 3
-  (+ 1 each through the web service); the task ≤ 1 read per user + 1 per batch
-  + 1 for the count line with the shared layers warm.
+  (+ 1 each through the web service); the task 1 read per user over a fixed
+  overhead with the shared layers warm, asserted as ≤ 1 + 7 for a one-user sweep and
+  ≤ 3 + 7 for a three-user one — the seven itemised in the test's docblock and in
+  `prewarm::run()`'s: two config-bundle reloads, three `set_config()` row reads, the
+  count and the selection.
 - Behat: **five** smoke scenarios at most — the block appears on the Dashboard (and
   the page carries the seven preload hints), a recently accessed course shows in
   Continue, the ghost card opens tier 3 (and, since R4, switches to cards and finds
@@ -1180,10 +1259,22 @@ the following defaults flip, deliberately:
   which the step demands, and axe is on by default in the Behat run config, so
   nothing has to be switched on (ADR-008, decision 1). Scenario 2 runs with
   `hide_block_title` on, so the other heading ladder is measured too.
-  `tests/local/accessibility_rules_test.php` is the static half — eighteen rules over
+  `tests/local/accessibility_rules_test.php` is the static half — twenty-four rules over
   `js/esm/src`, `templates/` and `styles.css`, each with the vacuity guard its
-  sibling `bootstrap_compat_test` carries — because axe reads a rendered page and
+  sibling `bootstrap_compat_test` carries, beside two checks of the scan itself: that it
+  found the files the rules are about, and controls for `tags()`, the reader every
+  element rule uses, which reads a tag to its own end past the arrow functions and
+  quoted `>` inside it — because axe reads a rendered page and
   cannot see a rule that no scenario happens to render.
+- **A hidden element that shows anyway passes every scenario.** Behat's `I should see`
+  never asks whether an empty element is displayed, and no scenario asserts the absence
+  of a notice it has no reason to expect. The error region carried `d-flex` beside
+  `hidden` from Phase 1 to R1, and every Dashboard showed an empty warning with a
+  *Try again* button: Bootstrap's display utilities are `!important` and come after
+  `[hidden]` in the sheet. Only a static rule sees that class of defect —
+  `bootstrap_compat_test::test_nothing_hidden_also_carries_a_display_utility`,
+  which reads `hidden` bare and as `hidden={…}` and a tag to its own end, with
+  positive controls so it can fail while the sources hold no violation.
 - Re-run `mdl phpunit-init m502` when any mounted `version.php` moved, including
   another session's. A CSS change is invisible to Behat until `mdl behat-init`
   re-runs — the behat site serves theme CSS built at init time

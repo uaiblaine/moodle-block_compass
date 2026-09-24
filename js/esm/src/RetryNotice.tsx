@@ -19,7 +19,8 @@
  * Amber rather than error red, because the failure is recoverable; role="alert", so it is
  * announced; "Try again", which replays the loader that failed; and "Reload page" as the last
  * resort. The parent owns the retry callback and the in-flight flag; while a retry runs, Try
- * again is aria-disabled and refuses a second press (see Reload.tsx for why not disabled).
+ * again is aria-disabled and refuses a second press (see Reload.tsx for why not disabled), and
+ * the pointer-events: none of Bootstrap's disabled class passes a click only to the alert beneath.
  *
  * @module     block_compass/RetryNotice
  * @copyright  2026 Anderson Blaine

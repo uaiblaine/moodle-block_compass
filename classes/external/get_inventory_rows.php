@@ -204,15 +204,15 @@ class get_inventory_rows extends external_api {
             'opened' => new external_value(PARAM_INT, 'Last access timestamp', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'new' => new external_value(PARAM_BOOL, 'Enrolled recently and never opened'),
             'fav' => new external_value(PARAM_BOOL, 'Whether the core course star is set'),
-            'dorm' => new external_value(PARAM_BOOL, 'Whether the course has gone quiet (ADR-007)'),
+            'dorm' => new external_value(PARAM_BOOL, 'Whether the course has gone quiet'),
             'pend' => new external_value(
                 PARAM_BOOL,
-                'Present, and true, only on an enrolment application awaiting approval (ADR-009)',
+                'Present, and true, only on an enrolment application awaiting approval',
                 VALUE_OPTIONAL
             ),
             'cf' => new external_multiple_structure(
                 new external_value(PARAM_INT, 'A field index into the top-level fields array, then its value key'),
-                'Custom-field values in pairs; present only when the row holds one (ADR-009)',
+                'Custom-field values in pairs; present only when the row holds one',
                 VALUE_OPTIONAL
             ),
         ];

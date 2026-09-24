@@ -134,20 +134,28 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
      * A stored value the plugin cannot draw is exported as it is, not relabelled as a view.
      *
      * Elsewhere such a value falls back to a view the client can render; the export must not
-     * ({@see provider::export_user_preferences()}).
+     * ({@see provider::export_user_preferences()}). The control comes first, for the same user:
+     * the default view, the one token no other case stores, is exported as its label, so the
+     * verbatim export that follows is the fallback arm's doing and not a relabelling that never
+     * happens.
+     *
+     * Changes that must make it fail: an unknown value exported as a label, or the list token
+     * exported as stored.
      *
      * @return void
      */
     public function test_a_value_outside_the_vocabulary_is_exported_as_it_stands(): void {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
-        set_user_preference('block_compass_view', 'sideways', $user);
 
+        set_user_preference('block_compass_view', 'list', $user);
         provider::export_user_preferences((int) $user->id);
         $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');
+        $this->assertSame(get_string('view_list', 'block_compass'), $exported->block_compass_view->value);
 
+        set_user_preference('block_compass_view', 'sideways', $user);
+        provider::export_user_preferences((int) $user->id);
+        $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');
         $this->assertSame('sideways', $exported->block_compass_view->value);
-        // Not relabelled as the default view.
-        $this->assertNotSame(get_string('view_list', 'block_compass'), $exported->block_compass_view->value);
     }
 }

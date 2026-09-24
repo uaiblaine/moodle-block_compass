@@ -57,7 +57,6 @@ final class course_fields_test extends advanced_testcase {
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'coursemeta')->purge();
-        course_meta::reset();
         $this->plugingen = $this->getDataGenerator()->get_plugin_generator('block_compass');
     }
 
@@ -109,7 +108,8 @@ final class course_fields_test extends advanced_testcase {
         ksort($again);
         $this->assertSame($values, $again);
 
-        // The field list bounds the fill: asked for one field only, a cold course carries only it.
+        // The field list bounds the fill: asked for one field only, a cold course carries only it,
+        // which is why explore asks for every eligible field rather than the configured ones.
         cache::make('block_compass', 'coursefields')->purge();
         $narrow = course_fields::get_many([$both], [$modality]);
         $this->assertSame([$modality => 2], $narrow[$both]);

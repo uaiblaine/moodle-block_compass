@@ -41,8 +41,9 @@ use core_external\external_value;
  * layers warm (four strip and count statements, preferences, filters), seven
  * with every plugin cache cold (one categorymeta fill; coursemeta is filled from
  * the strip rows) — plus the one read validate_context() costs here, the user
- * context, since the context cache starts empty every request. Asserted by its
- * budget tests. The count of enrolment applications awaiting approval rides
+ * context, since the context cache starts empty every request. One read fewer
+ * with the favourites feature off, whose strip is then not queried. Asserted by
+ * its budget tests. The count of enrolment applications awaiting approval rides
  * inside the counts statement as a scalar subquery and adds no read.
  *
  * @package    block_compass
@@ -77,11 +78,8 @@ class get_attention extends external_api {
         self::validate_context(context_user::instance($userid));
 
         $now = time();
-        $tier = (new attention($userid, $now))->build();
         $favouritesenabled = config::favourites_enabled();
-        if (!$favouritesenabled) {
-            $tier['favourites'] = [];
-        }
+        $tier = (new attention($userid, $now, null, null, null, $favouritesenabled))->build();
         $strips = cards::build($userid, [
             'continue' => $tier['continue'],
             'new' => $tier['new'],
@@ -134,11 +132,10 @@ class get_attention extends external_api {
             'hascompletion' => new external_value(PARAM_BOOL, 'Whether completion is tracked for this course'),
             'progress' => new external_value(PARAM_INT, 'Progress percentage when cached', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'pending' => new external_value(PARAM_BOOL, 'Whether progress must be fetched through get_card_details'),
-            'nodata' => new external_value(PARAM_BOOL, 'Completion is tracked but not available for this user (cached answer)'),
             'teacher' => new external_value(
                 PARAM_BOOL,
                 'Present, and true, only when completion is off and the viewer is not a learner of the course: the one '
-                    . 'reader "No completion configured" is said to (ADR-010, decision 10)',
+                    . 'reader "No completion configured" is said to',
                 VALUE_OPTIONAL
             ),
             'iscomplete' => new external_value(PARAM_BOOL, 'Whether the course is complete'),

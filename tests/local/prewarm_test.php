@@ -77,7 +77,7 @@ final class prewarm_test extends advanced_testcase {
     }
 
     /**
-     * Empty the four definitions; the wrappers' reset() methods have no memo left to clear.
+     * Empty the four definitions.
      *
      * @return void
      */
@@ -86,9 +86,6 @@ final class prewarm_test extends advanced_testcase {
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -243,11 +240,22 @@ final class prewarm_test extends advanced_testcase {
      * Protocol (classes/local/budget.php; tests/generator/lib.php, simulate_new_request()): one
      * sweep warms core and the shared layers; then two sweeps are measured after the user layer
      * is purged, one over a single user in the window and one over three, so the per-user cost is
-     * the difference and the overhead cancels out. The overhead of a completing one-batch sweep
-     * (the remaining count, the selection, and one read per set_config() write, accounted in
-     * {@see prewarm::run()}) is bounded at eight. Per user: the fill (1); coursemeta and
-     * categorymeta are warm, the steady state of a live site, and details is never written (its
-     * own test).
+     * the difference. Per user: the fill (1); coursemeta and categorymeta are warm, the steady
+     * state of a live site, and details is never written (its own test).
+     *
+     * The overhead is seven reads, the same for both measured sweeps, because each follows a
+     * completed sweep and so starts a new one at cursor 0 ({@see prewarm::run()}): the plugin's
+     * config bundle, reloaded by the first get_config() because the previous sweep's last
+     * set_config() invalidated it; the window's set_config(), which reads its row before writing;
+     * the bundle reloaded again by config::group_depth(), because that write invalidated it; the
+     * remaining count; the one selection; and the row reads of the two set_config() calls that
+     * end the sweep, the cursor reset and the completion time. Every one of those set_config()
+     * calls invalidates the bundle even when the value is unchanged, because it compares the
+     * stored string with the int it is given strictly (lib/moodlelib.php). The opening line's
+     * userdate() reads no table: its strings are cached by the warm-up sweep.
+     *
+     * Changes that must make it fail: one more read per sweep, or a second read per user with the
+     * shared layers warm.
      *
      * @return void
      */
@@ -286,8 +294,8 @@ final class prewarm_test extends advanced_testcase {
         $this->assert_warmed($p['b'], 2);
         $this->assert_warmed($p['c'], 1);
 
-        $this->assertLessThanOrEqual(1 + 8, $readsone, "warming one user cost {$readsone} reads; the bound is 1 + 8");
-        $this->assertLessThanOrEqual(3 + 8, $readsthree, "warming three users cost {$readsthree} reads; the bound is 3 + 8");
+        $this->assertLessThanOrEqual(1 + 7, $readsone, "warming one user cost {$readsone} reads; the bound is 1 + 7");
+        $this->assertLessThanOrEqual(3 + 7, $readsthree, "warming three users cost {$readsthree} reads; the bound is 3 + 7");
         $this->assertLessThanOrEqual(
             2,
             $readsthree - $readsone,

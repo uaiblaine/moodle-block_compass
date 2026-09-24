@@ -1,12 +1,14 @@
 /* Compass block.
  *
- * Tokens are declared on every root the plugin paints, including the ones
- * core relocates (a core/modal dialogue is appended to body, outside the
- * block). Read the theme's tokens with a fallback chain; never hardcode a
- * palette and never declare --mds-* names.
+ * Tokens are declared on every root the plugin paints. The block is the only
+ * one today; a surface the plugin painted inside something core relocates (a
+ * core/modal dialogue is appended to body, outside the block) would need the
+ * declaration repeated on its own root. The one dialogue the client opens is
+ * core's save and cancel confirmation, which the theme paints. Read the
+ * theme's tokens with a fallback chain; never hardcode a palette and never
+ * declare --mds-* names.
  */
-.block_compass,
-.compass-dialogue {
+.block_compass {
     --block_compass-brand: var(--bs-primary, #0f6cbf);
     --block_compass-brand-text: var(--bs-primary, #0f6cbf);
     --block_compass-line: var(--bs-border-color, #dee2e6);
@@ -26,9 +28,7 @@
    alone, and a bare [data-bs-theme="dark"] .block_compass would match through any ancestor.
    Pinned by accessibility_rules_test::test_dark_override_scope_is_html_or_body. */
 body[data-bs-theme="dark"] .block_compass,
-[data-bs-theme="dark"] body .block_compass,
-body[data-bs-theme="dark"] .compass-dialogue,
-[data-bs-theme="dark"] body .compass-dialogue {
+[data-bs-theme="dark"] body .block_compass {
     --block_compass-brand-text: var(--bs-body-color, #dee2e6);
 }
 
@@ -414,10 +414,6 @@ body[data-bs-theme="dark"] .compass-dialogue,
 .block_compass .compass-card-link:focus-visible {
     outline: 2px solid var(--block_compass-brand);
     outline-offset: 2px;
-}
-
-.block_compass .compass-row-star {
-    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-ghost {

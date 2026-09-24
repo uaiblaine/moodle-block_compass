@@ -27,10 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
-use block_compass\local\category_meta;
 use block_compass\local\config;
-use block_compass\local\course_meta;
-use block_compass\local\details;
 use block_compass\local\explore;
 use block_compass\local\inventory;
 use core_cache\cache;
@@ -121,9 +118,6 @@ final class get_inventory_test extends advanced_testcase {
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        course_meta::reset();
-        category_meta::reset();
-        details::reset();
     }
 
     /**
@@ -137,7 +131,6 @@ final class get_inventory_test extends advanced_testcase {
     private function purge_user_caches(): void {
         cache::make('block_compass', 'details')->purge();
         cache::make('block_compass', 'inventory')->purge();
-        details::reset();
     }
 
     /**
@@ -390,7 +383,7 @@ final class get_inventory_test extends advanced_testcase {
         $this->assertLessThanOrEqual(
             40000,
             $bytes,
-            "the saturated 250-row response measures {$bytes} bytes; the ceiling is 40 000 (ADR-009 recorded 34 172)"
+            "the saturated 250-row response measures {$bytes} bytes; the ceiling is 40 000"
         );
     }
 

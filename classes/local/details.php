@@ -54,15 +54,6 @@ final class details {
     }
 
     /**
-     * A no-op kept for the tests that purge the definition and then reset the wrapper; there
-     * is no per-request memo to clear (see cache()).
-     *
-     * @return void
-     */
-    public static function reset(): void {
-    }
-
-    /**
      * The cache key of one user and course.
      *
      * @param int $userid The user.
@@ -118,6 +109,21 @@ final class details {
      */
     public static function delete(int $userid, int $courseid): void {
         self::cache()->delete(self::key($userid, $courseid));
+    }
+
+    /**
+     * Drop the answers of one user for many courses, on the deletion of their account.
+     *
+     * @param int $userid The user.
+     * @param int[] $courseids Course ids; an empty list deletes nothing.
+     * @return void
+     */
+    public static function delete_many(int $userid, array $courseids): void {
+        $keys = [];
+        foreach (array_unique(array_map('intval', $courseids)) as $courseid) {
+            $keys[] = self::key($userid, $courseid);
+        }
+        self::cache()->delete_many($keys);
     }
 
     /**

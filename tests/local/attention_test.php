@@ -65,19 +65,13 @@ final class attention_test extends advanced_testcase {
     private int $coursecount = 0;
 
     /**
-     * A fresh user and the plugin generator, plus the memoised MUC handles cleared.
-     *
-     * core_cache\factory::reset() runs between tests (lib/classes/test/testing_util.php,
-     * reset_dataroot), so the wrappers' memoised instances would otherwise point at
-     * stores from the previous test.
+     * A fresh user and the plugin generator.
      *
      * @return void
      */
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
-        course_meta::reset();
-        details::reset();
         $this->userid = (int) $this->getDataGenerator()->create_user()->id;
         $this->plugingen = $this->getDataGenerator()->get_plugin_generator('block_compass');
     }
@@ -279,7 +273,6 @@ final class attention_test extends advanced_testcase {
         $this->plugingen->apply_at($this->userid, (int) $applied->id, self::NOW - DAYSECS);
         $attention = new attention($this->userid, self::NOW, 3, 30, true);
         $attention->build();
-        get_user_preferences(null, null, $this->userid);
 
         $meter = budget::start();
         $tier = $attention->build();
@@ -733,7 +726,6 @@ final class attention_test extends advanced_testcase {
         $this->plugingen->favourite($this->userid, (int) $starred->id);
         $attention = new attention($this->userid, self::NOW, 3, 30);
         $attention->build();
-        get_user_preferences(null, null, $this->userid);
 
         $meter = budget::start();
         $tier = $attention->build();
@@ -745,6 +737,51 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $starred->id], $this->ids($tier['favourites']));
         $this->assertSame(3, $tier['counts']['total']);
         $this->assertSame(4, $reads, "attention::build() cost {$reads} reads; the budget is 4.");
+    }
+
+    /**
+     * With the favourites feature off the strip is not queried: three reads instead of four.
+     *
+     * Same protocol as the four-read budget above, over one fixture measured with the feature on
+     * and off. The control is the feature on, which lists the starred course and costs the four.
+     * Off, the strip is empty while the counts still carry the favourite, because that aggregate
+     * rides in the counts statement for free.
+     *
+     * Changes that must make it fail: querying the favourites strip whatever the setting.
+     *
+     * @return void
+     */
+    public function test_the_favourites_strip_is_not_queried_when_the_feature_is_off(): void {
+        $accessed = $this->course('AAA accessed course');
+        $starred = $this->course('CCC starred course');
+        foreach ([$accessed, $starred] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 200 * DAYSECS);
+        }
+        $this->plugingen->access_at($this->userid, (int) $accessed->id, self::NOW - HOURSECS);
+        $this->plugingen->favourite($this->userid, (int) $starred->id);
+
+        $tiers = [];
+        $reads = [];
+        foreach (['on' => true, 'off' => false] as $state => $enabled) {
+            $attention = new attention($this->userid, self::NOW, 3, 30, false, $enabled);
+            $attention->build();
+            $meter = budget::start();
+            $tiers[$state] = $attention->build();
+            $reads[$state] = $meter->reads();
+        }
+
+        $this->assertSame([(int) $starred->id], $this->ids($tiers['on']['favourites']));
+        $this->assertSame([], $tiers['off']['favourites']);
+        foreach ($tiers as $state => $tier) {
+            $this->assertSame([(int) $accessed->id], $this->ids($tier['continue']), "continue with favourites {$state}");
+            $this->assertSame(
+                ['total' => 2, 'new' => 0, 'favourites' => 1, 'pending' => 0],
+                $tier['counts'],
+                "counts with favourites {$state}"
+            );
+        }
+        $this->assertSame(4, $reads['on'], "attention::build() with favourites on cost {$reads['on']} reads; the budget is 4.");
+        $this->assertSame(3, $reads['off'], "attention::build() with favourites off cost {$reads['off']} reads; the budget is 3.");
     }
 
     /**

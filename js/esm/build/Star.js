@@ -1,4 +1,4 @@
-import{useState as f}from"react";import{jsx as a}from"react/jsx-runtime";var m=({courseid:r,fullname:l,favourite:o,config:i,onToggle:c})=>{let[t,s]=f(!1),{labels:e,icons:n}=i,u=async()=>{if(!t){s(!0);try{await c(r,!o,l)}finally{s(!1)}}};return a("button",{type:"button",className:"compass-star btn btn-link p-1",disabled:t,"aria-pressed":o,"aria-label":o?e.removefromfavourites:e.addtofavourites,onClick:u,children:a("span",{className:"icon-no-margin",dangerouslySetInnerHTML:{__html:o?n.staron:n.staroff}})})},p=m;export{p as default};
+import{useState as f}from"react";import{jsx as a}from"react/jsx-runtime";var m=({courseid:r,fullname:i,favourite:o,config:l,onToggle:u})=>{let[e,t]=f(!1),{labels:n,icons:s}=l,c=async()=>{if(!e){t(!0);try{await u(r,!o,i)}finally{t(!1)}}};return a("button",{type:"button",className:"compass-star btn btn-link p-1","aria-disabled":e||void 0,"aria-pressed":o,"aria-label":o?n.removefromfavourites:n.addtofavourites,onClick:c,children:a("span",{className:"icon-no-margin",dangerouslySetInnerHTML:{__html:o?s.staron:s.staroff}})})},d=m;export{d as default};
 /**
  * The favourite star: the core course star, toggled without a reload.
  *

@@ -59,13 +59,12 @@ final class course_meta_test extends advanced_testcase {
     }
 
     /**
-     * Purge the definition and drop the memoised cache instance.
+     * Purge the definition.
      *
      * @return void
      */
     private function purge_course_meta_cache(): void {
         cache::make('block_compass', 'coursemeta')->purge();
-        course_meta::reset();
     }
 
     /**

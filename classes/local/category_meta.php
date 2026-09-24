@@ -60,15 +60,6 @@ final class category_meta {
     }
 
     /**
-     * A no-op kept for the tests that purge the definition and then reset the wrapper; there
-     * is no per-request memo to clear (see cache()).
-     *
-     * @return void
-     */
-    public static function reset(): void {
-    }
-
-    /**
      * SQL fragment selecting the category and context columns an entry needs.
      *
      * Use it in every query that joins {course_categories} cc to {context} ctx, so

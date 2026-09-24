@@ -71,19 +71,13 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
-     * A logged-in viewer, the plugin generator, and the memoised MUC handles cleared.
-     *
-     * core_cache\factory::reset() runs between tests (lib/classes/test/testing_util.php,
-     * reset_dataroot), so the wrappers' memoised instances would otherwise point at
-     * stores from the previous test.
+     * A logged-in viewer and the plugin generator.
      *
      * @return void
      */
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
-        course_meta::reset();
-        details::reset();
         $user = $this->getDataGenerator()->create_user();
         $this->userid = (int) $user->id;
         $this->setUser($user);
@@ -668,7 +662,12 @@ final class cards_test extends advanced_testcase {
 
     /**
      * A cached null is an answer, not a miss: the card is neither pending nor complete and
-     * says completion is not available.
+     * carries no progress.
+     *
+     * hascompletion with a null progress and pending false is the whole "no data" state, and it
+     * is what the client reads; the card carries no separate flag for it.
+     *
+     * Changes that must make it fail: writing a nodata key on the card again.
      *
      * @return void
      */
@@ -684,8 +683,8 @@ final class cards_test extends advanced_testcase {
         $card = $cards['continue'][0];
         $this->assertTrue($card['hascompletion']);
         $this->assertFalse($card['pending']);
-        $this->assertTrue($card['nodata']);
         $this->assertNull($card['progress']);
         $this->assertFalse($card['iscomplete']);
+        $this->assertArrayNotHasKey('nodata', $card);
     }
 }

@@ -31,8 +31,9 @@ use stdClass;
  * Continue, New and Favourites, plus the counts the ghosts need.
  *
  * Four database reads, every one bounded by a LIMIT or an aggregate, never a
- * scan of the user's whole enrolment set; past hidden_courses::SQL_LIMIT hidden
- * courses, one more count per chunk of them. Every strip query yields one row per
+ * scan of the user's whole enrolment set; three when the favourites feature is
+ * off, since a strip nobody is shown is not queried; past hidden_courses::SQL_LIMIT
+ * hidden courses, one more count per chunk of them. Every strip query yields one row per
  * course (EXISTS predicates or a grouped derived table over the user's active
  * enrolments), carries the columns course_meta::select_sql() needs so the
  * course layer is filled from the rows, and excludes the courses the user hid
@@ -73,6 +74,9 @@ final class attention {
     /** @var bool Whether enrolment applications awaiting approval are counted. */
     private bool $pending;
 
+    /** @var bool Whether the favourites strip is shown, and therefore queried. */
+    private bool $favourites;
+
     /**
      * Constructor.
      *
@@ -81,19 +85,22 @@ final class attention {
      * @param int|null $max Cards per strip; null for the setting.
      * @param int|null $newdays Days of the "new" window; null for the setting.
      * @param bool|null $pending Whether applications awaiting approval are counted; null for the setting.
+     * @param bool|null $favourites Whether the favourites strip is shown; null for the setting.
      */
     public function __construct(
         int $userid,
         ?int $now = null,
         ?int $max = null,
         ?int $newdays = null,
-        ?bool $pending = null
+        ?bool $pending = null,
+        ?bool $favourites = null
     ) {
         $this->userid = $userid;
         $this->now = $now ?? time();
         $this->max = $max ?? config::attention_max();
         $this->newwindow = ($newdays ?? config::new_days()) * DAYSECS;
         $this->pending = $pending ?? config::pending_enabled();
+        $this->favourites = $favourites ?? config::favourites_enabled();
         $this->hidden = hidden_courses::ids($userid);
         $this->hiddeninsql = count($this->hidden) <= hidden_courses::SQL_LIMIT;
         $this->seehidden = has_capability('moodle/course:viewhiddencourses', context_system::instance(), $userid);
@@ -105,8 +112,9 @@ final class attention {
      * Continue and New are disjoint by construction: one needs a last access, the other its
      * absence. The favourites strip does not skip a course that also sits in Continue or New,
      * which is why no id shown above is removed from it and why it is fetched at max plus the
-     * hidden margin alone. Rows are
-     * stdClass objects carrying course_meta::select_sql()'s columns, isfavourite, and the
+     * hidden margin alone. With the favourites feature off the strip is empty and its query is
+     * not run; the counts keep their favourites aggregate, which costs no read of its own. Rows
+     * are stdClass objects carrying course_meta::select_sql()'s columns, isfavourite, and the
      * strip's own columns (timeaccess; timecreated, timeend, enrol, enrolenddate).
      *
      * @return array continue, new, favourites (rows keyed by course id) and counts
@@ -117,7 +125,10 @@ final class attention {
 
         $continue = array_slice($this->without_hidden($this->continue_rows($this->max + $margin)), 0, $this->max, true);
         $new = array_slice($this->without_hidden($this->new_rows($this->max + $margin)), 0, $this->max, true);
-        $favourites = $this->without_hidden($this->favourite_rows($this->max + $margin));
+        $favourites = [];
+        if ($this->favourites) {
+            $favourites = $this->without_hidden($this->favourite_rows($this->max + $margin));
+        }
 
         return [
             'continue' => $continue,

@@ -38,10 +38,10 @@ import Explore from './Explore';
 import Reload from './Reload';
 import RetryNotice from './RetryNotice';
 import type {GhostKind} from './Ghost';
-import {amd} from './amd';
+import {notify} from './notify';
 import {fill, fillObject} from './str';
 import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
-import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting} from './types';
+import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange} from './types';
 
 /**
  * The chip tier 3 opens on, per kind of control that opened it.
@@ -59,10 +59,6 @@ const CHIP_OF_KIND: Record<GhostKind, string | null> = {
 
 /** The card details service refuses more ids than this in one call (cards::DETAILS_BATCH). */
 const DETAILS_BATCH = 24;
-
-type NotificationModule = {
-    addNotification: (notification: {message: string, type: string}) => void,
-};
 
 /**
  * Apply a change to every strip that holds a course.
@@ -114,6 +110,8 @@ const Block = (config: BlockConfig) => {
     // Bumped by every press that opens or re-aims tier 3, so a tier 3 that is already open
     // scrolls into view again; never by a render.
     const [reveal, setReveal] = useState(0);
+    // The last star toggled here, for tier 3 to apply to the rows it holds; null until one is.
+    const [starred, setStarred] = useState<StarChange | null>(null);
     // Bumped by the reload control: tier 3 remounts under it, a fresh open.
     const [reloadkey, setReloadkey] = useState(0);
     const [reloading, setReloading] = useState(false);
@@ -230,7 +228,6 @@ const Block = (config: BlockConfig) => {
                         pending: false,
                         hascompletion: detail.hascompletion,
                         progress: detail.progress,
-                        nodata: detail.progress === null,
                         teacher: detail.teacher,
                     })),
                     current
@@ -295,6 +292,9 @@ const Block = (config: BlockConfig) => {
     /**
      * Toggle the core course star of one course.
      *
+     * The strips are patched in place, and tier 3, when it is open, is handed the change for the
+     * rows it holds; the reverse direction refetches tier 1 instead (see refreshAttention).
+     *
      * @param {number} courseid The course.
      * @param {boolean} favourite The state it becomes.
      * @param {string} fullname The course name, for the announcement.
@@ -303,18 +303,17 @@ const Block = (config: BlockConfig) => {
     const toggleFavourite = useCallback(async(courseid: number, favourite: boolean, fullname: string) => {
         try {
             await setFavourite(courseid, favourite);
-            setData((current) => (current
-                ? withCard(current, courseid, (card) => ({...card, isfavourite: favourite}))
-                : current));
-            setAnnouncement((current) => ({
-                text: fill(favourite ? labels.favouriteadded : labels.favouriteremoved, fullname),
-                at: current.at + 1,
-            }));
         } catch (e) {
-            const notification = await amd<NotificationModule>('core/notification');
-            notification.addNotification({message: labels.favouriteerror || '', type: 'error'});
+            await notify(labels.favouriteerror || '');
+
+            return;
         }
-    }, [labels]);
+        setData((current) => (current
+            ? withCard(current, courseid, (card) => ({...card, isfavourite: favourite}))
+            : current));
+        setStarred({courseid, favourite});
+        announce(fill(favourite ? labels.favouriteadded : labels.favouriteremoved, fullname));
+    }, [labels, announce]);
 
     /**
      * Open tier 3, or re-aim it, on the chip the pressed control implies.
@@ -442,6 +441,7 @@ const Block = (config: BlockConfig) => {
                         config={config}
                         chip={chip}
                         reveal={reveal}
+                        starred={starred}
                         reconnecting={reconnecting}
                         kept={kept}
                         announce={announce}

@@ -58,15 +58,6 @@ final class course_meta {
     }
 
     /**
-     * A no-op kept for the tests that purge the definition and then reset the wrapper; there
-     * is no per-request memo to clear (see cache()).
-     *
-     * @return void
-     */
-    public static function reset(): void {
-    }
-
-    /**
      * SQL fragment selecting the course and context columns an entry needs.
      *
      * Use it in every query that joins {course} c to {context} ctx, so the rows

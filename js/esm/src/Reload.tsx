@@ -51,7 +51,9 @@ const Reload = ({busy, config, onReload}: ReloadProps) => {
     // Never the disabled attribute: it is applied in the render the button's own click causes,
     // and a focused element that becomes disabled drops the keyboard to the body, so the
     // "Reloading…" label would be announced to nobody. aria-disabled says the same to
-    // assistive technology and the handler refuses a second press.
+    // assistive technology and the handler refuses a second press. Bootstrap's disabled class
+    // is kept for its look: its pointer-events: none passes a click to the content's first row
+    // beneath, which has no handler and no stretched link (see Star.tsx).
     return (
         <button
             type="button"

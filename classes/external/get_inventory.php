@@ -112,7 +112,7 @@ class get_inventory extends external_api {
                     'key' => new external_value(PARAM_INT, 'The value key a row\'s cf refers to'),
                     'label' => new external_value(PARAM_TEXT, 'Option label, formatted, unescaped'),
                 ]), 'The chips of the group, in display order'),
-            ]), 'The custom-field chip groups the administrator configured, in order (ADR-009)'),
+            ]), 'The custom-field chip groups the administrator configured, in order'),
             'groups' => new external_multiple_structure(new external_single_structure([
                 'id' => new external_value(PARAM_INT, 'Category id of the group'),
                 'name' => new external_value(PARAM_TEXT, 'Category name, formatted, unescaped'),

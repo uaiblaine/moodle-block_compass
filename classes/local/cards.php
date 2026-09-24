@@ -127,7 +127,6 @@ final class cards {
                     'hascompletion' => $hascompletion,
                     'progress' => is_int($cached) ? $cached : null,
                     'pending' => $hascompletion && $cached === false,
-                    'nodata' => $hascompletion && $cached === null,
                     'iscomplete' => $cached === 100,
                     'isfavourite' => !empty($row->isfavourite),
                     'isnew' => $strip === 'new',

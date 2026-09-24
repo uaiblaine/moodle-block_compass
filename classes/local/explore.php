@@ -24,6 +24,7 @@
 
 namespace block_compass\local;
 
+use Collator;
 use core\context;
 use core\context\system as context_system;
 use core_collator;
@@ -588,8 +589,12 @@ final class explore {
     /**
      * The custom-field values of the given courses, from the coursefields layer.
      *
-     * Nothing is read when no field is configured: the layer is asked only for the ids of the
-     * configured fields, and the empty question costs nothing.
+     * Nothing is read when no field is configured. Otherwise the layer is asked for every eligible
+     * field, not only the configured ones: its entries are keyed by course alone, so an entry
+     * filled for the configured subset would go on answering after the administrator adds a field
+     * to filter_fields, a change no event reports, with that field's values missing. The callers
+     * read the configured fields out of the wider entry. The eligible set is the filterfields
+     * entry configured() has just read, so asking for it costs no read.
      *
      * @param int[] $courseids The courses.
      * @param array $fields Entries from filter_fields::configured().
@@ -600,7 +605,7 @@ final class explore {
             return [];
         }
 
-        return course_fields::get_many($courseids, array_column($fields, 'id'));
+        return course_fields::get_many($courseids, array_column(filter_fields::eligible(), 'id'));
     }
 
     /**
@@ -649,39 +654,46 @@ final class explore {
     }
 
     /**
-     * Order candidates the way the client orders full mode, on the raw name.
+     * Order candidates the way full mode orders its rows, on the raw name, as a total order.
      *
-     * By name through {@see \core_collator::asort_array_of_arrays_by_key()} (locale-aware, keys
-     * kept), the counterpart of the flat-list sort in Explore.tsx; for 'recent' the last access,
-     * newest first, is layered on top with a stable usort — PHP's sorts are stable since 8.0, so
-     * equal timestamps keep the collator's name order and never-opened rows (timeaccess 0) sink
-     * to the end, as they do in the client.
+     * By name in core_collator's natural order, as build() orders a group's rows (on the formatted
+     * name there). The flat list in Explore.tsx also compares digit runs by value, and differs in
+     * the three ways its byname() comparator lists: case and accents folded, the browser's locale,
+     * ties in arrival order. For 'recent' the last access, newest first, is layered on top with a
+     * stable usort, so equal timestamps keep the name order and never-opened rows (timeaccess 0)
+     * sink to the end, as they do in the client.
+     *
+     * A cursor needs a total order: two courses the sort cannot separate must come back in the
+     * same order on every page, or one of them repeats and the other vanishes across a page
+     * boundary. The collator cannot separate byte-identical names, nor names it calls equal, such
+     * as "Unit 1" and "Unit 01" once the natural sort has padded their digits; and
+     * \Collator::asort() is not stable (its comparison has no fallback to the original position),
+     * so the order in which the population arrives, which follows the cache state, would decide.
+     * Names are therefore compared through their collation sort keys, which order exactly as the
+     * collator does, and a tie goes to the lower course id.
      *
      * @param array $candidates Entries with 'id', 'rawname' and 'timeaccess'.
      * @param string $sort 'recent' for last access first; anything else for name.
      * @return array The same entries, re-indexed, in order.
      */
     private static function order(array $candidates, string $sort): array {
-        core_collator::asort_array_of_arrays_by_key($candidates, 'rawname', core_collator::SORT_NATURAL);
-        $candidates = array_values($candidates);
+        $collator = self::collator();
+        $keyed = [];
+        foreach ($candidates as $candidate) {
+            $keyed[] = ['sortkey' => self::sort_key($collator, $candidate['rawname']), 'candidate' => $candidate];
+        }
+        usort($keyed, static function (array $a, array $b): int {
+            $byname = strcmp($a['sortkey'], $b['sortkey']);
 
-        /*
-         * A cursor needs a total order: two courses the sort cannot separate must still come back
-         * in the same order on every page, or one of them repeats and the other vanishes across a
-         * page boundary. core_collator exposes no pairwise comparator (its Collator is protected),
-         * so byte-identical names are separated here by id; usort is stable since PHP 8.0, so every
-         * other pair keeps the position the collator gave it. Names the collator calls equal
-         * without being byte-identical stay unseparated, a known limit.
-         */
-        usort($candidates, static function (array $a, array $b): int {
-            return $a['rawname'] === $b['rawname'] ? $a['id'] <=> $b['id'] : 0;
+            return $byname !== 0 ? $byname : $a['candidate']['id'] <=> $b['candidate']['id'];
         });
+        $candidates = array_column($keyed, 'candidate');
 
         if ($sort === 'recent') {
-            // Compare on the timestamp alone: usort is stable, and the name order above is now
-            // total, so courses sharing a timestamp — every never-opened one shares 0 — keep that
-            // order. Breaking the tie by id here instead would order the never-opened by creation,
-            // not by name as the client does.
+            // Compare on the timestamp alone: usort is stable, and the name order above is total,
+            // so courses sharing a timestamp — every never-opened one shares 0 — keep that order.
+            // Breaking the tie by id here instead would order the never-opened by creation, not by
+            // name as the client does.
             $byrecent = static function (array $a, array $b): int {
                 return $b['timeaccess'] <=> $a['timeaccess'];
             };
@@ -689,6 +701,44 @@ final class explore {
         }
 
         return $candidates;
+    }
+
+    /**
+     * A collator set up the way core_collator sets up its own for a case-insensitive sort.
+     *
+     * Keep in step with {@see \core_collator::asort()}: the locale of the langconfig string and
+     * CASE_FIRST off. core_collator keeps its instance to itself, so this is a second one with the
+     * same settings.
+     *
+     * @return Collator
+     */
+    private static function collator(): Collator {
+        $collator = new Collator(get_string('locale', 'langconfig'));
+        $collator->setAttribute(Collator::CASE_FIRST, Collator::OFF);
+
+        return $collator;
+    }
+
+    /**
+     * The collation sort key of a name under core_collator's SORT_NATURAL rule.
+     *
+     * Every run of digits is left-padded with zeros to twenty characters first, as
+     * {@see \core_collator::callback_naturalise()} pads it, so "Unit 2" sorts before "Unit 10".
+     * Comparing two keys with strcmp() gives the collator's own answer. A name the collator
+     * cannot read (invalid UTF-8) has no key and sorts first.
+     *
+     * @param Collator $collator From collator().
+     * @param string $name The raw name.
+     * @return string The binary sort key.
+     */
+    private static function sort_key(Collator $collator, string $name): string {
+        $natural = preg_replace_callback(
+            '/[0-9]+/',
+            static fn(array $digits): string => str_pad($digits[0], 20, '0', STR_PAD_LEFT),
+            $name
+        );
+
+        return (string) $collator->getSortKey((string) $natural);
     }
 
     /**
