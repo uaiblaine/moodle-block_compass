@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **The date on a New card is labelled as the enrolment deadline.** It is the earlier of the
+  enrolment's own end and the method's last day to enrol, which read as a course deadline under
+  the old *Deadline:* / *Prazo:* label. The string `deadline` now reads *Enrolment deadline:* /
+  *Prazo de inscrição:*; the rule that picks the date is unchanged. Lang only, so no version bump.
 - **The code findings of the comment audit**, version 2026092401.
   - **A custom-field filter works as soon as it is configured.** `coursefields` was filled with
     the configured fields only, so a field added to `filter_fields` showed its chips and matched
