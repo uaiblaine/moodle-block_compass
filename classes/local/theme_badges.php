@@ -29,9 +29,11 @@ namespace block_compass\local;
  *
  * The theme publishes the crests a course's hotsite carries through one function,
  * theme_boost_union_fundaseg_course_badges(), and that function is the whole of the contract:
- * Compass reaches it through component_callback(), which answers its default when the theme or the
- * function is absent, so nothing here names the theme's classes, checks for them, or declares the
- * theme as a dependency (ADR-013 decision 9). The callback applies the theme's own viewer rule - a
+ * Compass reaches it through component_callback(), which answers its default when the function is
+ * absent, so nothing here names the theme's classes, checks for them, or declares the theme as a
+ * dependency (ADR-013 decision 9). It does not when the theme itself is absent: then it throws
+ * (component_callback_exists(), lib/moodlelib.php:7630-7634 on 5.2), which is why core's component
+ * list is asked first. The callback applies the theme's own viewer rule - a
  * course the reader may not discover gets no crest - and names each image with a content-hashed
  * URL and the theme's alternative text, so Compass builds no URL itself and only bounds and
  * cleans what it is given.
@@ -98,10 +100,14 @@ final class theme_badges {
         if (empty($ids) || !config::theme_badges_enabled()) {
             return $crests;
         }
+        if ($source === null) {
+            if (!self::theme_installed()) {
+                return $crests;
+            }
+            $source = static fn(array $courseids) => component_callback(self::THEME, 'course_badges', [$courseids], []);
+        }
 
-        $answer = $source !== null
-            ? $source($ids)
-            : component_callback(self::THEME, 'course_badges', [$ids], []);
+        $answer = $source($ids);
         foreach ($ids as $courseid) {
             $given = is_array($answer) ? ($answer[$courseid] ?? []) : [];
             foreach (array_slice(array_values(is_array($given) ? $given : []), 0, self::MAX) as $crest) {

@@ -504,7 +504,7 @@ final class cards_test extends advanced_testcase {
         };
 
         $cards = $this->by_id(cards::build($this->userid, $this->strips(), self::NOW, $source));
-        $details = array_column(cards::details($this->userid, [$crested, $plain], self::NOW, null, $source), null, 'id');
+        $details = array_column(cards::details($this->userid, [$crested, $plain], self::NOW, $source), null, 'id');
 
         $this->assertCount(2, $asked, 'one call to the theme per response, never one per course');
         $this->assertSame(
