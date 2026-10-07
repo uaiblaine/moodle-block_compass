@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- **Enrolments that start later are listed, in tier 3 only** (ADR-013, reversing ADR-000
+  decision 14 for that tier), version 2026092402. A course the learner is enrolled in from a
+  later date is a row of its category with an *Access from {date}* pill, under a new
+  *Scheduled* chip after *Awaiting approval*, with no star, progress or archive control, and
+  linking to the course's enrolment page. Tier 1 never draws it as a card: a line under *New
+  enrolments* says how many there are and opens tier 3 on the chip, and a learner whose only
+  courses start later is no longer told they are not enrolled in any course.
+- **Applications on the waiting list are told apart.** They were already listed with the
+  applications awaiting a decision; their pill now reads *On the waiting list*.
+
+### Changed
+
+- **Compass depends on `local_unlistedcourses` (2026042003 or later)** and asks it what every
+  enrolment row means (`access::classify_enrolment()`), through one class,
+  `local\relationship`. The two predicates Compass kept of its own are gone: enrol_apply's
+  queue rule (`pending.php`, in PHP and as the SQL of the tier 1 count) and the active test
+  that dropped the enrolments that start later. The SQL active-enrolment fast path of the
+  strips is kept: it is core's `is_enrolled()` rule. A course holding a later start and an
+  application now shows as Scheduled, the provider's stronger relationship.
+- **The state of a row moves from the corner badge into a state pill**, the theme card's own:
+  *Application under review*, *On the waiting list* and *Access from {date}*, each with its icon
+  and Compass's own colour tokens. The corner badge is *New* alone.
+- **`get_attention` costs one read more**: the counts of the two notices come from a statement
+  of their own whose rows the provider classifies (7 reads with the shared layers warm, 8 fully
+  cold, plus the user-context read).
+
 ### Fixed
 
 - **The date on a New card is labelled as the enrolment deadline.** It is the earlier of the
