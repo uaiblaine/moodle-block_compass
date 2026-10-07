@@ -82,6 +82,9 @@ final class attention {
     /** @var bool Whether the favourites strip is shown, and therefore queried. */
     private bool $favourites;
 
+    /** @var int Most rows the situations statement reads. */
+    private int $situationslimit;
+
     /**
      * Constructor.
      *
@@ -91,6 +94,7 @@ final class attention {
      * @param int|null $newdays Days of the "new" window; null for the setting.
      * @param bool|null $pending Whether applications awaiting approval are counted; null for the setting.
      * @param bool|null $favourites Whether the favourites strip is shown; null for the setting.
+     * @param int|null $situationslimit Most rows the situations statement reads; null for SITUATIONS_LIMIT.
      */
     public function __construct(
         int $userid,
@@ -98,7 +102,8 @@ final class attention {
         ?int $max = null,
         ?int $newdays = null,
         ?bool $pending = null,
-        ?bool $favourites = null
+        ?bool $favourites = null,
+        ?int $situationslimit = null
     ) {
         $this->userid = $userid;
         $this->now = $now ?? time();
@@ -106,6 +111,7 @@ final class attention {
         $this->newwindow = ($newdays ?? config::new_days()) * DAYSECS;
         $this->pending = $pending ?? config::pending_enabled();
         $this->favourites = $favourites ?? config::favourites_enabled();
+        $this->situationslimit = max(1, $situationslimit ?? self::SITUATIONS_LIMIT);
         $this->hidden = hidden_courses::ids($userid);
         $this->hiddeninsql = count($this->hidden) <= hidden_courses::SQL_LIMIT;
         $this->seehidden = has_capability('moodle/course:viewhiddencourses', context_system::instance(), $userid);
@@ -377,8 +383,10 @@ final class attention {
      * it. Applications count only while the feature is on.
      *
      * Index: user_enrolments (userid) foreign key; enrol primary key; course primary key; the
-     * NOT EXISTS as in Continue. Bounded by SITUATIONS_LIMIT rows: past it both numbers are a
-     * floor, a learner with more not-yet-ended inactive enrolments than that being told "at least".
+     * NOT EXISTS as in Continue, correlated on the instance's course so it attaches to the
+     * enrolment row rather than to {course}. Bounded by SITUATIONS_LIMIT rows: past it both numbers
+     * are a floor, a learner with more not-yet-ended inactive enrolments than that being told "at
+     * least".
      * Past hidden_courses::SQL_LIMIT the archived courses are dropped here, in PHP.
      *
      * @return array pending, scheduled — both int.
@@ -397,9 +405,9 @@ final class attention {
                   JOIN {course} c ON c.id = e.courseid
                  WHERE ue.userid = :su AND c.id <> :ssite AND (ue.timeend = 0 OR ue.timeend > :snow)"
                     . $this->visible_sql() . $this->not_hidden_sql('hs', $params) . "
-                   AND NOT " . $this->active_enrolment_sql('c.id', 's', $params) . "
+                   AND NOT " . $this->active_enrolment_sql('e.courseid', 's', $params) . "
               ORDER BY ue.id ASC";
-        $records = $DB->get_records_sql($sql, $params, 0, self::SITUATIONS_LIMIT);
+        $records = $DB->get_records_sql($sql, $params, 0, $this->situationslimit);
 
         $hidden = $this->hiddeninsql ? [] : array_flip($this->hidden);
         $best = [];

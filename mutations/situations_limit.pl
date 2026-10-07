@@ -1,1 +1,1 @@
-s/get_records_sql\(\$sql, \$params, 0, self::SITUATIONS_LIMIT\)/get_records_sql(\$sql, \$params)/;
+s/get_records_sql\(\$sql, \$params, 0, \$this->situationslimit\)/get_records_sql(\$sql, \$params)/;

@@ -404,8 +404,8 @@ final class attention_test extends advanced_testcase {
     /**
      * Courses written straight to the tables, each with one enrolment row of the given shape.
      *
-     * Hundreds of generated courses would cost the suite minutes, and the situations statement
-     * reads nothing a generated course adds: the course row, one enabled manual instance, the row.
+     * The situations statement reads nothing a generated course adds: the course row, one
+     * enabled manual instance and the row are all it needs.
      *
      * @param int $count How many courses.
      * @param array $row The user_enrolments fields that vary: status, timestart, timeend.
@@ -444,26 +444,36 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
-     * Past SITUATIONS_LIMIT rows the notice counts stop growing: the bound holds, and the count is a floor.
+     * The counts of the situations statement, read with a bound of three rows.
      *
-     * One more course than the limit, each with an enrolment that starts later; the count is the
-     * limit itself. The control is the same fixture two rows short, which counts every course.
+     * The bound is injectable, in the house style of the other sizes: a fixture of a handful of
+     * rows exercises it, where SITUATIONS_LIMIT itself would need hundreds of courses.
+     *
+     * @return array attention::build()'s counts.
+     */
+    private function counts_bounded_at_three(): array {
+        return (new attention($this->userid, self::NOW, 3, 30, false, null, 3))->build()['counts'];
+    }
+
+    /**
+     * Past its bound the situations statement stops counting: the bound holds, and the count is a floor.
+     *
+     * One more course than the bound, each with an enrolment that starts later; the count is the
+     * bound itself. The control is the same fixture two rows short, which counts every course.
+     * The production bound is pinned beside it.
      *
      * @return void
      */
     public function test_the_situations_statement_is_bounded(): void {
         global $DB;
 
-        $ueids = $this->bulk(attention::SITUATIONS_LIMIT + 1, [
-            'status' => ENROL_USER_ACTIVE,
-            'timestart' => self::NOW + DAYSECS,
-            'timeend' => 0,
-        ]);
+        $ueids = $this->bulk(4, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => 0]);
 
-        $this->assertSame(attention::SITUATIONS_LIMIT, $this->build()['counts']['scheduled']);
+        $this->assertSame(3, $this->counts_bounded_at_three()['scheduled']);
         // Control: two rows fewer, under the bound, and every course is counted.
         $DB->delete_records_list('user_enrolments', 'id', array_slice($ueids, 0, 2));
-        $this->assertSame(attention::SITUATIONS_LIMIT - 1, $this->build()['counts']['scheduled']);
+        $this->assertSame(2, $this->counts_bounded_at_three()['scheduled']);
+        $this->assertSame(500, attention::SITUATIONS_LIMIT);
     }
 
     /**
@@ -478,18 +488,15 @@ final class attention_test extends advanced_testcase {
      * @return void
      */
     public function test_the_situations_statement_reads_no_ended_row_and_no_enrolled_course(): void {
-        $this->bulk(
-            attention::SITUATIONS_LIMIT,
-            ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => self::NOW - DAYSECS]
-        );
-        $this->bulk(attention::SITUATIONS_LIMIT, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => 0]);
+        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => self::NOW - DAYSECS]);
+        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => 0]);
         $this->bulk(1, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => 0]);
 
-        $counts = $this->build()['counts'];
+        $counts = $this->counts_bounded_at_three();
 
         $this->assertSame(1, $counts['scheduled']);
         // Control: the active courses are there, and counted where they belong.
-        $this->assertSame(attention::SITUATIONS_LIMIT, $counts['total']);
+        $this->assertSame(3, $counts['total']);
     }
 
     /**
