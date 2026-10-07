@@ -179,7 +179,10 @@ applies the theme's own viewer rule. A setting shown only while the theme is ins
 them, on for new installs and off on upgrade.
 
 `local\theme_badges::for_courses()` is the door: it asks nothing while `show_theme_badges` is off
-(never set reads on), keeps three crests a course, drops one whose address `PARAM_URL` refuses,
+(never set reads on) or while the theme is not in core's component list — `component_callback()`
+answers its default for a missing function but throws for a missing component
+(`component_callback_exists()`, `lib/moodlelib.php:7630-7634` on 5.2), so the addenda's "returns
+its default when the theme is absent" was true of the function only — keeps three crests a course, drops one whose address `PARAM_URL` refuses,
 and cleans the alternative text to what a `PARAM_TEXT` field accepts. `get_attention` carries
 them on the tier 1 card as `badges`, `get_card_details` on the detail, both optional and omitted
 for a course with none, so `get_inventory` and its 40,000-byte ceiling are untouched. On a card
