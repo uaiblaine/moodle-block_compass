@@ -44,8 +44,9 @@ const Crests = ({badges, label, inline = false}: CrestsProps) => {
     if (!badges || !badges.length) {
         return null;
     }
-    const items = badges.map((crest) => (
-        <li key={crest.url}><img src={crest.url} alt={crest.alt} loading="lazy" /></li>
+    // The position joins the address in the key: one course may carry the same file twice.
+    const items = badges.map((crest, index) => (
+        <li key={`${index}-${crest.url}`}><img src={crest.url} alt={crest.alt} loading="lazy" /></li>
     ));
 
     return inline

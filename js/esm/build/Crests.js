@@ -1,4 +1,4 @@
-import{jsx as s}from"react/jsx-runtime";var o=({badges:l,label:r,inline:a=!1})=>{if(!l||!l.length)return null;let t=l.map(e=>s("li",{children:s("img",{src:e.url,alt:e.alt,loading:"lazy"})},e.url));return a?s("ul",{className:"compass-crests compass-crests-inline",role:"list","aria-label":r,children:t}):s("ul",{className:"compass-crests compass-crests-cover",role:"list","aria-label":r,children:t})},i=o;export{i as default};
+import{jsx as s}from"react/jsx-runtime";var i=({badges:l,label:r,inline:a=!1})=>{if(!l||!l.length)return null;let t=l.map((e,o)=>s("li",{children:s("img",{src:e.url,alt:e.alt,loading:"lazy"})},`${o}-${e.url}`));return a?s("ul",{className:"compass-crests compass-crests-inline",role:"list","aria-label":r,children:t}):s("ul",{className:"compass-crests compass-crests-cover",role:"list","aria-label":r,children:t})},n=i;export{n as default};
 /**
  * A course's institutional crests, as theme_boost_union_fundaseg's own course card draws them.
  *
