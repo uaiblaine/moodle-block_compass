@@ -50,8 +50,8 @@ final class explore_preference {
     /** @var string[] The sorts the toolbar offers. */
     public const SORTS = ['category', 'name', 'recent'];
 
-    /** @var string[] The status chips, the pending one only while the feature is on. */
-    public const CHIPS = ['all', 'new', 'favourites', 'pending'];
+    /** @var string[] The status chips, the pending one only while the feature is on; explore::CHIPS's vocabulary. */
+    public const CHIPS = ['all', 'new', 'favourites', 'pending', 'scheduled'];
 
     /**
      * The state the toolbar starts in for a viewer who never changed it.

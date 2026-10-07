@@ -64,8 +64,8 @@ import type {
     StarChange,
 } from './types';
 
-/** The status chips, in the order the panel draws them; the pending one only when the feature is on. */
-const STATUS_CHIPS = ['all', 'new', 'favourites', 'pending'];
+/** The status chips, in the order the panel draws them (explore::CHIPS); the pending one only when the feature is on. */
+const STATUS_CHIPS = ['all', 'new', 'favourites', 'pending', 'scheduled'];
 
 /** Full mode: the browser answers a keystroke, so it may answer it soon. */
 const DEBOUNCE_MS = 150;
@@ -543,6 +543,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         "new": row.new,
         fav: row.fav,
         pend: !!row.pend,
+        sched: row.sched !== undefined,
         cf: row.cf ?? [],
     }), [normalised]);
 

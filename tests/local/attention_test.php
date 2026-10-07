@@ -190,7 +190,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame(1, (int) $tier['new'][(int) $new->id]->isfavourite);
         $this->assertSame(1, (int) $tier['favourites'][(int) $continue->id]->isfavourite);
         // The counts are the true totals and do not move with the strips: five favourites, three shown.
-        $this->assertSame(['total' => 5, 'new' => 1, 'favourites' => 5, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 5, 'new' => 1, 'favourites' => 5, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
 
         // The strip hides only when there is no favourite at all: a smaller cap still lists.
         $this->assertSame([(int) $continue->id], $this->ids($this->build(1)['favourites']));
@@ -207,8 +207,8 @@ final class attention_test extends advanced_testcase {
      * instance (a course the learner can enter), a course where an active manual enrolment sits
      * beside a pending application (the active enrolment wins), and an archived course's
      * application. The control that stops the test being vacuous: total, new and favourites are
-     * identical with the feature on and off, which is why the count is a scalar subquery and not
-     * a fourth aggregate.
+     * identical with the feature on and off, because the count rides in a statement of its own
+     * (attention::situations()) and not in the counts aggregate.
      *
      * @return void
      */
@@ -257,20 +257,29 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
-     * The pending count rides inside the counts statement and adds no read.
+     * The two notice counts cost one read, the situations statement, and no more.
      *
-     * Same protocol as the four-read budget below, with the feature on and a fixture that makes
-     * the count non-zero — a cheap statement that skipped the subquery would pass a read bound
+     * Same protocol as the five-read budget below, with the feature on and a fixture that makes
+     * both counts non-zero — a cheap path that skipped the statement would pass a read bound
      * while answering 0.
      *
      * @return void
      */
-    public function test_the_pending_count_adds_no_read_to_the_four(): void {
+    public function test_the_notice_counts_cost_one_read(): void {
         $accessed = $this->course('AAA accessed course');
         $applied = $this->course('BBB applied course');
         $this->plugingen->enrol_at($this->userid, (int) $accessed->id, self::NOW - 200 * DAYSECS);
         $this->plugingen->access_at($this->userid, (int) $accessed->id, self::NOW - HOURSECS);
         $this->plugingen->apply_at($this->userid, (int) $applied->id, self::NOW - DAYSECS);
+        $later = $this->course('CCC course that starts later');
+        $this->plugingen->enrol_at(
+            $this->userid,
+            (int) $later->id,
+            self::NOW - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            self::NOW + DAYSECS
+        );
         $attention = new attention($this->userid, self::NOW, 3, 30, true);
         $attention->build();
 
@@ -279,8 +288,215 @@ final class attention_test extends advanced_testcase {
         $reads = $meter->reads();
 
         $this->assertSame([(int) $accessed->id], $this->ids($tier['continue']));
-        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 1], $tier['counts']);
-        $this->assertSame(4, $reads, "attention::build() with the pending count cost {$reads} reads; the budget is 4.");
+        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 1, 'scheduled' => 1], $tier['counts']);
+        $this->assertSame(5, $reads, "attention::build() with both notice counts cost {$reads} reads; the budget is 5.");
+    }
+
+    /**
+     * The scheduled count is the provider's rule, one course once, and it leaves every other count alone.
+     *
+     * Counted: a course whose only enrolment starts later, and one holding a later start beside an
+     * application (scheduled outranks pending, so it counts here and not as an application, as
+     * tier 3 lists it). Not counted: a later start on a disabled method (none), a suspended later
+     * start (suspended), one that ends before it starts (none), a course with an active enrolment
+     * beside a later one (the active one wins), an archived one and an invisible one. The control
+     * that the count is not vacuous: the same course counted once its start has passed is in
+     * total instead, read at that instant.
+     *
+     * @return void
+     */
+    public function test_the_scheduled_count_is_the_providers_rule_and_leaves_the_other_counts_alone(): void {
+        global $DB;
+
+        $start = self::NOW + 10 * DAYSECS;
+        $later = (int) $this->course('Starts later')->id;
+        $applied = (int) $this->course('Later and applied')->id;
+        $disabled = (int) $this->course('Later on a disabled method')->id;
+        $suspended = (int) $this->course('Later and suspended')->id;
+        $inverted = (int) $this->course('Ends before it starts')->id;
+        $both = (int) $this->course('Active now and later')->id;
+        $archived = (int) $this->course('Archived and later')->id;
+        $invisible = (int) $this->course('Invisible and later', ['visible' => 0])->id;
+        // The application first: its row has the lower id, so a pass that kept the first row it met
+        // would count the course as an application.
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+        foreach ([$later, $applied, $disabled, $archived, $invisible] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        }
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_DISABLED, ['courseid' => $disabled, 'enrol' => 'manual']);
+        $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - DAYSECS, 'manual', ENROL_USER_SUSPENDED, $start);
+        $this->plugingen->enrol_at(
+            $this->userid,
+            $inverted,
+            self::NOW - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            $start,
+            $start - DAYSECS
+        );
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - 2 * DAYSECS);
+        // A second method: enrol_user() on the same instance would move the first row's start instead.
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_ENABLED, ['courseid' => $both, 'enrol' => 'self']);
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - DAYSECS, 'self', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->hide($this->userid, $archived);
+
+        $counts = $this->build(3, 30, true)['counts'];
+
+        $this->assertSame(['total' => 1, 'new' => 1, 'favourites' => 0, 'pending' => 0, 'scheduled' => 2], $counts);
+        $this->assertSame(0, (new attention($this->userid, self::NOW, 3, 30, false))->build()['counts']['pending']);
+        $this->assertSame(2, (new attention($this->userid, self::NOW, 3, 30, false))->build()['counts']['scheduled']);
+        // Control: at the start the later enrolments are active courses, so nothing starts later.
+        $started = (new attention($this->userid, $start, 3, 30, true))->build()['counts'];
+        $this->assertSame(0, $started['scheduled']);
+        $this->assertSame(3, $started['total'], 'starts later, later and applied, active now and later');
+        $this->assertSame(0, $started['pending'], 'the active enrolment outranks the application');
+    }
+
+    /**
+     * Every row the situations statement leaves out classifies as something Compass never shows.
+     *
+     * The statement keeps the rows that have not ended, in courses with no active enrolment;
+     * the provider decides the rest. Not having ended is a necessary condition, not the rule:
+     * this runs every shape of row the provider tells apart through it — status active,
+     * suspended and on the waiting list, on manual and on enrol_apply, on an enabled and a
+     * disabled instance, with no start, a past and a future one, with no end, an end ahead, an
+     * end passed and an end before the start — and asserts that each one an ended clause drops
+     * is suspended, expired or none. Vacuity guard: the shapes kept do reach every shown
+     * relationship but enrolled, which the active-enrolment clause leaves to the strips.
+     *
+     * @return void
+     */
+    public function test_the_situations_statement_drops_only_rows_compass_never_shows(): void {
+        $now = self::NOW;
+        $kept = [];
+        $dropped = 0;
+        foreach ([ENROL_USER_ACTIVE, ENROL_USER_SUSPENDED, 2] as $status) {
+            foreach (['manual', relationship::APPLY_METHOD] as $enrol) {
+                foreach ([ENROL_INSTANCE_ENABLED, ENROL_INSTANCE_DISABLED] as $instancestatus) {
+                    foreach ([0, $now - DAYSECS, $now + DAYSECS] as $timestart) {
+                        foreach ([0, $now + 2 * DAYSECS, $now - 2 * DAYSECS, $now] as $timeend) {
+                            $record = (object) compact('status', 'enrol', 'instancestatus', 'timestart', 'timeend');
+                            $type = relationship::of_record($record, $now);
+                            $ended = $timeend !== 0 && $timeend <= $now;
+                            if ($ended) {
+                                $dropped++;
+                                $this->assertFalse(relationship::is_shown($type), json_encode($record) . " is {$type}");
+                            } else if (relationship::is_shown($type)) {
+                                $kept[$type] = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $this->assertGreaterThan(0, $dropped);
+        $kept = array_keys($kept);
+        sort($kept);
+        $this->assertSame(
+            [
+                \local_unlistedcourses\access::RELATIONSHIP_ENROLLED, \local_unlistedcourses\access::RELATIONSHIP_PENDING,
+                \local_unlistedcourses\access::RELATIONSHIP_SCHEDULED, \local_unlistedcourses\access::RELATIONSHIP_WAITLISTED,
+            ],
+            $kept
+        );
+    }
+
+    /**
+     * Courses written straight to the tables, each with one enrolment row of the given shape.
+     *
+     * The situations statement reads nothing a generated course adds: the course row, one
+     * enabled manual instance and the row are all it needs.
+     *
+     * @param int $count How many courses.
+     * @param array $row The user_enrolments fields that vary: status, timestart, timeend.
+     * @return int[] The user_enrolments ids, in creation order.
+     */
+    private function bulk(int $count, array $row): array {
+        global $DB;
+
+        $category = (int) $this->getDataGenerator()->create_category()->id;
+        $ueids = [];
+        for ($i = 0; $i < $count; $i++) {
+            $this->coursecount++;
+            $courseid = (int) $DB->insert_record('course', (object) [
+                'category' => $category,
+                'fullname' => "Bulk {$this->coursecount}",
+                'shortname' => "compassbulk{$this->coursecount}",
+                'visible' => 1,
+            ]);
+            $instanceid = (int) $DB->insert_record('enrol', (object) [
+                'enrol' => 'manual',
+                'status' => ENROL_INSTANCE_ENABLED,
+                'courseid' => $courseid,
+                'timecreated' => self::NOW,
+                'timemodified' => self::NOW,
+            ]);
+            $ueids[] = (int) $DB->insert_record('user_enrolments', (object) ($row + [
+                'enrolid' => $instanceid,
+                'userid' => $this->userid,
+                'modifierid' => 0,
+                'timecreated' => self::NOW - DAYSECS,
+                'timemodified' => self::NOW - DAYSECS,
+            ]));
+        }
+
+        return $ueids;
+    }
+
+    /**
+     * The counts of the situations statement, read with a bound of three rows.
+     *
+     * The bound is injectable, in the house style of the other sizes: a fixture of a handful of
+     * rows exercises it, where SITUATIONS_LIMIT itself would need hundreds of courses.
+     *
+     * @return array attention::build()'s counts.
+     */
+    private function counts_bounded_at_three(): array {
+        return (new attention($this->userid, self::NOW, 3, 30, false, null, 3))->build()['counts'];
+    }
+
+    /**
+     * Past its bound the situations statement stops counting: the bound holds, and the count is a floor.
+     *
+     * One more course than the bound, each with an enrolment that starts later; the count is the
+     * bound itself. The control is the same fixture two rows short, which counts every course.
+     * The production bound is pinned beside it.
+     *
+     * @return void
+     */
+    public function test_the_situations_statement_is_bounded(): void {
+        global $DB;
+
+        $ueids = $this->bulk(4, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => 0]);
+
+        $this->assertSame(3, $this->counts_bounded_at_three()['scheduled']);
+        // Control: two rows fewer, under the bound, and every course is counted.
+        $DB->delete_records_list('user_enrolments', 'id', array_slice($ueids, 0, 2));
+        $this->assertSame(2, $this->counts_bounded_at_three()['scheduled']);
+        $this->assertSame(500, attention::SITUATIONS_LIMIT);
+    }
+
+    /**
+     * Under the bound, the statement spends no row on one Compass would never count.
+     *
+     * A full bound of ended rows and a full bound of active courses, both written before the one
+     * enrolment that starts later, so their ids come first in the statement's order: had either
+     * clause gone - the not-yet-ended one or core's no-active-enrolment one - those rows would
+     * fill the bound and the later start would not be counted. The provider would still classify
+     * the extra rows correctly, which is why only the bound can tell the clauses are there.
+     *
+     * @return void
+     */
+    public function test_the_situations_statement_reads_no_ended_row_and_no_enrolled_course(): void {
+        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => self::NOW - DAYSECS]);
+        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => 0]);
+        $this->bulk(1, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => 0]);
+
+        $counts = $this->counts_bounded_at_three();
+
+        $this->assertSame(1, $counts['scheduled']);
+        // Control: the active courses are there, and counted where they belong.
+        $this->assertSame(3, $counts['total']);
     }
 
     /**
@@ -425,7 +641,7 @@ final class attention_test extends advanced_testcase {
         // The only active star is on the course New shows, and the favourites strip lists it too;
         // the three inactive stars are on courses the strip must not reach.
         $this->assertSame([(int) $fresh['control']->id], $this->ids($tier['favourites']));
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
     }
 
     /**
@@ -511,7 +727,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $continue->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $new->id], $this->ids($tier['new']));
         $this->assertSame([], $this->ids($tier['favourites']));
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
 
         // With the last access gone the site course is a candidate for New instead, and
         // is refused there too; the control is still returned, so the query did run.
@@ -550,7 +766,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $fresh->id], $this->ids($tier['new']));
         $this->assertSame([], $this->ids($tier['favourites']));
         // The one star in the fixture is on an archived course, so it counts for nothing.
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
     }
 
     /**
@@ -573,6 +789,20 @@ final class attention_test extends advanced_testcase {
             $this->plugingen->access_at($this->userid, (int) $course->id, self::NOW - HOURSECS);
         }
         $this->plugingen->hide($this->userid, (int) $archived->id);
+        // The same pair for the situations statement: an archived and a listed later start.
+        $archivedlater = (int) $this->course('Archived later start')->id;
+        $listedlater = (int) $this->course('Listed later start')->id;
+        foreach ([$archivedlater, $listedlater] as $courseid) {
+            $this->plugingen->enrol_at(
+                $this->userid,
+                $courseid,
+                self::NOW - DAYSECS,
+                'manual',
+                ENROL_USER_ACTIVE,
+                self::NOW + DAYSECS
+            );
+        }
+        $this->plugingen->hide($this->userid, $archivedlater);
         // Pad with ids of courses that never existed. Written straight to the table because
         // each preference written through the API costs two statements, and only the size
         // of the set decides which path runs.
@@ -588,15 +818,16 @@ final class attention_test extends advanced_testcase {
 
         // Precondition: the set really is over the limit, so the PHP path is the one taken.
         $hidden = hidden_courses::ids($this->userid);
-        $this->assertCount(hidden_courses::SQL_LIMIT + 1, $hidden);
+        $this->assertCount(hidden_courses::SQL_LIMIT + 2, $hidden);
         $this->assertGreaterThan(hidden_courses::SQL_LIMIT, count($hidden));
 
         $tier = $this->build(5);
 
         $this->assertSame([(int) $control->id], $this->ids($tier['continue']));
         $this->assertArrayNotHasKey((int) $archived->id, $tier['continue']);
-        // Two active courses, one archived: the chunked subtraction leaves exactly one.
-        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 0], $tier['counts']);
+        // Two active courses, one archived: the chunked subtraction leaves exactly one; and of the
+        // two later starts the archived one is dropped in PHP.
+        $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 0, 'scheduled' => 1], $tier['counts']);
     }
 
     /**
@@ -627,7 +858,7 @@ final class attention_test extends advanced_testcase {
 
         $this->assertSame([(int) $newest->id, (int) $middle->id], $this->ids($tier['continue']));
         $this->assertSame([(int) $oldest->id], $this->ids($tier['favourites']));
-        $this->assertSame(['total' => 3, 'new' => 0, 'favourites' => 1, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 3, 'new' => 0, 'favourites' => 1, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
     }
 
     /**
@@ -666,7 +897,7 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $twice->id], $this->ids($tier['new']));
         $this->assertSame('self', $tier['new'][(int) $twice->id]->enrol);
         $this->assertSame(self::NOW - 5 * DAYSECS, (int) $tier['new'][(int) $twice->id]->timecreated);
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 0, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
     }
 
     /**
@@ -698,23 +929,23 @@ final class attention_test extends advanced_testcase {
 
         $tier = $this->build(5);
 
-        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0], $tier['counts']);
+        $this->assertSame(['total' => 2, 'new' => 1, 'favourites' => 1, 'pending' => 0, 'scheduled' => 0], $tier['counts']);
         // Control: the one star that counts is the one the strips can also reach.
         $this->assertSame([(int) $fresh->id], $this->ids($tier['new']));
     }
 
     /**
-     * The three strips and the counts are four bounded queries, no more.
+     * The three strips, the counts and the situations read are five bounded queries, no more.
      *
      * Protocol (classes/local/budget.php): the constructor's two per-request costs —
      * the preference load behind hidden_courses::ids() and the system-context
      * capability check — are paid before the meter starts, which is why the object is
      * built and run once first; the meter then covers a second build() on the same
-     * object, which is the four queries and nothing else.
+     * object, which is the five queries and nothing else.
      *
      * @return void
      */
-    public function test_build_costs_four_database_reads_when_core_is_warm(): void {
+    public function test_build_costs_five_database_reads_when_core_is_warm(): void {
         $accessed = $this->course('AAA accessed course');
         $fresh = $this->course('BBB fresh course');
         $starred = $this->course('CCC starred course');
@@ -736,14 +967,14 @@ final class attention_test extends advanced_testcase {
         $this->assertSame([(int) $fresh->id], $this->ids($tier['new']));
         $this->assertSame([(int) $starred->id], $this->ids($tier['favourites']));
         $this->assertSame(3, $tier['counts']['total']);
-        $this->assertSame(4, $reads, "attention::build() cost {$reads} reads; the budget is 4.");
+        $this->assertSame(5, $reads, "attention::build() cost {$reads} reads; the budget is 5.");
     }
 
     /**
-     * With the favourites feature off the strip is not queried: three reads instead of four.
+     * With the favourites feature off the strip is not queried: four reads instead of five.
      *
-     * Same protocol as the four-read budget above, over one fixture measured with the feature on
-     * and off. The control is the feature on, which lists the starred course and costs the four.
+     * Same protocol as the five-read budget above, over one fixture measured with the feature on
+     * and off. The control is the feature on, which lists the starred course and costs the five.
      * Off, the strip is empty while the counts still carry the favourite, because that aggregate
      * rides in the counts statement for free.
      *
@@ -775,13 +1006,13 @@ final class attention_test extends advanced_testcase {
         foreach ($tiers as $state => $tier) {
             $this->assertSame([(int) $accessed->id], $this->ids($tier['continue']), "continue with favourites {$state}");
             $this->assertSame(
-                ['total' => 2, 'new' => 0, 'favourites' => 1, 'pending' => 0],
+                ['total' => 2, 'new' => 0, 'favourites' => 1, 'pending' => 0, 'scheduled' => 0],
                 $tier['counts'],
                 "counts with favourites {$state}"
             );
         }
-        $this->assertSame(4, $reads['on'], "attention::build() with favourites on cost {$reads['on']} reads; the budget is 4.");
-        $this->assertSame(3, $reads['off'], "attention::build() with favourites off cost {$reads['off']} reads; the budget is 3.");
+        $this->assertSame(5, $reads['on'], "attention::build() with favourites on cost {$reads['on']} reads; the budget is 5.");
+        $this->assertSame(4, $reads['off'], "attention::build() with favourites off cost {$reads['off']} reads; the budget is 4.");
     }
 
     /**

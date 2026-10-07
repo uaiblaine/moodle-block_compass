@@ -27,8 +27,10 @@ what I was doing, what just arrived, what I marked as mine.
   administrator chose — a search box, and rows that fetch their own details as
   they come into view, fetched only when the learner asks for it. Dormant courses
   are collapsed, archiving them hides them in the Course overview block as well,
-  and, with the *Enrolment on application* plugin, the learner's applications
-  still awaiting approval are listed with a badge and a chip of their own.
+  the enrolments that start later are listed with an *Access from {date}* pill and
+  a *Scheduled* chip, and, with the *Enrolment on application* plugin, the
+  learner's applications still awaiting approval or on the waiting list are
+  listed with a pill and a chip of their own.
 
 Design philosophy: **no tables of its own** (favourites through core, caches
 through MUC, per-user state through user preferences), **the server ships a
@@ -64,6 +66,12 @@ Requirements
   (`admin/environment.xml:5124`), with the `intl` extension Moodle 5.2 also
   requires (`:5197`) — the server-side search of paged mode uses its
   `Normalizer` so that it matches names exactly as the browser does.
+- **[`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)
+  2026042003 or later**, a hard dependency (`$plugin->dependencies`, ADR-013): it
+  decides what each of the learner's enrolment rows means — enrolled, starting
+  later, awaiting approval, on the waiting list, suspended, ended — and Compass
+  asks it rather than keeping a rule of its own. Install it first, to
+  `/local/unlistedcourses`.
 - A shared in-memory cache store (Redis) is strongly recommended — see below.
 
 
@@ -175,7 +183,7 @@ beside them (`CLAUDE.md` §6.6):
 
 | Endpoint | Reads per request | Payload |
 |---|---|---|
-| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup) | ≤ 20 KB |
+| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup) | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer | ≤ 40 KB |
 | `get_inventory` (paged mode, headers) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 12 KB (≈ 115 bytes per row) |
@@ -216,7 +224,7 @@ Blocks > Compass*, in this order:
 | Enable the Compass page (`enable_page`) | off | Serve the block's content on a page of its own, `/blocks/compass/index.php`, with only the theme's navigation bar and footer around it. While on, "Compass" is offered as a choice for *Start page for users* and, when that setting leaves the choice to users, in each user's own preferences. Off, the page redirects to the Dashboard (ADR-012). |
 | Hide the page title (`hide_page_title`) | off | Show the Compass page without the theme's page heading, so the content starts closer to the navigation bar. The title stays in the page as a visually hidden `<h1>` for assistive technology. Only the page is affected (ADR-012, amendment 4). |
 | Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
-| Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision: a row with an "Awaiting approval" badge in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Does nothing without that plugin (ADR-009). |
+| Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision or sit on its waiting list: a row with an *Application under review* or *On the waiting list* pill in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Which rows are applications is `local_unlistedcourses`' answer. Does nothing without that plugin (ADR-009, ADR-013). |
 | Pre-warm active users (`enable_prewarm`) | off | Run the nightly sweep at all. Never set means off. |
 | Pre-warm users active in the last (`prewarm_days`) | 7 | Only users whose last access falls within this many days are warmed. |
 | Pre-warming time budget (`prewarm_budget_seconds`) | 10 minutes (600 s, minimum 60) | How long each run may work; it stops between users when the budget is reached and resumes from the same place the next night. |
@@ -242,14 +250,17 @@ lines, ending in an ellipsis, with the whole name shown on hover.
 administrator chose), with a side index on wide screens; a toolbar with the
 sort — by category, name or last opened — and the list/cards toggle; a search
 box; and a **Filter** button opening a panel of chip groups: *Status* (All, New,
-Favourites and, when enabled, Awaiting approval), then one group per course
-custom field the administrator chose. One chip per group, groups combine, and
-in full mode every chip carries the number of courses it would keep. When
-`enable_pending` is on and the learner has applied for a course through
-`enrol_apply`, the application is a row in its category with an *Awaiting
-approval* badge — no star, no archive control, no progress, and a link to the
+Favourites, Awaiting approval when enabled, and Scheduled), then one group per
+course custom field the administrator chose. One chip per group, groups combine,
+and in full mode every chip carries the number of courses it would keep. An
+enrolment that starts later is a row in its category with an *Access from
+{date}* pill — no star, no archive control, no progress, and a link to the
 course's enrolment page rather than into the course — and a line under *New
-enrolments* says how many are waiting. Two of its groups are not categories and
+enrolments* says how many there are and opens this list on the Scheduled chip;
+it is never a card of the first tier. When `enable_pending` is on and the learner
+has applied for a course through `enrol_apply`, the application is such a row
+too, with an *Application under review* or *On the waiting list* pill, and a
+line under *New enrolments* says how many are waiting. Two of its groups are not categories and
 come after the ones that are, both closed:
 
 - **Dormant** gathers the courses that have gone quiet — not opened for
@@ -494,9 +505,9 @@ user id), callable over AJAX after login and never by the guest account:
 
 | Function                             | Purpose                                                                                                                  |
 |--------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `block_compass_get_attention`        | Tier 1: the three strips, the ghost and heading-link counts, and the number of enrolment applications awaiting approval. |
+| `block_compass_get_attention`        | Tier 1: the three strips, the ghost and heading-link counts, and the numbers of enrolment applications awaiting approval and of enrolments that start later. |
 | `block_compass_get_inventory`        | Tier 3: every listed course grouped by category (`mode: full`), or the group headers with counts alone (`mode: paged`), plus the custom-field chip groups (`fields`); dormant courses gather in a group of their own (id `-1`) and archived ones travel as a header alone (id `-2`). |
-| `block_compass_get_inventory_rows`   | Paged mode: one page of up to 100 courses of one group, by cursor, under a chip (`all`, `new`, `favourites`, `pending`), a sort (`name`, `recent`) and the custom-field `filters`. |
+| `block_compass_get_inventory_rows`   | Paged mode: one page of up to 100 courses of one group, by cursor, under a chip (`all`, `new`, `favourites`, `pending`, `scheduled`), a sort (`name`, `recent`) and the custom-field `filters`. |
 | `block_compass_search_inventory`     | Paged mode: up to 50 courses whose name contains every word of the query, under the same `filters`, each with its group. |
 | `block_compass_get_card_details`     | Progress and the course image for a batch of up to 24 courses on screen.                                                |
 

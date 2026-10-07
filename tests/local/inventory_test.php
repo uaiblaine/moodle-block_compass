@@ -30,6 +30,7 @@ use core\context\course as context_course;
 use core\context\user as context_user;
 use core_cache\cache;
 use core_favourites\service_factory;
+use local_unlistedcourses\access;
 use PHPUnit\Framework\Attributes\CoversClass;
 use stdClass;
 
@@ -795,7 +796,12 @@ final class inventory_test extends advanced_testcase {
 
         $entry = inventory::fill($this->userid);
 
-        $instanceid = (int) $DB->get_field('enrol', 'id', ['courseid' => $applied->id, 'enrol' => pending::METHOD], MUST_EXIST);
+        $instanceid = (int) $DB->get_field(
+            'enrol',
+            'id',
+            ['courseid' => $applied->id, 'enrol' => relationship::APPLY_METHOD],
+            MUST_EXIST
+        );
         $this->assertGreaterThan(0, $instanceid);
         $this->assertSame($instanceid, $entry['rows'][$applyue][inventory::APPLYINSTANCE]);
         $this->assertSame(0, $entry['rows'][$manualue][inventory::APPLYINSTANCE]);
@@ -805,10 +811,11 @@ final class inventory_test extends advanced_testcase {
     }
 
     /**
-     * pending() lists the applications awaiting a decision and nothing else.
+     * pending() lists the applications awaiting a decision or on the waiting list and nothing else.
      *
      * Listed: an application as submitted (ENROL_USER_SUSPENDED) and one deferred (2), both with
-     * the period open. Not listed: an apply row past its timeend (re-suspended after approval), a
+     * the period open, the deferred one marked waitlisted. Not listed: an apply row past its
+     * timeend (re-suspended after approval), a
      * suspended manual row (another method), an active apply row (an active course — courses()
      * lists it), a course where an active manual enrolment sits beside an application (the
      * active pass's ids are excluded, and the control that it is the exclusion doing it is the
@@ -851,6 +858,8 @@ final class inventory_test extends advanced_testcase {
         $this->assertSame($expectedpending, $actualpending);
         $this->assertSame($submittedue, $pending[$submitted]['ueid']);
         $this->assertFalse($pending[$submitted]['isfavourite']);
+        $this->assertFalse($pending[$submitted]['waitlisted']);
+        $this->assertTrue($pending[$deferred]['waitlisted']);
 
         // Control: run without the active ids, the same pass does return the doubly enrolled
         // course, so it is the exclusion that removes it and not the fixture.
@@ -865,8 +874,147 @@ final class inventory_test extends advanced_testcase {
         }
         unset($row);
         $this->assertSame([], inventory::pending($legacy, self::NOW, [], []));
-        $this->assertFalse(pending::is_pending($legacy['rows'][$submittedue], self::NOW));
-        $this->assertTrue(pending::is_pending($entry['rows'][$submittedue], self::NOW));
+        $this->assertSame(access::RELATIONSHIP_SUSPENDED, relationship::of_row($legacy['rows'][$submittedue], self::NOW));
+        $this->assertSame(access::RELATIONSHIP_PENDING, relationship::of_row($entry['rows'][$submittedue], self::NOW));
+    }
+
+    /**
+     * Of two applications in one course, the one awaiting a decision outranks the waiting list.
+     *
+     * A course may carry two enrol_apply instances, and the provider ranks pending above
+     * waitlisted (relationship::SHOWN). The waiting-list row is written first and with the earlier
+     * date, so a pass that kept the first row it met, or the earliest, would keep it; the control
+     * is the same pass over the waiting-list row alone, which does report the waiting list.
+     *
+     * @return void
+     */
+    public function test_pending_outranks_the_waiting_list_in_one_course(): void {
+        global $DB;
+
+        $courseid = (int) $this->course('Two application methods')->id;
+        $waitue = $this->plugingen->apply_at($this->userid, $courseid, self::NOW - 5 * DAYSECS, 2);
+        $second = $DB->insert_record('enrol', (object) [
+            'enrol' => relationship::APPLY_METHOD,
+            'status' => ENROL_INSTANCE_ENABLED,
+            'courseid' => $courseid,
+            'sortorder' => 1,
+            'timecreated' => self::NOW - 5 * DAYSECS,
+            'timemodified' => self::NOW - 5 * DAYSECS,
+        ]);
+        $pendingue = (int) $DB->insert_record('user_enrolments', (object) [
+            'status' => ENROL_USER_SUSPENDED,
+            'enrolid' => $second,
+            'userid' => $this->userid,
+            'timestart' => 0,
+            'timeend' => 0,
+            'modifierid' => 0,
+            'timecreated' => self::NOW - DAYSECS,
+            'timemodified' => self::NOW - DAYSECS,
+        ]);
+        $this->purge_plugin_caches();
+
+        $entry = inventory::get($this->userid);
+        $pending = inventory::pending($entry, self::NOW, [], []);
+
+        $this->assertSame($pendingue, $pending[$courseid]['ueid']);
+        $this->assertFalse($pending[$courseid]['waitlisted']);
+        // Control: the waiting-list row alone is reported as the waiting list.
+        $alone = $entry;
+        unset($alone['rows'][$pendingue]);
+        $this->assertSame($waitue, inventory::pending($alone, self::NOW, [], [])[$courseid]['ueid']);
+        $this->assertTrue(inventory::pending($alone, self::NOW, [], [])[$courseid]['waitlisted']);
+    }
+
+    /**
+     * scheduled() lists the enrolments that start later, and nothing else: tier 3's Scheduled situation.
+     *
+     * Listed: an active row on an enabled instance whose start is ahead, with the earliest start
+     * kept when two methods schedule the same course. Not listed: the same row on a disabled
+     * instance, a suspended future row, a future row whose end precedes its start (the provider's
+     * none), a course where an active enrolment sits beside a later one (the active pass's ids are
+     * excluded; the control is the same pass without them), an archived one (the hidden set, with
+     * its control), and the future rows are never in courses().
+     *
+     * @return void
+     */
+    public function test_scheduled_lists_enrolments_that_start_later_and_nothing_else(): void {
+        global $DB;
+
+        $later = (int) $this->course('Starts later')->id;
+        $twice = (int) $this->course('Scheduled twice')->id;
+        $disabled = (int) $this->course('Later on a disabled method')->id;
+        $suspended = (int) $this->course('Later and suspended')->id;
+        $inverted = (int) $this->course('Ends before it starts')->id;
+        $both = (int) $this->course('Active now and later')->id;
+        $archived = (int) $this->course('Archived later')->id;
+        $start = self::NOW + 10 * DAYSECS;
+        $laterue = $this->plugingen->enrol_at($this->userid, $later, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        // The earliest start is the first row and the later one the second, so a pass that kept the
+        // last row it met would keep the wrong date.
+        $this->ensure_enabled_instance($twice, 'self');
+        $selfue = $this->plugingen->enrol_at($this->userid, $twice, self::NOW - DAYSECS, 'self', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->enrol_at($this->userid, $twice, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start + DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $disabled, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_DISABLED, ['courseid' => $disabled, 'enrol' => 'manual']);
+        $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - DAYSECS, 'manual', ENROL_USER_SUSPENDED, $start);
+        $this->plugingen->enrol_at(
+            $this->userid,
+            $inverted,
+            self::NOW - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            $start,
+            $start - DAYSECS
+        );
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - DAYSECS, 'manual');
+        $this->ensure_enabled_instance($both, 'self');
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - DAYSECS, 'self', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->enrol_at($this->userid, $archived, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $this->purge_plugin_caches();
+
+        $entry = inventory::get($this->userid);
+        $active = inventory::courses($entry, self::NOW, [$archived]);
+        $scheduled = inventory::scheduled($entry, self::NOW, [$archived], array_keys($active));
+
+        $this->assertSame([$both], array_keys($active), 'no enrolment that starts later is an active course');
+        $ids = array_keys($scheduled);
+        sort($ids);
+        $expected = [$later, $twice];
+        sort($expected);
+        $this->assertSame($expected, $ids);
+        $this->assertSame($laterue, $scheduled[$later]['ueid']);
+        $this->assertSame($start, $scheduled[$later]['timestart']);
+        $this->assertSame($selfue, $scheduled[$twice]['ueid'], 'the earliest start wins, not the last row');
+        $this->assertSame($start, $scheduled[$twice]['timestart']);
+        // Controls: without the active ids the doubly enrolled course is back, and without the
+        // hidden set the archived one, so the exclusions remove them and not the fixture.
+        $this->assertArrayHasKey($both, inventory::scheduled($entry, self::NOW, [$archived], []));
+        $this->assertArrayHasKey($archived, inventory::scheduled($entry, self::NOW, [], array_keys($active)));
+        // Read once the start has passed, the same entry has no later start left in that course.
+        $this->assertArrayNotHasKey($later, inventory::scheduled($entry, $start, [], []));
+        $this->assertArrayHasKey($later, inventory::courses($entry, $start));
+    }
+
+    /**
+     * An enrolment that starts later outranks an application in the same course.
+     *
+     * The provider ranks scheduled above pending; explore hands pending() the scheduled pass's ids
+     * for that reason. The control is the same pending pass without them.
+     *
+     * @return void
+     */
+    public function test_a_later_start_outranks_an_application_in_the_same_course(): void {
+        $courseid = (int) $this->course('Scheduled and applied')->id;
+        $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, self::NOW + DAYSECS);
+        $this->plugingen->apply_at($this->userid, $courseid, self::NOW - DAYSECS);
+        $this->purge_plugin_caches();
+
+        $entry = inventory::get($this->userid);
+        $scheduled = inventory::scheduled($entry, self::NOW, [], []);
+
+        $this->assertArrayHasKey($courseid, $scheduled);
+        $this->assertSame([], inventory::pending($entry, self::NOW, [], array_keys($scheduled)));
+        $this->assertArrayHasKey($courseid, inventory::pending($entry, self::NOW, [], []));
     }
 
     /**

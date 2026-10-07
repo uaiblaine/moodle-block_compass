@@ -152,6 +152,25 @@ final class block_compass_test extends advanced_testcase {
         // Both surfaces of an application awaiting approval hang off this flag; off by default.
         $this->assertFalse($props['pendingenabled']);
         $this->assertSame(get_string('chip_pending', 'block_compass'), $props['labels']['chip_pending']);
+        $this->assertSame(get_string('chip_scheduled', 'block_compass'), $props['labels']['chip_scheduled']);
+
+        // Every label the client reads is one the shell exports: an ES module has no core/str, so
+        // a key missing from the list renders as nothing at all, with no error anywhere.
+        $read = [];
+        foreach (glob(__DIR__ . '/../js/esm/src/*.{ts,tsx}', GLOB_BRACE) as $file) {
+            preg_match_all('/\blabels\.([a-z_]+)\b/', file_get_contents($file), $matches);
+            $read = array_merge($read, $matches[1]);
+        }
+        $read = array_values(array_unique($read));
+        sort($read);
+        // Vacuity guard: the scan read the client, the new state labels included.
+        $this->assertContains('state_scheduled', $read);
+        $this->assertContains('ghost_more', $read);
+        $this->assertSame(
+            [],
+            array_values(array_diff($read, array_keys($props['labels']))),
+            'labels the client reads but the shell does not export'
+        );
 
         // The shell carries one mount point and nothing else of the block's own: tier 3 renders
         // inside the component and needs no region of its own.

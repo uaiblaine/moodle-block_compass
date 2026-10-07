@@ -29,9 +29,10 @@
  * setting. The progress area follows the rule of Card.tsx completion(): a bar when there is one,
  * "No completion configured" only to a viewer who is not a learner of the course, else nothing.
  *
- * An enrolment application awaiting approval links to the course's enrolment page, carries
- * the "Awaiting approval" badge where a new card carries "New", and has no star, no archive
- * control and no progress; it registers for no details either.
+ * A card the learner cannot enter yet - an enrolment application awaiting a decision or on the
+ * waiting list, or an enrolment that starts later - links to the course's enrolment page, says
+ * which situation it is in with the state pill under its title (the corner badge is New's alone),
+ * and has no star, no archive control and no progress; it registers for no details either.
  *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
@@ -42,8 +43,9 @@ import {useEffect, useRef} from 'react';
 import Archive from './Archive';
 import Progress from './Progress';
 import Star from './Star';
+import StatePill from './StatePill';
 import {titleTag} from './heading';
-import {relativeTime} from './filter';
+import {isEnrolled, relativeTime} from './filter';
 import {fill} from './str';
 import type {BlockConfig, InventoryRow, RowDetail} from './types';
 
@@ -76,20 +78,20 @@ const RowCard = ({
     const {labels} = config;
     const Title = titleTag(config.headinglevel);
     const opened = row.opened || 0;
-    const pending = !!row.pend;
-    const url = pending
-        ? `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`
-        : `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
+    const enrolled = isEnrolled(row);
+    const url = enrolled
+        ? `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`
+        : `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`;
     const element = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const node = element.current;
-        if (!node || pending) {
+        if (!node || !enrolled) {
             return undefined;
         }
 
         return observe(row.id, node);
-    }, [observe, row.id, pending]);
+    }, [observe, row.id, enrolled]);
 
     /*
      * The image keeps loading="lazy", so the browser never requests the file while the card
@@ -101,20 +103,26 @@ const RowCard = ({
     } else if (detail?.hasimage) {
         image = <img className="compass-card-img card-img-top" src={detail.imageurl} alt="" loading="lazy" />;
     }
-    const answered = !pending && !waiting && detail !== undefined;
+    const answered = enrolled && !waiting && detail !== undefined;
+    // An application says when access comes; an enrolment that starts later says it in its pill.
+    let meta: string | null = null;
+    if (row.pend) {
+        meta = labels.pendingmeta;
+    } else if (enrolled) {
+        meta = opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened;
+    }
 
     return (
         <div
-            className={`compass-rowcard card h-100${pending ? ' compass-row-pending' : ''}`}
+            className={`compass-rowcard card h-100${enrolled ? '' : ' compass-row-pending'}`}
             data-course-id={row.id}
             ref={element}
         >
             {image}
             {row.new && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
-            {pending && <span className="compass-card-badge badge bg-warning text-dark">{labels.badge_pending}</span>}
             {/* The star follows the image in the DOM as it does on screen: a screen reader meets it
                 before the title, where the badge already is. */}
-            {!pending && config.favouritesenabled && (
+            {enrolled && config.favouritesenabled && (
                 <Star
                     courseid={row.id}
                     fullname={row.name}
@@ -130,16 +138,13 @@ const RowCard = ({
                 <Title className="compass-rowcard-title compass-clamp h6 mb-1" title={row.name}>
                     <a href={url} className="compass-row-link stretched-link text-reset text-decoration-none">
                         {row.name}
-                        {pending && <span className="visually-hidden">{` · ${labels.badge_pending}`}</span>}
                     </a>
                 </Title>
-                <p className="compass-card-meta small text-muted mb-2">
-                    {pending && labels.pendingmeta}
-                    {!pending && (opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened)}
-                </p>
+                {meta !== null && <p className="compass-card-meta small text-muted mb-2">{meta}</p>}
+                <StatePill row={row} labels={labels} />
                 <div className="compass-rowcard-foot mt-auto d-flex align-items-center justify-content-between gap-2">
                     <div className="compass-row-progress flex-grow-1">
-                        {!pending && waiting && (
+                        {enrolled && waiting && (
                             <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>
                         )}
                         {answered && detail.hascompletion && detail.progress !== null && (
@@ -150,7 +155,7 @@ const RowCard = ({
                         )}
                     </div>
                     {/* Above the stretched link, or the card would swallow the click. */}
-                    {!pending && (
+                    {enrolled && (
                         <span className="compass-card-action">
                             <Archive
                                 courseid={row.id}

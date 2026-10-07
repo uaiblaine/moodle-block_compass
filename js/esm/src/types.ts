@@ -60,6 +60,7 @@ export type Counts = {
     newmore: number,
     favouritesmore: number,
     pending: number,
+    scheduled: number,
 };
 
 /** The whole tier 1 payload. */
@@ -179,9 +180,11 @@ export const GROUP_ARCHIVED = -2;
 /**
  * One tier 3 row, as get_inventory and its two paging services return it.
  *
- * pend is present, and true, only on an enrolment application awaiting approval; cf is
+ * pend is present, and true, only on an enrolment application awaiting approval or on the
+ * waiting list, and wait beside it only on the waiting list; sched is present only on an
+ * enrolment that starts later, as its start date already formatted for the reader; cf is
  * present only when the row holds a custom-field value, as a flat list read in pairs — the
- * field's index in the payload's fields array, then the value key. Both are omitted rather
+ * field's index in the payload's fields array, then the value key. All four are omitted rather
  * than sent false or empty, because omission costs nothing on the wire.
  */
 export type InventoryRow = {
@@ -192,6 +195,8 @@ export type InventoryRow = {
     fav: boolean,
     dorm: boolean,
     pend?: boolean,
+    wait?: boolean,
+    sched?: string,
     cf?: number[],
 };
 

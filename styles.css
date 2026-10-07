@@ -14,6 +14,13 @@
     --block_compass-line: var(--bs-border-color, #dee2e6);
     --block_compass-muted: var(--bs-secondary-color, #6a737b);
     --block_compass-surface: var(--bs-body-bg, #fff);
+    /* The state pills' two families, the theme card's (theme_boost_union_fundaseg): a later start
+       in the primary's subtle pair, an application in the warning's. The fallbacks are the
+       theme's own measured pairs, 14.53:1 and 7.82:1; Boost 5.2 serves 10.85:1 and 7.82:1. */
+    --block_compass-scheduled-bg: var(--bs-primary-bg-subtle, #edeefb);
+    --block_compass-scheduled-text: var(--bs-primary-text-emphasis, #050073);
+    --block_compass-awaiting-bg: var(--bs-warning-bg-subtle, #fcefdc);
+    --block_compass-awaiting-text: var(--bs-warning-text-emphasis, #60451f);
 }
 
 /* Brand-coloured text needs its own token: the brand on Boost's dark body is 3.02:1, under
@@ -30,6 +37,14 @@
 body[data-bs-theme="dark"] .block_compass,
 [data-bs-theme="dark"] body .block_compass {
     --block_compass-brand-text: var(--bs-body-color, #dee2e6);
+    /* A pill's text is the body colour in dark mode for the brand text's reason: the primary's dark
+       emphasis tint is 4.18:1 on its own subtle fill for a navy primary (the theme's), under the
+       floor. On Boost's dark fills the body colour is 14.06:1 and 11.74:1. The fallbacks are the
+       theme's dark fills. */
+    --block_compass-scheduled-bg: var(--bs-primary-bg-subtle, #1c2350);
+    --block_compass-scheduled-text: var(--bs-body-color, #dee2e6);
+    --block_compass-awaiting-bg: var(--bs-warning-bg-subtle, #3a2c0c);
+    --block_compass-awaiting-text: var(--bs-body-color, #dee2e6);
 }
 
 .block_compass .compass-status,
@@ -158,6 +173,32 @@ body[data-bs-theme="dark"] .block_compass,
     margin: -0.5rem 0 1.25rem;
 }
 
+/* The state pill of a tier 3 row or card (StatePill.tsx): the theme card's pill, a sentence after
+   a decorative icon, each family stating its own text colour. */
+.block_compass .compass-state {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 6px;
+    max-width: 100%;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.block_compass .compass-state-scheduled {
+    background: var(--block_compass-scheduled-bg);
+    color: var(--block_compass-scheduled-text);
+}
+
+.block_compass .compass-state-pending,
+.block_compass .compass-state-waitlisted {
+    background: var(--block_compass-awaiting-bg);
+    color: var(--block_compass-awaiting-text);
+}
+
 /* A course name is at most two lines, ellipsis and all - Boost's own .clamp-2 pattern
    (theme/boost/scss/moodle/core.scss) - and the whole name rides in the element's title
    attribute. Visual only: the text stays whole in the DOM. */
@@ -203,8 +244,8 @@ body[data-bs-theme="dark"] .block_compass,
     opacity: 0.6;
 }
 
-/* The badge in a card's top-left corner - New on a new enrolment, Awaiting approval on an
-   application - and the star in the top-right. */
+/* The badge in a card's top-left corner - New on a new enrolment, and nothing else: an
+   application or a later start says so in its state pill - and the star in the top-right. */
 .block_compass .compass-card-badge {
     position: absolute;
     top: 0.5rem;

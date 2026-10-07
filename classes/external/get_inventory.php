@@ -42,7 +42,7 @@ use core_external\external_value;
  * rows through get_inventory_rows and searches through search_inventory. The
  * archived group is a header alone in both modes; its rows always come through
  * get_inventory_rows. Rows carry short keys — id, name, opened, new, fav, dorm,
- * and pend and cf only when they apply — because each repeats once per course
+ * and pend, wait, sched and cf only when they apply — because each repeats once per course
  * in a payload the client holds whole: the worst case, 250 rows each carrying
  * three field values, must stay under 40 000 bytes
  * ({@see \block_compass\local\config::FILTER_FIELDS_MAX}).

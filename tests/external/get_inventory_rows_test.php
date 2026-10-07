@@ -219,7 +219,7 @@ final class get_inventory_rows_test extends advanced_testcase {
         $this->assertSame(0, $meter->reads(), 'a refused chip must cost nothing');
 
         $this->assertSame('invalidparameter', $this->failing_call(['groupid' => (int) $cata->id, 'chip' => 'bogus']));
-        $this->assertSame(['all', 'new', 'favourites', 'pending'], get_inventory_rows::CHIPS);
+        $this->assertSame(['all', 'new', 'favourites', 'pending', 'scheduled'], get_inventory_rows::CHIPS);
     }
 
     /**
