@@ -39,6 +39,7 @@ import Reload from './Reload';
 import RetryNotice from './RetryNotice';
 import type {GhostKind} from './Ghost';
 import {notify} from './notify';
+import {cardColumns} from './columns';
 import {fill, fillObject} from './str';
 import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
 import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange} from './types';
@@ -128,6 +129,11 @@ const Block = (config: BlockConfig) => {
     const [announcement, setAnnouncement] = useState({text: '', at: 0});
     // Which load is current. A retry supersedes whatever the previous one still owes.
     const seq = useRef(0);
+    // The width the block has, measured, for the strips' column count (columns.ts): the block
+    // may sit in a drawer or a narrow column, so it is the block that is measured, never the
+    // viewport - tier 3's category index does the same.
+    const root = useRef<HTMLDivElement>(null);
+    const [width, setWidth] = useState(0);
     const {labels} = config;
 
     /**
@@ -240,6 +246,17 @@ const Block = (config: BlockConfig) => {
     useEffect(() => {
         load();
     }, [load]);
+
+    useEffect(() => {
+        const element = root.current;
+        if (!element || typeof ResizeObserver === 'undefined') {
+            return undefined;
+        }
+        const observer = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width));
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, []);
 
     // When the browser comes back online and tier 1 is in its error state, one retry the reader
     // should never have to ask for. Listening always and deciding in the handler, as Explore
@@ -367,6 +384,7 @@ const Block = (config: BlockConfig) => {
     const laststrip = data
         ? [...config.strips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
         : null;
+    const columns = cardColumns(width);
     const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
     const scheduledcount = data ? data.counts.scheduled : 0;
 
@@ -397,7 +415,7 @@ const Block = (config: BlockConfig) => {
     );
 
     return (
-        <div>
+        <div ref={root}>
             {/* The block's own top-right corner: the title bar beside it is core's, so the reload
                 control sits on the first row of the content. */}
             <div className="compass-content-head">
@@ -427,6 +445,7 @@ const Block = (config: BlockConfig) => {
                         cards={data[strip.name]}
                         ghost={strip.name === laststrip ? ghost : null}
                         overflow={overflows[strip.name] || null}
+                        columns={columns}
                         config={config}
                         onToggleFavourite={toggleFavourite}
                         onExplore={explore}
@@ -450,7 +469,7 @@ const Block = (config: BlockConfig) => {
             {/* No strip has cards, yet there are courses: the ghost has no grid to close and
                 stands alone. */}
             {ghost && laststrip === null && (
-                <div className="compass-ghost-wrap">
+                <div className={`compass-ghost-wrap compass-cards-${columns}`}>
                     <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />
                 </div>
             )}

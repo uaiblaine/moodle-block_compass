@@ -27,6 +27,8 @@
  * last so that it closes tier 1's card grid.
  *
  * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
+ * The grid's column count is the block's (columns.ts), so the theme card's three tracks become two
+ * and then one as the block narrows, and the ghost keeps a track of its own.
  *
  * @module     block_compass/Strip
  * @copyright  2026 Anderson Blaine
@@ -52,6 +54,7 @@ type StripProps = {
     cards: CourseCard[],
     ghost: StripGhost | null,
     overflow: StripOverflow | null,
+    columns: number,
     config: BlockConfig,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
     onExplore: (kind: GhostKind) => Promise<void>,
@@ -61,10 +64,10 @@ type StripProps = {
  * The strip.
  *
  * @param {object} props The heading, the cards, the optional closing ghost, the optional
- *     overflow link, the config and the two callbacks; see StripProps.
+ *     overflow link, the column count, the config and the two callbacks; see StripProps.
  * @returns {object} The rendered section, or nothing when the strip is empty.
  */
-const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, onExplore}: StripProps) => {
+const Strip = ({title, name, cards, ghost, overflow, columns, config, onToggleFavourite, onExplore}: StripProps) => {
     const headingid = useId();
     const Heading = sectionTag(config.headinglevel);
 
@@ -92,7 +95,7 @@ const Strip = ({title, name, cards, ghost, overflow, config, onToggleFavourite, 
                 )}
             </div>
             <div className="compass-cards">
-                <div className="compass-cards-list" role="list">
+                <div className={`compass-cards-list compass-cards-${columns}`} role="list">
                     {cards.map((card) => (
                         <div className="compass-cards-item" role="listitem" key={card.id}>
                             <Card card={card} config={config} onToggleFavourite={onToggleFavourite} />
