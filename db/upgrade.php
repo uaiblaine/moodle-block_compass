@@ -15,21 +15,30 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Compass block version file.
+ * Upgrade steps of the Compass block.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+/**
+ * Upgrade the Compass block.
+ *
+ * @param int $oldversion The version upgraded from.
+ * @return bool
+ */
+function xmldb_block_compass_upgrade(int $oldversion): bool {
+    if ($oldversion < 2026092404) {
+        // The theme's crests on cards (ADR-013 decision 9): off on a site that upgrades, so no
+        // site's cards change by surprise; a new install takes the setting's default, on. Written
+        // only when unset, because the defaults are applied after the upgrade steps run.
+        if (get_config('block_compass', 'show_theme_badges') === false) {
+            set_config('show_theme_badges', 0, 'block_compass');
+        }
 
-$plugin->component = 'block_compass';
-$plugin->version = 2026092404;
-$plugin->release = 'v5.2-r1';
-$plugin->requires = 2026042000;
-$plugin->supported = [502, 502];
-$plugin->maturity = MATURITY_ALPHA;
-$plugin->dependencies = [
-    'local_unlistedcourses' => 2026042003,
-];
+        upgrade_block_savepoint(true, 2026092404, 'compass');
+    }
+
+    return true;
+}

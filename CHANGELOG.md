@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **The theme's institutional crests on cards** (ADR-013 decision 9), version 2026092404. With
+  the *Boost Union FUNDASEG* theme installed, the cards of the first tier and the cards and rows
+  of the full list show up to three of the course's crests, read through the theme's one public
+  callback (`course_badges`), which decides who may see them. A new setting, *Show the theme's
+  institutional badges on cards* (`show_theme_badges`), offered only while the theme is
+  installed, switches them: on for a new installation, off after an upgrade (the upgrade step
+  stores off).
+
 - **Enrolments that start later are listed, in tier 3 only** (ADR-013, reversing ADR-000
   decision 14 for that tier), version 2026092402. A course the learner is enrolled in from a
   later date is a row of its category with an *Access from {date}* pill, under a new
@@ -20,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Tier 3 takes the theme's card and list look** (ADR-013 decision 8), version 2026092404: a
+  card has the theme card's 150 px cover and body measures, a list row is a framed line with the
+  image as a 56 px square at its start and the crests at 24 px. A later start and an application
+  show their cover and crests too: the details batch answers them with the image and crests only,
+  never progress, after asking `local_unlistedcourses` which rows they are.
 - **Tier 1's cards take the theme card's size** (ADR-013 decision 7), version 2026092403: a
   150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600 and the meta line
   at .8125rem, three tracks with a 16 px gap. The column count is the block's own (3, 2 or 1,
@@ -41,6 +54,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   cold, plus the user-context read).
 
 ### Fixed
+
+- **Tier 3's "No completion configured" reaches the teacher.** The details batch's client mapping
+  dropped the `teacher` flag since R4, so the notice was never drawn in tier 3.
 
 - **The date on a New card is labelled as the enrolment deadline.** It is the earlier of the
   enrolment's own end and the method's last day to enrol, which read as a course deadline under

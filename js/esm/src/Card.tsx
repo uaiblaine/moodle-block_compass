@@ -20,14 +20,15 @@
  * the progress changes, which is what makes patching one card cheap. The title's level comes
  * from heading.ts, one rung under the strip heading, and the title is clamped to two lines
  * with the whole name in its title attribute. The star sits in the image's top-right corner
- * on a contrast disc, the badge in the top-left, and the category line follows the
- * show_category setting.
+ * on a contrast disc, the badge in the top-left, the theme's crests (when it is installed) in the
+ * bottom-right, and the category line follows the show_category setting.
  *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
 import {titleTag} from './heading';
@@ -107,6 +108,8 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
                     </a>
                 </Title>
                 <p className="compass-card-meta small text-muted mb-2">{meta}</p>
+                {/* Read after the title, as the theme card reads them, and drawn on the cover. */}
+                <Crests badges={card.badges} label={labels.crests} />
                 {completion(card, labels)}
                 <div className="compass-card-actions mt-auto d-flex align-items-center">
                     {/* The whole card is already a link through stretched-link, so this one is

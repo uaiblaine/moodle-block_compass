@@ -383,12 +383,12 @@ between visits.
 
 | Endpoint | Reads per request | Server p95, plugin caches cold | Payload |
 |---|---|---|---|
-| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
+| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request); the theme's crest callback, when the theme is installed and `show_theme_badges` on, costs the theme's own reads on top (ADR-013 decision 9), which the budget tests switch off | 150 ms | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer (the user-context lookup) | 300 ms | ≤ 40 KB |
 | `get_inventory` (degraded, headers) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the group contexts) — plus 1 at the web-service layer (the user-context lookup) | 150 ms | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the page's contexts) — plus 1 at the web-service layer | 200 ms | ≤ 12 KB (≈ 115 bytes per row, ADR-002) |
 | `search_inventory` (50 hits) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the matched contexts) — plus 1 at the web-service layer | 300 ms | ≤ 7 KB (≈ 115 bytes per row plus ≈ 18 for `groupid`) |
-| `get_card_details` (24 ids) | 1 (the active-enrolment check that stops id enumeration) when every answer is cached or untracked; + 1 + completion for the courses that must be computed | 200 ms | ≤ 10 KB |
+| `get_card_details` (24 ids) | 1 (the enrolment check that stops id enumeration, its rows classified by `local_unlistedcourses`) when every answer is cached or untracked; + 1 + completion for the courses that must be computed; the theme's crest callback, when the theme is installed and `show_theme_badges` on, costs the theme's own reads (its statements are flat in the number of courses) | 200 ms | ≤ 10 KB |
 | `prewarm::run()` (task, per user) | 1 (the fill) with the shared layers warm, up to 4 cold — plus a fixed overhead per run: 1 count, 1 selection per batch of 200, 1 per `set_config()` and up to 2 config-bundle reloads (7 for a sweep started and completed in one batch) | n/a: bounded by `prewarm_budget_seconds` | n/a |
 
 - `classes/local/budget.php` wraps `$DB->perf_get_reads()`
@@ -515,7 +515,8 @@ settings.php                 §8 settings: attention_max, new_days, dormant_mont
                              filter_fields (multiselect of eligible course custom fields, ADR-009),
                              enable_prewarm, prewarm_days, prewarm_budget_seconds, default_view,
                              enable_search, hide_block_title, show_index, show_category (the category
-                             line on cards, ADR-010), enable_page, hide_page_title (the page's title
+                             line on cards, ADR-010), show_theme_badges (only while the FUNDASEG
+                             theme is installed, ADR-013), enable_page, hide_page_title (the page's title
                              kept as a visually hidden h1, ADR-012 amendment 4) (ints via configtext+PARAM_INT, vocabularies via
                              configselect — never a free-text field for an enum)
 version.php                  requires 2026042000, supported [502, 502]
@@ -536,7 +537,8 @@ classes/
                              inventory_max (Phase 3) — same return structure in both
     get_inventory_rows.php   paged mode: one page of one group (groupid, after, chip, sort) (Phase 3)
     search_inventory.php     paged mode: server-side search by course name (query) (Phase 3)
-    get_card_details.php     image + progress for ≤ 24 visible ids (Phase 1; the image in R4)
+    get_card_details.php     image + progress for ≤ 24 visible ids (Phase 1; the image in R4); image and
+                             crests only for a later start or an application (ADR-013)
   local/                     THE ONLY place $DB is allowed
     budget.php               perf_get_reads() delta helper used by every budget test (Phase 0)
     config.php               settings with defaults; the one reader of get_config() (Phase 1; inventory_max,
@@ -557,6 +559,9 @@ classes/
                              config, budget between users, warm one user = fill + shared layers (Phase 3)
     dormancy.php             the dormancy rule and the two reserved group ids, -1 dormant and -2
                              archived; zero reads, both inputs are in the inventory row (Phase 5, ADR-007)
+    theme_badges.php         the one door to theme_boost_union_fundaseg's crests: its
+                             course_badges callback through component_callback(), behind
+                             show_theme_badges, bounded at three, one call per response (ADR-013)
     relationship.php         the one door to local_unlistedcourses' per-row rule
                              (access::classify_enrolment()): a cached inventory row or a database row in,
                              a RELATIONSHIP_* out; the shown four and their rank; replaced pending.php,
@@ -1067,7 +1072,8 @@ Tier 3, whose behaviour is the most intricate thing here:
   A row with `pend` or `sched` links to `enrol/index.php?id=<courseid>`, says its situation in
   the state pill after its name (`StatePill.tsx`: *Access from {date}*, *Application under
   review*, *On the waiting list*; the corner badge is *New*'s alone), and has no star, no
-  archive control, no progress and no details registration (`isEnrolled()` in `filter.ts`). Every
+  archive control and no progress (`isEnrolled()` in `filter.ts`); it registers for details like
+  every row, and the batch answers it with its image and crests only (ADR-013 decision 8). Every
   course name carries `.compass-clamp` (two lines, ellipsis) and a `title` with the whole name.
 - **The toolbar is remembered, and the shape of an empty selection is core's doing (ADR-010,
   decision 9).** `Explore.tsx` starts from `config.explore` and writes `{sort, chip, cf, panel}`

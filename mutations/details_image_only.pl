@@ -1,0 +1,1 @@
+s/if \(\$relationship\[\$courseid\] !== access::RELATIONSHIP_ENROLLED\) \{\n                \/\/ A row the viewer cannot enter yet/if (false) {\n                \/\/ A row the viewer cannot enter yet/;

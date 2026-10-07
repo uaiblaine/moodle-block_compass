@@ -32,7 +32,13 @@
  * A card the learner cannot enter yet - an enrolment application awaiting a decision or on the
  * waiting list, or an enrolment that starts later - links to the course's enrolment page, says
  * which situation it is in with the state pill under its title (the corner badge is New's alone),
- * and has no star, no archive control and no progress; it registers for no details either.
+ * and has no star, no archive control and no progress. It registers for details like any other
+ * card, and the batch answers it with its image and crests only.
+ *
+ * The card has the theme card's look (ADR-013 decision 8): a 150 px cover with the theme's crests
+ * in its bottom-right corner when it is installed, the theme card's body measures, the state pill;
+ * the stretched title link, the missing call to action and the footer with progress and the
+ * archive control are Compass's own.
  *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
@@ -41,6 +47,7 @@
 
 import {useEffect, useRef} from 'react';
 import Archive from './Archive';
+import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
 import StatePill from './StatePill';
@@ -84,14 +91,16 @@ const RowCard = ({
         : `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`;
     const element = useRef<HTMLDivElement>(null);
 
+    // Every card registers: the batch answers the image and the crests of one the learner cannot
+    // enter yet, and nothing else.
     useEffect(() => {
         const node = element.current;
-        if (!node || !enrolled) {
+        if (!node) {
             return undefined;
         }
 
         return observe(row.id, node);
-    }, [observe, row.id, enrolled]);
+    }, [observe, row.id]);
 
     /*
      * The image keeps loading="lazy", so the browser never requests the file while the card
@@ -142,6 +151,8 @@ const RowCard = ({
                 </Title>
                 {meta !== null && <p className="compass-card-meta small text-muted mb-2">{meta}</p>}
                 <StatePill row={row} labels={labels} />
+                {/* Read after the title, as the theme card reads them, and drawn on the cover. */}
+                <Crests badges={detail?.badges} label={labels.crests} />
                 <div className="compass-rowcard-foot mt-auto d-flex align-items-center justify-content-between gap-2">
                     <div className="compass-row-progress flex-grow-1">
                         {enrolled && waiting && (
