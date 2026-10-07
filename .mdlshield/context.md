@@ -6,7 +6,9 @@ filterable, grouped inventory of every course the learner is enrolled in. It als
 the same content as a standalone page (`index.php`) that can be chosen as a start page.
 It targets Moodle 5.2 only, and **defines no database tables of its own**: it reads core
 enrolment, course, completion and favourites data, keeps derived copies in the Moodle
-caches, and stores two user preferences.
+caches, and stores two user preferences. It depends on `local_unlistedcourses`, whose
+`access::classify_enrolment()` decides what each of the viewer's own enrolment rows means
+(enrolled, starting later, an application awaiting a decision or on the waiting list).
 
 ## Who is trusted
 
@@ -54,8 +56,10 @@ caches, and stores two user preferences.
 ## Facts that look like findings but are by design
 
 - **Hidden courses follow core's rule.** A course with `visible = 0` is listed only for a
-  holder of `moodle/course:viewhiddencourses`, evaluated once per request. Active
-  enrolment is required for every course shown.
+  holder of `moodle/course:viewhiddencourses`, evaluated once per request. Every course
+  shown is one the viewer holds an enrolment row in: an active one everywhere, and in the
+  third tier also one that starts later or an application of their own, each linking to
+  the course's enrolment page with no progress, star or archive control.
 - **"Archived" courses reuse the Course overview block's preference**
   (`block_myoverview_hidden_course_<id>`), so archiving here and there agree. These rows
   are never deleted on uninstall because they belong to the learner and to core's block.

@@ -22,9 +22,12 @@ grouped by category, loaded on demand, filtered in the DOM, virtualised). It
 targets sites at the scale of one million users and tens of gigabytes of
 `{user_enrolments}`, so **every endpoint has a query budget enforced by a test**.
 Supports **Moodle 5.2 only** (`$plugin->requires = 2026042000`,
-`$plugin->supported = [502, 502]`). No dependency on `local_dimensions` or any
-sibling plugin: data comes from core (`core_course`, `core_completion`,
-`core_favourites`, `core_user` preferences, `core_cache`; `core_calendar` in v2).
+`$plugin->supported = [502, 502]`). **One hard dependency, `local_unlistedcourses`
+(2026042003 or later, ADR-013)**, which decides what every enrolment row means
+(`access::classify_enrolment()`, asked through `classes/local/relationship.php` and nowhere
+else); no dependency on `local_dimensions` or any other sibling plugin. Everything else comes
+from core (`core_course`, `core_completion`, `core_favourites`, `core_user` preferences,
+`core_cache`; `core_calendar` in v2).
 It owns **no database tables** and persists only three things of its own: MUC
 cache entries, two user preferences (`block_compass_view` and, since ADR-010,
 `block_compass_explore`, the tier 3 toolbar as one JSON value), and the three
@@ -35,7 +38,8 @@ shared with the Course overview block) and archiving writes the Course overview
 block's `block_myoverview_hidden_course_*` preferences — both through core's own
 web services, so Compass owns no rows there (ADR-000, decisions 8 and 16). CI is the
 moodle-an-hochschulen reusable workflow with a single job (`MOODLE_502_STABLE`,
-full PHP × DB matrix) — add a job when `supported` grows, in the same commit.
+full PHP × DB matrix, `plugin-dependencies` naming `local_unlistedcourses`) — add a job when
+`supported` grows, in the same commit.
 Development happens on **m502**, with **m502b** for parallel test runs and
 `mdl mutate` sweeps. The repo is bind-mounted at `blocks/compass` through the
 manifest line `block_compass|moodle-block_compass|blocks/compass|auto` in
@@ -142,7 +146,8 @@ implements them (see "ADRs").
 
 ### First paint without the inventory (§6.1)
 
-Tier 1 is four bounded, indexed queries plus one count. Indexes verified in
+Tier 1 is four bounded, indexed queries plus one count, and the situations read of the two
+notices (below the table). Indexes verified in
 `lib/db/install.xml` on 5.2: `user_lastaccess (userid, courseid)` unique,
 `user_lastaccess (userid)`, `user_enrolments (enrolid, userid)` unique plus the
 `userid` foreign-key index, `enrol (courseid)` foreign-key index, `enrol (enrol)`.
@@ -153,8 +158,9 @@ Tier 1 is four bounded, indexed queries plus one count. Indexes verified in
 | New enrolments | grouped derived table of the user's active enrolments (one row per course, `MIN(ue.timecreated)`, the same row the counts measure), `timecreated > now − new_days`, anti-join `{user_lastaccess}` | `ORDER BY timecreated DESC LIMIT attention_max` |
 | Favourites | ids from `core_favourites` (component `core_course`, itemtype `courses`, already indexed by user) → courses by id | `attention_max`, the rest behind a "+N" ghost |
 | Counts | one statement over the same derived table: `COUNT(*)`, `SUM(CASE …)` new-and-never-accessed, `SUM(CASE …)` favourited | index on `userid` |
+| Situations | the user's rows not yet ended, in visible non-hidden courses without an active enrolment; `local_unlistedcourses` classifies each in PHP (pending, waitlisted, scheduled) | `ORDER BY ue.id LIMIT 500` (`SITUATIONS_LIMIT`; past it the counts are a floor) |
 
-**Budget: at most 6 database reads, every one bounded by `LIMIT` or an indexed
+**Budget: at most 7 database reads, every one bounded by `LIMIT` or an indexed
 aggregate** — one fewer with `enable_favourites` off, because `attention::build()`
 does not query a strip nobody is shown (the counts keep their favourites aggregate,
 which costs no read of its own). `attention_max` defaults to 3, so tier 1 is at most 9 cards plus
@@ -167,8 +173,13 @@ and New only, priority Continue › New; the favourites strip lists **every**
 favourite, the ones already shown above included (ADR-009, decision 1 — a new
 favourite sits in New with the star lit AND in the favourites strip). What did
 not fit a strip is a link in its heading; one ghost card, the tier 2 one, ends
-the last strip (decision 2). The counts statement also carries, as a scalar
-subquery, the number of enrolment applications awaiting approval (decision 3).
+the last strip (decision 2). The two notices under New enrolments — applications
+awaiting approval or on the waiting list (ADR-009 decision 3) and enrolments that start
+later (ADR-013) — take their numbers from a fifth statement, `attention::situations()`:
+the learner's not-yet-ended rows in courses without an active enrolment, bounded by
+`SITUATIONS_LIMIT` (500) rows, each classified by `local_unlistedcourses` in PHP. It replaced
+a scalar subquery that copied enrol_apply's queue rule into SQL, which is the one read this
+budget grew by (ADR-013 decision 4).
 
 ### Two-layer cache (§6.2, *ADR-001*)
 
@@ -315,8 +326,9 @@ ancestors → group id per course):
   $after, $chip, $sort, $filters)`: one page of one group. Keeps the courses whose group
   id equals `$groupid` (a category id, or the reserved `-1` dormant / `-2` archived),
   applies the **chip** (`all`; `new` = never opened and
-  `timecreated > now − new_days`; `favourites` = starred, an application excluded;
-  `pending` = an application awaiting approval) and the custom-field `filters`, orders on the **raw**
+  `timecreated > now − new_days`; `favourites` = starred, a course the user can enter;
+  `pending` = an application awaiting approval or on the waiting list; `scheduled` = an
+  enrolment that starts later, ADR-013) and the custom-field `filters`, orders on the **raw**
   `coursemeta.fullname` in `core_collator`'s natural order (`name`) — compared through
   collation sort keys (`explore::sort_key()`) with ties to the lower course id, so
   the order a cursor walks is total even for names the collator calls equal — or by
@@ -324,7 +336,7 @@ ancestors → group id per course):
   longer in the order = start again), takes the next `explore::PAGE_SIZE` = 100
   ids, and **only then** runs `filters::preload` over those contexts and
   formats those names. Returns `groupid`, `rows` (the full-mode row:
-  `id`, `name`, `opened` int|null, `new`, `fav`, `dorm`, plus `pend` and `cf` when
+  `id`, `name`, `opened` int|null, `new`, `fav`, `dorm`, plus `pend`, `wait`, `sched` and `cf` when
   they apply), `hasmore` and `after` (the
   last id shipped, 0 when none). A group the user has no course in returns an
   empty page, no error. Chips and sort are **parameters** here and of nothing
@@ -371,7 +383,7 @@ between visits.
 
 | Endpoint | Reads per request | Server p95, plugin caches cold | Payload |
 |---|---|---|---|
-| `get_attention` | ≤ 6 with the shared layers warm; 7 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
+| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer (the user-context lookup) | 300 ms | ≤ 40 KB |
 | `get_inventory` (degraded, headers) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the group contexts) — plus 1 at the web-service layer (the user-context lookup) | 150 ms | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the page's contexts) — plus 1 at the web-service layer | 200 ms | ≤ 12 KB (≈ 115 bytes per row, ADR-002) |
@@ -476,6 +488,7 @@ phases raised decisions of their own:
 | ADR-010 | twelve decisions from the maintainer's list: scroll and focus into tier 3, the archive box glyphs, zero chips hidden, a column-counted cards grid, the star and badge corners, the star in tier 3, core's chevrons, no uppercase, the remembered toolbar (`block_compass_explore`), the teacher-only completion notice, `show_category`, and resilience (reload control, bounded retry, amber notice in every error state) | Phase 9 | Accepted (2026-09-08), implemented in Phase 9 |
 | ADR-011 | client delivery: one bundle through a generic moodle-dev build step opted in by `js/esm/bundle.json`, seven `modulepreload` hints from a top-of-body hook on the Dashboard with the block and on the block's own page, and two batched reads (`course_image` `get_many`, one `uncategorised` string) — the answer to the cold-load waterfall measured against core's timeline service | Phase 10 | Accepted (2026-09-08), implemented in Phase 10 |
 | ADR-012 | a page of the block's own at `/blocks/compass/index.php` on the `base` layout in the system context, behind `enable_page`, offered as the start page through `core_user\hook\extend_default_homepage`; a third rung of the heading ladder (`headinglevel` 4/3/2); the top-of-body hook listening on the Dashboard only with the block present and on the page always | Phase 10 | Accepted (2026-09-11), implemented in Phase 10; amendment 4 (`hide_page_title`, the h1 kept visually hidden) accepted and implemented 2026-09-11; amendment 5 (2026-09-24) records the dead `.compass-dialogue` selector's removal |
+| ADR-013 | enrolment state from `local_unlistedcourses` (a hard dependency; `pending.php` and the active test that dropped later starts deleted, core's SQL active rule kept); a Scheduled situation in tier 3 only (supersedes ADR-000 decision 14 for that tier) and the waiting list told apart; the shared state pill; the situations read (+1 read in `get_attention`); the theme card's size for tiers 1 and 2, the theme's look for tier 3 and the theme's crests through its one callback | Stage 5d | Accepted (2026-10-07, the maintainer's decisions of 2026-10-06); decisions 1-6 implemented in the first stacked pull request |
 
 The decisions the plan left open were settled by the maintainer before Phase 0
 and live in [`docs/adr/000-scope-and-baseline.md`](docs/adr/000-scope-and-baseline.md)
@@ -544,9 +557,10 @@ classes/
                              config, budget between users, warm one user = fill + shared layers (Phase 3)
     dormancy.php             the dormancy rule and the two reserved group ids, -1 dormant and -2
                              archived; zero reads, both inputs are in the inventory row (Phase 5, ADR-007)
-    pending.php              enrol_apply's "awaiting a decision" rule in one place — not active, period
-                             open, on an apply instance — as PHP over the row and as SQL for the counts
-                             statement; never names enrol_apply's constant (Phase 8, ADR-009)
+    relationship.php         the one door to local_unlistedcourses' per-row rule
+                             (access::classify_enrolment()): a cached inventory row or a database row in,
+                             a RELATIONSHIP_* out; the shown four and their rank; replaced pending.php,
+                             enrol_apply's queue rule copied twice (ADR-013)
     filter_fields.php        filterfields cache wrapper: the eligible course custom fields, the configured
                              subset, the chips' value keys, the payload and the filters allowlist (Phase 8)
     course_fields.php        coursefields cache wrapper: per-course values of the eligible fields, one
@@ -852,7 +866,7 @@ image URLs; the `mode` field of `get_inventory` is `PARAM_ALPHA` with a literal
 check against `full` / `paged`. The two Phase 3 functions check their
 vocabularies **before any work**: `get_inventory_rows` throws
 `invalid_parameter_exception` for a `chip` outside `all` / `new` / `favourites` /
-`pending` (`explore::CHIPS`), a `sort` outside `name` / `recent` (both `PARAM_ALPHA`,
+`pending` / `scheduled` (`explore::CHIPS`), a `sort` outside `name` / `recent` (both `PARAM_ALPHA`,
 defaults `all` and `name`), a negative `groupid` other than the reserved `-1` / `-2`
 (`PARAM_INT`, required; `after` `PARAM_INT` default 0) or a field named twice in
 `filters`, and
@@ -1048,8 +1062,10 @@ Tier 3, whose behaviour is the most intricate thing here:
   pressing its pressed chip. Full mode filters and counts the rows it holds; paged mode sends
   the selection as the `filters` parameter of both paging services and resets the groups.
   The panel is a plain block toggled with the `hidden` property, never a Bootstrap collapse.
-  A row with `pend` links to `enrol/index.php?id=<courseid>`, carries the badge inside its
-  link, and has no star, no archive control, no progress and no details registration. Every
+  A row with `pend` or `sched` links to `enrol/index.php?id=<courseid>`, says its situation in
+  the state pill after its name (`StatePill.tsx`: *Access from {date}*, *Application under
+  review*, *On the waiting list*; the corner badge is *New*'s alone), and has no star, no
+  archive control, no progress and no details registration (`isEnrolled()` in `filter.ts`). Every
   course name carries `.compass-clamp` (two lines, ellipsis) and a `title` with the whole name.
 - **The toolbar is remembered, and the shape of an empty selection is core's doing (ADR-010,
   decision 9).** `Explore.tsx` starts from `config.explore` and writes `{sort, chip, cf, panel}`
