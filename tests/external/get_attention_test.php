@@ -382,6 +382,8 @@ final class get_attention_test extends advanced_testcase {
      */
     public function test_first_paint_stays_within_seven_reads_with_plugin_caches_cold(): void {
         $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
         set_config('enablecompletion', 1);
         [$user] = $this->fixture();
         $this->setUser($user);
@@ -416,6 +418,8 @@ final class get_attention_test extends advanced_testcase {
      */
     public function test_first_paint_stays_within_eight_reads_with_every_plugin_cache_cold(): void {
         $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
         set_config('enablecompletion', 1);
         [$user] = $this->fixture();
         $this->setUser($user);
@@ -452,6 +456,8 @@ final class get_attention_test extends advanced_testcase {
      */
     public function test_favourites_off_empties_the_strip_and_costs_one_read_less(): void {
         $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
         set_config('enablecompletion', 1);
         $gen = $this->getDataGenerator();
         $plugin = $gen->get_plugin_generator('block_compass');

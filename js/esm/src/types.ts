@@ -25,6 +25,17 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+/**
+ * One of a course's institutional crests, from theme_boost_union_fundaseg's callback.
+ *
+ * The URL carries the file's content hash and the alternative text is the theme's; Compass
+ * builds neither. A course without crests carries no badges key at all.
+ */
+export type Crest = {
+    url: string,
+    alt: string,
+};
+
 /** One tier 1 card, as block_compass_get_attention returns it. */
 export type CourseCard = {
     id: number,
@@ -50,6 +61,7 @@ export type CourseCard = {
     // Present, and true, only when completion is off and the viewer is not a learner of the
     // course: the one reader "No completion configured" is said to.
     teacher?: boolean,
+    badges?: Crest[],
 };
 
 /** The counts that decide the ghost card, the strip overflow links and the pending notice. */
@@ -80,6 +92,7 @@ export type CardDetail = {
     teacher?: boolean,
     imageurl: string,
     hasimage: boolean,
+    badges?: Crest[],
 };
 
 /**
@@ -94,6 +107,7 @@ export type RowDetail = {
     teacher?: boolean,
     imageurl: string,
     hasimage: boolean,
+    badges?: Crest[],
 };
 
 /** Which attempt the repository's bounded retry is on. */

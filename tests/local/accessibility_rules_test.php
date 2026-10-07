@@ -1240,21 +1240,28 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * On a card the star takes the top-right corner, on a disc, and the badge the top-left.
+     * On a card the star takes the top-right corner, on a disc, the badge the top-left, and the
+     * theme's crests the bottom-right of the cover.
      *
      * The star's disc is what keeps the control at 3:1 over a photograph
-     * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The two card
-     * components must render the star for the rule to be about anything.
+     * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The crests sit
+     * where the theme card puts them (ADR-013 decision 9), measured from the 150 px cover, and let
+     * a click through to the stretched link. The two card components must render the star and the
+     * crests for the rule to be about anything, and the list row the inline crests.
      *
      * @return void
      */
-    public function test_the_card_corners_are_the_stars_and_the_badges(): void {
+    public function test_the_card_corners_are_the_stars_the_badges_and_the_crests(): void {
         $badge = null;
         $star = null;
+        $crests = null;
         foreach ($this->rules() as $rule) {
             [$selector, $body] = $rule;
             if (preg_match('/\.compass-card-badge(?![\w-])/', $selector) && !str_contains($selector, ':')) {
                 $badge = $body;
+            }
+            if (preg_match('/\.compass-crests-cover$/', trim($selector))) {
+                $crests = $body;
             }
             $cardstar = str_contains($selector, '.compass-card .compass-star');
             if ($cardstar && str_contains($selector, '.compass-rowcard .compass-star')) {
@@ -1283,6 +1290,19 @@ final class accessibility_rules_test extends basic_testcase {
                 $this->tags($this->sources()[$file], 'Star'),
                 "{$file} renders no Star, so the corner rule is about nothing"
             );
+            $this->assertNotEmpty($this->tags($this->sources()[$file], 'Crests'), "{$file} renders no crests");
         }
+
+        $this->assertNotNull($crests, 'no .compass-crests-cover rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bposition\s*:\s*absolute\b/', $crests, 'the crests are not over the cover');
+        $this->assertMatchesRegularExpression('/\bright\s*:/', $crests, 'the crests are not anchored right');
+        $this->assertMatchesRegularExpression('/\btop\s*:\s*calc\(150px\b/', $crests, 'the crests are not measured from the cover');
+        $this->assertMatchesRegularExpression('/\bpointer-events\s*:\s*none\b/', $crests, 'the crests swallow the card\'s click');
+        $this->assertDoesNotMatchRegularExpression('/\bleft\s*:/', $crests, 'the crests reach the New badge\'s corner');
+        $inline = array_filter(
+            $this->tags($this->sources()['js/esm/src/Row.tsx'], 'Crests'),
+            static fn(string $tag): bool => (bool) preg_match('/\binline\b/', $tag)
+        );
+        $this->assertCount(1, $inline, 'the list row does not render its crests inline');
     }
 }

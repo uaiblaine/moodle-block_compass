@@ -27,6 +27,7 @@ namespace block_compass\external;
 use block_compass\local\attention;
 use block_compass\local\cards;
 use block_compass\local\config;
+use block_compass\local\theme_badges;
 use core\context\user as context_user;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -150,6 +151,7 @@ class get_attention extends external_api {
             'deadline' => new external_value(PARAM_INT, 'Enrolment end timestamp', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'deadlinetext' => new external_value(PARAM_TEXT, 'Enrolment end, formatted'),
             'actiontext' => new external_value(PARAM_TEXT, 'Label of the card button'),
+            'badges' => theme_badges::structure(),
         ]);
     }
 

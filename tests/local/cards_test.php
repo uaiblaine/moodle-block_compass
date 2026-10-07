@@ -82,6 +82,9 @@ final class cards_test extends advanced_testcase {
         $this->userid = (int) $user->id;
         $this->setUser($user);
         $this->plugingen = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        // The theme's crests cost the theme's own reads, which no budget here is about; the crest
+        // tests turn them back on and stand in for the theme.
+        set_config('show_theme_badges', 0, 'block_compass');
     }
 
     /**
@@ -427,6 +430,102 @@ final class cards_test extends advanced_testcase {
         $this->assertSame((int) $enrolled->id, $result[0]['id']);
         $this->assertFalse($result[0]['hascompletion']);
         $this->assertNull($result[0]['progress']);
+    }
+
+    /**
+     * details() answers a later start and an application with the image only, never with progress.
+     *
+     * Tier 3 lists both without progress (ADR-013 decision 8), and draws their cover and crests,
+     * which only this batch brings. The provider decides which rows those are; a suspended row is
+     * still dropped. The control is the enrolled course of the same batch, completion on, whose
+     * progress the same call does report.
+     *
+     * @return void
+     */
+    public function test_details_answers_a_later_start_and_an_application_with_the_image_only(): void {
+        set_config('enablecompletion', 1);
+        $enrolled = (int) $this->course('Enrolled course', ['enablecompletion' => 1])->id;
+        $later = (int) $this->course('Later course', ['enablecompletion' => 1])->id;
+        $applied = (int) $this->course('Applied course', ['enablecompletion' => 1])->id;
+        $suspended = (int) $this->course('Suspended course', ['enablecompletion' => 1])->id;
+        $this->plugingen->enrol_at($this->userid, $enrolled, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at(
+            $this->userid,
+            $later,
+            self::NOW - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            self::NOW + DAYSECS
+        );
+        // No role in the later course: answered as an enrolment, it would carry the teacher flag.
+        role_unassign_all(['userid' => $this->userid, 'contextid' => \core\context\course::instance($later)->id]);
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - DAYSECS, 'manual', ENROL_USER_SUSPENDED);
+
+        $batch = [$later, $applied, $suspended, $enrolled];
+        $details = array_column(cards::details($this->userid, $batch, self::NOW), null, 'id');
+
+        $this->assertSame([$later, $applied, $enrolled], array_keys($details));
+        foreach ([$later, $applied] as $courseid) {
+            $this->assertSame(['id', 'hascompletion', 'progress', 'imageurl', 'hasimage'], array_keys($details[$courseid]));
+            $this->assertFalse($details[$courseid]['hascompletion']);
+            $this->assertNull($details[$courseid]['progress']);
+        }
+        $this->assertTrue($details[$enrolled]['hascompletion'], 'the enrolled course is answered in full');
+    }
+
+    /**
+     * The theme's crests ride on a card and on a detail only when the course has any, and survive both allowlists.
+     *
+     * A stand-in for the theme's callback answers five crests for one course, the first of them
+     * with no address, and nothing for the other. The card and the detail of the first carry the
+     * two with an address among the first three; the second carries no badges key at all, the
+     * omit-when-empty shape.
+     * Both return structures keep the key, which is what makes the payload reach the client.
+     *
+     * @return void
+     */
+    public function test_crests_ride_on_a_card_and_a_detail_only_when_the_course_has_any(): void {
+        set_config('show_theme_badges', 1, 'block_compass');
+        $crested = (int) $this->course('Crested course')->id;
+        $plain = (int) $this->course('Plain course')->id;
+        foreach ([$crested, $plain] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - DAYSECS);
+        }
+        $asked = [];
+        $source = static function (array $courseids) use (&$asked, $crested): array {
+            $asked[] = $courseids;
+            $crest = static fn(string $name): array => [
+                'url' => "https://example.com/pluginfile.php/1/theme/badge/{$name}.png",
+                'alt' => $name,
+            ];
+
+            return [$crested => [['url' => '', 'alt' => 'none'], $crest('a'), $crest('b'), $crest('c'), $crest('d')]];
+        };
+
+        $cards = $this->by_id(cards::build($this->userid, $this->strips(), self::NOW, $source));
+        $details = array_column(cards::details($this->userid, [$crested, $plain], self::NOW, null, $source), null, 'id');
+
+        $this->assertCount(2, $asked, 'one call to the theme per response, never one per course');
+        $this->assertSame(
+            ['a', 'b'],
+            array_column($cards[$crested]['badges'], 'alt'),
+            'the first three, less the one with no address'
+        );
+        $this->assertArrayNotHasKey('badges', $cards[$plain]);
+        $this->assertSame($cards[$crested]['badges'], $details[$crested]['badges']);
+        $this->assertArrayNotHasKey('badges', $details[$plain]);
+        // Both allowlists keep the key.
+        $card = \core_external\external_api::clean_returnvalue(
+            \block_compass\external\get_attention::card_structure(),
+            $cards[$crested]
+        );
+        $this->assertCount(2, $card['badges']);
+        $answer = \core_external\external_api::clean_returnvalue(
+            \block_compass\external\get_card_details::execute_returns(),
+            ['details' => array_values($details)]
+        );
+        $this->assertCount(2, array_column($answer['details'], null, 'id')[$crested]['badges']);
     }
 
     /**
