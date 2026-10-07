@@ -21,9 +21,10 @@
  * the batch that answers brings progress and the image, the latter for the cards view to use
  * should the reader switch. The row itself draws no image.
  *
- * An enrolment application awaiting approval is a row like the others except where it cannot
- * be: its name links to the course's enrolment page, not into the course, it carries an
- * "Awaiting approval" badge inside that link, and it has no star, no archive control and no
+ * A row the learner cannot enter yet - an enrolment application awaiting a decision or on the
+ * waiting list, or an enrolment that starts later - is a row like the others except where it
+ * cannot be: its name links to the course's enrolment page, not into the course, the state pill
+ * after the link says which situation it is in, and it has no star, no archive control and no
  * progress - nor does it register for details, since the batch drops courses the user is not
  * actively enrolled in. The name is clamped to two lines with the whole name in its title
  * attribute.
@@ -37,7 +38,8 @@ import {useEffect, useRef} from 'react';
 import Archive from './Archive';
 import Progress from './Progress';
 import Star from './Star';
-import {relativeTime} from './filter';
+import StatePill from './StatePill';
+import {isEnrolled, relativeTime} from './filter';
 import {fill} from './str';
 import type {BlockConfig, InventoryRow, RowDetail} from './types';
 
@@ -66,46 +68,50 @@ type RowProps = {
 const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy}: RowProps) => {
     const {labels} = config;
     const opened = row.opened || 0;
-    const pending = !!row.pend;
+    const enrolled = isEnrolled(row);
     // The enrolment page takes the course id (enrol/index.php:28,43), so both URLs are a function
     // of the one integer every row carries and nothing travels for the link.
-    const url = pending
-        ? `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`
-        : `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`;
+    const url = enrolled
+        ? `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`
+        : `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`;
     const element = useRef<HTMLDivElement>(null);
 
     // Registration belongs to the row rather than to whatever produced it: first render,
     // an appended page or a search hit all arrive here, and all register the same way.
-    // An application registers for nothing: it has no progress and no active enrolment.
+    // A row the learner cannot enter registers for nothing: it has no progress and no active enrolment.
     useEffect(() => {
         const node = element.current;
-        if (!node || pending) {
+        if (!node || !enrolled) {
             return undefined;
         }
 
         return observe(row.id, node);
-    }, [observe, row.id, pending]);
+    }, [observe, row.id, enrolled]);
 
-    const answered = !pending && !waiting && detail !== undefined;
+    const answered = enrolled && !waiting && detail !== undefined;
+    // An application says when access comes; an enrolment that starts later says it in its pill.
+    let meta: string | null = null;
+    if (row.pend) {
+        meta = labels.pendingmeta;
+    } else if (enrolled) {
+        meta = opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened;
+    }
 
     return (
         <div
-            className={`compass-row d-flex align-items-center gap-2${pending ? ' compass-row-pending' : ''}`}
+            className={`compass-row d-flex align-items-center gap-2${enrolled ? '' : ' compass-row-pending'}`}
             data-course-id={row.id}
             ref={element}
         >
             <a href={url} className="compass-row-link flex-grow-1 text-reset text-decoration-none">
                 <span className="compass-row-name compass-clamp" title={row.name}>{row.name}</span>
                 {row.new && <span className="badge bg-primary text-white">{labels.badge_new}</span>}
-                {pending && <span className="badge bg-warning text-dark">{labels.badge_pending}</span>}
             </a>
-            <span className="compass-row-meta small text-muted text-nowrap">
-                {pending && labels.pendingmeta}
-                {!pending && (opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened)}
-            </span>
+            <StatePill row={row} labels={labels} />
+            {meta !== null && <span className="compass-row-meta small text-muted text-nowrap">{meta}</span>}
             {/* Waiting shows a skeleton, then the rule of Card.tsx completion(): a bar when
                 there is one, "No completion configured" to a teacher only, else nothing. */}
-            {!pending && waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
+            {enrolled && waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
             {answered && detail.hascompletion && detail.progress !== null && (
                 <div className="compass-row-progress">
                     <Progress progress={detail.progress} labels={labels} compact />
@@ -115,7 +121,7 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
                 <span className="compass-row-nocompletion small text-muted">{labels.nocompletion}</span>
             )}
             {/* The star that toggles, beside the archive control. */}
-            {!pending && config.favouritesenabled && (
+            {enrolled && config.favouritesenabled && (
                 <Star
                     courseid={row.id}
                     fullname={row.name}
@@ -124,7 +130,7 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
                     onToggle={onToggleFavourite}
                 />
             )}
-            {!pending && (
+            {enrolled && (
                 <Archive
                     courseid={row.id}
                     name={row.name}

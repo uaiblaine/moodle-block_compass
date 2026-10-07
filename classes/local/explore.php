@@ -29,6 +29,7 @@ use core\context;
 use core\context\system as context_system;
 use core_collator;
 use core_text;
+use local_unlistedcourses\access;
 
 /**
  * Builds every tier 3 payload.
@@ -42,12 +43,14 @@ use core_text;
  * ships, after one bulk filter preload of their contexts.
  *
  * There are two populations: the listed courses, grouped by category with the dormant ones
- * gathered into a group of their own, which also hold the learner's enrolment applications
- * awaiting approval (rows carrying pend) when that feature is on; and the archived courses,
- * which travel as a header alone and page on first open. Every row may carry the values of the
- * course custom fields configured as filters, read from the coursefields layer. No SQL of its
- * own: the inventory entry and the shared layers are the only sources, so the inventory stamp
- * is the single validity check in both modes.
+ * gathered into a group of their own, which also hold the enrolments that start later (rows
+ * carrying sched) and, when that feature is on, the learner's enrolment applications awaiting
+ * approval or on the waiting list (rows carrying pend, and wait for the waiting list); and the
+ * archived courses, which travel as a header alone and page on first open. Which situation a
+ * course is in is the provider's answer per row, through relationship. Every row may carry the
+ * values of the course custom fields configured as filters, read from the coursefields layer. No
+ * SQL of its own: the inventory entry and the shared layers are the only sources, so the
+ * inventory stamp is the single validity check in both modes.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -63,8 +66,8 @@ final class explore {
     /** @var int Shortest normalised query the search answers; anything shorter returns nothing. */
     public const SEARCH_MIN_LENGTH = 2;
 
-    /** @var string[] The chips a listing can be narrowed by. */
-    public const CHIPS = ['all', 'new', 'favourites', 'pending'];
+    /** @var string[] The chips a listing can be narrowed by, in the order the Status group draws them. */
+    public const CHIPS = ['all', 'new', 'favourites', 'pending', 'scheduled'];
 
     /**
      * The get_inventory payload for one user: full mode, or headers only above the threshold.
@@ -83,7 +86,7 @@ final class explore {
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @param array|null $filterfields Shortnames of the custom fields offered as filters; null for the setting.
      * @return array mode (full or paged), total, fields, groups (id, name, count, courses: id, name,
-     *     opened, new, fav, dorm, and pend and cf when they apply).
+     *     opened, new, fav, dorm, and pend, wait, sched and cf when they apply).
      */
     public static function build(
         int $userid,
@@ -144,7 +147,7 @@ final class explore {
 
         // A dormant course leaves its category for the dormant group, so a long-untouched course
         // stops padding the category a learner is working in. A course appears once: here or
-        // there, never both. An application is never dormant.
+        // there, never both. Only an enrolment the learner can use is ever dormant.
         $groups = [];
         $dormant = self::special_group(dormancy::GROUP_DORMANT);
         foreach ($meta as $courseid => $entrymeta) {
@@ -265,8 +268,9 @@ final class explore {
      *     the courses the user archived, which no category group holds.
      * @param int $after Id of the last row the client holds; 0 for the first page.
      * @param string $chip 'all', 'new' (never opened, enrolled inside the new window), 'favourites'
-     *     (the core star, on a course the user can enter) or 'pending' (an application awaiting
-     *     approval); anything else reads as 'all', as filter.ts passesChip() does.
+     *     (the core star, on a course the user can enter), 'pending' (an application awaiting
+     *     approval or on the waiting list) or 'scheduled' (an enrolment that starts later); anything
+     *     else reads as 'all', as filter.ts passesChip() does.
      * @param string $sort 'name' or 'recent'; anything else reads as 'name'.
      * @param array $filters List of ['field' => shortname, 'value' => int], one per configured field at most.
      * @param int|null $pagesize Rows per page; null for PAGE_SIZE.
@@ -275,7 +279,8 @@ final class explore {
      * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @param array|null $filterfields Shortnames of the custom fields offered as filters; null for the setting.
-     * @return array groupid, rows (id, name, opened, new, fav, dorm, pend, cf), hasmore, after (id of the last row, 0 when none).
+     * @return array groupid, rows (id, name, opened, new, fav, dorm, pend, wait, sched, cf), hasmore, after (id of the last row,
+     *     0 when none).
      * @throws \core\exception\invalid_parameter_exception On a filter outside the allowlist.
      */
     public static function rows(
@@ -386,8 +391,8 @@ final class explore {
      * stripped of diacritics, the query split on whitespace, a course matching when every word
      * is a substring of its normalised name — order-independent, over the course name only,
      * never the shortname (full mode matches the rendered name, normalised by filter.ts). The
-     * population is resolve()'s — the user's active and pending, visible courses minus the
-     * archived ones — so the cost follows the user's enrolments, not {course}. Matches are
+     * population is resolve()'s — the user's active, scheduled and pending, visible courses minus
+     * the archived ones — so the cost follows the user's enrolments, not {course}. Matches are
      * ordered by raw name and capped at $limit, 'truncated' saying when the cap cut; only the
      * shipped names are formatted, after one filter preload. A query shorter than
      * SEARCH_MIN_LENGTH once normalised is answered without work, before anything that could
@@ -407,7 +412,7 @@ final class explore {
      * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @param array|null $filterfields Shortnames of the custom fields offered as filters; null for the setting.
-     * @return array rows (id, name, opened, new, fav, dorm, pend, cf, groupid), truncated.
+     * @return array rows (id, name, opened, new, fav, dorm, pend, wait, sched, cf, groupid), truncated.
      * @throws \core\exception\invalid_parameter_exception On a filter outside the allowlist.
      */
     public static function search(
@@ -477,14 +482,15 @@ final class explore {
     }
 
     /**
-     * The populations every tier 3 answer is a function of: the user's listed courses — active
-     * and, when the feature is on, awaiting approval — with the group each rolls up to, and
-     * beside them the courses the user archived.
+     * The populations every tier 3 answer is a function of: the user's listed courses — active,
+     * starting later and, when the feature is on, awaiting approval or on the waiting list — with
+     * the group each rolls up to, and beside them the courses the user archived.
      *
-     * The inventory gives the active courses with the archived ones left out, then the pending
-     * ones — a third pass with a predicate of its own, given the active pass's course ids so an
-     * active enrolment on a second method wins (inventory::pending()) — and the archived ones on
-     * their own through the active test (inventory::courses(), both modes); the course layer
+     * The inventory gives the active courses with the archived ones left out, then the scheduled
+     * ones and the applications, each pass given the course ids the stronger passes selected so
+     * the provider's rank holds per course — enrolled, then scheduled, then pending, then the
+     * waiting list (inventory::scheduled(), inventory::pending()) — and the archived ones on their
+     * own through the active test (inventory::courses(), both modes); the course layer
      * gives names, visibility and category for every population in one read — a single
      * get_many() over the union. moodle/course:viewhiddencourses is evaluated once, at the
      * system context, never per row: a teacher's own hidden course therefore does not appear
@@ -504,13 +510,13 @@ final class explore {
      * @param int $now Unix time to treat as now.
      * @param int $groupdepth Category depth that forms the groups, at least 1.
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
-     * @return array 'courses' (course id => inventory row plus 'pending' => bool, the listed
-     *     population), 'meta' (course id => course_meta entry of a listed course, visibility
-     *     applied), 'archived' and 'archivedmeta' (the same pair for the courses the user
-     *     archived), 'categories' (category id => category_meta entry, group ancestors included,
-     *     for the listed courses only — the archived group does not group by category), 'groupof'
-     *     (category id => group category id). Every list empty when there is nothing to show in
-     *     either population.
+     * @return array 'courses' (course id => inventory row plus 'situation', one of the
+     *     access::RELATIONSHIP_* values relationship::SHOWN lists, the listed population), 'meta'
+     *     (course id => course_meta entry of a listed course, visibility applied), 'archived' and
+     *     'archivedmeta' (the same pair for the courses the user archived), 'categories' (category
+     *     id => category_meta entry, group ancestors included, for the listed courses only — the
+     *     archived group does not group by category), 'groupof' (category id => group category
+     *     id). Every list empty when there is nothing to show in either population.
      */
     private static function resolve(int $userid, int $now, int $groupdepth, ?bool $pending): array {
         $empty = ['courses' => [], 'meta' => [], 'archived' => [], 'archivedmeta' => [], 'categories' => [], 'groupof' => []];
@@ -519,20 +525,26 @@ final class explore {
         $hidden = hidden_courses::ids($userid);
         $active = inventory::courses($entry, $now, $hidden);
         $archived = inventory::courses($entry, $now, $hidden, true);
-        // Every population row says whether it is an application. An archived one never is: that
-        // population passes the active test, and an application carries no archive control.
+        // Every population row says which situation it is in. An archived one is always enrolled:
+        // that population passes the active test, and only an enrolled row carries an archive control.
         foreach ($archived as &$archivedcourse) {
-            $archivedcourse['pending'] = false;
+            $archivedcourse['situation'] = access::RELATIONSHIP_ENROLLED;
         }
         unset($archivedcourse);
         $courses = [];
         foreach ($active as $courseid => $course) {
-            $course['pending'] = false;
+            $course['situation'] = access::RELATIONSHIP_ENROLLED;
+            $courses[$courseid] = $course;
+        }
+        $scheduled = inventory::scheduled($entry, $now, $hidden, array_keys($active));
+        foreach ($scheduled as $courseid => $course) {
+            $course['situation'] = access::RELATIONSHIP_SCHEDULED;
             $courses[$courseid] = $course;
         }
         if ($pending ?? config::pending_enabled()) {
-            foreach (inventory::pending($entry, $now, $hidden, array_keys($active)) as $courseid => $course) {
-                $course['pending'] = true;
+            $stronger = array_merge(array_keys($active), array_keys($scheduled));
+            foreach (inventory::pending($entry, $now, $hidden, $stronger) as $courseid => $course) {
+                $course['situation'] = $course['waitlisted'] ? access::RELATIONSHIP_WAITLISTED : access::RELATIONSHIP_PENDING;
                 $courses[$courseid] = $course;
             }
         }
@@ -744,11 +756,12 @@ final class explore {
     /**
      * Whether a course passes a chip — filter.ts passesChip(), on the row facts.
      *
-     * The favourites chip excludes an application: its star may be lit (core's star service does
-     * not test enrolment), but a course the learner cannot enter is reachable through All or
-     * through its own chip only.
+     * The favourites chip keeps only a course the learner can enter: an application or an
+     * enrolment that starts later may carry a lit star (core's star service does not test
+     * enrolment), and is reachable through All or through its own chip only. The Status group
+     * takes one value, so the chips of the four situations exclude each other.
      *
-     * @param string $chip 'new', 'favourites', 'pending', or anything else for all.
+     * @param string $chip 'new', 'favourites', 'pending', 'scheduled', or anything else for all.
      * @param array $course A resolve() course row.
      * @param int $now Unix time to treat as now.
      * @param int $newwindow Seconds during which a never-opened enrolment is new.
@@ -759,13 +772,27 @@ final class explore {
             return self::is_new($course, $now, $newwindow);
         }
         if ($chip === 'favourites') {
-            return $course['isfavourite'] && !$course['pending'];
+            return $course['isfavourite'] && self::is_enrolled($course);
         }
         if ($chip === 'pending') {
-            return $course['pending'];
+            return relationship::is_awaiting($course['situation']);
+        }
+        if ($chip === 'scheduled') {
+            return $course['situation'] === access::RELATIONSHIP_SCHEDULED;
         }
 
         return true;
+    }
+
+    /**
+     * Whether a listed course is one the learner holds an active enrolment in: the one situation
+     * a course can be entered, starred, archived, new or dormant in.
+     *
+     * @param array $course A resolve() course row.
+     * @return bool
+     */
+    private static function is_enrolled(array $course): bool {
+        return $course['situation'] === access::RELATIONSHIP_ENROLLED;
     }
 
     /**
@@ -794,8 +821,8 @@ final class explore {
     /**
      * Whether an enrolment is new: never opened and created inside the window.
      *
-     * An application is never new: it has no active enrolment, and calling it new would put
-     * applications under the New chip.
+     * Only an active enrolment is new: an application or an enrolment that starts later is not one
+     * the learner can open yet, and calling it new would put it under the New chip.
      *
      * @param array $course A resolve() course row.
      * @param int $now Unix time to treat as now.
@@ -803,21 +830,22 @@ final class explore {
      * @return bool
      */
     private static function is_new(array $course, int $now, int $newwindow): bool {
-        return !$course['pending'] && $course['timeaccess'] === 0 && $course['timecreated'] > $now - $newwindow;
+        return self::is_enrolled($course) && $course['timeaccess'] === 0 && $course['timecreated'] > $now - $newwindow;
     }
 
     /**
-     * Whether a course has gone quiet — dormancy::is_dormant(), except that an application never has.
+     * Whether a course has gone quiet — dormancy::is_dormant(), for an active enrolment only.
      *
-     * An application older than the threshold would otherwise be filed under Dormant by the
-     * never-opened clause; applications stay in their category groups, isolated by their own chip.
+     * An application or an enrolment that starts later, created before the threshold, would
+     * otherwise be filed under Dormant by the never-opened clause, although it was never the
+     * learner's to open; both stay in their category groups, isolated by their own chips.
      *
      * @param array $course A resolve() course row.
      * @param int $threshold The instant from dormancy::threshold().
      * @return bool
      */
     private static function is_dormant(array $course, int $threshold): bool {
-        return !$course['pending'] && dormancy::is_dormant($course, $threshold);
+        return self::is_enrolled($course) && dormancy::is_dormant($course, $threshold);
     }
 
     /**
@@ -853,13 +881,16 @@ final class explore {
 
     /**
      * One tier 3 row, the shape {@see \block_compass\external\get_inventory_rows::row_fields()} pins:
-     * id, name, opened, new, fav, dorm, then pend only on an application and cf only when the row
+     * id, name, opened, new, fav, dorm, then pend only on an application (with wait when it is on
+     * the waiting list), sched only on an enrolment that starts later, and cf only when the row
      * holds a field value.
      *
      * dorm is the answer and not the inputs: the browser holds opened but not the enrolment
-     * date, and the threshold is a site setting it does not have. pend and cf are omitted rather
-     * than sent false or empty, because a VALUE_OPTIONAL return key the array leaves out never
-     * enters the response, so a row without either costs nothing for them.
+     * date, and the threshold is a site setting it does not have. sched is the start date
+     * formatted for the reader, as the theme's card prints it (strftimedatefullshort), because
+     * the browser's clock and timezone are not the user's. pend, wait, sched and cf are omitted
+     * rather than sent false or empty, because a VALUE_OPTIONAL return key the array leaves out
+     * never enters the response, so a row without them costs nothing for them.
      *
      * @param array $course A resolve() course row.
      * @param string $name The course name, formatted.
@@ -878,8 +909,14 @@ final class explore {
             'fav' => $course['isfavourite'],
             'dorm' => self::is_dormant($course, $threshold),
         ];
-        if ($course['pending']) {
+        if (relationship::is_awaiting($course['situation'])) {
             $row['pend'] = true;
+            if ($course['situation'] === access::RELATIONSHIP_WAITLISTED) {
+                $row['wait'] = true;
+            }
+        }
+        if ($course['situation'] === access::RELATIONSHIP_SCHEDULED) {
+            $row['sched'] = userdate($course['timestart'], get_string('strftimedatefullshort', 'langconfig'));
         }
         if (!empty($cf)) {
             $row['cf'] = $cf;

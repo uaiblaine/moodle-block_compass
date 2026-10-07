@@ -47,14 +47,15 @@ import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, Star
  * The chip tier 3 opens on, per kind of control that opened it.
  *
  * The ghost carries none: "Explore all" opens tier 3 as the reader left it, which is what
- * remembering the toolbar is for. The heading links and the pending notice press their chip
- * over the remembered one.
+ * remembering the toolbar is for. The heading links and the two notices press their chip over
+ * the remembered one.
  */
 const CHIP_OF_KIND: Record<GhostKind, string | null> = {
     tier2: null,
     'new': 'new',
     favourites: 'favourites',
     pending: 'pending',
+    scheduled: 'scheduled',
 };
 
 /** The card details service refuses more ids than this in one call (cards::DETAILS_BATCH). */
@@ -367,6 +368,33 @@ const Block = (config: BlockConfig) => {
         ? [...config.strips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
         : null;
     const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
+    const scheduledcount = data ? data.counts.scheduled : 0;
+
+    /**
+     * One of the two lines tier 1 gives the courses only tier 3 lists: the applications and the
+     * enrolments that start later. A line under New enrolments - or where that strip would be -
+     * and a link-styled button, because it acts on the page and navigates nowhere.
+     *
+     * @param {string} kind pending or scheduled: the chip tier 3 opens on.
+     * @param {string} text The line, already filled.
+     * @param {string} label The button's accessible name.
+     * @param {string} view The button's visible text.
+     * @returns {object} The rendered line.
+     */
+    const notice = (kind: GhostKind, text: string, label: string, view: string) => (
+        <p className="compass-strip-note small text-muted" data-region={`${kind}-notice`}>
+            {text}
+            {' · '}
+            <button
+                type="button"
+                className="btn btn-link btn-sm p-0 align-baseline compass-linkbtn"
+                aria-label={label}
+                onClick={() => explore(kind)}
+            >
+                {view}
+            </button>
+        </p>
+    );
 
     return (
         <div>
@@ -403,22 +431,19 @@ const Block = (config: BlockConfig) => {
                         onToggleFavourite={toggleFavourite}
                         onExplore={explore}
                     />
-                    {/* The one notice an application gets in tier 1: a line under New enrolments -
-                        or where that strip would be - and a link-styled button, because it acts
-                        on the page and navigates nowhere. */}
-                    {strip.name === 'new' && pendingcount > 0 && (
-                        <p className="compass-strip-note small text-muted" data-region="pending-notice">
-                            {fill(labels.pendingnotice, String(pendingcount))}
-                            {' · '}
-                            <button
-                                type="button"
-                                className="btn btn-link btn-sm p-0 align-baseline compass-linkbtn"
-                                aria-label={labels.pendingnoticelabel}
-                                onClick={() => explore('pending')}
-                            >
-                                {labels.pendingnoticeview}
-                            </button>
-                        </p>
+                    {/* The one notice an application gets in tier 1, and the one an enrolment that
+                        starts later gets: neither is ever a card in a strip (ADR-009, ADR-013). */}
+                    {strip.name === 'new' && pendingcount > 0 && notice(
+                        'pending',
+                        fill(labels.pendingnotice, String(pendingcount)),
+                        labels.pendingnoticelabel,
+                        labels.pendingnoticeview
+                    )}
+                    {strip.name === 'new' && scheduledcount > 0 && notice(
+                        'scheduled',
+                        fill(labels.schedulednotice, String(scheduledcount)),
+                        labels.schedulednoticelabel,
+                        labels.schedulednoticeview
                     )}
                 </Fragment>
             ))}
@@ -429,9 +454,11 @@ const Block = (config: BlockConfig) => {
                     <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />
                 </div>
             )}
+            {/* A learner whose only courses start later is enrolled: "not enrolled in any course" would
+                be untrue, and the notice above is how they reach the courses. */}
             {data && shown === 0 && (
                 <p className="compass-empty text-muted">
-                    {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
+                    {data.counts.total === 0 && scheduledcount === 0 ? labels.nocourses : labels.emptyattention}
                 </p>
             )}
             {exploring && (

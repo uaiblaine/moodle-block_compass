@@ -167,7 +167,11 @@ final class get_attention_test extends advanced_testcase {
         $this->assertSame(0, $data['counts']['newmore']);
         $this->assertSame(0, $data['counts']['favouritesmore']);
         $this->assertSame(0, $data['counts']['pending']);
-        $this->assertSame(['total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending'], array_keys($data['counts']));
+        $this->assertSame(0, $data['counts']['scheduled']);
+        $this->assertSame(
+            ['total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending', 'scheduled'],
+            array_keys($data['counts'])
+        );
         $this->assertTrue($data['favouritesenabled']);
     }
 
@@ -249,6 +253,48 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
+     * The scheduled count travels through the allowlist, and the course it counts is in no strip.
+     *
+     * An enrolment that starts later lives in tier 3 alone (ADR-013): tier 1 says how many there
+     * are, under New enrolments, and draws no card. The control is the same course once its start
+     * has passed: an active enrolment like any other, counted in total and drawn as new.
+     *
+     * @return void
+     */
+    public function test_the_scheduled_count_travels_and_no_strip_draws_the_course(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        [$user] = $this->fixture();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $later = $this->getDataGenerator()->create_course();
+        $ueid = $plugin->enrol_at(
+            (int) $user->id,
+            (int) $later->id,
+            time() - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            time() + DAYSECS
+        );
+        $this->setUser($user);
+
+        $data = $this->call();
+
+        $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $shown = array_merge($ids($data['continue']), $ids($data['new']), $ids($data['favourites']));
+        $this->assertSame(1, $data['counts']['scheduled']);
+        $this->assertSame(6, $data['counts']['total'], 'an enrolment that starts later is not an active course');
+        $this->assertNotContains((int) $later->id, $shown);
+
+        // Control: once it has started, the same enrolment is an active course and no longer counted as later.
+        $DB->set_field('user_enrolments', 'timestart', time() - HOURSECS, ['id' => $ueid]);
+        $started = $this->call();
+        $this->assertSame(0, $started['counts']['scheduled']);
+        $this->assertSame(7, $started['counts']['total']);
+    }
+
+    /**
      * Progress that is not cached is reported pending, never computed on the first paint.
      *
      * @return void
@@ -322,7 +368,8 @@ final class get_attention_test extends advanced_testcase {
      * memos a second call in one process would otherwise inherit — the filter preload, core's
      * request-mode category cache, the preference bundle — so the measured call pays what a
      * fresh request pays; measure the second call. Accounting: the four strip and count
-     * statements, the preference load, the filter preload — six. coursemeta is
+     * statements, the situations read (ADR-013), the preference load, the filter preload —
+     * seven. coursemeta is
      * written from the strip rows (set_from_rows()) and costs nothing; categorymeta is warm
      * from the first call, the steady state of a busy site. The bound is asserted with the
      * number in the message, and the controls prove the call did the work.
@@ -333,7 +380,7 @@ final class get_attention_test extends advanced_testcase {
      *
      * @return void
      */
-    public function test_first_paint_stays_within_six_reads_with_plugin_caches_cold(): void {
+    public function test_first_paint_stays_within_seven_reads_with_plugin_caches_cold(): void {
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         [$user] = $this->fixture();
@@ -350,15 +397,15 @@ final class get_attention_test extends advanced_testcase {
 
         $this->assert_first_paint_is_complete($data);
         $this->assertLessThanOrEqual(
-            7,
+            8,
             $reads,
-            "get_attention cost {$reads} reads with the user layers cold and the shared layers warm; the budget is 6 + 1."
+            "get_attention cost {$reads} reads with the user layers cold and the shared layers warm; the budget is 7 + 1."
         );
-        $meter->assert_reads_at_most(7, 'get_attention');
+        $meter->assert_reads_at_most(8, 'get_attention');
     }
 
     /**
-     * At most eight reads per request with every one of the plugin's caches cold: the seven above plus one.
+     * At most nine reads per request with every one of the plugin's caches cold: the eight above plus one.
      *
      * Same protocol, every definition purged — the first request after an install, an upgrade
      * or a cache purge. The one extra read is the categorymeta fill for the cards' categories,
@@ -367,7 +414,7 @@ final class get_attention_test extends advanced_testcase {
      *
      * @return void
      */
-    public function test_first_paint_stays_within_seven_reads_with_every_plugin_cache_cold(): void {
+    public function test_first_paint_stays_within_eight_reads_with_every_plugin_cache_cold(): void {
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         [$user] = $this->fixture();
@@ -384,16 +431,16 @@ final class get_attention_test extends advanced_testcase {
 
         $this->assert_first_paint_is_complete($data);
         $this->assertLessThanOrEqual(
-            8,
+            9,
             $reads,
-            "get_attention cost {$reads} reads with every plugin cache cold; the budget is 8 (7 + the categorymeta fill)."
+            "get_attention cost {$reads} reads with every plugin cache cold; the budget is 9 (8 + the categorymeta fill)."
         );
     }
 
     /**
      * With favourites off the strip is empty, its overflow 0, and its query is not run.
      *
-     * Same protocol as the six-read budget above, measured twice over one fixture: with the
+     * Same protocol as the seven-read budget above, measured twice over one fixture: with the
      * feature on, then off. The only favourite is the course Continue shows, so both answers draw
      * the same distinct courses, and the one read between the two measurements is the strip's own
      * query; the counts still see the star.
@@ -442,7 +489,7 @@ final class get_attention_test extends advanced_testcase {
             $this->assertSame(2, $data['counts']['total'], "total with favourites {$state}");
             $this->assertSame(2, $data['counts']['shown'], "shown with favourites {$state}");
         }
-        $this->assertLessThanOrEqual(7, $reads['on'], "get_attention cost {$reads['on']} reads with favourites on; the bound is 7");
+        $this->assertLessThanOrEqual(8, $reads['on'], "get_attention cost {$reads['on']} reads with favourites on; the bound is 8");
         $this->assertSame(
             $reads['on'] - 1,
             $reads['off'],

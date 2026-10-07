@@ -277,7 +277,7 @@ final class config {
      * @return bool
      */
     public static function pending_plugin_present(): bool {
-        return \core\plugin_manager::instance()->get_plugin_info('enrol_' . pending::METHOD) !== null;
+        return \core\plugin_manager::instance()->get_plugin_info('enrol_' . relationship::APPLY_METHOD) !== null;
     }
 
     /**

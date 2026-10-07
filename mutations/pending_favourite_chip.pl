@@ -1,1 +1,1 @@
-s/return \$course\['isfavourite'\] && !\$course\['pending'\];/return \$course['isfavourite'];/;
+s/return \$course\['isfavourite'\] && self::is_enrolled\(\$course\);/return \$course['isfavourite'];/;

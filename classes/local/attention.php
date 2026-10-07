@@ -25,15 +25,17 @@
 namespace block_compass\local;
 
 use core\context\system as context_system;
+use local_unlistedcourses\access;
 use stdClass;
 
 /**
- * Continue, New and Favourites, plus the counts the ghosts need.
+ * Continue, New and Favourites, plus the counts the ghosts and the two notices need.
  *
- * Four database reads, every one bounded by a LIMIT or an aggregate, never a
- * scan of the user's whole enrolment set; three when the favourites feature is
+ * Five database reads, every one bounded by a LIMIT or an aggregate, never a
+ * scan of the user's whole enrolment set; four when the favourites feature is
  * off, since a strip nobody is shown is not queried; past hidden_courses::SQL_LIMIT
- * hidden courses, one more count per chunk of them. Every strip query yields one row per
+ * hidden courses, one more count per chunk of them. The fifth is the situations read
+ * (situations()), the rows the provider classifies for the two notices. Every strip query yields one row per
  * course (EXISTS predicates or a grouped derived table over the user's active
  * enrolments), carries the columns course_meta::select_sql() needs so the
  * course layer is filled from the rows, and excludes the courses the user hid
@@ -49,6 +51,9 @@ final class attention {
 
     /** @var string Item type of the core course star. */
     public const FAVOURITE_ITEMTYPE = 'courses';
+
+    /** @var int Most rows the situations statement reads; past it the two notice counts are a floor. */
+    public const SITUATIONS_LIMIT = 500;
 
     /** @var int The user. */
     private int $userid;
@@ -118,7 +123,7 @@ final class attention {
      * strip's own columns (timeaccess; timecreated, timeend, enrol, enrolenddate).
      *
      * @return array continue, new, favourites (rows keyed by course id) and counts
-     *               (total, new, favourites, pending).
+     *               (total, new, favourites, pending, scheduled).
      */
     public function build(): array {
         $margin = $this->hiddeninsql ? 0 : count($this->hidden);
@@ -134,7 +139,7 @@ final class attention {
             'continue' => $continue,
             'new' => $new,
             'favourites' => array_slice($favourites, 0, $this->max, true),
-            'counts' => $this->counts(),
+            'counts' => $this->counts() + $this->situations(),
         ];
     }
 
@@ -292,21 +297,14 @@ final class attention {
     }
 
     /**
-     * Counts in one statement: active courses, new-and-never-accessed, favourited, and the
-     * enrolment applications awaiting approval.
+     * Counts in one statement: active courses, new-and-never-accessed, and favourited.
      *
      * The derived table has one row per course (earliest timecreated), so a
      * course with two methods counts once; the LEFT JOIN to favourite matches
      * at most one row thanks to its unique index and the single course-context
      * write path of the core star. Index: user_enrolments (userid).
      *
-     * The pending count is not subtracted on the chunked path below: a course that is both
-     * archived and applied to is a state Compass cannot produce — a pending row carries no
-     * archive control — so past hidden_courses::SQL_LIMIT the count is reported unrestricted,
-     * off at most by what the learner archived in the Course overview block and then applied
-     * to, rather than paying a second statement for it.
-     *
-     * @return array total, new, favourites, pending — all int.
+     * @return array total, new, favourites — all int.
      */
     private function counts(): array {
         $counts = $this->count_courses();
@@ -319,9 +317,6 @@ final class attention {
         foreach (array_chunk($this->hidden, hidden_courses::SQL_LIMIT) as $chunk) {
             $hidden = $this->count_courses($chunk);
             foreach ($counts as $key => $value) {
-                if ($key === 'pending') {
-                    continue;
-                }
                 $counts[$key] = max(0, $value - $hidden[$key]);
             }
         }
@@ -333,15 +328,8 @@ final class attention {
      * One counting statement over the user's active, visible courses, optionally restricted
      * to a list of course ids (used to count the archived subset).
      *
-     * The applications awaiting approval travel as a scalar subquery beside the three
-     * aggregates and not as a fourth SUM(CASE …) over the derived table:
-     * per_course_enrolments_sql() binds the active status, so a pending row is not in that
-     * table at all, and widening its predicate to reach one would silently grow total, newcount
-     * and favcount by every application. The subquery leaves all three untouched. It is 0 when
-     * the feature is off and on the restricted (chunk) path, where counts() ignores it.
-     *
      * @param int[]|null $onlycourses Restrict to these course ids; null for all.
-     * @return array total, new, favourites, pending — all int.
+     * @return array total, new, favourites — all int.
      */
     private function count_courses(?array $onlycourses = null): array {
         global $DB;
@@ -356,11 +344,9 @@ final class attention {
             $params += $inparams;
             $restrict = " AND c.id {$insql}";
         }
-        $pendingsql = $this->pending && $onlycourses === null ? $this->pending_count_sql($params) : '0';
         $sql = "SELECT COUNT(*) AS total,
                        SUM(CASE WHEN x.timecreated > :since AND la.id IS NULL THEN 1 ELSE 0 END) AS newcount,
-                       SUM(CASE WHEN ffa.id IS NULL THEN 0 ELSE 1 END) AS favcount,
-                       {$pendingsql} AS pendingcount
+                       SUM(CASE WHEN ffa.id IS NULL THEN 0 ELSE 1 END) AS favcount
                   FROM ("
                     . $this->per_course_enrolments_sql('MIN(uex.timecreated) AS timecreated', 'x', $params, true, $restrict)
                     . ") x
@@ -372,35 +358,72 @@ final class attention {
             'total' => (int) ($row->total ?? 0),
             'new' => (int) ($row->newcount ?? 0),
             'favourites' => (int) ($row->favcount ?? 0),
-            'pending' => (int) ($row->pendingcount ?? 0),
         ];
     }
 
     /**
-     * Scalar subquery: how many distinct courses the user holds an enrolment application in.
+     * How many courses hold an enrolment of the learner's that starts later, and how many an
+     * application awaiting a decision or on the waiting list: the numbers of tier 1's two notices.
      *
-     * pending::where_sql() is the rule — on an apply instance, not active, period still open —
-     * under the same site, visibility and hidden-set clauses as the aggregates beside it, and
-     * excluding any course where the user also holds an active enrolment on another method,
-     * because that is a course they can enter and the active enrolment wins
-     * (inventory::pending() applies the same exclusion at read time). Index:
-     * user_enrolments (userid) foreign key; enrol primary key; course primary key.
+     * Which situation a row is in is the provider's answer (relationship::of_record()), so the
+     * statement selects rows rather than counting them: the learner's rows that have not ended,
+     * in visible, non-hidden courses other than the front page, where the learner holds no active
+     * enrolment — the last clause is core's own rule, the one every strip applies, because an
+     * enrolment the learner can use outranks any of these. Not having ended is a necessary
+     * condition of the three situations, not their rule: a row whose end has passed classifies as
+     * expired or none whatever else it says, which attention_test holds over every row shape. PHP
+     * then keeps each course's strongest relationship, in the order relationship::SHOWN gives, so
+     * a course with a scheduled row and an application counts once, as scheduled, as tier 3 lists
+     * it. Applications count only while the feature is on.
      *
-     * @param array $params Placeholders, extended in place.
-     * @return string A parenthesised scalar subquery.
+     * Index: user_enrolments (userid) foreign key; enrol primary key; course primary key; the
+     * NOT EXISTS as in Continue. Bounded by SITUATIONS_LIMIT rows: past it both numbers are a
+     * floor, a learner with more not-yet-ended inactive enrolments than that being told "at least".
+     * Past hidden_courses::SQL_LIMIT the archived courses are dropped here, in PHP.
+     *
+     * @return array pending, scheduled — both int.
      */
-    private function pending_count_sql(array &$params): string {
-        $params['pu'] = $this->userid;
-        $params['psite'] = SITEID;
-        $where = pending::where_sql('uep', 'ep', 'p', $params, $this->now);
+    private function situations(): array {
+        global $DB;
 
-        return "(SELECT COUNT(DISTINCT ep.courseid)
-                   FROM {user_enrolments} uep
-                   JOIN {enrol} ep ON ep.id = uep.enrolid
-                   JOIN {course} cp ON cp.id = ep.courseid
-                  WHERE uep.userid = :pu AND {$where} AND cp.id <> :psite"
-                    . $this->visible_sql('cp') . $this->not_hidden_sql('hp', $params, 'cp') . "
-                    AND NOT " . $this->active_enrolment_sql('cp.id', 'pa', $params) . ")";
+        $params = [
+            'su' => $this->userid,
+            'ssite' => SITEID,
+            'snow' => $this->now,
+        ];
+        $sql = "SELECT ue.id, e.courseid, ue.status, ue.timestart, ue.timeend, e.enrol, e.status AS instancestatus
+                  FROM {user_enrolments} ue
+                  JOIN {enrol} e ON e.id = ue.enrolid
+                  JOIN {course} c ON c.id = e.courseid
+                 WHERE ue.userid = :su AND c.id <> :ssite AND (ue.timeend = 0 OR ue.timeend > :snow)"
+                    . $this->visible_sql() . $this->not_hidden_sql('hs', $params) . "
+                   AND NOT " . $this->active_enrolment_sql('c.id', 's', $params) . "
+              ORDER BY ue.id ASC";
+        $records = $DB->get_records_sql($sql, $params, 0, self::SITUATIONS_LIMIT);
+
+        $hidden = $this->hiddeninsql ? [] : array_flip($this->hidden);
+        $best = [];
+        foreach ($records as $record) {
+            $courseid = (int) $record->courseid;
+            $type = relationship::of_record($record, $this->now);
+            if (isset($hidden[$courseid]) || !relationship::is_shown($type)) {
+                continue;
+            }
+            if (!isset($best[$courseid]) || relationship::outranks($type, $best[$courseid])) {
+                $best[$courseid] = $type;
+            }
+        }
+
+        $counts = ['pending' => 0, 'scheduled' => 0];
+        foreach ($best as $type) {
+            if ($type === access::RELATIONSHIP_SCHEDULED) {
+                $counts['scheduled']++;
+            } else if ($this->pending && relationship::is_awaiting($type)) {
+                $counts['pending']++;
+            }
+        }
+
+        return $counts;
     }
 
     /**

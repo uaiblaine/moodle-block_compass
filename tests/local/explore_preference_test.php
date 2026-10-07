@@ -90,6 +90,19 @@ final class explore_preference_test extends advanced_testcase {
     }
 
     /**
+     * The scheduled chip needs no feature: an enrolment that starts later is listed on every site.
+     *
+     * @return void
+     */
+    public function test_the_scheduled_chip_survives_whatever_the_pending_feature(): void {
+        $json = json_encode(['chip' => 'scheduled']);
+
+        $this->assertSame('scheduled', explore_preference::validate($json, true)['chip']);
+        $this->assertSame('scheduled', explore_preference::validate($json, false)['chip']);
+        $this->assertSame(explore::CHIPS, explore_preference::CHIPS, 'the remembered chip speaks the listing\'s vocabulary');
+    }
+
+    /**
      * A field key that is not a shortname, or a value that is not a non-negative integer, is dropped.
      *
      * Whether the field is still configured is the client's decision, when the inventory's fields

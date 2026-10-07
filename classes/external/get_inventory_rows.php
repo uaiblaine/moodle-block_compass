@@ -72,7 +72,7 @@ class get_inventory_rows extends external_api {
         return new external_function_parameters([
             'groupid' => new external_value(PARAM_INT, 'Category id of the group, or a reserved negative id'),
             'after' => new external_value(PARAM_INT, 'Id of the last row held; 0 for the first page', VALUE_DEFAULT, 0),
-            'chip' => new external_value(PARAM_ALPHA, 'all, new, favourites or pending', VALUE_DEFAULT, 'all'),
+            'chip' => new external_value(PARAM_ALPHA, 'all, new, favourites, pending or scheduled', VALUE_DEFAULT, 'all'),
             'sort' => new external_value(PARAM_ALPHA, 'name or recent', VALUE_DEFAULT, 'name'),
             'filters' => self::filters_parameter(),
         ]);
@@ -124,7 +124,7 @@ class get_inventory_rows extends external_api {
      *
      * @param int $groupid Category id of the group.
      * @param int $after Id of the last row the client holds; 0 for the first page.
-     * @param string $chip all, new, favourites or pending.
+     * @param string $chip all, new, favourites, pending or scheduled.
      * @param string $sort name or recent.
      * @param array $filters Custom-field filters: list of ['field' => shortname, 'value' => int].
      * @return array groupid, rows, hasmore, after.
@@ -191,7 +191,7 @@ class get_inventory_rows extends external_api {
      * both through the same components. Shared with search_inventory, which adds a groupid, and
      * with get_inventory itself.
      *
-     * pend and cf are optional and omitted when they do not apply — never sent as false or
+     * pend, wait, sched and cf are optional and omitted when they do not apply — never sent as false or
      * empty — because a VALUE_OPTIONAL key the domain leaves out never enters the response and
      * costs no bytes on the rows it does not describe.
      *
@@ -207,7 +207,17 @@ class get_inventory_rows extends external_api {
             'dorm' => new external_value(PARAM_BOOL, 'Whether the course has gone quiet'),
             'pend' => new external_value(
                 PARAM_BOOL,
-                'Present, and true, only on an enrolment application awaiting approval',
+                'Present, and true, only on an enrolment application awaiting approval or on the waiting list',
+                VALUE_OPTIONAL
+            ),
+            'wait' => new external_value(
+                PARAM_BOOL,
+                'Present, and true, only on an enrolment application on the waiting list',
+                VALUE_OPTIONAL
+            ),
+            'sched' => new external_value(
+                PARAM_TEXT,
+                'Present only on an enrolment that starts later: its start date, formatted for the reader',
                 VALUE_OPTIONAL
             ),
             'cf' => new external_multiple_structure(

@@ -16,8 +16,8 @@
 /**
  * The filter panel of tier 3: chip groups on platters, one value per group.
  *
- * The Status group first - All, New, Favourites and, when the feature is on, Awaiting approval -
- * then one group per course custom field the administrator chose, then one Clear control shared
+ * The Status group first - All, New, Favourites, Awaiting approval when the feature is on, and
+ * Scheduled - then one group per course custom field the administrator chose, then one Clear control shared
  * by every group. A press replaces the group's selection; the Status group carries a neutral
  * All chip that releases it, a field group has none and pressing its pressed chip releases it.
  * Groups combine with AND. Every group is named by a visible label through aria-labelledby, and
@@ -76,6 +76,7 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
     if (config.pendingenabled) {
         statuschips.push(['pending', labels.chip_pending]);
     }
+    statuschips.push(['scheduled', labels.chip_scheduled]);
     /**
      * A chip that would show nothing is not drawn.
      *

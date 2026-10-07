@@ -108,10 +108,11 @@ class block_compass_generator extends testing_block_generator {
     ): int {
         global $DB;
 
-        $instanceid = $DB->get_field('enrol', 'id', ['courseid' => $courseid, 'enrol' => \block_compass\local\pending::METHOD]);
+        $method = \block_compass\local\relationship::APPLY_METHOD;
+        $instanceid = $DB->get_field('enrol', 'id', ['courseid' => $courseid, 'enrol' => $method]);
         if (!$instanceid) {
             $instanceid = $DB->insert_record('enrol', (object) [
-                'enrol' => \block_compass\local\pending::METHOD,
+                'enrol' => $method,
                 'status' => ENROL_INSTANCE_ENABLED,
                 'courseid' => $courseid,
                 'sortorder' => 0,

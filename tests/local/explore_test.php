@@ -1508,9 +1508,13 @@ final class explore_test extends advanced_testcase {
         $this->assertArrayNotHasKey($expired, $rows);
         $this->assertArrayNotHasKey($manual, $rows);
 
-        // The application rows: pend, never new, never dormant, the star kept truthful.
+        // The application rows: pend, never new, never dormant, the star kept truthful; the deferred
+        // one, on the waiting list, carries wait beside pend and the two others carry none.
         foreach ([$submitted, $deferred, $old] as $courseid) {
-            $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'pend'], array_keys($rows[$courseid]));
+            $keys = $courseid === $deferred
+                ? ['id', 'name', 'opened', 'new', 'fav', 'dorm', 'pend', 'wait']
+                : ['id', 'name', 'opened', 'new', 'fav', 'dorm', 'pend'];
+            $this->assertSame($keys, array_keys($rows[$courseid]));
             $this->assertTrue($rows[$courseid]['pend']);
             $this->assertFalse($rows[$courseid]['new'], 'an application is never new');
             $this->assertFalse($rows[$courseid]['dorm'], 'an application is never dormant');
@@ -1554,6 +1558,99 @@ final class explore_test extends advanced_testcase {
         sort($pageids);
         $this->assertSame($expectedoff, $pageids);
         $this->assertSame([], $this->row_ids($this->search_with(false, 'application')));
+    }
+
+    /**
+     * An enrolment that starts later is a tier 3 row in its own category, carrying sched and nothing
+     * an active course carries: tier 3's Scheduled situation (ADR-013, reversing ADR-000 decision 14
+     * for this tier).
+     *
+     * Listed with sched, the start date formatted as the theme's card prints it: a later start that
+     * is new enough and never opened, starred, and one created before the dormancy threshold, so a
+     * rule that read either as new, as a favourite the learner can enter or as dormant would show.
+     * Not listed as scheduled: a course where an active enrolment sits beside a later one (one
+     * normal row), and a later start on a disabled method or a suspended one (the provider's none
+     * and suspended). A course holding a later start and an application is scheduled, the stronger
+     * relationship. The Scheduled chip keeps exactly the later starts, the pending and favourites
+     * chips none of them, the search finds them, and they do not depend on enable_pending.
+     *
+     * @return void
+     */
+    public function test_an_enrolment_that_starts_later_is_a_row_with_sched_and_nothing_else(): void {
+        global $DB;
+
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $zeta = (int) $tree['zeta']->id;
+        $threshold = dormancy::threshold(self::NOW, 12);
+        $start = self::NOW + 10 * DAYSECS;
+        $active = (int) $this->course_in($alpha, 'Active course')->id;
+        $later = (int) $this->course_in($alpha, 'Later course')->id;
+        $old = (int) $this->course_in($zeta, 'Long scheduled course')->id;
+        $applied = (int) $this->course_in($zeta, 'Later and applied')->id;
+        $both = (int) $this->course_in($alpha, 'Active now and later')->id;
+        $disabled = (int) $this->course_in($alpha, 'Later on a disabled method')->id;
+        $suspended = (int) $this->course_in($alpha, 'Later and suspended')->id;
+        $this->plugingen->enrol_at($this->userid, $active, self::NOW - 100 * DAYSECS);
+        $this->plugingen->access_at($this->userid, $active, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $later, self::NOW - 2 * DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->favourite($this->userid, $later);
+        $this->plugingen->enrol_at($this->userid, $old, $threshold - 10 * DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->enrol_at($this->userid, $applied, self::NOW - 2 * DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - 100 * DAYSECS);
+        $this->plugingen->access_at($this->userid, $both, self::NOW - DAYSECS);
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_ENABLED, ['courseid' => $both, 'enrol' => 'self']);
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - 2 * DAYSECS, 'self', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->enrol_at($this->userid, $disabled, self::NOW - 2 * DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_DISABLED, ['courseid' => $disabled, 'enrol' => 'manual']);
+        $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - 2 * DAYSECS, 'manual', ENROL_USER_SUSPENDED, $start);
+
+        $payload = $this->build_with(true);
+        $rows = $this->rows_by_id($payload);
+
+        $this->assertSame(['Alpha faculty', 'Zeta faculty'], $this->group_names($payload));
+        $this->assertSame(5, $payload['total']);
+        $this->assertSame(['Active course', 'Active now and later', 'Later course'], $this->course_names($payload['groups'][0]));
+        $this->assertSame(['Later and applied', 'Long scheduled course'], $this->course_names($payload['groups'][1]));
+        $this->assertArrayNotHasKey($disabled, $rows);
+        $this->assertArrayNotHasKey($suspended, $rows);
+
+        $date = userdate($start, get_string('strftimedatefullshort', 'langconfig'));
+        foreach ([$later, $old, $applied] as $courseid) {
+            $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'sched'], array_keys($rows[$courseid]));
+            $this->assertSame($date, $rows[$courseid]['sched']);
+            $this->assertFalse($rows[$courseid]['new'], 'an enrolment that starts later is never new');
+            $this->assertFalse($rows[$courseid]['dorm'], 'an enrolment that starts later is never dormant');
+        }
+        $this->assertTrue($rows[$later]['fav'], 'the star is reported truthfully');
+        foreach ([$active, $both] as $courseid) {
+            $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm'], array_keys($rows[$courseid]));
+        }
+
+        // The chips, in paged mode: Scheduled keeps the later starts alone; Awaiting approval and
+        // Favourites keep none of them.
+        $this->assertSame([$later], $this->row_ids($this->rows_with(true, $alpha, 'scheduled')));
+        $this->assertSame([$applied, $old], $this->row_ids($this->rows_with(true, $zeta, 'scheduled')));
+        $this->assertSame([], $this->row_ids($this->rows_with(true, $zeta, 'pending')));
+        $this->assertSame([], $this->row_ids($this->rows_with(true, $alpha, 'favourites')));
+        $this->assertSame([], $this->row_ids($this->rows_with(true, $alpha, 'new')));
+        $alpharows = array_column($this->rows_with(true, $alpha)['rows'], null, 'id');
+        $this->assertArrayNotHasKey('sched', $alpharows[$both], 'the active enrolment wins in paged mode too');
+        $this->assertSame($date, $alpharows[$later]['sched']);
+        $found = $this->row_ids($this->search_with(true, 'later'));
+        sort($found);
+        $expected = [$later, $applied, $both];
+        sort($expected);
+        $this->assertSame($expected, $found);
+        $this->assertSame([], $this->row_ids($this->search_with(true, 'disabled method')));
+
+        // Not behind enable_pending: with it off the later starts are still listed, and the course
+        // that also holds an application is scheduled either way.
+        $off = $this->rows_by_id($this->build_with(false));
+        foreach ([$later, $old, $applied] as $courseid) {
+            $this->assertSame($date, $off[$courseid]['sched']);
+        }
     }
 
     /**

@@ -37,14 +37,15 @@ use core_external\external_value;
 /**
  * The one call behind the first paint: three strips and the counts.
  *
- * Read-only, current user only, six database reads per request with the shared
- * layers warm (four strip and count statements, preferences, filters), seven
- * with every plugin cache cold (one categorymeta fill; coursemeta is filled from
- * the strip rows) — plus the one read validate_context() costs here, the user
- * context, since the context cache starts empty every request. One read fewer
- * with the favourites feature off, whose strip is then not queried. Asserted by
- * its budget tests. The count of enrolment applications awaiting approval rides
- * inside the counts statement as a scalar subquery and adds no read.
+ * Read-only, current user only, seven database reads per request with the shared
+ * layers warm (four strip and count statements, the situations read, preferences,
+ * filters), eight with every plugin cache cold (one categorymeta fill; coursemeta is
+ * filled from the strip rows) — plus the one read validate_context() costs here, the
+ * user context, since the context cache starts empty every request. One read fewer
+ * with the favourites feature off, whose strip is then not queried. Asserted by its
+ * budget tests. The situations read is the price of asking local_unlistedcourses which
+ * rows are applications and which start later (ADR-013): it carries the counts of
+ * tier 1's two notices.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -110,6 +111,7 @@ class get_attention extends external_api {
                 'newmore' => max(0, $counts['new'] - count($strips['new'])),
                 'favouritesmore' => $favouritesenabled ? max(0, $counts['favourites'] - count($strips['favourites'])) : 0,
                 'pending' => $counts['pending'],
+                'scheduled' => $counts['scheduled'],
             ],
             'favouritesenabled' => $favouritesenabled,
         ];
@@ -169,9 +171,10 @@ class get_attention extends external_api {
                 'favouritesmore' => new external_value(PARAM_INT, 'Favourites not shown in the favourites strip'),
                 'pending' => new external_value(
                     PARAM_INT,
-                    'Enrolment applications awaiting approval (0 when the feature is off; past 500 archived '
-                        . 'courses the archived subset is not subtracted from it)'
+                    'Courses holding an enrolment application awaiting approval or on the waiting list (0 when '
+                        . 'the feature is off)'
                 ),
+                'scheduled' => new external_value(PARAM_INT, 'Courses holding an enrolment that starts later'),
             ]),
             'favouritesenabled' => new external_value(PARAM_BOOL, 'Whether the favourites feature is on'),
         ]);

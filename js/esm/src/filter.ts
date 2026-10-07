@@ -43,6 +43,7 @@ export type RowFacts = {
     new: boolean,
     fav: boolean,
     pend: boolean,
+    sched: boolean,
     cf: number[],
 };
 
@@ -104,13 +105,26 @@ export const relativeTime = (timestamp: number, now: number, lang: string): stri
 };
 
 /**
+ * Whether a row is a course the learner can enter now: neither an application nor an enrolment
+ * that starts later.
+ *
+ * Only such a row carries a star, progress and an archive control, registers for details and
+ * links into the course. The PHP twin is explore::is_enrolled(); keep the two in step.
+ *
+ * @param {object} row A row, or its facts: pend and sched are all it reads.
+ * @returns {boolean} Whether it can be entered.
+ */
+export const isEnrolled = (row: {pend?: boolean, sched?: string | boolean}): boolean =>
+    !row.pend && (row.sched === undefined || row.sched === false);
+
+/**
  * Whether a row passes the chip filter.
  *
- * The favourites chip excludes an application awaiting approval: its star may be lit, but a
- * course the learner cannot enter is reachable through All or through its own chip only. The
- * PHP twin is explore::passes_chip(); keep the two in step.
+ * The favourites chip keeps only a course the learner can enter: an application or an
+ * enrolment that starts later may carry a lit star, and is reachable through All or through its
+ * own chip only. The PHP twin is explore::passes_chip(); keep the two in step.
  *
- * @param {string} chip all, new, favourites or pending.
+ * @param {string} chip all, new, favourites, pending or scheduled.
  * @param {object} row The row facts, under the get_inventory row keys.
  * @returns {boolean} Whether it passes.
  */
@@ -119,10 +133,13 @@ export const passesChip = (chip: string, row: RowFacts): boolean => {
         return row.new;
     }
     if (chip === 'favourites') {
-        return row.fav && !row.pend;
+        return row.fav && isEnrolled(row);
     }
     if (chip === 'pending') {
         return row.pend;
+    }
+    if (chip === 'scheduled') {
+        return row.sched;
     }
 
     return true;

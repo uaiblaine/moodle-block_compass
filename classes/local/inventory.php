@@ -25,6 +25,7 @@
 namespace block_compass\local;
 
 use core_cache\cache;
+use local_unlistedcourses\access;
 
 /**
  * Wrapper of the block_compass/inventory definition.
@@ -64,10 +65,11 @@ final class inventory {
     /**
      * @var int Row field: the enrol instance id when the method is "apply", 0 for every other method.
      *
-     * Non-zero says the row is an enrolment application, which is what tells one apart from a
-     * suspended enrolment on some other method. It never leaves the server — the pending row
-     * links to the course's own enrolment page, built from the course id — and a cached row
-     * that lacks it reads as 0 (pending::is_pending()).
+     * Non-zero says the row is on an enrol_apply instance, the one method the provider's rule
+     * names (relationship::of_row()): it is what tells an application apart from a suspended
+     * enrolment on some other method. It never leaves the server — an application's row links to
+     * the course's own enrolment page, built from the course id — and a cached row that lacks it
+     * reads as 0.
      */
     public const APPLYINSTANCE = 10;
 
@@ -132,7 +134,7 @@ final class inventory {
             'fuser4' => $userid,
             'fcomp4' => attention::FAVOURITE_COMPONENT,
             'ftype4' => attention::FAVOURITE_ITEMTYPE,
-            'applymethod' => pending::METHOD,
+            'applymethod' => relationship::APPLY_METHOD,
         ];
         $records = $DB->get_records_sql(
             "SELECT ue.id, e.courseid, ue.timecreated, ue.timestart, ue.timeend, ue.status AS uestatus, e.status AS estatus,
@@ -276,9 +278,10 @@ final class inventory {
     /**
      * One entry per course the user is actively enrolled in now, from the stored rows.
      *
-     * Active is the enrol_get_my_courses() rule evaluated at $now. Of several
-     * active rows for one course the earliest timecreated wins, tie-broken by
-     * the lowest user_enrolments id — the row attention's New strip and counts use.
+     * Active is the provider's ENROLLED relationship at $now (relationship::of_row()), which is
+     * core's own rule, the one attention's SQL applies. Of several active rows for one course
+     * the earliest timecreated wins, tie-broken by the lowest user_enrolments id — the row
+     * attention's New strip and counts use.
      *
      * Two modes over the hidden set, and they are complements of each other. By default
      * the hidden courses are left out, which is what every tier 3 answer means by "active".
@@ -303,11 +306,7 @@ final class inventory {
             if (isset($hidden[$courseid]) !== $onlyhidden) {
                 continue;
             }
-            $active = $row[self::UESTATUS] === ENROL_USER_ACTIVE
-                && $row[self::ESTATUS] === ENROL_INSTANCE_ENABLED
-                && $row[self::TIMESTART] <= $now
-                && ($row[self::TIMEEND] === 0 || $row[self::TIMEEND] > $now);
-            if (!$active) {
+            if (relationship::of_row($row, $now) !== access::RELATIONSHIP_ENROLLED) {
                 continue;
             }
             self::keep_earliest($courses, $courseid, (int) $ueid, $row);
@@ -317,37 +316,78 @@ final class inventory {
     }
 
     /**
-     * The courses the user holds an enrolment application in, from the stored rows.
+     * The courses whose enrolment starts later, from the stored rows: tier 3's Scheduled situation.
      *
-     * The third population, with a predicate of its own — pending::is_pending(): not active,
-     * period still open, on an apply instance — and one input neither of the other two passes
-     * needs: the course ids the active pass selected, which are excluded, because a learner
-     * holding an active enrolment on one method and an application on another is in a course
-     * they can enter, and the active enrolment wins. The hidden set is honoured exactly as the
-     * active pass honours it. Of several applications in one course the earliest wins, tie-broken
-     * by the lower id, as in courses(). Same cached entry, one visit over its rows, no query.
+     * The provider's SCHEDULED relationship (relationship::of_row()): an active row on an enabled
+     * instance whose start is still ahead. A course the active pass selected is excluded, because
+     * an enrolment the learner can use now outranks one that opens later, and the hidden set is
+     * honoured as the active pass honours it. Of several scheduled rows in one course the earliest
+     * start wins, tie-broken by the lower id: it is the date the learner waits for, the one
+     * {@see \local_unlistedcourses\access::get_enrolment_state()} reports.
      *
      * @param array $entry An entry from get().
      * @param int $now Unix time to treat as now.
      * @param int[] $hidden Course ids the user hid (archived).
      * @param int[] $activecourseids The course ids courses() returned for the same entry and instant.
-     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite'].
+     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'timestart'].
      */
-    public static function pending(array $entry, int $now, array $hidden, array $activecourseids): array {
-        $hidden = array_flip(array_map('intval', $hidden));
-        $active = array_flip(array_map('intval', $activecourseids));
+    public static function scheduled(array $entry, int $now, array $hidden, array $activecourseids): array {
+        $skip = array_flip(array_merge(array_map('intval', $hidden), array_map('intval', $activecourseids)));
         $courses = [];
         $rows = $entry['rows'];
         ksort($rows);
         foreach ($rows as $ueid => $row) {
             $courseid = $row[self::COURSEID];
-            if (isset($hidden[$courseid]) || isset($active[$courseid])) {
+            if (isset($skip[$courseid]) || relationship::of_row($row, $now) !== access::RELATIONSHIP_SCHEDULED) {
                 continue;
             }
-            if (!pending::is_pending($row, $now)) {
+            if (isset($courses[$courseid]) && $courses[$courseid]['timestart'] <= $row[self::TIMESTART]) {
                 continue;
             }
-            self::keep_earliest($courses, $courseid, (int) $ueid, $row);
+            $courses[$courseid] = self::entry($courseid, (int) $ueid, $row) + ['timestart' => $row[self::TIMESTART]];
+        }
+
+        return $courses;
+    }
+
+    /**
+     * The courses the user holds an enrolment application in, from the stored rows.
+     *
+     * The provider's PENDING and WAITLISTED relationships (relationship::of_row()), the rule
+     * enrol_apply's queue decides by, given the course ids no application may claim: the ones the
+     * active pass and the scheduled pass selected, because a learner holding an enrolment on
+     * another method is in a course they can enter, now or later, and that enrolment outranks the
+     * application. The hidden set is honoured exactly as the active pass honours it. Of several
+     * applications in one course an awaiting decision outranks the waiting list, and between two
+     * of the same kind the earliest wins, tie-broken by the lower id, as in courses(). Same cached
+     * entry, one visit over its rows, no query.
+     *
+     * @param array $entry An entry from get().
+     * @param int $now Unix time to treat as now.
+     * @param int[] $hidden Course ids the user hid (archived).
+     * @param int[] $excludedcourseids The course ids courses() and scheduled() returned for the same entry and instant.
+     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'waitlisted'].
+     */
+    public static function pending(array $entry, int $now, array $hidden, array $excludedcourseids): array {
+        $skip = array_flip(array_merge(array_map('intval', $hidden), array_map('intval', $excludedcourseids)));
+        $courses = [];
+        $rows = $entry['rows'];
+        ksort($rows);
+        foreach ($rows as $ueid => $row) {
+            $courseid = $row[self::COURSEID];
+            $type = relationship::of_row($row, $now);
+            if (isset($skip[$courseid]) || !relationship::is_awaiting($type)) {
+                continue;
+            }
+            if (isset($courses[$courseid])) {
+                $kept = $courses[$courseid]['waitlisted'] ? access::RELATIONSHIP_WAITLISTED : access::RELATIONSHIP_PENDING;
+                $earlier = $kept === $type && $row[self::TIMECREATED] < $courses[$courseid]['timecreated'];
+                if (!relationship::outranks($type, $kept) && !$earlier) {
+                    continue;
+                }
+            }
+            $courses[$courseid] = self::entry($courseid, (int) $ueid, $row)
+                + ['waitlisted' => $type === access::RELATIONSHIP_WAITLISTED];
         }
 
         return $courses;
@@ -369,7 +409,19 @@ final class inventory {
         if (isset($courses[$courseid]) && $courses[$courseid]['timecreated'] <= $row[self::TIMECREATED]) {
             return;
         }
-        $courses[$courseid] = [
+        $courses[$courseid] = self::entry($courseid, $ueid, $row);
+    }
+
+    /**
+     * The per-course entry every population hands on, built from the row that won the course.
+     *
+     * @param int $courseid The row's course.
+     * @param int $ueid The row's user_enrolments id.
+     * @param array $row The row.
+     * @return array 'courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite'.
+     */
+    private static function entry(int $courseid, int $ueid, array $row): array {
+        return [
             'courseid' => $courseid,
             'ueid' => $ueid,
             'timecreated' => $row[self::TIMECREATED],

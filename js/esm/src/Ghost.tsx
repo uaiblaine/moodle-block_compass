@@ -29,7 +29,7 @@
 import {useState} from 'react';
 
 /** What opened tier 3; the chip it opens on follows from it. */
-export type GhostKind = 'tier2' | 'new' | 'favourites' | 'pending';
+export type GhostKind = 'tier2' | 'new' | 'favourites' | 'pending' | 'scheduled';
 
 type GhostProps = {
     count: number,
