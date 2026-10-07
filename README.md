@@ -183,7 +183,7 @@ beside them (`CLAUDE.md` §6.6):
 
 | Endpoint | Reads per request | Payload |
 |---|---|---|
-| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup) | ≤ 20 KB |
+| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup); with the FUNDASEG theme's crests on, the theme's own reads on top | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer | ≤ 40 KB |
 | `get_inventory` (paged mode, headers) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 12 KB (≈ 115 bytes per row) |

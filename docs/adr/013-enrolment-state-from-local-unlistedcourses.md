@@ -64,7 +64,7 @@ When one course holds rows of two shown relationships, the stronger wins in the 
 | enrol_apply's queue rule, PHP | `pending::is_pending()` | **removed**; `relationship::of_row()` |
 | enrol_apply's queue rule, SQL | `pending::where_sql()` in `attention::counts()` | **removed**; decision 4 |
 | the active test that dropped later starts | `inventory::courses()` | **removed**; ENROLLED from the provider |
-| active enrolment, SQL | `attention.php` (`earliest_enrolment_row_sql()`, `per_course_enrolments_sql()`, `active_enrolment_sql()`), `cards::details()` | **kept**: `ue.status` active, instance enabled, `timestart <= now`, `timeend` 0 or ahead — per row exactly what `enrol_get_enrolment_end()` and so `is_enrolled($ctx, $u, '', true)` accept (`lib/enrollib.php:1278-1330`, `1385-1460` on 5.2). It is core's rule, not the provider's, and the provider's ENROLLED is the same rule. |
+| active enrolment, SQL | `attention.php` (`earliest_enrolment_row_sql()`, `per_course_enrolments_sql()`, `active_enrolment_sql()`); `cards::details()` until decision 8, which replaces its check with the provider's classification | **kept**: `ue.status` active, instance enabled, `timestart <= now`, `timeend` 0 or ahead — per row exactly what `enrol_get_enrolment_end()` and so `is_enrolled($ctx, $u, '', true)` accept (`lib/enrollib.php:1278-1330`, `1385-1460` on 5.2). It is core's rule, not the provider's, and the provider's ENROLLED is the same rule. |
 
 `pending.php` is deleted. Its constant `METHOD` moved to `relationship::APPLY_METHOD`.
 

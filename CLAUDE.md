@@ -383,7 +383,7 @@ between visits.
 
 | Endpoint | Reads per request | Server p95, plugin caches cold | Payload |
 |---|---|---|---|
-| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request) | 150 ms | ≤ 20 KB |
+| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with `enable_favourites` off (the strip is not queried) — plus 1 at the web-service layer (the user-context lookup `validate_context()` needs, once per request); the theme's crest callback, when the theme is installed and `show_theme_badges` on, costs the theme's own reads on top (ADR-013 decision 9), which the budget tests switch off | 150 ms | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer (the user-context lookup) | 300 ms | ≤ 40 KB |
 | `get_inventory` (degraded, headers) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the group contexts) — plus 1 at the web-service layer (the user-context lookup) | 150 ms | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm (stamp, preferences, filter preload of the page's contexts) — plus 1 at the web-service layer | 200 ms | ≤ 12 KB (≈ 115 bytes per row, ADR-002) |
@@ -1072,7 +1072,8 @@ Tier 3, whose behaviour is the most intricate thing here:
   A row with `pend` or `sched` links to `enrol/index.php?id=<courseid>`, says its situation in
   the state pill after its name (`StatePill.tsx`: *Access from {date}*, *Application under
   review*, *On the waiting list*; the corner badge is *New*'s alone), and has no star, no
-  archive control, no progress and no details registration (`isEnrolled()` in `filter.ts`). Every
+  archive control and no progress (`isEnrolled()` in `filter.ts`); it registers for details like
+  every row, and the batch answers it with its image and crests only (ADR-013 decision 8). Every
   course name carries `.compass-clamp` (two lines, ellipsis) and a `title` with the whole name.
 - **The toolbar is remembered, and the shape of an empty selection is core's doing (ADR-010,
   decision 9).** `Explore.tsx` starts from `config.explore` and writes `{sort, chip, cf, panel}`
