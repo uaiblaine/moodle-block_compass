@@ -143,6 +143,15 @@ Tier 1 cards and the ghost take the theme card's anatomy: a 150 px cover, body p
 is chosen by the ResizeObserver pattern tier 3 already uses, extended to the strips (3, 2 or 1),
 never a media query; the ghost stretches to the row's height.
 
+The thresholds are the theme's own arithmetic restated for a block (`js/esm/src/columns.ts`):
+the narrowest track the theme draws is its two-track one at its 576 px breakpoint, 264 px, so
+three tracks fit from 3 × 264 + 2 × 16 = 824 px of block and two from 544 px. Block measures
+its own root, the way Explore measures its section for `NARROW_PX`, and hands the count to every
+strip and to the ghost standing alone; `.compass-cards-1` to `-3` draw `repeat(N, minmax(0, 1fr))`
+as `.compass-rowcards-N` do. `accessibility_rules_test::test_the_cards_grids_count_their_columns`
+reads the constants and the stylesheet's gap together, and
+`test_a_tier_1_card_has_the_theme_cards_anatomy` the four measures.
+
 ### 8. Tier 3 in the theme's card and list look
 
 Grid cards take the theme card's look (150 px cover with crests, state pill, star) and list rows

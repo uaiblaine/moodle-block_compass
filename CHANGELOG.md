@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Tier 1's cards take the theme card's size** (ADR-013 decision 7), version 2026092403: a
+  150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600 and the meta line
+  at .8125rem, three tracks with a 16 px gap. The column count is the block's own (3, 2 or 1,
+  from 824 and 544 px of block width, the theme's track arithmetic) through the same
+  ResizeObserver pattern tier 3 uses, never a media query; the ghost card stretches to its
+  row's height.
 - **Compass depends on `local_unlistedcourses` (2026042003 or later)** and asks it what every
   enrolment row means (`access::classify_enrolment()`), through one class,
   `local\relationship`. The two predicates Compass kept of its own are gone: enrol_apply's

@@ -242,7 +242,11 @@ shows up to `attention_max` cards; what did not fit a strip is a link in its
 heading ("+4 new", "+2 favourites") opening *All courses* on the matching chip,
 and one ghost card closes the last strip, counting every course not represented
 above; pressing it opens *All courses* in place. A course name is at most two
-lines, ending in an ellipsis, with the whole name shown on hover.
+lines, ending in an ellipsis, with the whole name shown on hover. The cards have
+the size of the theme card (*Boost Union FUNDASEG*): a 150 px image, three to a
+row with a 16 px gap on a wide block, two and then one as the block narrows —
+the count follows the block's own width, not the window's — and the ghost card
+stretches to the height of its row (ADR-013).
 
 ![All courses open, grouped by category, with the search box, the toolbars and the category index](docs/screenshots/explore.png)
 

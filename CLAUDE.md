@@ -1015,7 +1015,9 @@ Tier 3, whose behaviour is the most intricate thing here:
   so a repeated message is still spoken.
 - **The category index hides below 640 px of the SECTION**, measured with a
   `ResizeObserver` — the block may sit in a drawer, and a viewport query would fire
-  at the wrong moments.
+  at the wrong moments. Tier 1 counts its card tracks the same way (ADR-013 decision 7):
+  Block measures its own root and `columns.ts` turns the width into 3, 2 or 1 tracks from
+  824 and 544 px (the theme card's 264 px track and 16 px gap); `.compass-cards-N` draws them.
 - **Focus after "Show more" is deliberate**: back to the button while pages remain,
   and into the rows when the last page removes it.
 - **A row is filled once, and only if it was seen** (ADR-005, R4). `rowdetails.ts`
