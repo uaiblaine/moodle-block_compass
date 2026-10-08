@@ -408,8 +408,10 @@ final class get_card_details_test extends advanced_testcase {
      * budget promise rests on. Cold, one image is three: the enrolment check, the get_course()
      * core's datasource runs (course/classes/cache/course_image.php, load_for_cache()) and the
      * one file-area query behind get_course_overviewfiles(). It is three rather than four
-     * because the batch's course contexts are warmed from the course layer first. Changes that
-     * must make it fail: deleting that warming, which moves the cold count.
+     * because the batch's course contexts are warmed from the course layer first. This course is
+     * enrolled and untracked, so the teacher check also warms its context before the image is
+     * asked for: deleting the warming moves the count only in
+     * {@see self::test_the_warming_spares_the_cold_image_a_context_read_for_a_later_start()}.
      *
      * @return void
      */
@@ -447,6 +449,46 @@ final class get_card_details_test extends advanced_testcase {
             3,
             $cold,
             "one cold image cost {$cold} reads: expected the enrolment check, get_course() and the file area"
+        );
+    }
+
+    /**
+     * Budget: a course the viewer has not started yet still pays three reads cold, not four.
+     *
+     * A later-start course gets its image and no other detail, so nothing but the batch warming
+     * puts its context in the cache before the image is asked for. Without the warming the cold
+     * course_image datasource takes context_course::instance() itself, one read more. The
+     * context cache is emptied before the measurement because creating the course leaves its
+     * context in the per-request static cache.
+     *
+     * @return void
+     */
+    public function test_the_warming_spares_the_cold_image_a_context_read_for_a_later_start(): void {
+        $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
+        $this->setAdminUser();
+        $course = $this->course_with_image();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student', 'manual', time() + DAYSECS);
+        $this->setUser($user);
+
+        // Fill the course layer, then cool the image and the context cache.
+        $details = cards::details((int) $user->id, [(int) $course->id]);
+        $this->assertCount(1, $details, 'precondition: a later start is answered, with its image and nothing else');
+        $this->assertArrayNotHasKey('teacher', $details[0], 'precondition: no teacher check warms the context');
+
+        cache::make('core', 'course_image')->purge();
+        context_helper::reset_caches();
+        $meter = budget::start();
+        $details = cards::details((int) $user->id, [(int) $course->id]);
+        $cold = $meter->reads();
+
+        $this->assertTrue($details[0]['hasimage'], 'the cold image was filled');
+        $this->assertSame(
+            3,
+            $cold,
+            "a cold later-start image cost {$cold} reads: expected the enrolment check, get_course() and the file area"
         );
     }
 }
