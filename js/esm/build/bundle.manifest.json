@@ -3,7 +3,7 @@
     "outfile": "build/bundle.js",
     "sources": {
         "src/Archive.tsx": "e75378b9983566227cfe6938515b038872138248",
-        "src/Block.tsx": "87ee1dc1a65dba199cf23fea9c3a71620bfc56a1",
+        "src/Block.tsx": "06dac1168a08808c8cf097718ccbcff7163e0175",
         "src/Card.tsx": "c2eb5f396eb876ad1ee882472368a0c91436f335",
         "src/Crests.tsx": "c1884ac9370741fa9624325ae695f86385f39de7",
         "src/Explore.tsx": "2fa6575c417fe2991c6aa0cb227f5e90ef59eb04",

@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **A Starts-soon strip in tier 1** (ADR-013, 2026-10-08 amendment, reversing decision D6's
   "never in the attention strips" for tier 1), version 2026092405. A fourth strip, *Starts soon*,
-  lists the courses whose enrolment starts later, soonest first, capped at the strip size with a
+  right under *New enrolments*, lists the courses whose enrolment starts later, soonest first, capped at the strip size with a
   *+N more* link that opens the full list on the *Scheduled* chip. Its cards take the theme
   card's look with the *Access from {date}* pill tier 3 uses, the theme's crests when it is
   installed, and link to the course's enrolment page; they carry no progress, star, archive

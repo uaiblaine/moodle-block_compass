@@ -233,8 +233,9 @@ test of the theme's real answer runs only where the theme is installed (m502).
 
 ### Decision
 
-1. **A fourth strip, *Starts soon*** (`strip_scheduled`, pt_br *Começam em breve*), last in tier
-   1, shown whenever the learner holds at least one course whose best relationship is SCHEDULED,
+1. **A fourth strip, *Starts soon*** (`strip_scheduled`, pt_br *Começam em breve*), right under
+   *New enrolments*, where the removed line sat (tier 1 reads Continue, New, Starts soon,
+   Favourites; the maintainer's answer of 2026-10-08), shown whenever the learner holds at least one course whose best relationship is SCHEDULED,
    with or without active courses. For a learner whose only courses start later it is what tier 1
    shows instead of the empty text. The line *N enrolments that start later · view*
    (`schedulednotice` and its two strings) is removed; the line for applications
@@ -252,7 +253,8 @@ test of the theme's real answer runs only where the theme is installed (m502).
    Favourites already have (`counts.scheduledmore`).
 4. **The ghost does not change**: a course that starts later is not active, so `counts.total`
    never counted it, `counts.shown` does not count its card, and the ghost never closes the
-   Starts-soon strip's grid (the client draws that strip after the active strips and the ghost).
+   Starts-soon strip's grid: it ends the last active strip that has cards, Favourites below
+   Starts soon included, as before, and stands alone after every strip when none has cards.
 5. **No read of its own.** The strip rides on the situations statement (decision 4), whose
    select list now carries `course_meta::select_sql()`'s columns through a join to `{context}`
    (contextlevel, instanceid unique), so the cards fill the course layer from its rows as every

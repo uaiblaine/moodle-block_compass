@@ -121,14 +121,14 @@ final class block_compass_test extends advanced_testcase {
         // The strips travel in the props in order, with their headings: a client cannot ask
         // for a string, so an absent label is an absent feature rather than a missing word.
         $this->assertSame(
-            ['continue', 'new', 'favourites', 'scheduled'],
+            ['continue', 'new', 'scheduled', 'favourites'],
             array_column($props['strips'], 'name')
         );
         $headings = [
             'continue' => get_string('strip_continue', 'block_compass'),
             'new' => get_string('strip_new', 'block_compass'),
-            'favourites' => get_string('strip_favourites', 'block_compass'),
             'scheduled' => get_string('strip_scheduled', 'block_compass'),
+            'favourites' => get_string('strip_favourites', 'block_compass'),
         ];
         $this->assertSame(array_values($headings), array_column($props['strips'], 'title'));
         // The icons are server-rendered markup because there is no pix helper for ESM.

@@ -386,15 +386,12 @@ const Block = (config: BlockConfig) => {
         }
         : {};
     /*
-     * The Starts-soon strip comes after the others and the ghost: its courses cannot be entered
-     * yet, and they are not among the courses the ghost counts, so the ghost never closes its grid.
+     * One ghost card, the last item of the last active strip that has cards, standing for tier 2.
+     * It hides once tier 3 is open, because then it has nothing left to open. The Starts-soon strip
+     * sits under New enrolments but never hosts it, wherever it is: its courses cannot be entered
+     * yet and are not among the courses the ghost counts. Favourites, below it, hosts it as before.
      */
     const activestrips = config.strips.filter((strip) => strip.name !== 'scheduled');
-    const laterstrips = config.strips.filter((strip) => strip.name === 'scheduled');
-    /*
-     * One ghost card, the last item of the last active strip that has cards, standing for tier 2.
-     * It hides once tier 3 is open, because then it has nothing left to open.
-     */
     const ghost: StripGhost | null = data && data.counts.more > 0 && !exploring
         ? {count: data.counts.more, text: labels.ghost_more, cta: labels.ghost_explore}
         : null;
@@ -453,13 +450,13 @@ const Block = (config: BlockConfig) => {
             {error !== null && (
                 <RetryNotice message={error} retrying={false} config={config} onRetry={() => load()} />
             )}
-            {data && activestrips.map((strip) => (
+            {data && config.strips.map((strip) => (
                 <Fragment key={strip.name}>
                     <Strip
                         name={strip.name}
                         title={strip.title}
                         cards={data[strip.name]}
-                        ghost={strip.name === laststrip ? ghost : null}
+                        ghost={strip.name !== 'scheduled' && strip.name === laststrip ? ghost : null}
                         overflow={overflows[strip.name] || null}
                         columns={columns}
                         config={config}
@@ -477,28 +474,12 @@ const Block = (config: BlockConfig) => {
                 </Fragment>
             ))}
             {/* No active strip has cards, yet there are courses: the ghost has no grid to close and
-                stands alone. */}
+                stands alone, after every strip as before. */}
             {ghost && laststrip === null && (
                 <div className={`compass-ghost-wrap compass-cards-${columns}`}>
                     <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />
                 </div>
             )}
-            {/* Starts soon (ADR-013, 2026-10-08 amendment): drawn whenever an enrolment starts later,
-                so a learner whose only courses start later sees them here rather than the empty text. */}
-            {data && laterstrips.map((strip) => (
-                <Strip
-                    key={strip.name}
-                    name={strip.name}
-                    title={strip.title}
-                    cards={data[strip.name]}
-                    ghost={null}
-                    overflow={overflows[strip.name] || null}
-                    columns={columns}
-                    config={config}
-                    onToggleFavourite={toggleFavourite}
-                    onExplore={explore}
-                />
-            ))}
             {data && shown === 0 && (
                 <p className="compass-empty text-muted">
                     {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
