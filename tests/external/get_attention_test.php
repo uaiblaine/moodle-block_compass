@@ -168,8 +168,10 @@ final class get_attention_test extends advanced_testcase {
         $this->assertSame(0, $data['counts']['favouritesmore']);
         $this->assertSame(0, $data['counts']['pending']);
         $this->assertSame(0, $data['counts']['scheduled']);
+        $this->assertSame(0, $data['counts']['scheduledmore']);
+        $this->assertSame([], $data['scheduled']);
         $this->assertSame(
-            ['total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending', 'scheduled'],
+            ['total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending', 'scheduled', 'scheduledmore'],
             array_keys($data['counts'])
         );
         $this->assertTrue($data['favouritesenabled']);
@@ -253,45 +255,141 @@ final class get_attention_test extends advanced_testcase {
     }
 
     /**
-     * The scheduled count travels through the allowlist, and the course it counts is in no strip.
+     * Enrol the user in a course with an enrolment that starts later.
      *
-     * An enrolment that starts later lives in tier 3 alone (ADR-013): tier 1 says how many there
-     * are, under New enrolments, and draws no card. The control is the same course once its start
-     * has passed: an active enrolment like any other, counted in total and drawn as new.
+     * @param int $userid The user.
+     * @param int $courseid The course.
+     * @param int $timestart When it starts.
+     * @return int The user_enrolments id.
+     */
+    private function enrol_later(int $userid, int $courseid, int $timestart): int {
+        return $this->getDataGenerator()->get_plugin_generator('block_compass')->enrol_at(
+            $userid,
+            $courseid,
+            time() - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            $timestart
+        );
+    }
+
+    /**
+     * An enrolment that starts later is a Starts-soon card, through the allowlist, and stays out of the ghost.
+     *
+     * The card links to the enrolment page, says its start in sched (the date tier 3's pill reads),
+     * and carries no progress, star, call to action or completion notice, even in a course with
+     * completion on and progress cached. It is in no other strip, and neither total nor shown
+     * counts it, so the ghost stands for the same active courses as before. Control: once it has
+     * started, the same enrolment is an active course, drawn as new, and the strip is empty.
      *
      * @return void
      */
-    public function test_the_scheduled_count_travels_and_no_strip_draws_the_course(): void {
+    public function test_a_later_start_is_a_starts_soon_card_and_stays_out_of_the_ghost(): void {
         global $DB;
 
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         [$user] = $this->fixture();
-        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
-        $later = $this->getDataGenerator()->create_course();
-        $ueid = $plugin->enrol_at(
-            (int) $user->id,
-            (int) $later->id,
-            time() - DAYSECS,
-            'manual',
-            ENROL_USER_ACTIVE,
-            time() + DAYSECS
-        );
+        $later = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $start = time() + 10 * DAYSECS;
+        $ueid = $this->enrol_later((int) $user->id, (int) $later->id, $start);
+        details::set((int) $user->id, (int) $later->id, 40);
         $this->setUser($user);
 
         $data = $this->call();
 
         $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $this->assertSame([(int) $later->id], $ids($data['scheduled']));
+        $card = $data['scheduled'][0];
+        $this->assertSame((new \moodle_url('/enrol/index.php', ['id' => $later->id]))->out(false), $card['url']);
+        $this->assertSame(userdate($start, get_string('strftimedatefullshort', 'langconfig')), $card['sched']);
+        $this->assertFalse($card['hascompletion']);
+        $this->assertNull($card['progress']);
+        $this->assertFalse($card['pending']);
+        $this->assertFalse($card['isnew']);
+        $this->assertFalse($card['isfavourite']);
+        $this->assertSame('', $card['actiontext']);
+        $this->assertArrayNotHasKey('teacher', $card);
         $shown = array_merge($ids($data['continue']), $ids($data['new']), $ids($data['favourites']));
-        $this->assertSame(1, $data['counts']['scheduled']);
-        $this->assertSame(6, $data['counts']['total'], 'an enrolment that starts later is not an active course');
         $this->assertNotContains((int) $later->id, $shown);
+        $this->assertSame(1, $data['counts']['scheduled']);
+        $this->assertSame(0, $data['counts']['scheduledmore']);
+        $this->assertSame(6, $data['counts']['total'], 'an enrolment that starts later is not an active course');
+        $this->assertSame(4, $data['counts']['shown'], 'the Starts-soon card is not one of the courses the ghost subtracts');
+        $this->assertSame(2, $data['counts']['more']);
+        // Every other card keeps no sched key: the pill is the Starts-soon card's alone.
+        foreach (array_merge($data['continue'], $data['new'], $data['favourites']) as $other) {
+            $this->assertArrayNotHasKey('sched', $other);
+        }
 
-        // Control: once it has started, the same enrolment is an active course and no longer counted as later.
+        // Control: once it has started, the same enrolment is an active course and no longer starts later.
         $DB->set_field('user_enrolments', 'timestart', time() - HOURSECS, ['id' => $ueid]);
         $started = $this->call();
+        $this->assertSame([], $started['scheduled']);
         $this->assertSame(0, $started['counts']['scheduled']);
         $this->assertSame(7, $started['counts']['total']);
+        $this->assertContains((int) $later->id, $ids($started['new']));
+    }
+
+    /**
+     * A learner whose only courses start later gets the strip: soonest first, capped, the rest counted.
+     *
+     * Three later starts written latest first and no active course: total, shown and more are 0,
+     * so the client has no active strip and no ghost to draw, and Starts soon is what tier 1
+     * shows. With two cards a strip, the two soonest are drawn and the third is the overflow.
+     * Beside them: a course with an active and a later enrolment, which is an active course and
+     * not in the strip, and an application, which is the pending notice's, never a card. Control:
+     * with three cards a strip the third is drawn and nothing overflows.
+     *
+     * @return void
+     */
+    public function test_a_learner_whose_courses_start_later_gets_the_strip_soonest_first_and_capped(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        set_config('attention_max', 2, 'block_compass');
+        set_config('enable_pending', 1, 'block_compass');
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $user = $gen->create_user();
+        $userid = (int) $user->id;
+        $now = time();
+        $latest = (int) $gen->create_course()->id;
+        $middle = (int) $gen->create_course()->id;
+        $soonest = (int) $gen->create_course()->id;
+        $this->enrol_later($userid, $latest, $now + 30 * DAYSECS);
+        $this->enrol_later($userid, $middle, $now + 20 * DAYSECS);
+        $this->enrol_later($userid, $soonest, $now + 10 * DAYSECS);
+        $applied = (int) $gen->create_course()->id;
+        $plugin->apply_at($userid, $applied, $now - DAYSECS);
+        $this->setUser($user);
+
+        $alone = $this->call();
+
+        $ids = static fn(array $cards): array => array_map(static fn(array $c): int => $c['id'], $cards);
+        $this->assertSame([$soonest, $middle], $ids($alone['scheduled']));
+        $this->assertSame(3, $alone['counts']['scheduled']);
+        $this->assertSame(1, $alone['counts']['scheduledmore']);
+        $this->assertSame(0, $alone['counts']['total']);
+        $this->assertSame(0, $alone['counts']['shown']);
+        $this->assertSame(0, $alone['counts']['more']);
+        $this->assertNotContains($applied, $ids($alone['scheduled']), 'an application is never a Starts-soon card');
+
+        // An active enrolment beside a later one: the course is active, in New, and not in the strip.
+        $both = (int) $gen->create_course()->id;
+        $plugin->enrol_at($userid, $both, $now - 2 * DAYSECS);
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_ENABLED, ['courseid' => $both, 'enrol' => 'self']);
+        $plugin->enrol_at($userid, $both, $now - DAYSECS, 'self', ENROL_USER_ACTIVE, $now + DAYSECS);
+        $mixed = $this->call();
+        $this->assertSame([$both], $ids($mixed['new']));
+        $this->assertSame([$soonest, $middle], $ids($mixed['scheduled']));
+        $this->assertSame(1, $mixed['counts']['total']);
+
+        // Control: room for three, and the third is drawn rather than counted.
+        set_config('attention_max', 3, 'block_compass');
+        $roomy = $this->call();
+        $this->assertSame([$soonest, $middle, $latest], $ids($roomy['scheduled']));
+        $this->assertSame(0, $roomy['counts']['scheduledmore']);
     }
 
     /**
@@ -438,6 +536,64 @@ final class get_attention_test extends advanced_testcase {
             9,
             $reads,
             "get_attention cost {$reads} reads with every plugin cache cold; the budget is 9 (8 + the categorymeta fill)."
+        );
+    }
+
+    /**
+     * The Starts-soon strip costs no read: the same seven warm and eight cold, plus one, with its cards drawn.
+     *
+     * The budget tests' fixture and protocol, with two enrolments that start later in a category
+     * of their own: their cards are built from the situations statement's rows (course and
+     * context columns) and their category joins the one categorymeta fill, so neither bound moves.
+     * The control is the strip itself: a call that drew no Starts-soon card would pass any bound.
+     *
+     * @return void
+     */
+    public function test_the_starts_soon_strip_adds_no_read_to_the_first_paint(): void {
+        $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
+        set_config('enablecompletion', 1);
+        [$user] = $this->fixture();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $category = (int) $gen->create_category()->id;
+        $later = [];
+        foreach ([10, 20] as $days) {
+            $courseid = (int) $gen->create_course(['category' => $category, 'enablecompletion' => 1])->id;
+            $this->enrol_later((int) $user->id, $courseid, time() + $days * DAYSECS);
+            $later[] = $courseid;
+        }
+        $this->setUser($user);
+
+        $purges = [
+            'shared layers warm' => fn() => $this->purge_user_caches(),
+            'every plugin cache cold' => fn() => $this->purge_plugin_caches(),
+        ];
+        $reads = [];
+        foreach ($purges as $state => $purge) {
+            get_attention::execute();
+            $purge();
+            $plugin->simulate_new_request();
+            $meter = budget::start();
+            $data = get_attention::execute();
+            $reads[$state] = $meter->reads();
+
+            $this->assert_first_paint_is_complete($data);
+            $this->assertSame($later, array_column($data['scheduled'], 'id'), "the strip is drawn with the {$state}");
+        }
+
+        $this->assertLessThanOrEqual(
+            8,
+            $reads['shared layers warm'],
+            "get_attention cost {$reads['shared layers warm']} reads with the Starts-soon strip and the shared layers warm; "
+                . 'the budget is 7 + 1.'
+        );
+        $this->assertLessThanOrEqual(
+            9,
+            $reads['every plugin cache cold'],
+            "get_attention cost {$reads['every plugin cache cold']} reads with the Starts-soon strip and every plugin cache "
+                . 'cold; the budget is 9 (8 + the categorymeta fill).'
         );
     }
 

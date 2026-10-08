@@ -529,6 +529,71 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
+     * A Starts-soon card carries its start, the enrolment page, its cover and crests, and nothing an active card does.
+     *
+     * One course starts later, with completion on, its progress cached and the viewer a teacher
+     * there by role: the card still says no completion, no progress, no notice and no call to
+     * action, because nothing about it can be done yet, and its title leads to the enrolment page.
+     * The theme is asked once, for the active card and the later one together. Control: the active
+     * course beside it, built in the same pass, keeps its course link, its action and its progress.
+     *
+     * @return void
+     */
+    public function test_a_starts_soon_card_carries_its_start_and_nothing_an_active_card_does(): void {
+        global $DB;
+
+        set_config('enablecompletion', 1);
+        set_config('show_theme_badges', 1, 'block_compass');
+        $active = (int) $this->course('Active course', ['enablecompletion' => 1])->id;
+        $later = (int) $this->course('Later course', ['enablecompletion' => 1])->id;
+        $start = self::NOW + 10 * DAYSECS;
+        $this->plugingen->enrol_at($this->userid, $active, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $later, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $context = \core\context\course::instance($later);
+        role_unassign_all(['userid' => $this->userid, 'contextid' => $context->id]);
+        role_assign((int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher']), $this->userid, $context->id);
+        reload_all_capabilities();
+        details::set($this->userid, $active, 40);
+        details::set($this->userid, $later, 40);
+        $asked = [];
+        $source = static function (array $courseids) use (&$asked, $later): array {
+            $asked[] = $courseids;
+
+            return [$later => [['url' => 'https://example.com/pluginfile.php/1/theme/badge/a.png', 'alt' => 'a']]];
+        };
+        $tier = (new attention($this->userid, self::NOW, 12, 30))->build();
+
+        $cards = cards::build($this->userid, [
+            'new' => $tier['new'],
+            cards::SCHEDULED_STRIP => $tier['scheduled'],
+        ], self::NOW, $source);
+
+        $this->assertCount(1, $cards[cards::SCHEDULED_STRIP]);
+        $card = $cards[cards::SCHEDULED_STRIP][0];
+        $this->assertSame($later, $card['id']);
+        $this->assertSame((new \moodle_url('/enrol/index.php', ['id' => $later]))->out(false), $card['url']);
+        $this->assertSame(userdate($start, get_string('strftimedatefullshort', 'langconfig')), $card['sched']);
+        $this->assertFalse($card['hascompletion']);
+        $this->assertNull($card['progress']);
+        $this->assertFalse($card['pending']);
+        $this->assertFalse($card['iscomplete']);
+        $this->assertSame('', $card['actiontext']);
+        $this->assertArrayNotHasKey('teacher', $card, 'no completion notice on a course that has not started');
+        $this->assertSame(['a'], array_column($card['badges'], 'alt'));
+        $this->assertCount(1, $asked, 'one call to the theme for every strip');
+        $this->assertEqualsCanonicalizing([$active, $later], $asked[0]);
+        // Control: the active card of the same pass keeps everything.
+        $this->assertSame([$active], array_column($cards['new'], 'id'));
+        $this->assertSame((new \moodle_url('/course/view.php', ['id' => $active]))->out(false), $cards['new'][0]['url']);
+        $this->assertSame(40, $cards['new'][0]['progress']);
+        $this->assertSame(get_string('action_start', 'block_compass'), $cards['new'][0]['actiontext']);
+        $this->assertArrayNotHasKey('sched', $cards['new'][0]);
+        // The allowlist keeps the start.
+        $clean = \core_external\external_api::clean_returnvalue(\block_compass\external\get_attention::card_structure(), $card);
+        $this->assertSame($card['sched'], $clean['sched']);
+    }
+
+    /**
      * With site completion off, a details batch costs one read: the enrolment check.
      *
      * The three courses have course completion on, so only the site setting keeps the

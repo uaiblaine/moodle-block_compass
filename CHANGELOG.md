@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **A Starts-soon strip in tier 1** (ADR-013, 2026-10-08 amendment, reversing decision D6's
+  "never in the attention strips" for tier 1), version 2026092405. A fourth strip, *Starts soon*,
+  lists the courses whose enrolment starts later, soonest first, capped at the strip size with a
+  *+N more* link that opens the full list on the *Scheduled* chip. Its cards take the theme
+  card's look with the *Access from {date}* pill tier 3 uses, the theme's crests when it is
+  installed, and link to the course's enrolment page; they carry no progress, star, archive
+  control or button. It is shown whenever such an enrolment exists, so a learner whose only
+  courses start later sees them there. It replaces the *N enrolments that start later* line; the
+  line for applications awaiting approval stays. The strip rides on the statement that already
+  classified these enrolments, now reading later starts first, so `get_attention` keeps its
+  budget (7 reads warm, 8 cold, plus the web service's one).
 - **The theme's institutional crests on cards** (ADR-013 decision 9), version 2026092404. With
   the *Boost Union FUNDASEG* theme installed, the cards of the first tier and the cards and rows
   of the full list show up to three of the course's crests, read through the theme's one public
@@ -22,7 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   *Scheduled* chip after *Awaiting approval*, with no star, progress or archive control, and
   linking to the course's enrolment page. Tier 1 never draws it as a card: a line under *New
   enrolments* says how many there are and opens tier 3 on the chip, and a learner whose only
-  courses start later is no longer told they are not enrolled in any course.
+  courses start later is no longer told they are not enrolled in any course. (Superseded for
+  tier 1 by the Starts-soon strip, version 2026092405.)
 - **Applications on the waiting list are told apart.** They were already listed with the
   applications awaiting a decision; their pill now reads *On the waiting list*.
 

@@ -29,13 +29,15 @@ use local_unlistedcourses\access;
 use stdClass;
 
 /**
- * Continue, New and Favourites, plus the counts the ghosts and the two notices need.
+ * Continue, New, Favourites and Starts soon, plus the counts the ghost, the overflow links and
+ * the pending notice need.
  *
  * Five database reads, every one bounded by a LIMIT or an aggregate, never a
  * scan of the user's whole enrolment set; four when the favourites feature is
  * off, since a strip nobody is shown is not queried; past hidden_courses::SQL_LIMIT
  * hidden courses, one more count per chunk of them. The fifth is the situations read
- * (situations()), the rows the provider classifies for the two notices. Every strip query yields one row per
+ * (situations()), the rows the provider classifies for the pending notice and the Starts-soon
+ * strip. Every strip query yields one row per
  * course (EXISTS predicates or a grouped derived table over the user's active
  * enrolments), carries the columns course_meta::select_sql() needs so the
  * course layer is filled from the rows, and excludes the courses the user hid
@@ -52,7 +54,7 @@ final class attention {
     /** @var string Item type of the core course star. */
     public const FAVOURITE_ITEMTYPE = 'courses';
 
-    /** @var int Most rows the situations statement reads; past it the two notice counts are a floor. */
+    /** @var int Most rows the situations statement reads; past it the pending and scheduled counts are a floor. */
     public const SITUATIONS_LIMIT = 500;
 
     /** @var int The user. */
@@ -118,7 +120,7 @@ final class attention {
     }
 
     /**
-     * The three strips and the counts.
+     * The four strips and the counts.
      *
      * Continue and New are disjoint by construction: one needs a last access, the other its
      * absence. The favourites strip does not skip a course that also sits in Continue or New,
@@ -126,9 +128,12 @@ final class attention {
      * hidden margin alone. With the favourites feature off the strip is empty and its query is
      * not run; the counts keep their favourites aggregate, which costs no read of its own. Rows
      * are stdClass objects carrying course_meta::select_sql()'s columns, isfavourite, and the
-     * strip's own columns (timeaccess; timecreated, timeend, enrol, enrolenddate).
+     * strip's own columns (timeaccess; timecreated, timeend, enrol, enrolenddate). The
+     * Starts-soon strip (scheduled) shares no course with the other three, since its courses hold
+     * no active enrolment, and comes from the situations read at no read of its own; its rows
+     * carry course_meta::select_sql()'s columns and timestart, the course's earliest later start.
      *
-     * @return array continue, new, favourites (rows keyed by course id) and counts
+     * @return array continue, new, favourites, scheduled (rows keyed by course id) and counts
      *               (total, new, favourites, pending, scheduled).
      */
     public function build(): array {
@@ -141,11 +146,14 @@ final class attention {
             $favourites = $this->without_hidden($this->favourite_rows($this->max + $margin));
         }
 
+        $situations = $this->situations();
+
         return [
             'continue' => $continue,
             'new' => $new,
             'favourites' => array_slice($favourites, 0, $this->max, true),
-            'counts' => $this->counts() + $this->situations(),
+            'scheduled' => array_slice($situations['scheduled'], 0, $this->max, true),
+            'counts' => $this->counts() + $situations['counts'],
         ];
     }
 
@@ -368,8 +376,9 @@ final class attention {
     }
 
     /**
-     * How many courses hold an enrolment of the learner's that starts later, and how many an
-     * application awaiting a decision or on the waiting list: the numbers of tier 1's two notices.
+     * The courses holding an enrolment of the learner's that starts later, soonest first, and how
+     * many hold one, or an application awaiting a decision or on the waiting list: the Starts-soon
+     * strip and the numbers behind its overflow link and the pending notice.
      *
      * Which situation a row is in is the provider's answer (relationship::of_record()), so the
      * statement selects rows rather than counting them: the learner's rows that have not ended,
@@ -380,37 +389,50 @@ final class attention {
      * expired or none whatever else it says, which attention_test holds over every row shape. PHP
      * then keeps each course's strongest relationship, in the order relationship::SHOWN gives, so
      * a course with a scheduled row and an application counts once, as scheduled, as tier 3 lists
-     * it. Applications count only while the feature is on.
+     * it; of a scheduled course's later rows the earliest start is its date, as in tier 3
+     * (inventory::scheduled()). Applications count only while the feature is on.
      *
-     * Index: user_enrolments (userid) foreign key; enrol primary key; course primary key; the
-     * NOT EXISTS as in Continue, correlated on the instance's course so it attaches to the
-     * enrolment row rather than to {course}. Bounded by SITUATIONS_LIMIT rows: past it both numbers
-     * are a floor, a learner with more not-yet-ended inactive enrolments than that being told "at
-     * least".
-     * Past hidden_courses::SQL_LIMIT the archived courses are dropped here, in PHP.
+     * Every row carries course_meta::select_sql()'s columns, so the strip's cards fill the course
+     * layer from these rows and the strip costs no read of its own (ADR-013, 2026-10-08
+     * amendment). The strip is ordered by start, then name, then id, in PHP over the rows read.
      *
-     * @return array pending, scheduled — both int.
+     * Index: user_enrolments (userid) foreign key; enrol primary key; course primary key; context
+     * (contextlevel, instanceid) unique; the NOT EXISTS as in Continue, correlated on the
+     * instance's course so it attaches to the enrolment row rather than to {course}. Bounded by
+     * SITUATIONS_LIMIT rows, read later starts first and soonest first, then the rest by id: past
+     * the bound the strip still holds the soonest starts, and the two numbers are a floor - a
+     * learner with more not-yet-ended inactive enrolments than that being told "at least", the
+     * applications being the first left out. Past hidden_courses::SQL_LIMIT the archived courses
+     * are dropped here, in PHP.
+     *
+     * @return array scheduled (rows keyed by course id, soonest first, every one of them) and
+     *               counts (pending, scheduled - both int).
      */
     private function situations(): array {
         global $DB;
 
         $params = [
+            'sctxlevel' => CONTEXT_COURSE,
             'su' => $this->userid,
             'ssite' => SITEID,
             'snow' => $this->now,
+            'slater' => $this->now,
         ];
-        $sql = "SELECT ue.id, e.courseid, ue.status, ue.timestart, ue.timeend, e.enrol, e.status AS instancestatus
+        $sql = "SELECT ue.id AS ueid, e.courseid, ue.status, ue.timestart, ue.timeend, e.enrol, e.status AS instancestatus, "
+                    . course_meta::select_sql() . "
                   FROM {user_enrolments} ue
                   JOIN {enrol} e ON e.id = ue.enrolid
                   JOIN {course} c ON c.id = e.courseid
+                  JOIN {context} ctx ON ctx.instanceid = c.id AND ctx.contextlevel = :sctxlevel
                  WHERE ue.userid = :su AND c.id <> :ssite AND (ue.timeend = 0 OR ue.timeend > :snow)"
                     . $this->visible_sql() . $this->not_hidden_sql('hs', $params) . "
                    AND NOT " . $this->active_enrolment_sql('e.courseid', 's', $params) . "
-              ORDER BY ue.id ASC";
+              ORDER BY CASE WHEN ue.timestart > :slater THEN 0 ELSE 1 END, ue.timestart ASC, ue.id ASC";
         $records = $DB->get_records_sql($sql, $params, 0, $this->situationslimit);
 
         $hidden = $this->hiddeninsql ? [] : array_flip($this->hidden);
         $best = [];
+        $soonest = [];
         foreach ($records as $record) {
             $courseid = (int) $record->courseid;
             $type = relationship::of_record($record, $this->now);
@@ -420,18 +442,45 @@ final class attention {
             if (!isset($best[$courseid]) || relationship::outranks($type, $best[$courseid])) {
                 $best[$courseid] = $type;
             }
+            if (
+                $type === access::RELATIONSHIP_SCHEDULED
+                && (!isset($soonest[$courseid]) || (int) $record->timestart < (int) $soonest[$courseid]->timestart)
+            ) {
+                $soonest[$courseid] = $record;
+            }
         }
 
         $counts = ['pending' => 0, 'scheduled' => 0];
-        foreach ($best as $type) {
+        $scheduled = [];
+        foreach ($best as $courseid => $type) {
             if ($type === access::RELATIONSHIP_SCHEDULED) {
                 $counts['scheduled']++;
+                $scheduled[] = $soonest[$courseid];
             } else if ($this->pending && relationship::is_awaiting($type)) {
                 $counts['pending']++;
             }
         }
 
-        return $counts;
+        return ['scheduled' => self::soonest_first($scheduled), 'counts' => $counts];
+    }
+
+    /**
+     * The Starts-soon rows in the strip's order: start, then the raw name, then the course id.
+     *
+     * @param stdClass[] $rows One row per course, from situations().
+     * @return stdClass[] Keyed by course id, soonest first.
+     */
+    private static function soonest_first(array $rows): array {
+        usort($rows, static function (stdClass $a, stdClass $b): int {
+            return [(int) $a->timestart, (string) $a->fullname, (int) $a->courseid]
+                <=> [(int) $b->timestart, (string) $b->fullname, (int) $b->courseid];
+        });
+        $keyed = [];
+        foreach ($rows as $row) {
+            $keyed[(int) $row->courseid] = $row;
+        }
+
+        return $keyed;
     }
 
     /**

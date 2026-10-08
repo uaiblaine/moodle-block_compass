@@ -23,6 +23,10 @@
  * on a contrast disc, the badge in the top-left, the theme's crests (when it is installed) in the
  * bottom-right, and the category line follows the show_category setting.
  *
+ * A Starts-soon card (one carrying sched) is a course the learner cannot enter yet, drawn as tier 3
+ * draws its scheduled card: the title links to the enrolment page the server put in url, the
+ * state pill says when access comes, and there is no star, no progress and no call to action.
+ *
  * @module     block_compass/Card
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -31,6 +35,7 @@
 import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
+import StatePill from './StatePill';
 import {titleTag} from './heading';
 import type {BlockConfig, CourseCard} from './types';
 
@@ -77,6 +82,7 @@ const completion = (card: CourseCard, labels: Record<string, string>) => {
 const Card = ({card, config, onToggleFavourite}: CardProps) => {
     const {labels} = config;
     const Title = titleTag(config.headinglevel);
+    const later = card.sched !== undefined;
     const meta = card.isnew
         ? [card.enrolledtext, card.deadlinetext].filter(Boolean).join(' · ')
         : card.lastaccesstext;
@@ -89,7 +95,7 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
             {card.isnew && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
             {/* The star follows the image in the DOM as it does on screen: a screen reader meets it
                 before the title, where the badge already is. */}
-            {config.favouritesenabled && (
+            {config.favouritesenabled && !later && (
                 <Star
                     courseid={card.id}
                     fullname={card.fullname}
@@ -107,22 +113,27 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
                         {card.fullname}
                     </a>
                 </Title>
-                <p className="compass-card-meta small text-muted mb-2">{meta}</p>
+                {later
+                    ? <StatePill row={card} labels={labels} />
+                    : <p className="compass-card-meta small text-muted mb-2">{meta}</p>}
                 {/* Read after the title, as the theme card reads them, and drawn on the cover. */}
                 <Crests badges={card.badges} label={labels.crests} />
                 {completion(card, labels)}
-                <div className="compass-card-actions mt-auto d-flex align-items-center">
-                    {/* The whole card is already a link through stretched-link, so this one is
-                        decorative: it must not be a second tab stop announcing the same course. */}
-                    <a
-                        href={card.url}
-                        className={`btn btn-sm ${card.isnew ? 'btn-primary' : 'btn-outline-primary'}`}
-                        tabIndex={-1}
-                        aria-hidden="true"
-                    >
-                        {card.actiontext}
-                    </a>
-                </div>
+                {/* A course that has not started has nothing to start, continue or review yet. */}
+                {!later && (
+                    <div className="compass-card-actions mt-auto d-flex align-items-center">
+                        {/* The whole card is already a link through stretched-link, so this one is
+                            decorative: it must not be a second tab stop announcing the same course. */}
+                        <a
+                            href={card.url}
+                            className={`btn btn-sm ${card.isnew ? 'btn-primary' : 'btn-outline-primary'}`}
+                            tabIndex={-1}
+                            aria-hidden="true"
+                        >
+                            {card.actiontext}
+                        </a>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -85,9 +85,10 @@ Breaking one is a design change: stop and raise it with the maintainer.
 - **Tier 1** is four bounded indexed queries, one count and the situations read: at most 7
   reads (6 with favourites off), `LIMIT attention_max`, progress from the `details` cache
   with `pending` for the rest. Exclusivity Continue › New; the favourites strip lists every
-  favourite (ADR-009). The two notices (pending/waiting, starts later) come from
-  `attention::situations()`, bounded by `SITUATIONS_LIMIT` (500) and classified by
-  `local_unlistedcourses` in PHP (ADR-013).
+  favourite (ADR-009). The pending notice and the Starts-soon strip come from
+  `attention::situations()`, bounded by `SITUATIONS_LIMIT` (500), read later starts first, and
+  classified by `local_unlistedcourses` in PHP; its rows carry `course_meta::select_sql()`, so the
+  strip costs no read, and its courses stay out of `counts.total` and the ghost (ADR-013, 2026-10-08).
 - **Two-layer cache** (ADR-001): `coursemeta` and `categorymeta` (shared, per-key deletes from
   events, no TTL), `inventory` (per user, enrolment rows as integers, no course data, stamp
   validation, 24 h TTL, deleted with the account), `details` (per user+course, 1 h TTL),

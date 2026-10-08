@@ -1,11 +1,14 @@
 # ADR-013: Enrolment state from local_unlistedcourses, a Scheduled situation in tier 3, the shared state pill, the theme card's size and the theme's crests
 
 **Status:** Accepted (2026-10-07; the maintainer's decisions of 2026-10-06, recorded in
-`moodle-dev/docs/enrolment-status-matrix/decisions.md`, "Owner answers, 2026-10-06", and D6)
+`moodle-dev/docs/enrolment-status-matrix/decisions.md`, "Owner answers, 2026-10-06", and D6);
+amended 2026-10-08 (the maintainer's reversal of D6 for tier 1: a Starts-soon strip, the last
+section of this record)
 **Date:** 2026-10-07
 **Phase:** Stage 5d of the fleet's enrolment-status work, in three stacked pull requests
-**Supersedes:** ADR-000 decision 14 **for tier 3 only** ("an enrolment whose `timestart` is in
-the future is not shown until it starts" stays true of tiers 1 and 2); ADR-009 decision 3 on
+**Supersedes:** ADR-000 decision 14 **for tier 3** and, since the 2026-10-08 amendment, **for
+tier 1 too** ("an enrolment whose `timestart` is in the future is not shown until it starts"
+stays true of tier 2 alone: the ghost counts active courses only); ADR-009 decision 3 on
 **where the "awaiting approval" rule lives** (the rule is now local_unlistedcourses', and the
 tier 1 count is no longer a scalar subquery of the counts statement)
 **Amends:** the §6.6 budget of `get_attention` (one more read); the "no dependency on any
@@ -106,6 +109,8 @@ fact (CLAUDE.md non-negotiable 8). The alternatives were worse: an SQL twin of t
 rule contradicts decision a, and reading the inventory in tier 1 breaks non-negotiable 4.
 
 ### 5. A notice for the enrolments that start later (an interpretation, flagged)
+
+*Superseded by the 2026-10-08 amendment: the line is gone, and a Starts-soon strip takes its place.*
 
 D6 exists for the learner whose only course starts later: with no active course there is no
 card, no ghost and no way into tier 3. Tier 1 therefore gets the line the pending applications
@@ -219,3 +224,66 @@ test of the theme's real answer runs only where the theme is installed (m502).
   their order), `explore_test` (the Scheduled and the awaiting rows), `attention_test` (the
   situations statement, its bound and the drop pin), `get_attention_test` (the counts and the
   new budget).
+
+## Amendment (2026-10-08): a Starts-soon strip in tier 1
+
+**Decided by** the maintainer on 2026-10-08, on the pull request that asked for the word decision
+5 flagged. **Reverses** D6's "never in the attention strips" for tier 1, and so ADR-000 decision
+14 for tier 1 as well; **supersedes** decision 5. Decisions 3, 4 and 6 stand.
+
+### Decision
+
+1. **A fourth strip, *Starts soon*** (`strip_scheduled`, pt_br *Começam em breve*), last in tier
+   1, shown whenever the learner holds at least one course whose best relationship is SCHEDULED,
+   with or without active courses. For a learner whose only courses start later it is what tier 1
+   shows instead of the empty text. The line *N enrolments that start later · view*
+   (`schedulednotice` and its two strings) is removed; the line for applications
+   (`pendingnotice`, behind `enable_pending`) stays as it is.
+2. **Its cards** are tier 1's card (decision 7) with tier 3's scheduled anatomy: the cover and,
+   with the theme installed, the crests (decision 9, the same one call per response); the
+   category line; the title linking to `enrol/index.php?id=`; the *Access from {date}* pill
+   (`StatePill.tsx`, `state_scheduled`, the date formatted as `explore::row()` formats `sched`);
+   no progress, star, archive control, completion notice or call to action. The card ships
+   `sched` and an empty `actiontext`; `get_attention::card_structure()` and `types.ts` gained
+   the optional `sched` together.
+3. **Order and size**: the earliest later start of each course (as tier 3 dates it), ascending,
+   then the raw name, then the course id; capped at `attention_max`; the rest is the strip's
+   heading link, *+N more*, opening tier 3 on the Scheduled chip, the affordance New and
+   Favourites already have (`counts.scheduledmore`).
+4. **The ghost does not change**: a course that starts later is not active, so `counts.total`
+   never counted it, `counts.shown` does not count its card, and the ghost never closes the
+   Starts-soon strip's grid (the client draws that strip after the active strips and the ghost).
+5. **No read of its own.** The strip rides on the situations statement (decision 4), whose
+   select list now carries `course_meta::select_sql()`'s columns through a join to `{context}`
+   (contextlevel, instanceid unique), so the cards fill the course layer from its rows as every
+   other strip does; their categories join the one `categorymeta` fill and their contexts the one
+   filter preload. `get_attention` stays at 7 reads with the shared layers warm and 8 cold, plus
+   the web service's one; `get_attention_test::test_the_starts_soon_strip_adds_no_read_to_the_first_paint`
+   measures both with the strip drawn.
+6. **The bound now favours the strip.** The statement reads later starts first and soonest first
+   (`ORDER BY CASE WHEN ue.timestart > now THEN 0 ELSE 1 END, ue.timestart, ue.id`), then
+   everything else by start and id, still `SITUATIONS_LIMIT` (500) rows. Past the bound the
+   strip still holds the soonest starts; the two counts stay floors, and the applications are now
+   the first rows left out. Before, the rows were read by id and a learner past the bound could
+   lose the soonest starts to old suspended rows.
+
+### Consequences
+
+- Tier 1 can show a course the learner cannot enter yet; the pill, the missing button and the
+  enrolment-page link say so, as tier 3's scheduled card does.
+- The situations statement returns wider rows (the course's names and six context columns on
+  each of up to 500 rows), and the sort is by an expression; both are paid inside the one read.
+- `attention_test::test_the_situations_statement_reads_no_ended_row_and_no_enrolled_course`
+  had to start its filler rows a day before its later start, since the order is no longer by id.
+
+### Evidence
+
+- Owner decision, 2026-10-08, relayed in the implementing session's brief.
+- Mockup: `moodle-dev/docs/enrolment-status-matrix/mockups/index.html`, the Compass view's
+  scheduled card (no call to action) and the pill text *Access from {d}* / *Acesso a partir de {d}*.
+- Tests: `attention_test::test_the_starts_soon_strip_is_soonest_first_capped_and_one_course_once`,
+  `attention_test::test_the_starts_soon_strip_keeps_the_soonest_starts_past_the_bound`,
+  `get_attention_test::test_a_later_start_is_a_starts_soon_card_and_stays_out_of_the_ghost`,
+  `get_attention_test::test_a_learner_whose_courses_start_later_gets_the_strip_soonest_first_and_capped`,
+  `get_attention_test::test_the_starts_soon_strip_adds_no_read_to_the_first_paint`,
+  `cards_test::test_a_starts_soon_card_carries_its_start_and_nothing_an_active_card_does`.

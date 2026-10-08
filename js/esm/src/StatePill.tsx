@@ -14,7 +14,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The state area of a tier 3 row or card: one pill, an icon and a sentence.
+ * The state area of a tier 3 row or card, and of a tier 1 Starts-soon card: one pill, an icon and
+ * a sentence.
  *
  * The state area the theme's course card and local_dimensions draw too, with the theme's wording,
  * colour families and icons: Access from a date for an enrolment that starts later, Application
@@ -35,7 +36,8 @@ import {fill} from './str';
 import type {InventoryRow} from './types';
 
 type StatePillProps = {
-    row: InventoryRow,
+    // A tier 3 row, or a tier 1 card, which carries sched alone: the three fields are all the pill reads.
+    row: Pick<InventoryRow, 'sched' | 'pend' | 'wait'>,
     labels: Record<string, string>,
 };
 

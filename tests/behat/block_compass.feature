@@ -50,13 +50,16 @@ Feature: The Compass block puts the courses that need attention first
     Given the following config values are set as admin:
       | attention_max    | 1 | block_compass |
       | hide_block_title | 1 | block_compass |
-    # An enrolment that starts later is never a card in tier 1 (ADR-013): a line under New
-    # enrolments counts it and opens tier 3 on the Scheduled chip, where it is a row with its pill.
+    # An enrolment that starts later is a card of the Starts-soon strip, soonest first, with its pill
+    # (ADR-013, 2026-10-08 amendment); the one that does not fit is the strip's heading link, which
+    # opens tier 3 on the Scheduled chip.
     And the following "courses" exist:
       | fullname | shortname | category |
       | Course 6 | C6        | CATB     |
+      | Course 7 | C7        | CATB     |
     And the following "course enrolments" exist:
       | user     | course | role    | timestart    |
+      | student1 | C7     | student | ##+20 days## |
       | student1 | C6     | student | ##+10 days## |
     And I am on the "C1" "Course" page logged in as "student1"
     And I follow "Dashboard"
@@ -65,14 +68,15 @@ Feature: The Compass block puts the courses that need attention first
     And I turn editing mode off
     Then I should see "Course 1" in the "Compass" "block"
     And I should see "other courses" in the "Compass" "block"
-    And I should see "1 enrolments that start later" in the "Compass" "block"
-    And I should not see "Course 6" in the "Compass" "block"
-    When I click on "Show the enrolments that start later in the full course list" "button" in the "Compass" "block"
+    And I should see "Starts soon" in the "Compass" "block"
+    And I should see "Course 6" in the "Compass" "block"
+    And I should see "Access from" in the "Compass" "block"
+    And I should not see "Course 7" in the "Compass" "block"
+    When I click on "Show the other 1 enrolments that start later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled chip with its first category group open, which here holds no
     # later start; the flat A-Z list shows every row the chip keeps, whatever group it is in.
     And I click on "A–Z" "button" in the "Compass" "block"
-    Then I should see "Course 6" in the "Compass" "block"
-    And I should see "Access from" in the "Compass" "block"
+    Then I should see "Course 7" in the "Compass" "block"
     # Course 3 is an active course tier 1 had no room for; the chip keeps it out of tier 3 too.
     And I should not see "Course 3" in the "Compass" "block"
     # The pill is on screen, so axe measures its colours here, with the other heading ladder.
