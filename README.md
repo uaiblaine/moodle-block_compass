@@ -183,7 +183,7 @@ beside them (`CLAUDE.md` §6.6):
 
 | Endpoint | Reads per request | Payload |
 |---|---|---|
-| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup) | ≤ 20 KB |
+| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup); with the FUNDASEG theme's crests on, the theme's own reads on top | ≤ 20 KB |
 | `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer | ≤ 40 KB |
 | `get_inventory` (paged mode, headers) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 5 KB (a group is ~60 bytes) |
 | `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 12 KB (≈ 115 bytes per row) |
@@ -221,6 +221,7 @@ Blocks > Compass*, in this order:
 | Default view for the full course list (`default_view`) | list | Which view the full list opens in for a viewer who has never chosen: the compact list, or cards with the course image. Each viewer's own choice overrides it. |
 | Hide the block title (`hide_block_title`) | off | Render the block without its title bar. Core then renders no block heading at all, so the plugin's own headings move one level up to keep the document's heading ladder unbroken (ADR-008). |
 | Show the category on cards (`show_category`) | on | Print the course's category above its name on every card, in both tiers. Off, the name is the first line (ADR-010). |
+| Show the theme's institutional badges on cards (`show_theme_badges`) | on for a new installation, off after an upgrade | Offered only while the *Boost Union FUNDASEG* theme is installed: the cards of the first tier and the cards and rows of the full list show up to three of the course's crests, the ones the theme's own course card shows, read through the theme's one public callback and filtered by its own rule of who may see them (ADR-013). |
 | Enable the Compass page (`enable_page`) | off | Serve the block's content on a page of its own, `/blocks/compass/index.php`, with only the theme's navigation bar and footer around it. While on, "Compass" is offered as a choice for *Start page for users* and, when that setting leaves the choice to users, in each user's own preferences. Off, the page redirects to the Dashboard (ADR-012). |
 | Hide the page title (`hide_page_title`) | off | Show the Compass page without the theme's page heading, so the content starts closer to the navigation bar. The title stays in the page as a visually hidden `<h1>` for assistive technology. Only the page is affected (ADR-012, amendment 4). |
 | Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
@@ -242,7 +243,11 @@ shows up to `attention_max` cards; what did not fit a strip is a link in its
 heading ("+4 new", "+2 favourites") opening *All courses* on the matching chip,
 and one ghost card closes the last strip, counting every course not represented
 above; pressing it opens *All courses* in place. A course name is at most two
-lines, ending in an ellipsis, with the whole name shown on hover.
+lines, ending in an ellipsis, with the whole name shown on hover. The cards have
+the size of the theme card (*Boost Union FUNDASEG*): a 150 px image, three to a
+row with a 16 px gap on a wide block, two and then one as the block narrows —
+the count follows the block's own width, not the window's — and the ghost card
+stretches to the height of its row (ADR-013).
 
 ![All courses open, grouped by category, with the search box, the toolbars and the category index](docs/screenshots/explore.png)
 
@@ -288,7 +293,10 @@ half a second after a change settles and read back on the next visit; a
 remembered chip or field the site no longer offers is dropped rather than shown
 (ADR-010). The cards are a grid whose column count follows what is beside it:
 three columns with the category index hidden, two with it shown, one on a narrow
-block. On every card the star sits in the top-right corner of the image and the
+block. Cards and rows take the theme's look (ADR-013): a card has the theme card's
+150 px image with the course's crests in its bottom-right corner when the theme is
+installed, and a list row is a framed line with the image as a 56 px square and the
+crests at 24 px. On every card the star sits in the top-right corner of the image and the
 *New* badge in the top-left; in the list the star sits beside the archive control.
 A chip that would keep no course is not drawn, in full mode, so the panel lists
 only what is there.

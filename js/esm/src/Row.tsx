@@ -18,16 +18,16 @@
  *
  * A row registers itself with the details store when it mounts and stops when it goes: the
  * observer decides when the row is close enough to the viewport to be worth a request, and
- * the batch that answers brings progress and the image, the latter for the cards view to use
- * should the reader switch. The row itself draws no image.
+ * the batch that answers brings progress, the image and the theme's crests. The row has the
+ * theme's list look (ADR-013 decision 8): the image as a 56 px square at its start, and the
+ * crests at 24 px beside the state pill.
  *
  * A row the learner cannot enter yet - an enrolment application awaiting a decision or on the
  * waiting list, or an enrolment that starts later - is a row like the others except where it
  * cannot be: its name links to the course's enrolment page, not into the course, the state pill
  * after the link says which situation it is in, and it has no star, no archive control and no
- * progress - nor does it register for details, since the batch drops courses the user is not
- * actively enrolled in. The name is clamped to two lines with the whole name in its title
- * attribute.
+ * progress; the batch answers it with its image and crests only. The name is clamped to two
+ * lines with the whole name in its title attribute.
  *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
@@ -36,6 +36,7 @@
 
 import {useEffect, useRef} from 'react';
 import Archive from './Archive';
+import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
 import StatePill from './StatePill';
@@ -78,17 +79,22 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
 
     // Registration belongs to the row rather than to whatever produced it: first render,
     // an appended page or a search hit all arrive here, and all register the same way.
-    // A row the learner cannot enter registers for nothing: it has no progress and no active enrolment.
     useEffect(() => {
         const node = element.current;
-        if (!node || !enrolled) {
+        if (!node) {
             return undefined;
         }
 
         return observe(row.id, node);
-    }, [observe, row.id, enrolled]);
+    }, [observe, row.id]);
 
     const answered = enrolled && !waiting && detail !== undefined;
+    let thumb = <span className="compass-row-thumb-fill compass-card-img-empty"></span>;
+    if (waiting) {
+        thumb = <span className="compass-row-thumb-fill compass-skeleton"></span>;
+    } else if (detail?.hasimage) {
+        thumb = <img className="compass-row-thumb-fill" src={detail.imageurl} alt="" loading="lazy" />;
+    }
     // An application says when access comes; an enrolment that starts later says it in its pill.
     let meta: string | null = null;
     if (row.pend) {
@@ -103,11 +109,14 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
             data-course-id={row.id}
             ref={element}
         >
+            {/* The image is the name's decoration: the link already says which course this is. */}
+            <span className="compass-row-thumb" aria-hidden="true">{thumb}</span>
             <a href={url} className="compass-row-link flex-grow-1 text-reset text-decoration-none">
                 <span className="compass-row-name compass-clamp" title={row.name}>{row.name}</span>
                 {row.new && <span className="badge bg-primary text-white">{labels.badge_new}</span>}
             </a>
             <StatePill row={row} labels={labels} />
+            <Crests badges={detail?.badges} label={labels.crests} inline />
             {meta !== null && <span className="compass-row-meta small text-muted text-nowrap">{meta}</span>}
             {/* Waiting shows a skeleton, then the rule of Card.tsx completion(): a bar when
                 there is one, "No completion configured" to a teacher only, else nothing. */}

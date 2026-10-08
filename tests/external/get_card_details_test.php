@@ -301,6 +301,8 @@ final class get_card_details_test extends advanced_testcase {
      */
     public function test_the_answer_is_cached_and_the_second_call_costs_less(): void {
         $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
         [$user, $course] = $this->fixture();
         $courseid = (int) $course->id;
         $userid = (int) $user->id;
@@ -338,6 +340,8 @@ final class get_card_details_test extends advanced_testcase {
      */
     public function test_budget_is_one_read_when_nothing_must_be_computed(): void {
         $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
         [$user, $course] = $this->fixture(0);
         $completable = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
         $this->getDataGenerator()->enrol_user($user->id, $completable->id, 'student');
@@ -411,6 +415,8 @@ final class get_card_details_test extends advanced_testcase {
      */
     public function test_the_cold_image_is_the_calls_new_variable_cost(): void {
         $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
         $this->setAdminUser();
         $course = $this->course_with_image();
         $user = $this->getDataGenerator()->create_user();

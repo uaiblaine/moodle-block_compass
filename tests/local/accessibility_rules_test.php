@@ -1121,59 +1121,147 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * The tier 3 cards are a grid whose column count the client sets, so a lone card keeps its column.
+     * Both card grids count their columns in the client, so a lone card keeps its track.
      *
-     * Three classes name three counts, the stylesheet draws each as a fixed repeat over
-     * minmax(0, 1fr), and RowList picks the class from the count it is handed. Neither axe nor
-     * a scenario measures a column, so the source is the only reader.
+     * Tier 3's cards and, since ADR-013 decision 7, tier 1's strips: three classes name three counts
+     * for each, the stylesheet draws every one as a fixed repeat over minmax(0, 1fr), and the
+     * component picks the class from the count it is handed. Tier 1's count is columns.ts's, from
+     * the theme card's arithmetic: a 264 px narrowest track and the 16 px gap the stylesheet states,
+     * so three tracks from 824 px of block and two from 544. Neither axe nor a scenario measures a
+     * column, so the source is the only reader. Changes that must make it fail: tier 1 back on
+     * auto-fill, a gap that no longer matches the constant, a strip that stops taking the count.
      *
      * @return void
      */
-    public function test_the_cards_grid_counts_its_columns(): void {
-        $bodies = [];
-        foreach ($this->rules() as $rule) {
-            [$selector, $body] = $rule;
-            if (preg_match('/\.compass-rowcards(-[123])?(?![\w-])/', $selector, $matches) && !str_contains($selector, ':')) {
-                $bodies[$matches[1] ?? ''] = $body;
+    public function test_the_cards_grids_count_their_columns(): void {
+        $grids = ['compass-rowcards' => 'js/esm/src/RowList.tsx', 'compass-cards' => 'js/esm/src/Strip.tsx'];
+        foreach ($grids as $grid => $file) {
+            $bodies = [];
+            foreach ($this->rules() as $rule) {
+                [$selector, $body] = $rule;
+                $named = preg_match('/\.' . $grid . '(-[123])?(?![\w-])/', $selector, $matches);
+                if ($named && !str_contains($selector, ':')) {
+                    $bodies[$matches[1] ?? ''] = $body;
+                }
             }
-        }
-        // Vacuity guard: the base rule and the three counts must all be there to read.
-        $this->assertArrayHasKey('', $bodies, 'no .compass-rowcards rule found in styles.css');
-        $this->assertMatchesRegularExpression('/\bdisplay\s*:\s*grid\b/', $bodies[''], 'the cards are not a grid');
-        foreach ([1, 2, 3] as $count) {
-            $this->assertArrayHasKey("-{$count}", $bodies, "no .compass-rowcards-{$count} rule found in styles.css");
-            $this->assertMatchesRegularExpression(
-                '/grid-template-columns\s*:\s*repeat\(' . $count . ',\s*minmax\(0,\s*1fr\)\)/',
-                $bodies["-{$count}"],
-                ".compass-rowcards-{$count} does not draw {$count} equal columns"
+            foreach ([1, 2, 3] as $count) {
+                $this->assertArrayHasKey("-{$count}", $bodies, "no .{$grid}-{$count} rule found in styles.css");
+                $this->assertMatchesRegularExpression(
+                    '/grid-template-columns\s*:\s*repeat\(' . $count . ',\s*minmax\(0,\s*1fr\)\)/',
+                    $bodies["-{$count}"],
+                    ".{$grid}-{$count} does not draw {$count} equal columns"
+                );
+            }
+            $this->assertStringContainsString(
+                $grid . '-${columns}',
+                $this->sources()[$file],
+                "{$file} does not pick the column class"
             );
         }
-
-        $rowlist = $this->sources()['js/esm/src/RowList.tsx'];
-        $this->assertStringContainsString(
-            'compass-rowcards-${columns}',
-            $rowlist,
-            'RowList does not pick the column class from its count'
+        // Tier 3's base rule.
+        $base = null;
+        $list = null;
+        foreach ($this->rules() as $rule) {
+            [$selector, $body] = $rule;
+            if (preg_match('/\.compass-rowcards(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+                $base = $body;
+            }
+            if (preg_match('/\.compass-cards-list(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+                $list = $body;
+            }
+        }
+        $this->assertNotNull($base, 'no .compass-rowcards rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bdisplay\s*:\s*grid\b/', $base, 'the tier 3 cards are not a grid');
+        $this->assertDoesNotMatchRegularExpression(
+            '/\bflex-wrap\b/',
+            $this->sources()['js/esm/src/RowList.tsx'],
+            'the cards are a flex line again'
         );
-        $this->assertDoesNotMatchRegularExpression('/\bflex-wrap\b/', $rowlist, 'the cards are a flex line again');
+
+        // Tier 1: a grid with no auto-fill, whose gap is the constant columns.ts computes with.
+        $this->assertNotNull($list, 'no .compass-cards-list rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bdisplay\s*:\s*grid\b/', $list, 'the strips are not a grid');
+        $this->assertDoesNotMatchRegularExpression('/auto-fill|auto-fit/', $list, 'the strips are back on auto-fill');
+        $columns = $this->sources()['js/esm/src/columns.ts'];
+        $this->assertMatchesRegularExpression('/export const CARD_TRACK_PX = (\d+);/', $columns);
+        preg_match('/export const CARD_TRACK_PX = (\d+);/', $columns, $track);
+        preg_match('/export const CARD_GAP_PX = (\d+);/', $columns, $gap);
+        $this->assertSame('264', $track[1], 'the narrowest track is no longer the theme card\'s');
+        $this->assertMatchesRegularExpression(
+            '/\bgap\s*:\s*' . $gap[1] . 'px\b/',
+            $list,
+            'the gap the grid draws is not the one columns.ts counts with'
+        );
+        $this->assertSame(824, 3 * (int) $track[1] + 2 * (int) $gap[1], 'three tracks no longer start at 824 px');
+        $block = $this->sources()['js/esm/src/Block.tsx'];
+        $this->assertStringContainsString('cardColumns(width)', $block, 'Block does not count the columns');
+        $this->assertStringContainsString('new ResizeObserver', $block, 'Block does not measure itself');
     }
 
     /**
-     * On a card the star takes the top-right corner, on a disc, and the badge the top-left.
+     * A tier 1 card has the theme card's anatomy, and the ghost stretches to its row.
      *
-     * The star's disc is what keeps the control at 3:1 over a photograph
-     * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The two card
-     * components must render the star for the rule to be about anything.
+     * ADR-013 decision 7: a 150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600,
+     * the meta line at .8125rem - the theme card's numbers (theme_boost_union_fundaseg) - and a
+     * grid item that lets the ghost take its row's height. Each is read out of its own rule,
+     * because nothing else measures a size.
      *
      * @return void
      */
-    public function test_the_card_corners_are_the_stars_and_the_badges(): void {
+    public function test_a_tier_1_card_has_the_theme_cards_anatomy(): void {
+        $wanted = [
+            '.compass-card .compass-card-img' => '/\bheight\s*:\s*150px\b/',
+            '.compass-card .card-body' => '/\bpadding\s*:\s*12px 16px 14px\b/',
+            '.compass-card .compass-card-meta' => '/\bfont-size\s*:\s*0?\.8125rem\b/',
+            '.compass-cards-item > .compass-ghost' => '/\bflex\s*:\s*1 1 auto\b/',
+        ];
+        $found = [];
+        $title = null;
+        foreach ($this->rules() as $rule) {
+            [$selector, $body] = $rule;
+            foreach ($wanted as $needle => $pattern) {
+                if (str_contains($selector, $needle)) {
+                    $found[$needle] = $body;
+                }
+            }
+            if (preg_match('/\.compass-card-title(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+                $title = $body;
+            }
+        }
+        foreach ($wanted as $needle => $pattern) {
+            $this->assertArrayHasKey($needle, $found, "no {$needle} rule found in styles.css");
+            $this->assertMatchesRegularExpression($pattern, $found[$needle], "{$needle} has lost the theme card's measure");
+        }
+        $this->assertNotNull($title, 'no .compass-card-title rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bfont-size\s*:\s*1rem\b/', $title, 'the card title is not 1rem');
+        $this->assertMatchesRegularExpression('/\bfont-weight\s*:\s*600\b/', $title, 'the card title is not 600');
+        // Compass has no viewport breakpoints: the counts are the block's, never a media query's.
+        $this->assertDoesNotMatchRegularExpression('/@media[^{]*width/', $this->css(), 'a viewport breakpoint crept in');
+    }
+
+    /**
+     * On a card the star takes the top-right corner, on a disc, the badge the top-left, and the
+     * theme's crests the bottom-right of the cover.
+     *
+     * The star's disc is what keeps the control at 3:1 over a photograph
+     * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The crests sit
+     * where the theme card puts them (ADR-013 decision 9), measured from the 150 px cover, and let
+     * a click through to the stretched link. The two card components must render the star and the
+     * crests for the rule to be about anything, and the list row the inline crests.
+     *
+     * @return void
+     */
+    public function test_the_card_corners_are_the_stars_the_badges_and_the_crests(): void {
         $badge = null;
         $star = null;
+        $crests = null;
         foreach ($this->rules() as $rule) {
             [$selector, $body] = $rule;
             if (preg_match('/\.compass-card-badge(?![\w-])/', $selector) && !str_contains($selector, ':')) {
                 $badge = $body;
+            }
+            if (preg_match('/\.compass-crests-cover$/', trim($selector))) {
+                $crests = $body;
             }
             $cardstar = str_contains($selector, '.compass-card .compass-star');
             if ($cardstar && str_contains($selector, '.compass-rowcard .compass-star')) {
@@ -1202,6 +1290,19 @@ final class accessibility_rules_test extends basic_testcase {
                 $this->tags($this->sources()[$file], 'Star'),
                 "{$file} renders no Star, so the corner rule is about nothing"
             );
+            $this->assertNotEmpty($this->tags($this->sources()[$file], 'Crests'), "{$file} renders no crests");
         }
+
+        $this->assertNotNull($crests, 'no .compass-crests-cover rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bposition\s*:\s*absolute\b/', $crests, 'the crests are not over the cover');
+        $this->assertMatchesRegularExpression('/\bright\s*:/', $crests, 'the crests are not anchored right');
+        $this->assertMatchesRegularExpression('/\btop\s*:\s*calc\(150px\b/', $crests, 'the crests are not measured from the cover');
+        $this->assertMatchesRegularExpression('/\bpointer-events\s*:\s*none\b/', $crests, 'the crests swallow the card\'s click');
+        $this->assertDoesNotMatchRegularExpression('/\bleft\s*:/', $crests, 'the crests reach the New badge\'s corner');
+        $inline = array_filter(
+            $this->tags($this->sources()['js/esm/src/Row.tsx'], 'Crests'),
+            static fn(string $tag): bool => (bool) preg_match('/\binline\b/', $tag)
+        );
+        $this->assertCount(1, $inline, 'the list row does not render its crests inline');
     }
 }

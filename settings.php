@@ -117,6 +117,17 @@ if ($ADMIN->fulltree) {
         1
     ));
 
+    // The theme's crests: offered only while the theme is installed, the one place they come from.
+    // On for a new install; an upgrade stores off (db/upgrade.php).
+    if (\block_compass\local\theme_badges::theme_installed()) {
+        $settings->add(new admin_setting_configcheckbox(
+            'block_compass/show_theme_badges',
+            get_string('show_theme_badges', 'block_compass'),
+            get_string('show_theme_badges_desc', 'block_compass'),
+            1
+        ));
+    }
+
     // The block's own page: off by default; on, /blocks/compass/index.php renders the block's
     // content alone and "Compass" appears among the start page choices.
     $settings->add(new admin_setting_configcheckbox(

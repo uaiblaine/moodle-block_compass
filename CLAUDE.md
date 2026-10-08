@@ -205,6 +205,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   on transit failures), `RetryNotice`, `Reload`; busy controls `aria-disabled`, never
   `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
   "Client side".
+- **The theme's crests go through `classes/local/theme_badges.php` only**: it asks core's
+  component list before `component_callback()`, which throws for a component that is not
+  installed (it broke every first paint on a site without the theme once).
 - Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
   fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).

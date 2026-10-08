@@ -25,6 +25,7 @@
 namespace block_compass\external;
 
 use block_compass\local\cards;
+use block_compass\local\theme_badges;
 use core\context\user as context_user;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -33,13 +34,14 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * Progress, computed and cached when it is not cached yet, and the course image for a batch
- * of courses the client is showing.
+ * Progress, computed and cached when it is not cached yet, and the course image and crests for
+ * a batch of courses the client is showing.
  *
- * Batches of at most cards::DETAILS_BATCH ids; ids the user is not actively
- * enrolled in are dropped, not reported. Both halves of the client call it: tier 1 for the
- * cards get_attention marked pending, tier 3 for the rows that entered the viewport. The
- * image is for tier 3's cards view; tier 1 already has it from get_attention.
+ * Batches of at most cards::DETAILS_BATCH ids; an id the user is enrolled in gets everything,
+ * one they hold a later start or an application in gets its image and crests only, and every
+ * other id is dropped, not reported (cards::details()). Both halves of the client call it: tier 1
+ * for the cards get_attention marked pending, tier 3 for the rows that entered the viewport. The
+ * image and the crests are for tier 3; tier 1 already has them from get_attention.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -102,7 +104,8 @@ class get_card_details extends external_api {
                 ),
                 'imageurl' => new external_value(PARAM_URL, 'Course image URL, empty when the course has none'),
                 'hasimage' => new external_value(PARAM_BOOL, 'Whether imageurl is set'),
-            ]), 'One entry per course the user is actively enrolled in'),
+                'badges' => theme_badges::structure(),
+            ]), 'One entry per course the user is enrolled in, or holds a later start or an application in'),
         ]);
     }
 }

@@ -24,6 +24,7 @@
 
 namespace block_compass\local;
 
+use local_unlistedcourses\access;
 use moodle_url;
 use stdClass;
 
@@ -34,7 +35,8 @@ use stdClass;
  * formatted with the course context rebuilt from the cache and the filters
  * preloaded in one query, category names the same way from the
  * category layer; images come from core's course_image cache; progress comes
- * from the details cache, pending when not cached.
+ * from the details cache, pending when not cached; the theme's crests, when it is installed,
+ * from its one callback (theme_badges), asked once per response.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -53,9 +55,10 @@ final class cards {
      * @param int $userid The viewer.
      * @param array $strips Strip name => rows keyed by course id, as attention::build() returns them.
      * @param int $now Unix time to treat as now.
+     * @param callable|null $crests Stands in for the theme's callback in tests; see theme_badges::for_courses().
      * @return array Strip name => list of card arrays, same order as the rows.
      */
-    public static function build(int $userid, array $strips, int $now): array {
+    public static function build(int $userid, array $strips, int $now, ?callable $crests = null): array {
         global $CFG;
 
         $allrows = [];
@@ -88,8 +91,10 @@ final class cards {
         }
         $progress = details::get_many($userid, $withcompletion);
 
-        // Every card's image in one read of core's course_image cache.
+        // Every card's image in one read of core's course_image cache, and every card's crests in one
+        // call to the theme.
         $images = self::images(array_keys($entries));
+        $badges = theme_badges::for_courses(array_keys($entries), $crests);
         $result = [];
         foreach ($strips as $strip => $rows) {
             $result[$strip] = [];
@@ -148,6 +153,10 @@ final class cards {
                 if ($teacher) {
                     // Present only when true: an omitted key costs nothing on the wire.
                     $card['teacher'] = true;
+                }
+                if (!empty($badges[$courseid])) {
+                    // Present only when the course has crests, for the same reason.
+                    $card['badges'] = $badges[$courseid];
                 }
                 $result[$strip][] = $card;
             }
@@ -251,29 +260,34 @@ final class cards {
     }
 
     /**
-     * Progress of the given courses, computed and cached, for the viewer's active enrolments only.
+     * What a tier 3 row learns once it is seen: progress, the image and the crests.
      *
-     * One read for the enrolment check. Whether completion is tracked comes from the
-     * course layer (no record read); a cached answer costs nothing more; only the
-     * courses whose progress must be computed cost one read for their records plus
-     * core's completion computation (which loads course_modinfo — the reason this
-     * never runs on the first paint). Ids the user is not actively enrolled in are
-     * silently dropped: an unvalidated course id is an enumeration oracle.
+     * One read finds the viewer's enrolment rows in the batch's courses, and the provider
+     * classifies them (relationship::of_record()): a course the viewer is enrolled in gets
+     * everything; one they hold a later start or an application in - a row tier 3 lists without
+     * progress - gets its image and its crests only; every other id is silently dropped, because
+     * an unvalidated course id is an enumeration oracle. Whether completion is tracked comes from
+     * the course layer (no record read); a cached answer costs nothing more; only the courses
+     * whose progress must be computed cost one read for their records plus core's completion
+     * computation (which loads course_modinfo — the reason this never runs on the first paint).
      *
-     * The answer also carries the course image, because the batch is exactly the set of rows
-     * somebody is looking at: putting the URL in the inventory instead would cost a read per
-     * course for courses nobody scrolls to. Warm, the image is free; cold it is core's
-     * course_image datasource, which loops per course whatever the entry point
-     * (course/classes/cache/course_image.php:99-105) - which is why the contexts are warmed
-     * from the course layer just below.
+     * The answer carries the image because the batch is exactly the set of rows somebody is
+     * looking at: putting the URL in the inventory instead would cost a read per course for
+     * courses nobody scrolls to. Warm, the image is free; cold it is core's course_image
+     * datasource, which loops per course whatever the entry point
+     * (course/classes/cache/course_image.php:99-105) - which is why the contexts are warmed from
+     * the course layer just below. The crests come the same way, in one call to the theme
+     * (theme_badges), so the get_inventory payload carries none.
      *
      * @param int $userid The viewer.
      * @param int[] $courseids At most DETAILS_BATCH ids.
      * @param int|null $now Unix time to treat as now; null for time().
+     * @param callable|null $crests Stands in for the theme's callback in tests; see theme_badges::for_courses().
      * @return array List of entries: id, hascompletion, progress, imageurl and hasimage, plus
-     *     teacher (true) when completion is off and the viewer is not a learner.
+     *     teacher (true) when completion is off and the viewer is not a learner, and badges when
+     *     the course has crests.
      */
-    public static function details(int $userid, array $courseids, ?int $now = null): array {
+    public static function details(int $userid, array $courseids, ?int $now = null, ?callable $crests = null): array {
         global $DB, $CFG;
 
         $now = $now ?? time();
@@ -282,30 +296,33 @@ final class cards {
             return [];
         }
 
-        // Index: enrol (courseid) then user_enrolments (enrolid, userid). One row per course.
+        // Index: enrol (courseid) then user_enrolments (enrolid, userid). Bounded by the batch: at
+        // most DETAILS_BATCH courses, one row per enrolment method the viewer holds in each.
         [$insql, $params] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'cid');
-        $params += [
-            'userid' => $userid,
-            'active' => ENROL_USER_ACTIVE,
-            'enabled' => ENROL_INSTANCE_ENABLED,
-            'now1' => $now,
-            'now2' => $now,
-            'siteid' => SITEID,
-        ];
-        $allowed = $DB->get_fieldset_sql(
-            "SELECT DISTINCT e.courseid
+        $params += ['userid' => $userid, 'siteid' => SITEID];
+        $records = $DB->get_records_sql(
+            "SELECT ue.id, e.courseid, ue.status, ue.timestart, ue.timeend, e.enrol, e.status AS instancestatus
                FROM {user_enrolments} ue
                JOIN {enrol} e ON e.id = ue.enrolid
-              WHERE ue.userid = :userid AND e.courseid {$insql} AND e.courseid <> :siteid
-                AND ue.status = :active AND e.status = :enabled
-                AND ue.timestart <= :now1 AND (ue.timeend = 0 OR ue.timeend > :now2)",
+              WHERE ue.userid = :userid AND e.courseid {$insql} AND e.courseid <> :siteid",
             $params
         );
-        if (empty($allowed)) {
+        $relationship = [];
+        foreach ($records as $record) {
+            $courseid = (int) $record->courseid;
+            $type = relationship::of_record($record, $now);
+            if (!relationship::is_shown($type)) {
+                continue;
+            }
+            if (!isset($relationship[$courseid]) || relationship::outranks($type, $relationship[$courseid])) {
+                $relationship[$courseid] = $type;
+            }
+        }
+        if (empty($relationship)) {
             return [];
         }
 
-        $allowed = array_map('intval', $allowed);
+        $allowed = array_keys($relationship);
         $completionenabled = !empty($CFG->enablecompletion);
 
         // The course layer answers "is completion tracked here" without a course record; only
@@ -313,7 +330,8 @@ final class cards {
         $meta = course_meta::get_many($allowed);
         $tracked = [];
         foreach ($meta as $courseid => $entry) {
-            if ($completionenabled && $entry['enablecompletion']) {
+            $enrolled = $relationship[$courseid] === access::RELATIONSHIP_ENROLLED;
+            if ($enrolled && $completionenabled && $entry['enablecompletion']) {
                 $tracked[] = $courseid;
             }
         }
@@ -343,6 +361,11 @@ final class cards {
             if (!isset($meta[$courseid])) {
                 continue;
             }
+            if ($relationship[$courseid] !== access::RELATIONSHIP_ENROLLED) {
+                // A row the viewer cannot enter yet: its image and crests, and no progress to speak of.
+                $result[] = ['id' => $courseid, 'hascompletion' => false, 'progress' => null];
+                continue;
+            }
             if (!in_array($courseid, $tracked, true)) {
                 $detail = ['id' => $courseid, 'hascompletion' => false, 'progress' => null];
                 if (!self::is_learner($userid, course_meta::context_of($meta[$courseid]))) {
@@ -365,13 +388,18 @@ final class cards {
             ];
         }
 
-        // Every detail's image in one read of core's course_image cache.
-        $images = self::images(array_column($result, 'id'));
+        // Every detail's image in one read of core's course_image cache, and its crests in one call to the theme.
+        $ids = array_column($result, 'id');
+        $images = self::images($ids);
+        $badges = theme_badges::for_courses($ids, $crests);
 
-        return array_map(static function (array $detail) use ($images): array {
+        return array_map(static function (array $detail) use ($images, $badges): array {
             $image = (string) $images[$detail['id']];
             $detail['imageurl'] = $image;
             $detail['hasimage'] = $image !== '';
+            if (!empty($badges[$detail['id']])) {
+                $detail['badges'] = $badges[$detail['id']];
+            }
 
             return $detail;
         }, $result);

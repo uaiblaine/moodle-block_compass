@@ -31,7 +31,8 @@ caches, and stores two user preferences. It depends on `local_unlistedcourses`, 
   `get_inventory_rows`, `search_inventory`, `get_card_details`. Each calls
   `require_login()`, rejects guests, validates the user context of `$USER`, and accepts
   no user id. `get_card_details` takes a batch of course ids and answers only for those in
-  which the caller has an active enrolment (checked in SQL). Writes (favourites, archiving
+  which the caller holds an enrolment row that `local_unlistedcourses` classifies as enrolled
+  (everything), or as a later start or an application (image and crests only). Writes (favourites, archiving
   a course) are not ours: the browser calls core's own services and preference routes.
 - Page script: `index.php` (`require_login()`, guests refused, redirects to the Dashboard
   while the page setting is off).
@@ -46,6 +47,10 @@ caches, and stores two user preferences. It depends on `local_unlistedcourses`, 
   hold copies of data core already shows the same user.
 - Optional display of enrolment applications awaiting approval needs `enable_pending` and
   the `enrol_apply` plugin installed; otherwise the code path is inert.
+- With `theme_boost_union_fundaseg` installed and `show_theme_badges` on, cards show the course's
+  crests, read only through that theme's public `course_badges` callback via
+  `component_callback()`, which applies the theme's own rule of who may see them; Compass builds
+  no URL and reaches into no theme class.
 - No file serving, no outbound HTTP, no SQL built from user input (every statement uses
   placeholders and `get_in_or_equal`), no evaluation of user input. The client is React
   under `js/esm`; `dangerouslySetInnerHTML` appears only for icon markup that the server

@@ -228,6 +228,22 @@ final class config {
     public const FILTER_FIELDS_MAX = 3;
 
     /**
+     * Whether cards show the theme's institutional crests. Never set means on.
+     *
+     * A new install stores the setting's default, on, wherever the theme is installed; an
+     * upgrade from a version without it stores off (db/upgrade.php), so no site's cards change
+     * by surprise. Without the theme the setting is never offered and the callback answers
+     * nothing, so this reads on and costs nothing (theme_badges::for_courses()).
+     *
+     * @return bool
+     */
+    public static function theme_badges_enabled(): bool {
+        $value = get_config('block_compass', 'show_theme_badges');
+
+        return $value === false || $value === '' || (int) $value === 1;
+    }
+
+    /**
      * The shortnames of the course custom fields chosen as filters, in the stored order.
      *
      * Clamped at FILTER_FIELDS_MAX in the shape attention_max() has — the setting itself

@@ -82,7 +82,7 @@ class block implements renderable, templatable {
             'filter', 'filteractive', 'filterpanel', 'clearfilters', 'status',
             'pendingmeta', 'pendingnotice', 'pendingnoticelabel', 'pendingnoticeview',
             'schedulednotice', 'schedulednoticelabel', 'schedulednoticeview',
-            'state_pending', 'state_scheduled', 'state_waitlisted',
+            'state_pending', 'state_scheduled', 'state_waitlisted', 'crests',
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
             'sort_category', 'sort_name', 'sort_recent',
             'viewas', 'view_cards', 'view_list', 'viewerror',

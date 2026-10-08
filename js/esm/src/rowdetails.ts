@@ -134,8 +134,10 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
                 arrived[detail.id] = {
                     hascompletion: detail.hascompletion,
                     progress: detail.progress,
+                    teacher: detail.teacher,
                     imageurl: detail.imageurl,
                     hasimage: detail.hasimage,
+                    badges: detail.badges,
                 };
             });
             setRecords((current) => ({...current, ...arrived}));
