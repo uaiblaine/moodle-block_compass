@@ -106,9 +106,7 @@ Breaking one is a design change: stop and raise it with the maintainer.
   it cannot be accent-insensitive on PostgreSQL).
 - **Budgets** (§6.6): `get_attention` ≤ 7 warm / 8 cold; `get_inventory` ≤ 3 / 6;
   rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses;
-  `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer;
-  the theme's crest callback costs the theme's own reads on top, so the budget tests switch
-  `show_theme_badges` off (ADR-013 decision 9).
+  `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
   reset per-request state, purge the user's layers, keep the shared ones warm, measure the second
   call) is stated in each test's docblock. **No recordsets** (three reads on PostgreSQL, one on
@@ -198,10 +196,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two
   selectors, never `:root` alone and never `.theme-dark`; there is no React eslint plugin, so
   write code that needs no hook rule; server-rendered markup reaches React only as core's own
-  output. Tier 1 counts its tracks from the block's own width (`columns.ts`: 3, 2 or 1 at
-  824 and 544 px, ADR-013 decision 7), never a viewport query. Tier 3: two modes in one
-  component, sequence numbers not cancellation, debounce 150 full / 300 paged, one name order
-  on both sides (`localeCompare` numeric), live region keyed
+  output. Tier 3: two modes in one component, sequence numbers not cancellation, debounce 150
+  full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed
   on a counter, index hidden below 640 px of the section, focus moved deliberately after
   "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant and
   archived groups `-1`/`-2`, the toolbar remembered through `explore_preference` (shape
@@ -209,10 +205,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   on transit failures), `RetryNotice`, `Reload`; busy controls `aria-disabled`, never
   `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
   "Client side".
-- **The theme's crests come through one door**, `classes/local/theme_badges.php`: core's
-  component list first (`component_callback()` throws for a component that is not installed),
-  then the theme's `course_badges` callback, behind `show_theme_badges` (off after an upgrade),
-  at most three per course, one call per response; never the theme's `local\` classes.
+- **The theme's crests go through `classes/local/theme_badges.php` only**: it asks core's
+  component list before `component_callback()`, which throws for a component that is not
+  installed (it broke every first paint on a site without the theme once).
 - Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
   fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).
