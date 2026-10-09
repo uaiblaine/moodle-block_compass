@@ -17,6 +17,7 @@
 namespace block_compass\local;
 
 use advanced_testcase;
+use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
  * Client policies that no JavaScript runner holds, pinned by reading the sources.
@@ -29,8 +30,8 @@ use advanced_testcase;
  * @category   test
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @coversNothing
  */
+#[CoversNothing]
 final class client_policy_test extends advanced_testcase {
     /**
      * One client source, whole.

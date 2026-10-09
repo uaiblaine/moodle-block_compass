@@ -67,12 +67,12 @@ Feature: The Compass block puts the courses that need attention first
     And I add the "Compass" block
     And I turn editing mode off
     Then I should see "Course 1" in the "Compass" "block"
-    And I should see "other courses" in the "Compass" "block"
+    And I should see "other course" in the "Compass" "block"
     And I should see "Starts soon" in the "Compass" "block"
     And I should see "Course 6" in the "Compass" "block"
     And I should see "Access from" in the "Compass" "block"
     And I should not see "Course 7" in the "Compass" "block"
-    When I click on "Show the other 1 enrolments that start later in the full course list" "button" in the "Compass" "block"
+    When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled chip with its first category group open, which here holds no
     # later start; the flat A-Z list shows every row the chip keeps, whatever group it is in.
     And I click on "A–Z" "button" in the "Compass" "block"

@@ -162,12 +162,32 @@ final class block_compass_test extends advanced_testcase {
             preg_match_all('/\blabels\.([a-z_]+)\b/', file_get_contents($file), $matches);
             $read = array_merge($read, $matches[1]);
         }
+        $string = [];
+        include(__DIR__ . '/../lang/en/block_compass.php');
+        $english = $string;
+        // Keys handed to fillCount() as string literals read both the plain string and, where the
+        // language file defines one, its singular twin; the ghost's direct pick of ghost_more_one
+        // is a plain labels.* access. The strip links pass their keys to stripoverflow() as literals.
+        $literals = [];
+        foreach (glob(__DIR__ . '/../js/esm/src/*.{ts,tsx}', GLOB_BRACE) as $file) {
+            preg_match_all("/fillCount\\(\\s*labels,\\s*'([a-z_]+)'/", file_get_contents($file), $matches);
+            $literals = array_merge($literals, $matches[1]);
+        }
+        preg_match_all("/'(strip_more_[a-z_]+)'/", file_get_contents(__DIR__ . '/../js/esm/src/Block.tsx'), $matches);
+        foreach (array_merge($literals, $matches[1]) as $key) {
+            $read[] = $key;
+            if (isset($english[$key . '_one'])) {
+                $read[] = $key . '_one';
+            }
+        }
         $read = array_values(array_unique($read));
         sort($read);
         // Vacuity guard: the scan read the client, the new state labels included.
         $this->assertContains('state_scheduled', $read);
         $this->assertContains('strip_more_scheduled_label', $read);
         $this->assertContains('ghost_more', $read);
+        $this->assertContains('coursesingroup_one', $read, 'found through fillCount()');
+        $this->assertContains('pendingnotice_one', $read, 'found through fillCount()');
         $this->assertSame(
             [],
             array_values(array_diff($read, array_keys($props['labels']))),
