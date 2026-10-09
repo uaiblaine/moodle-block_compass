@@ -71,7 +71,7 @@ class block implements renderable, templatable {
     public function export_for_template(renderer_base $output): array {
         $keys = [
             'ghost_more', 'ghost_explore', 'strip_more_new', 'strip_more_new_label',
-            'strip_more_favourites', 'strip_more_favourites_label',
+            'strip_more_favourites', 'strip_more_favourites_label', 'strip_more_scheduled', 'strip_more_scheduled_label',
             'addtofavourites', 'removefromfavourites', 'favouriteadded', 'favouriteremoved',
             'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
             'lastopened', 'resultsshown', 'noresults', 'coursesingroup',
@@ -81,7 +81,6 @@ class block implements renderable, templatable {
             'filterby',
             'filter', 'filteractive', 'filterpanel', 'clearfilters', 'status',
             'pendingmeta', 'pendingnotice', 'pendingnoticelabel', 'pendingnoticeview',
-            'schedulednotice', 'schedulednoticelabel', 'schedulednoticeview',
             'state_pending', 'state_scheduled', 'state_waitlisted', 'crests',
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
             'sort_category', 'sort_name', 'sort_recent',
@@ -125,6 +124,9 @@ class block implements renderable, templatable {
             'strips' => [
                 ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
                 ['name' => 'new', 'title' => get_string('strip_new', 'block_compass')],
+                // The courses whose enrolment starts later, under New enrolments, where the line that
+                // counted them used to sit (ADR-013, 2026-10-08 amendment).
+                ['name' => 'scheduled', 'title' => get_string('strip_scheduled', 'block_compass')],
                 ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
             ],
             'favouritesenabled' => config::favourites_enabled(),

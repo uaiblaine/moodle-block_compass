@@ -1,1 +1,1 @@
-s/\$teacher = !\$hascompletion && !self::is_learner\(\$userid, \$context\);/\$teacher = !self::is_learner(\$userid, \$context);/;
+s/\$teacher = !\$hascompletion && !\$scheduled && !self::is_learner\(\$userid, \$context\);/\$teacher = !\$scheduled && !self::is_learner(\$userid, \$context);/;

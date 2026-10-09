@@ -404,8 +404,9 @@ final class attention_test extends advanced_testcase {
     /**
      * Courses written straight to the tables, each with one enrolment row of the given shape.
      *
-     * The situations statement reads nothing a generated course adds: the course row, one
-     * enabled manual instance and the row are all it needs.
+     * The situations statement reads nothing a generated course adds: the course row, its
+     * context (the Starts-soon cards' context columns ride on the statement), one enabled manual
+     * instance and the row are all it needs.
      *
      * @param int $count How many courses.
      * @param array $row The user_enrolments fields that vary: status, timestart, timeend.
@@ -424,6 +425,7 @@ final class attention_test extends advanced_testcase {
                 'shortname' => "compassbulk{$this->coursecount}",
                 'visible' => 1,
             ]);
+            \core\context\course::instance($courseid);
             $instanceid = (int) $DB->insert_record('enrol', (object) [
                 'enrol' => 'manual',
                 'status' => ENROL_INSTANCE_ENABLED,
@@ -441,6 +443,48 @@ final class attention_test extends advanced_testcase {
         }
 
         return $ueids;
+    }
+
+    /**
+     * A second enrolment row, on an enabled self instance, in the course of a bulk() row.
+     *
+     * @param int $ueid A user_enrolments id bulk() returned.
+     * @param array $row The user_enrolments fields that vary: status, timestart, timeend.
+     * @return int The new user_enrolments id.
+     */
+    private function bulk_beside(int $ueid, array $row): int {
+        global $DB;
+
+        $instanceid = (int) $DB->insert_record('enrol', (object) [
+            'enrol' => 'self',
+            'status' => ENROL_INSTANCE_ENABLED,
+            'courseid' => $this->course_of($ueid),
+            'timecreated' => self::NOW,
+            'timemodified' => self::NOW,
+        ]);
+
+        return (int) $DB->insert_record('user_enrolments', (object) ($row + [
+            'enrolid' => $instanceid,
+            'userid' => $this->userid,
+            'modifierid' => 0,
+            'timecreated' => self::NOW - DAYSECS,
+            'timemodified' => self::NOW - DAYSECS,
+        ]));
+    }
+
+    /**
+     * The course of an enrolment row.
+     *
+     * @param int $ueid A user_enrolments id.
+     * @return int The course id.
+     */
+    private function course_of(int $ueid): int {
+        global $DB;
+
+        return (int) $DB->get_field_sql(
+            'SELECT e.courseid FROM {user_enrolments} ue JOIN {enrol} e ON e.id = ue.enrolid WHERE ue.id = :ueid',
+            ['ueid' => $ueid]
+        );
     }
 
     /**
@@ -479,24 +523,121 @@ final class attention_test extends advanced_testcase {
     /**
      * Under the bound, the statement spends no row on one Compass would never count.
      *
-     * A full bound of ended rows and a full bound of active courses, both written before the one
-     * enrolment that starts later, so their ids come first in the statement's order: had either
-     * clause gone - the not-yet-ended one or core's no-active-enrolment one - those rows would
-     * fill the bound and the later start would not be counted. The provider would still classify
-     * the extra rows correctly, which is why only the bound can tell the clauses are there.
+     * A full bound of ended rows and a full bound of active courses each holding a later row too,
+     * all of them starting a day before the one enrolment that starts later, so they come first in
+     * the statement's order (later starts first, soonest first): had either clause gone - the
+     * not-yet-ended one or core's no-active-enrolment one - those rows would fill the bound and the
+     * later start would not be counted. The provider would still classify the extra rows
+     * correctly, which is why only the bound can tell the clauses are there.
      *
      * @return void
      */
     public function test_the_situations_statement_reads_no_ended_row_and_no_enrolled_course(): void {
-        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => self::NOW - DAYSECS]);
-        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => 0]);
-        $this->bulk(1, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => 0]);
+        // Ended before they start: none, whatever the order.
+        $this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => self::NOW - DAYSECS]);
+        foreach ($this->bulk(3, ['status' => ENROL_USER_ACTIVE, 'timestart' => 0, 'timeend' => 0]) as $ueid) {
+            $this->bulk_beside($ueid, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + DAYSECS, 'timeend' => 0]);
+        }
+        $this->bulk(1, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + 2 * DAYSECS, 'timeend' => 0]);
 
         $counts = $this->counts_bounded_at_three();
 
         $this->assertSame(1, $counts['scheduled']);
         // Control: the active courses are there, and counted where they belong.
         $this->assertSame(3, $counts['total']);
+    }
+
+    /**
+     * Starts soon lists the courses whose best relationship is a later start, soonest first, capped.
+     *
+     * Five courses start later: First to start (two later rows, the earlier written second, so the
+     * date is the earliest and not the first row's), Zeta and Alpha on the same day (written in
+     * that order, so the name breaks the tie and not the row id), Last to start, and one holding an
+     * application beside its later start (scheduled outranks pending, as tier 3 lists it). Left
+     * out: a course with an active enrolment beside a later one, which is New's, and an application
+     * alone, which is the pending notice's. Max 3 shows the three soonest; the count says five.
+     * Control: max 6 shows all five in the same order. The rows carry the course layer's columns,
+     * which is what lets the cards cost no read.
+     *
+     * @return void
+     */
+    public function test_the_starts_soon_strip_is_soonest_first_capped_and_one_course_once(): void {
+        global $DB;
+
+        $first = (int) $this->course('First to start')->id;
+        $zeta = (int) $this->course('Zeta on the same day')->id;
+        $alpha = (int) $this->course('Alpha on the same day')->id;
+        $last = (int) $this->course('Last to start')->id;
+        $applied = (int) $this->course('Later and applied')->id;
+        $both = (int) $this->course('Active now and later')->id;
+        $pending = (int) $this->course('Applied only')->id;
+        $later = fn(int $courseid, int $days, string $method = 'manual'): int => $this->plugingen->enrol_at(
+            $this->userid,
+            $courseid,
+            self::NOW - DAYSECS,
+            $method,
+            ENROL_USER_ACTIVE,
+            self::NOW + $days * DAYSECS
+        );
+        $later($first, 8);
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_ENABLED, ['courseid' => $first, 'enrol' => 'self']);
+        $later($first, 5, 'self');
+        $later($zeta, 10);
+        $later($alpha, 10);
+        $later($last, 30);
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+        $later($applied, 40);
+        $this->plugingen->enrol_at($this->userid, $both, self::NOW - 2 * DAYSECS);
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_ENABLED, ['courseid' => $both, 'enrol' => 'self']);
+        $later($both, 3, 'self');
+        $this->plugingen->apply_at($this->userid, $pending, self::NOW - DAYSECS);
+
+        $tier = $this->build(3, 30, true);
+
+        $this->assertSame([$first, $alpha, $zeta], $this->ids($tier['scheduled']));
+        $this->assertSame(self::NOW + 5 * DAYSECS, (int) $tier['scheduled'][$first]->timestart, 'the earliest of its later starts');
+        $this->assertSame('First to start', $tier['scheduled'][$first]->fullname);
+        $this->assertSame(
+            (int) \core\context\course::instance($first)->id,
+            (int) $tier['scheduled'][$first]->ctxid,
+            'the context columns ride on the row'
+        );
+        $this->assertSame(5, $tier['counts']['scheduled']);
+        $this->assertSame(1, $tier['counts']['pending']);
+        $this->assertSame([$both], $this->ids($tier['new']), 'an active enrolment beside a later one is New\'s');
+        // Control: room for every one of them, in the same order.
+        $this->assertSame([$first, $alpha, $zeta, $last, $applied], $this->ids($this->build(6, 30, true)['scheduled']));
+    }
+
+    /**
+     * Past its bound the situations statement still holds the soonest later starts.
+     *
+     * Two suspended rows, which Compass never shows, written first, then four later starts written
+     * latest first, all under a bound of three: the statement reads later starts first and soonest
+     * first, so the strip is the three soonest - by row id it would be the latest alone, and by
+     * start alone the suspended rows (no start) would take two of the three. The count is the floor
+     * the bound allows. Control: at the production bound every start is counted and the strip is
+     * the same.
+     *
+     * @return void
+     */
+    public function test_the_starts_soon_strip_keeps_the_soonest_starts_past_the_bound(): void {
+        $this->bulk(2, ['status' => ENROL_USER_SUSPENDED, 'timestart' => 0, 'timeend' => 0]);
+        $courses = [];
+        foreach ([40, 30, 20, 10] as $days) {
+            $ueid = $this->bulk(1, ['status' => ENROL_USER_ACTIVE, 'timestart' => self::NOW + $days * DAYSECS, 'timeend' => 0])[0];
+            $courses[$days] = $this->course_of($ueid);
+        }
+        $soonest = [$courses[10], $courses[20], $courses[30]];
+
+        $bounded = (new attention($this->userid, self::NOW, 3, 30, false, null, 3))->build();
+
+        $this->assertSame($soonest, $this->ids($bounded['scheduled']));
+        $this->assertSame(3, $bounded['counts']['scheduled']);
+        // Control: the production bound reads every row.
+        $unbounded = $this->build(3);
+        $this->assertSame($soonest, $this->ids($unbounded['scheduled']));
+        $this->assertSame(4, $unbounded['counts']['scheduled']);
     }
 
     /**
@@ -828,6 +969,7 @@ final class attention_test extends advanced_testcase {
         // Two active courses, one archived: the chunked subtraction leaves exactly one; and of the
         // two later starts the archived one is dropped in PHP.
         $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 0, 'scheduled' => 1], $tier['counts']);
+        $this->assertSame([$listedlater], $this->ids($tier['scheduled']));
     }
 
     /**

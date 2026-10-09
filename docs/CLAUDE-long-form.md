@@ -146,8 +146,8 @@ implements them (see "ADRs").
 
 ### First paint without the inventory (§6.1)
 
-Tier 1 is four bounded, indexed queries plus one count, and the situations read of the two
-notices (below the table). Indexes verified in
+Tier 1 is four bounded, indexed queries plus one count, and the situations read behind the
+pending notice and the Starts-soon strip (below the table). Indexes verified in
 `lib/db/install.xml` on 5.2: `user_lastaccess (userid, courseid)` unique,
 `user_lastaccess (userid)`, `user_enrolments (enrolid, userid)` unique plus the
 `userid` foreign-key index, `enrol (courseid)` foreign-key index, `enrol (enrol)`.
@@ -158,7 +158,7 @@ notices (below the table). Indexes verified in
 | New enrolments | grouped derived table of the user's active enrolments (one row per course, `MIN(ue.timecreated)`, the same row the counts measure), `timecreated > now − new_days`, anti-join `{user_lastaccess}` | `ORDER BY timecreated DESC LIMIT attention_max` |
 | Favourites | ids from `core_favourites` (component `core_course`, itemtype `courses`, already indexed by user) → courses by id | `attention_max`, the rest behind a "+N" ghost |
 | Counts | one statement over the same derived table: `COUNT(*)`, `SUM(CASE …)` new-and-never-accessed, `SUM(CASE …)` favourited | index on `userid` |
-| Situations | the user's rows not yet ended, in visible non-hidden courses without an active enrolment; `local_unlistedcourses` classifies each in PHP (pending, waitlisted, scheduled) | `ORDER BY ue.id LIMIT 500` (`SITUATIONS_LIMIT`; past it the counts are a floor) |
+| Situations | the user's rows not yet ended, in visible non-hidden courses without an active enrolment, with `course_meta::select_sql()`'s columns (join to `{context}`); `local_unlistedcourses` classifies each in PHP (pending, waitlisted, scheduled); the scheduled courses, earliest start each, are the Starts-soon strip | `ORDER BY` later starts first, soonest first, then the rest by start and id, `LIMIT 500` (`SITUATIONS_LIMIT`; past it the counts are a floor and the strip still the soonest) |
 
 **Budget: at most 7 database reads, every one bounded by `LIMIT` or an indexed
 aggregate** — one fewer with `enable_favourites` off, because `attention::build()`
@@ -173,9 +173,10 @@ and New only, priority Continue › New; the favourites strip lists **every**
 favourite, the ones already shown above included (ADR-009, decision 1 — a new
 favourite sits in New with the star lit AND in the favourites strip). What did
 not fit a strip is a link in its heading; one ghost card, the tier 2 one, ends
-the last strip (decision 2). The two notices under New enrolments — applications
-awaiting approval or on the waiting list (ADR-009 decision 3) and enrolments that start
-later (ADR-013) — take their numbers from a fifth statement, `attention::situations()`:
+the last active strip (decision 2). The notice under New enrolments — applications
+awaiting approval or on the waiting list (ADR-009 decision 3) — and the Starts-soon strip, the
+enrolments that start later (ADR-013 and its 2026-10-08 amendment, which replaced a second
+notice), come from a fifth statement, `attention::situations()`:
 the learner's not-yet-ended rows in courses without an active enrolment, bounded by
 `SITUATIONS_LIMIT` (500) rows, each classified by `local_unlistedcourses` in PHP. It replaced
 a scalar subquery that copied enrol_apply's queue rule into SQL, which is the one read this

@@ -17,7 +17,7 @@
  * Tier 1: one request on first paint, then the strips.
  *
  * Everything the block shows is rendered from here: the loading and error states,
- * the three strips, the cards, the one ghost card, the pending notice, the empty state,
+ * the four strips, the cards, the one ghost card, the pending notice, the empty state,
  * the live region - and, once a ghost or a heading link has been pressed, tier 3. Opening
  * tier 3 is a state change, and no code outside React touches the block's DOM.
  *
@@ -48,7 +48,7 @@ import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, Star
  * The chip tier 3 opens on, per kind of control that opened it.
  *
  * The ghost carries none: "Explore all" opens tier 3 as the reader left it, which is what
- * remembering the toolbar is for. The heading links and the two notices press their chip over
+ * remembering the toolbar is for. The heading links and the pending notice press their chip over
  * the remembered one.
  */
 const CHIP_OF_KIND: Record<GhostKind, string | null> = {
@@ -352,48 +352,61 @@ const Block = (config: BlockConfig) => {
     /**
      * The link a strip's heading carries when the server counted more than it sent.
      *
-     * @param {string} kind Which strip: new or favourites.
+     * @param {string} kind Which strip: new, favourites or scheduled.
      * @param {number} count How many did not fit.
+     * @param {string} text The link text, taking the count.
+     * @param {string} label The link's accessible name, taking the count.
      * @returns {object} The link description, or null when everything fitted.
      */
-    const stripoverflow = (kind: GhostKind, count: number): StripOverflow | null => {
+    const stripoverflow = (kind: GhostKind, count: number, text: string, label: string): StripOverflow | null => {
         if (count <= 0) {
             return null;
         }
-        const text = kind === 'new' ? labels.strip_more_new : labels.strip_more_favourites;
-        const label = kind === 'new' ? labels.strip_more_new_label : labels.strip_more_favourites_label;
 
         return {count, kind, text: fill(text, String(count)), label: fill(label, String(count))};
     };
 
-    const shown = data ? data.continue.length + data.new.length + data.favourites.length : 0;
+    const shown = data ? data.continue.length + data.new.length + data.favourites.length + data.scheduled.length : 0;
     const overflows: Record<string, StripOverflow | null> = data
         ? {
             'continue': null,
-            'new': stripoverflow('new', data.counts.newmore),
-            favourites: stripoverflow('favourites', data.counts.favouritesmore),
+            'new': stripoverflow('new', data.counts.newmore, labels.strip_more_new, labels.strip_more_new_label),
+            favourites: stripoverflow(
+                'favourites',
+                data.counts.favouritesmore,
+                labels.strip_more_favourites,
+                labels.strip_more_favourites_label
+            ),
+            scheduled: stripoverflow(
+                'scheduled',
+                data.counts.scheduledmore,
+                labels.strip_more_scheduled,
+                labels.strip_more_scheduled_label
+            ),
         }
         : {};
     /*
-     * One ghost card, the last item of the last strip that has cards, standing for tier 2. It
-     * hides once tier 3 is open, because then it has nothing left to open.
+     * One ghost card, the last item of the last active strip that has cards, standing for tier 2.
+     * It hides once tier 3 is open, because then it has nothing left to open. The Starts-soon strip
+     * sits under New enrolments but never hosts it, wherever it is: its courses cannot be entered
+     * yet and are not among the courses the ghost counts. Favourites, below it, hosts it as before.
      */
+    const activestrips = config.strips.filter((strip) => strip.name !== 'scheduled');
     const ghost: StripGhost | null = data && data.counts.more > 0 && !exploring
         ? {count: data.counts.more, text: labels.ghost_more, cta: labels.ghost_explore}
         : null;
     const laststrip = data
-        ? [...config.strips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
+        ? [...activestrips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
         : null;
     const columns = cardColumns(width);
     const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
-    const scheduledcount = data ? data.counts.scheduled : 0;
 
     /**
-     * One of the two lines tier 1 gives the courses only tier 3 lists: the applications and the
-     * enrolments that start later. A line under New enrolments - or where that strip would be -
-     * and a link-styled button, because it acts on the page and navigates nowhere.
+     * The line tier 1 gives the applications, which only tier 3 lists: under New enrolments - or
+     * where that strip would be - and a link-styled button, because it acts on the page and
+     * navigates nowhere.
      *
-     * @param {string} kind pending or scheduled: the chip tier 3 opens on.
+     * @param {string} kind pending: the chip tier 3 opens on.
      * @param {string} text The line, already filled.
      * @param {string} label The button's accessible name.
      * @param {string} view The button's visible text.
@@ -443,41 +456,33 @@ const Block = (config: BlockConfig) => {
                         name={strip.name}
                         title={strip.title}
                         cards={data[strip.name]}
-                        ghost={strip.name === laststrip ? ghost : null}
+                        ghost={strip.name !== 'scheduled' && strip.name === laststrip ? ghost : null}
                         overflow={overflows[strip.name] || null}
                         columns={columns}
                         config={config}
                         onToggleFavourite={toggleFavourite}
                         onExplore={explore}
                     />
-                    {/* The one notice an application gets in tier 1, and the one an enrolment that
-                        starts later gets: neither is ever a card in a strip (ADR-009, ADR-013). */}
+                    {/* The one notice an application gets in tier 1: it is never a card in a strip
+                        (ADR-009). */}
                     {strip.name === 'new' && pendingcount > 0 && notice(
                         'pending',
                         fill(labels.pendingnotice, String(pendingcount)),
                         labels.pendingnoticelabel,
                         labels.pendingnoticeview
                     )}
-                    {strip.name === 'new' && scheduledcount > 0 && notice(
-                        'scheduled',
-                        fill(labels.schedulednotice, String(scheduledcount)),
-                        labels.schedulednoticelabel,
-                        labels.schedulednoticeview
-                    )}
                 </Fragment>
             ))}
-            {/* No strip has cards, yet there are courses: the ghost has no grid to close and
-                stands alone. */}
+            {/* No active strip has cards, yet there are courses: the ghost has no grid to close and
+                stands alone, after every strip as before. */}
             {ghost && laststrip === null && (
                 <div className={`compass-ghost-wrap compass-cards-${columns}`}>
                     <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />
                 </div>
             )}
-            {/* A learner whose only courses start later is enrolled: "not enrolled in any course" would
-                be untrue, and the notice above is how they reach the courses. */}
             {data && shown === 0 && (
                 <p className="compass-empty text-muted">
-                    {data.counts.total === 0 && scheduledcount === 0 ? labels.nocourses : labels.emptyattention}
+                    {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
                 </p>
             )}
             {exploring && (

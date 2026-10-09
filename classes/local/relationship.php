@@ -35,7 +35,8 @@ use local_unlistedcourses\access;
  * rule ({@see attention}), which is is_enrolled()'s and not the provider's.
  *
  * Compass shows four of the provider's relationships. ENROLLED is implied by every card and
- * drawn on none; SCHEDULED, PENDING and WAITLISTED live in tier 3 only, with a state pill.
+ * drawn on none; PENDING and WAITLISTED live in tier 3 only, with a state pill, and SCHEDULED
+ * with the same pill in tier 3 and in tier 1's Starts-soon strip (ADR-013, 2026-10-08 amendment).
  * Suspended, expired and none are not shown at all.
  *
  * @package    block_compass

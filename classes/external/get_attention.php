@@ -36,7 +36,7 @@ use core_external\external_single_structure;
 use core_external\external_value;
 
 /**
- * The one call behind the first paint: three strips and the counts.
+ * The one call behind the first paint: four strips and the counts.
  *
  * Read-only, current user only, seven database reads per request with the shared
  * layers warm (four strip and count statements, the situations read, preferences,
@@ -45,8 +45,8 @@ use core_external\external_value;
  * user context, since the context cache starts empty every request. One read fewer
  * with the favourites feature off, whose strip is then not queried. Asserted by its
  * budget tests. The situations read is the price of asking local_unlistedcourses which
- * rows are applications and which start later (ADR-013): it carries the counts of
- * tier 1's two notices.
+ * rows are applications and which start later (ADR-013): it carries the pending count and
+ * the whole Starts-soon strip, course columns included, so that strip costs no read of its own.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -86,15 +86,18 @@ class get_attention extends external_api {
             'continue' => $tier['continue'],
             'new' => $tier['new'],
             'favourites' => $tier['favourites'],
+            cards::SCHEDULED_STRIP => $tier['scheduled'],
         ], $now);
 
         // A favourite may also sit in Continue or New, so what tier 1 shows is the distinct courses
-        // across the three strips, and the ghost counts the courses not represented up here rather
-        // than the cards drawn. The favourites overflow is the favourite total minus the strip's own
-        // size, because that strip does not skip the favourites shown in Continue or New.
+        // across the three active strips, and the ghost counts the active courses not represented up
+        // here rather than the cards drawn. The favourites overflow is the favourite total minus the
+        // strip's own size, because that strip does not skip the favourites shown in Continue or New.
+        // The Starts-soon strip is left out of both: its courses are not active, so total never
+        // counted them and the ghost must not shrink by them.
         $shownids = [];
-        foreach ($strips as $cardsofstrip) {
-            foreach ($cardsofstrip as $card) {
+        foreach (['continue', 'new', 'favourites'] as $strip) {
+            foreach ($strips[$strip] as $card) {
                 $shownids[$card['id']] = true;
             }
         }
@@ -105,6 +108,7 @@ class get_attention extends external_api {
             'continue' => $strips['continue'],
             'new' => $strips['new'],
             'favourites' => $strips['favourites'],
+            'scheduled' => $strips[cards::SCHEDULED_STRIP],
             'counts' => [
                 'total' => $counts['total'],
                 'shown' => $shown,
@@ -113,6 +117,7 @@ class get_attention extends external_api {
                 'favouritesmore' => $favouritesenabled ? max(0, $counts['favourites'] - count($strips['favourites'])) : 0,
                 'pending' => $counts['pending'],
                 'scheduled' => $counts['scheduled'],
+                'scheduledmore' => max(0, $counts['scheduled'] - count($strips[cards::SCHEDULED_STRIP])),
             ],
             'favouritesenabled' => $favouritesenabled,
         ];
@@ -128,7 +133,7 @@ class get_attention extends external_api {
             'id' => new external_value(PARAM_INT, 'Course id'),
             'fullname' => new external_value(PARAM_TEXT, 'Course full name, formatted, unescaped'),
             'shortname' => new external_value(PARAM_TEXT, 'Course short name, formatted, unescaped'),
-            'url' => new external_value(PARAM_URL, 'Course URL'),
+            'url' => new external_value(PARAM_URL, 'Course URL; the course\'s enrolment page on a Starts-soon card'),
             'imageurl' => new external_value(PARAM_URL, 'Course image URL, empty when none'),
             'hasimage' => new external_value(PARAM_BOOL, 'Whether imageurl is set'),
             'category' => new external_value(PARAM_TEXT, 'Category name, formatted, unescaped'),
@@ -150,7 +155,12 @@ class get_attention extends external_api {
             'enrolledtext' => new external_value(PARAM_TEXT, 'Enrolment date and method, formatted'),
             'deadline' => new external_value(PARAM_INT, 'Enrolment end timestamp', VALUE_OPTIONAL, null, NULL_ALLOWED),
             'deadlinetext' => new external_value(PARAM_TEXT, 'Enrolment end, formatted'),
-            'actiontext' => new external_value(PARAM_TEXT, 'Label of the card button'),
+            'actiontext' => new external_value(PARAM_TEXT, 'Label of the card button, empty on a Starts-soon card'),
+            'sched' => new external_value(
+                PARAM_TEXT,
+                'Present only on a Starts-soon card: the date the enrolment starts, formatted for the reader',
+                VALUE_OPTIONAL
+            ),
             'badges' => theme_badges::structure(),
         ]);
     }
@@ -165,6 +175,10 @@ class get_attention extends external_api {
             'continue' => new external_multiple_structure(self::card_structure(), 'Continue strip'),
             'new' => new external_multiple_structure(self::card_structure(), 'New enrolments strip'),
             'favourites' => new external_multiple_structure(self::card_structure(), 'Favourites strip'),
+            'scheduled' => new external_multiple_structure(
+                self::card_structure(),
+                'Starts-soon strip: enrolments that start later, soonest first'
+            ),
             'counts' => new external_single_structure([
                 'total' => new external_value(PARAM_INT, 'Active, visible, not hidden courses'),
                 'shown' => new external_value(PARAM_INT, 'Distinct courses drawn in tier 1, a favourite that repeats counted once'),
@@ -177,6 +191,7 @@ class get_attention extends external_api {
                         . 'the feature is off)'
                 ),
                 'scheduled' => new external_value(PARAM_INT, 'Courses holding an enrolment that starts later'),
+                'scheduledmore' => new external_value(PARAM_INT, 'Enrolments that start later not shown in the Starts-soon strip'),
             ]),
             'favouritesenabled' => new external_value(PARAM_BOOL, 'Whether the favourites feature is on'),
         ]);

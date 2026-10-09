@@ -36,7 +36,9 @@ use stdClass;
  * preloaded in one query, category names the same way from the
  * category layer; images come from core's course_image cache; progress comes
  * from the details cache, pending when not cached; the theme's crests, when it is installed,
- * from its one callback (theme_badges), asked once per response.
+ * from its one callback (theme_badges), asked once per response. A card of the Starts-soon strip
+ * (SCHEDULED_STRIP) is a course the learner cannot enter yet: it links to the enrolment page and
+ * carries its start date (sched) and no progress, as tier 3's scheduled row does.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -48,6 +50,9 @@ final class cards {
 
     /** @var int Enrolment timeend values at or above this mean "no end" (the column default). */
     private const NO_END = 2147483647;
+
+    /** @var string The strip of the courses whose enrolment starts later, attention::build()'s scheduled key. */
+    public const SCHEDULED_STRIP = 'scheduled';
 
     /**
      * Build the cards of every strip in one pass.
@@ -82,10 +87,12 @@ final class cards {
         // ancestors on the course context paths, so their filters were preloaded above.
         $categories = category_meta::get_many(array_unique(array_column($entries, 'category')));
 
+        // A course that starts later has no progress to speak of, and no completion notice either.
+        $later = array_fill_keys(array_map('intval', array_keys($strips[self::SCHEDULED_STRIP] ?? [])), true);
         $completionenabled = !empty($CFG->enablecompletion);
         $withcompletion = [];
         foreach ($entries as $courseid => $entry) {
-            if ($completionenabled && $entry['enablecompletion']) {
+            if ($completionenabled && $entry['enablecompletion'] && !isset($later[$courseid])) {
                 $withcompletion[] = $courseid;
             }
         }
@@ -117,10 +124,11 @@ final class cards {
                 }
                 $hascompletion = in_array($courseid, $withcompletion, true);
                 $cached = $hascompletion ? (array_key_exists($courseid, $progress) ? $progress[$courseid] : false) : null;
+                $scheduled = $strip === self::SCHEDULED_STRIP;
                 // The "No completion configured" notice is said only when completion is off, and only to
                 // a viewer who is not a learner of the course (see is_learner()), checked on the context
-                // rebuilt from the cached columns.
-                $teacher = !$hascompletion && !self::is_learner($userid, $context);
+                // rebuilt from the cached columns; never on a course that has not started.
+                $teacher = !$hascompletion && !$scheduled && !self::is_learner($userid, $context);
 
                 $card = [
                     'id' => $courseid,
@@ -143,7 +151,10 @@ final class cards {
                     'deadlinetext' => '',
                 ];
                 $card['hasimage'] = $card['imageurl'] !== '';
-                $card['actiontext'] = self::action_text($card);
+                $card['actiontext'] = $scheduled ? '' : self::action_text($card);
+                if ($scheduled) {
+                    self::add_start_fields($card, $row);
+                }
                 if ($card['lastaccess'] !== null) {
                     $card['lastaccesstext'] = self::ago_text('lastaccessago', 'lastaccessjustnow', $now - $card['lastaccess']);
                 }
@@ -163,6 +174,25 @@ final class cards {
         }
 
         return $result;
+    }
+
+    /**
+     * What a Starts-soon card says instead of what an active card does.
+     *
+     * The enrolment page, as tier 3's scheduled row links (RowCard.tsx), since the course page
+     * would refuse the learner until the start; no star, which the client does not draw on it
+     * either; and the start date formatted for the reader as the theme's card prints it, the
+     * value explore::row() ships as sched, so the one pill (StatePill.tsx) says the same in both
+     * tiers.
+     *
+     * @param array $card The card, extended in place.
+     * @param stdClass $row The row from attention::build()['scheduled'], carrying timestart.
+     * @return void
+     */
+    private static function add_start_fields(array &$card, stdClass $row): void {
+        $card['url'] = (new moodle_url('/enrol/index.php', ['id' => $card['id']]))->out(false);
+        $card['isfavourite'] = false;
+        $card['sched'] = userdate((int) $row->timestart, get_string('strftimedatefullshort', 'langconfig'));
     }
 
     /**

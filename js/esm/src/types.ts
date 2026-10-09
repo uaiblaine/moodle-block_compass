@@ -58,13 +58,21 @@ export type CourseCard = {
     deadline: number | null,
     deadlinetext: string,
     actiontext: string,
+    // Present only on a Starts-soon card: the date its enrolment starts, already formatted for the
+    // reader, the value a tier 3 row ships as sched, so StatePill reads both.
+    sched?: string,
     // Present, and true, only when completion is off and the viewer is not a learner of the
     // course: the one reader "No completion configured" is said to.
     teacher?: boolean,
     badges?: Crest[],
 };
 
-/** The counts that decide the ghost card, the strip overflow links and the pending notice. */
+/**
+ * The counts that decide the ghost card, the strip overflow links and the pending notice.
+ *
+ * scheduled counts the courses whose enrolment starts later, which total never includes: they
+ * are not active, and the ghost stands for active courses only.
+ */
 export type Counts = {
     total: number,
     shown: number,
@@ -73,6 +81,7 @@ export type Counts = {
     favouritesmore: number,
     pending: number,
     scheduled: number,
+    scheduledmore: number,
 };
 
 /** The whole tier 1 payload. */
@@ -80,6 +89,8 @@ export type Attention = {
     continue: CourseCard[],
     new: CourseCard[],
     favourites: CourseCard[],
+    // The Starts-soon strip: enrolments that start later, soonest first.
+    scheduled: CourseCard[],
     counts: Counts,
     favouritesenabled: boolean,
 };
@@ -142,7 +153,7 @@ export type ExploreState = {
 
 /** One strip of tier 1: its payload key and its heading. */
 export type Strip = {
-    name: 'continue' | 'new' | 'favourites',
+    name: 'continue' | 'new' | 'favourites' | 'scheduled',
     title: string,
 };
 
