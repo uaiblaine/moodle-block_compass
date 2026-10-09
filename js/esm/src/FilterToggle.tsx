@@ -26,7 +26,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {fill} from './str';
+import {fillCount} from './str';
 import type {BlockConfig} from './types';
 
 type FilterToggleProps = {
@@ -53,7 +53,7 @@ const FilterToggle = ({count, open, controls, config, onToggle}: FilterTogglePro
             className="compass-filterbtn btn btn-sm"
             aria-expanded={open}
             aria-controls={controls}
-            aria-label={`${labels.filter}, ${fill(labels.filteractive, String(count))}`}
+            aria-label={`${labels.filter}, ${fillCount(labels, 'filteractive', count)}`}
             onClick={onToggle}
         >
             <span aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.filter}} />

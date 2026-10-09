@@ -40,7 +40,7 @@ import RetryNotice from './RetryNotice';
 import type {GhostKind} from './Ghost';
 import {notify} from './notify';
 import {cardColumns} from './columns';
-import {fill, fillObject} from './str';
+import {fill, fillCount, fillObject} from './str';
 import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
 import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange} from './types';
 
@@ -354,8 +354,8 @@ const Block = (config: BlockConfig) => {
      *
      * @param {string} kind Which strip: new, favourites or scheduled.
      * @param {number} count How many did not fit.
-     * @param {string} text The link text, taking the count.
-     * @param {string} label The link's accessible name, taking the count.
+     * @param {string} text Key of the link text string, taking the count.
+     * @param {string} label Key of the link's accessible-name string, taking the count.
      * @returns {object} The link description, or null when everything fitted.
      */
     const stripoverflow = (kind: GhostKind, count: number, text: string, label: string): StripOverflow | null => {
@@ -363,25 +363,25 @@ const Block = (config: BlockConfig) => {
             return null;
         }
 
-        return {count, kind, text: fill(text, String(count)), label: fill(label, String(count))};
+        return {count, kind, text: fillCount(labels, text, count), label: fillCount(labels, label, count)};
     };
 
     const shown = data ? data.continue.length + data.new.length + data.favourites.length + data.scheduled.length : 0;
     const overflows: Record<string, StripOverflow | null> = data
         ? {
             'continue': null,
-            'new': stripoverflow('new', data.counts.newmore, labels.strip_more_new, labels.strip_more_new_label),
+            'new': stripoverflow('new', data.counts.newmore, 'strip_more_new', 'strip_more_new_label'),
             favourites: stripoverflow(
                 'favourites',
                 data.counts.favouritesmore,
-                labels.strip_more_favourites,
-                labels.strip_more_favourites_label
+                'strip_more_favourites',
+                'strip_more_favourites_label'
             ),
             scheduled: stripoverflow(
                 'scheduled',
                 data.counts.scheduledmore,
-                labels.strip_more_scheduled,
-                labels.strip_more_scheduled_label
+                'strip_more_scheduled',
+                'strip_more_scheduled_label'
             ),
         }
         : {};
@@ -392,8 +392,9 @@ const Block = (config: BlockConfig) => {
      * yet and are not among the courses the ghost counts. Favourites, below it, hosts it as before.
      */
     const activestrips = config.strips.filter((strip) => strip.name !== 'scheduled');
+    const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
     const ghost: StripGhost | null = data && data.counts.more > 0 && !exploring
-        ? {count: data.counts.more, text: labels.ghost_more, cta: labels.ghost_explore}
+        ? {count: data.counts.more, text: ghosttext, cta: labels.ghost_explore}
         : null;
     const laststrip = data
         ? [...activestrips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
@@ -467,7 +468,7 @@ const Block = (config: BlockConfig) => {
                         (ADR-009). */}
                     {strip.name === 'new' && pendingcount > 0 && notice(
                         'pending',
-                        fill(labels.pendingnotice, String(pendingcount)),
+                        fillCount(labels, 'pendingnotice', pendingcount),
                         labels.pendingnoticelabel,
                         labels.pendingnoticeview
                     )}

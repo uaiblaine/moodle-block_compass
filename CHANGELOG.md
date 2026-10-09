@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+- **QA fixes**, version 2026092406. *Clear filters* in tier 3's panel also empties the search box
+  (and is enabled while only a search is active), in the full and the paged mode; the remembered
+  toolbar never held the query, so it follows the chips as before. Counts of exactly one read in
+  the singular: *1 course* in a group header and in the live region, *1 active filter*, *1
+  enrolment application awaiting approval*, the strips' *+1 favourite* link and their link names,
+  the ghost's *other course* and the *Archive all* confirmation (new `*_one` strings, English and
+  Portuguese). The progress percentage is truncated, as the Course overview block does, so 41.67 %
+  reads 41 % in both (it was rounded to 42 %); a value already cached keeps the old number for up
+  to an hour. Every read of the block (`get_attention`, `get_inventory`, `get_inventory_rows`,
+  `search_inventory`, `get_card_details`) is retried twice, 2 s apart, after any failure before
+  the load-failure notice appears; writes are not retried.
+
 ### Added
 
 - **A Starts-soon strip in tier 1** (ADR-013, 2026-10-08 amendment, reversing decision D6's

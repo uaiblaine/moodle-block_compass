@@ -30,7 +30,7 @@ import {useCallback, useEffect, useRef} from 'react';
 import type {ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
 import RowList from './RowList';
-import {fill} from './str';
+import {fillCount} from './str';
 import type {RowDetails} from './rowdetails';
 import type {BlockConfig, InventoryRow} from './types';
 
@@ -136,7 +136,7 @@ const Group = ({
                     {name}
                 </span>
                 <span className="compass-group-count small text-muted">
-                    {fill(labels.coursesingroup, String(count))}
+                    {fillCount(labels, 'coursesingroup', count)}
                 </span>
             </summary>
             {/* Inside the body rather than the summary: a button in a summary toggles the

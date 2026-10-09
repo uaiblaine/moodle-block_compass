@@ -1097,8 +1097,8 @@ Tier 3, whose behaviour is the most intricate thing here:
   when `chooseChip` changes — which it does when a paged payload lands after the press,
   by which time the reader may have moved on.
 - **Resilience is three things, each in one place (ADR-010, decision 12).** `repository.ts`
-  retries a read that failed in transit — a rejection without an `errorcode`, or one made while
-  `navigator.onLine` is false — after 1 s and 3 s plus up to 500 ms of jitter, telling the one
+  retries a read that failed, for any reason (2026-10-09; before that only a failure in transit), twice,
+  2000 ms apart and without jitter, telling the one
   `onRetry` listener (Block's) which attempt it is and, with attempt 0, that the read settled;
   Block shows the line above the strips and hands it to Explore for tier 3's loading region; `RetryNotice.tsx` is the amber alert with *Try again* and *Reload page* that
   every error state renders, a failed group page and a failed search included (ADR-005's "prints

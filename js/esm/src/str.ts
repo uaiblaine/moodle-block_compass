@@ -41,6 +41,20 @@ export const fill = (template: string | undefined, value: string): string =>
     (template || '').split('{$a}').join(value);
 
 /**
+ * Put a count into the language string that fits it: the `<key>_one` string for exactly 1.
+ *
+ * English and Portuguese both separate one from the rest and nothing else, so two strings per
+ * count are enough. A label set without the `_one` string falls back to the plain one.
+ *
+ * @param {object} labels The translated labels.
+ * @param {string} key The plain string's key.
+ * @param {number} count The number the string states.
+ * @returns {string} The string with the count in it.
+ */
+export const fillCount = (labels: Record<string, string>, key: string, count: number): string =>
+    fill(count === 1 && labels[`${key}_one`] ? labels[`${key}_one`] : labels[key], String(count));
+
+/**
  * Put several values into a language string's object placeholders.
  *
  * A language string whose $a is an object writes {$a->name}; this is the client's half of

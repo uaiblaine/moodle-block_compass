@@ -52,7 +52,7 @@ import {matches, normalise, passesChip, passesSelection} from './filter';
 import type {RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
 import {confirmAction, notify} from './notify';
-import {fill, fillObject} from './str';
+import {fill, fillCount, fillObject} from './str';
 import {
     getInventory, getInventoryRows, isTransportFailure, searchInventory, setArchived, setExplorePreference, setFavourite,
     setViewPreference,
@@ -492,7 +492,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         searchseq.current = mine;
         if (normalised.length < SEARCH_MIN_LENGTH) {
             setHits(null);
-            announce(normalised === '' ? '' : fill(labels.searchtooshort, String(SEARCH_MIN_LENGTH)));
+            announce(normalised === '' ? labels.filterupdated || '' : fill(labels.searchtooshort, String(SEARCH_MIN_LENGTH)));
 
             return;
         }
@@ -504,7 +504,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 }
                 setHits({rows: answer.rows, truncated: answer.truncated});
                 setSearchfailed(false);
-                const shown = fill(labels.resultsshown, String(answer.rows.length));
+                const shown = fillCount(labels, 'resultsshown', answer.rows.length);
                 announce(answer.truncated
                     ? `${shown} ${fill(labels.searchtruncated, String(answer.rows.length))}`
                     : shown);
@@ -515,8 +515,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 }
             }
         })();
-    }, [applied, paged, searchgen, filters, announce, labels.searchtooshort, labels.resultsshown, labels.searchtruncated,
-        labels.loaderror]);
+    }, [applied, paged, searchgen, filters, announce, labels.searchtooshort, labels, labels.searchtruncated,
+        labels.loaderror, labels.filterupdated]);
 
     // Full mode: matching is over the normalised name, so normalise each once rather
     // than on every keystroke. The archive's rows, held once fetched, are in the map too,
@@ -653,8 +653,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         if (!data || paged) {
             return;
         }
-        announce(fill(labels.resultsshown, String(shown)));
-    }, [shown, data, paged, announce, labels.resultsshown]);
+        announce(fillCount(labels, 'resultsshown', shown));
+    }, [shown, data, paged, announce, labels]);
 
     // Full mode: a search opens the groups that match and puts the rest back when it ends.
     useEffect(() => {
@@ -713,7 +713,10 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, [paged, resetGroups]);
 
     /**
-     * Release every group at once: the status chip back to All, no field chip pressed.
+     * Release every filter at once: the status chip back to All, no field chip pressed, and the
+     * search box emptied. The search is applied at once rather than after its debounce, so the
+     * list is not narrowed by a name for another 150 or 300 ms. The remembered toolbar holds
+     * neither the query nor the applied text, so it follows the chip and the selection alone.
      *
      * @returns {void}
      */
@@ -721,6 +724,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         const changed = chip !== 'all' || Object.keys(selection).length > 0;
         setChip('all');
         setSelection({});
+        setQuery('');
+        setApplied('');
         if (changed && paged) {
             resetGroups();
         }
@@ -1023,7 +1028,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         }
         const confirmed = await confirmAction(
             labels.archiveall,
-            fill(labels.archiveallconfirm, String(rows.length)),
+            fillCount(labels, 'archiveallconfirm', rows.length),
             labels.confirm
         );
         if (!confirmed) {
@@ -1244,6 +1249,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 chip={chip}
                 fields={fields}
                 selection={selection}
+                searching={query !== ''}
                 facets={facets}
                 onChip={chooseChip}
                 onSelect={chooseSelection}

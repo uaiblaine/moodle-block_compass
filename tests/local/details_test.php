@@ -242,4 +242,42 @@ final class details_test extends advanced_testcase {
         $this->assertSame(100, details::compute($course, $userid));
         $this->assertSame(100, details::get_many($userid, [$courseid])[$courseid]);
     }
+
+    /**
+     * A fractional percentage is truncated, as core's Course overview block does, not rounded.
+     *
+     * Five of twelve activities is 41.67 %: the block shows 41, and a rounding client would show
+     * 42. The stored value and the returned one agree, so the bar and the text read one number.
+     *
+     * @return void
+     */
+    public function test_compute_truncates_a_fractional_percentage_like_core(): void {
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        set_config('enablecompletion', 1);
+        $generator = $this->getDataGenerator();
+        $course = $generator->create_course(['enablecompletion' => 1]);
+        $user = $generator->create_user();
+        $generator->enrol_user($user->id, $course->id, 'student');
+        $cmids = [];
+        for ($i = 0; $i < 12; $i++) {
+            $cmids[] = (int) $generator->create_module('page', [
+                'course' => $course->id,
+                'completion' => COMPLETION_TRACKING_MANUAL,
+            ])->cmid;
+        }
+        $userid = (int) $user->id;
+        $courseid = (int) $course->id;
+        $this->purge_details_cache();
+
+        $completion = new completion_info($course);
+        $modinfo = get_fast_modinfo($course);
+        foreach (array_slice($cmids, 0, 5) as $cmid) {
+            $completion->update_state($modinfo->get_cm($cmid), COMPLETION_COMPLETE, $userid);
+        }
+
+        $this->assertEqualsWithDelta(41.67, \core_completion\progress::get_course_progress_percentage($course, $userid), 0.01);
+        $this->assertSame(41, details::compute($course, $userid));
+        $this->assertSame(41, details::get_many($userid, [$courseid])[$courseid]);
+    }
 }

@@ -50,6 +50,7 @@ type FilterPanelProps = {
     chip: string,
     fields: FilterField[],
     selection: Record<string, number>,
+    searching: boolean,
     facets: Facets,
     onChip: (chip: string) => void,
     onSelect: (field: string, value: number | null) => void,
@@ -63,7 +64,9 @@ type FilterPanelProps = {
  *     selection, the counts and the three callbacks; see FilterPanelProps.
  * @returns {object} The rendered panel.
  */
-const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChip, onSelect, onClear}: FilterPanelProps) => {
+const FilterPanel = (
+    {id, hidden, config, chip, fields, selection, searching, facets, onChip, onSelect, onClear}: FilterPanelProps
+) => {
     const {labels} = config;
     const base = useId();
     const statusid = `${base}-status`;
@@ -99,7 +102,8 @@ const FilterPanel = ({id, hidden, config, chip, fields, selection, facets, onChi
         pressed: chip === key,
     })).filter(drawn);
 
-    const pressed = (chip !== 'all' ? 1 : 0) + Object.keys(selection).length;
+    // The search text counts here only for the Clear control, which empties it too.
+    const pressed = (chip !== 'all' ? 1 : 0) + Object.keys(selection).length + (searching ? 1 : 0);
 
     return (
         <div id={id} className="compass-fpanel" hidden={hidden}>

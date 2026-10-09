@@ -67,12 +67,12 @@ Feature: The Compass block puts the courses that need attention first
     And I add the "Compass" block
     And I turn editing mode off
     Then I should see "Course 1" in the "Compass" "block"
-    And I should see "other courses" in the "Compass" "block"
+    And I should see "other course" in the "Compass" "block"
     And I should see "Starts soon" in the "Compass" "block"
     And I should see "Course 6" in the "Compass" "block"
     And I should see "Access from" in the "Compass" "block"
     And I should not see "Course 7" in the "Compass" "block"
-    When I click on "Show the other 1 enrolments that start later in the full course list" "button" in the "Compass" "block"
+    When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled chip with its first category group open, which here holds no
     # later start; the flat A-Z list shows every row the chip keeps, whatever group it is in.
     And I click on "A–Z" "button" in the "Compass" "block"
@@ -139,7 +139,7 @@ Feature: The Compass block puts the courses that need attention first
     # live region announces the count, which is what settles the re-render before the negative
     # assertion runs (Course 5 is not in tier 1, so its absence is tier 3's).
     When I click on "Online" "button" in the "Compass" "block"
-    Then I should see "1 courses shown" in the "Compass" "block"
+    Then I should see "1 course shown" in the "Compass" "block"
     And I should see "Course 4" in the "Compass" "block"
     And I should not see "Course 5" in the "Compass" "block"
     When I click on "Clear filters" "button" in the "Compass" "block"
@@ -150,7 +150,7 @@ Feature: The Compass block puts the courses that need attention first
     # go. The live region says how many rows survived the filter, so waiting for it is waiting
     # for the filter itself. (Course 4 is also in tier 1, so asserting it proves nothing about
     # tier 3 either way.)
-    Then I should see "1 courses shown" in the "Compass" "block"
+    Then I should see "1 course shown" in the "Compass" "block"
     And I should see "Course 4" in the "Compass" "block"
     And I should not see "Course 2" in the "Compass" "block"
     # The cards are a second component tree over the same rows, and in React a defect in one
@@ -202,7 +202,7 @@ Feature: The Compass block puts the courses that need attention first
     # The count is what settles the write before anything is asserted about absence, the way
     # the search scenario waits for the live region rather than racing a debounce.
     Then I should see "Archived" in the "Compass" "block"
-    And I should see "1 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    And I should see "1 course" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     And I am on the "My courses" page
     And I should not see "Course 2" in the "Course overview" "block"
     # Core's own filter is what proves the row is core's, not a second store of our own.
@@ -224,7 +224,7 @@ Feature: The Compass block puts the courses that need attention first
     # And a query the archived course does match keeps it: the name map the matcher reads must
     # know the archive's rows too, or they would match nothing whatever their name.
     When I set the field "Search my courses" to "Course 2"
-    Then I should see "1 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    Then I should see "1 course" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     And I should see "Course 2" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     When I set the field "Search my courses" to ""
     # Clearing the search puts the groups above back the way they were, 150 ms later, and the
@@ -233,7 +233,7 @@ Feature: The Compass block puts the courses that need attention first
     # once the cleared query has been applied - three listed courses plus the archived one,
     # held and counted - so waiting for it is waiting for the layout to settle.
     Then I should see "4 courses shown" in the "Compass" "block"
-    And I should see "1 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
+    And I should see "1 course" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     And I should see "Course 2" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     And I click on "Unarchive Course 2" "button" in the "Compass" "block"
     # The announcement is made only after the write has been awaited, so waiting for it is

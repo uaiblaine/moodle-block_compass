@@ -138,7 +138,10 @@ final class details {
      */
     public static function compute(stdClass $course, int $userid): ?int {
         $percentage = progress::get_course_progress_percentage($course, $userid);
-        $progress = $percentage === null ? null : (int) round($percentage);
+        // Truncated, as core's Course overview does (course_summary_exporter floors it): rounding
+        // would show 42 % where that block shows 41 % for 41.67. Floor, never PHP round(), whose
+        // handling of a float just under .5 differs between 8.3 and 8.4.
+        $progress = $percentage === null ? null : (int) floor($percentage);
         self::set($userid, (int) $course->id, $progress);
 
         return $progress;
