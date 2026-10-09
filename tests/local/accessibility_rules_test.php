@@ -1199,6 +1199,42 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
+     * A tier 1 card stops at 373 px, and the block's page at 1080 px.
+     *
+     * Each count's grid is capped at that many 373 px tracks and their 16 px gaps, so a card in a
+     * wide block keeps the gap rather than sitting at the start of a wider track; the page caps the
+     * theme's content box, keyed on its own body id. Changes that must make it fail: a cap that no
+     * longer matches its count, a cap moved onto the item, the page rule lost or keyed on a bare
+     * theme selector.
+     *
+     * @return void
+     */
+    public function test_cards_and_page_have_a_width_cap(): void {
+        $caps = [];
+        $page = null;
+        foreach ($this->rules() as $rule) {
+            [$selector, $body] = $rule;
+            if (preg_match('/\.compass-cards-([123])(?![\w-])/', $selector, $matches) && !str_contains($selector, ':')) {
+                $caps[(int) $matches[1]] = $body;
+            }
+            if (str_contains($selector, '#page-blocks-compass-index') && str_contains($selector, '.main-inner')) {
+                $page = $body;
+            }
+        }
+        foreach ([1, 2, 3] as $count) {
+            $this->assertArrayHasKey($count, $caps, "no .compass-cards-{$count} rule found in styles.css");
+            $width = $count * 373 + ($count - 1) * 16;
+            $this->assertMatchesRegularExpression(
+                '/\bmax-width\s*:\s*' . $width . 'px\b/',
+                $caps[$count],
+                ".compass-cards-{$count} is not capped at {$count} tracks of 373 px"
+            );
+        }
+        $this->assertNotNull($page, 'no #page-blocks-compass-index .main-inner rule found in styles.css');
+        $this->assertMatchesRegularExpression('/\bmax-width\s*:\s*1080px\b/', $page, 'the page is not capped at 1080 px');
+    }
+
+    /**
      * A tier 1 card has the theme card's anatomy, and the ghost stretches to its row.
      *
      * ADR-013 decision 7: a 150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600,
