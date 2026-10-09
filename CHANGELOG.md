@@ -40,6 +40,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Cards and the block's page have a width cap.** A first-tier card is never wider than 373 px:
+  in a wide block the card grid stops short instead of stretching its cards. The block's own page
+  (`/blocks/compass/index.php`) keeps its content to 1080 px, centred.
 - **Tier 3 takes the theme's card and list look** (ADR-013 decision 8), version 2026092404: a
   card has the theme card's 150 px cover and body measures, a list row is a framed line with the
   image as a 56 px square at its start and the crests at 24 px. A later start and an application

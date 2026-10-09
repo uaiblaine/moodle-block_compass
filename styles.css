@@ -80,6 +80,13 @@ body[data-bs-theme="dark"] .block_compass,
     outline-offset: 2px;
 }
 
+/* The block's own page (index.php, on the base layout) keeps its content to 1080 px, centred: the
+   theme's content box is full width on that layout. Keyed on the page's body id, which is the
+   plugin's own and outweighs Boost's #page.drawers .main-inner. */
+#page-blocks-compass-index #page.drawers .main-inner {
+    max-width: 1080px;
+}
+
 /* The page without its title, keyed on the body class index.php adds:
    the theme got an empty heading and its header holds nothing, so the header collapses to no
    height (its inner margins are Bootstrap utilities, which win by weight, so they are boxed in
@@ -215,7 +222,9 @@ body[data-bs-theme="dark"] .block_compass,
    states the thresholds), and not a media query: the block may sit in a drawer, and a viewport
    query would fire at the wrong moments. The ghost is an item like the cards and stretches to its
    row's height; standing alone, it keeps one track of the same grid. minmax(0, 1fr) keeps a long
-   name from widening a track. */
+   name from widening a track. A card is never wider than 373 px: each count caps its grid at that
+   many 373 px tracks and their gaps, so in a wide block the grid stops short and keeps its 16 px
+   gap, where a cap on the item would leave it at the start of a wider track. */
 .block_compass .compass-cards-list,
 .block_compass .compass-ghost-wrap {
     display: grid;
@@ -224,14 +233,17 @@ body[data-bs-theme="dark"] .block_compass,
 
 .block_compass .compass-cards-1 {
     grid-template-columns: repeat(1, minmax(0, 1fr));
+    max-width: 373px;
 }
 
 .block_compass .compass-cards-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 762px;
 }
 
 .block_compass .compass-cards-3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 1151px;
 }
 
 .block_compass .compass-cards-item {
