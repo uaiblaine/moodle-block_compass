@@ -508,7 +508,7 @@ disabled and its glyph rotates, unless the learner asked for less motion. It is 
 reach: the title bar beside it is core's (fact 18), and a control inside a heading would be wrong
 anyway.
 
-**A bounded retry, for reads only, on transport failures only.** `repository.ts` gains one wrapper
+**A bounded retry, for reads only.** *(Amended 2026-10-09: the retry covers any failure and waits 2 s both times, with no jitter; the sentences below that say transport failures only, 1 s and 3 s, and jitter are the original decision.)* `repository.ts` gains one wrapper
 around the five read calls — `getAttention`, `getInventory`, `getInventoryRows`, `searchInventory`,
 `getCardDetails` — that classifies a rejection the way `block_feedback_tracker` does (fact 17): a
 rejection carrying an `errorcode` is the server's answer and is never retried; a rejection without

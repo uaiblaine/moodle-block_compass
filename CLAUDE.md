@@ -202,8 +202,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   on a counter, index hidden below 640 px of the section, focus moved deliberately after
   "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant and
   archived groups `-1`/`-2`, the toolbar remembered through `explore_preference` (shape
-  validated server-side, membership client-side), resilience in `repository.ts` (bounded retry
-  on transit failures), `RetryNotice`, `Reload`; busy controls `aria-disabled`, never
+  validated server-side, membership client-side), resilience in `repository.ts` (bounded retry:
+  every failed read twice, 2 s apart), `RetryNotice`, `Reload`; busy controls `aria-disabled`, never
   `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
   "Client side".
 - **The theme's crests go through `classes/local/theme_badges.php` only**: it asks core's

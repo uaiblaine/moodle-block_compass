@@ -45,14 +45,17 @@ type UserRepository = {
 let loading: Promise<AjaxModule> | null = null;
 
 /**
- * The waits before the second and the third attempt of a read that failed in transport: two
- * retries over about four seconds cover a connection that is not up yet when the Dashboard is,
- * and stop before they hammer a server that is struggling.
+ * How many times a failed read is asked again before the failure reaches the component.
+ *
+ * The owner's policy (2026-10-09): a first load failed once on a slow network or environment, so
+ * every read gets two more tries, two seconds apart, before "could not be loaded" appears. Any
+ * failure counts, a dropped connection and a server exception alike. There is no test seam: the
+ * client has no JS runner, and a PHPUnit rule over this file pins both constants.
  */
-const RETRY_DELAYS_MS = [1000, 3000];
+const RETRY_ATTEMPTS = 2;
 
-/** Up to this much is added to each wait, so a room full of learners does not retry in step. */
-const RETRY_JITTER_MS = 500;
+/** The wait before each retry, in milliseconds. */
+const RETRY_DELAY_MS = 2000;
 
 /**
  * Called before each retry with the retry's number (1 or 2) and the number of retries, and with
@@ -81,7 +84,8 @@ export const onRetry = (listener: RetryListener | null): void => {
  *
  * A web-service exception always carries a Moodle errorcode; core/ajax rejects a transport
  * failure with whatever jQuery reported, which has none. The browser's offline flag is the
- * second signal. A server that answered is never retried: its answer is the answer.
+ * second signal. This tells the two messages apart ("Connection lost" or not); it no longer
+ * decides whether a read is retried, because every failed read is.
  *
  * @param {unknown} error The rejection.
  * @returns {boolean} Whether it is a transport failure.
@@ -121,7 +125,7 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
 };
 
 /**
- * Call one READ web service, retrying a transport failure twice before giving up.
+ * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.
  *
  * Reads only: the five services below answer questions, so asking again changes nothing. Writes
  * are never retried - the star goes through call(), the view, the toolbar and the archive through
@@ -145,7 +149,7 @@ const read = async<T>(methodname: string, args: Record<string, unknown>): Promis
         }
         retrying--;
         if (retrying === 0 && retrylistener) {
-            retrylistener(0, RETRY_DELAYS_MS.length);
+            retrylistener(0, RETRY_ATTEMPTS);
         }
     };
     for (let attempt = 0; ; attempt++) {
@@ -155,7 +159,7 @@ const read = async<T>(methodname: string, args: Record<string, unknown>): Promis
 
             return answer;
         } catch (e) {
-            if (attempt >= RETRY_DELAYS_MS.length || !isTransportFailure(e)) {
+            if (attempt >= RETRY_ATTEMPTS) {
                 settle();
                 throw e;
             }
@@ -164,9 +168,9 @@ const read = async<T>(methodname: string, args: Record<string, unknown>): Promis
                 retrying++;
             }
             if (retrylistener) {
-                retrylistener(attempt + 1, RETRY_DELAYS_MS.length);
+                retrylistener(attempt + 1, RETRY_ATTEMPTS);
             }
-            await sleep(RETRY_DELAYS_MS[attempt] + Math.random() * RETRY_JITTER_MS);
+            await sleep(RETRY_DELAY_MS);
         }
     }
 };
