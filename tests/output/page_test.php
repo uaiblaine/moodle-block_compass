@@ -199,7 +199,7 @@ final class page_test extends advanced_testcase {
         $CFG->defaulthomepage = '/blocks/compass/index.php?x=1';
         $this->assertTrue(page::guest_home_is_this_page(), 'the query string does not make it another page');
 
-        foreach (['/blocks/compass/', '/blocks/compass', '/blocks/compass/?x=1'] as $directory) {
+        foreach (['/blocks/compass/', '/blocks/compass', '/blocks/compass/?x=1', '/blocks/compass/index.php/'] as $directory) {
             $CFG->defaulthomepage = $directory;
             $this->assertTrue(page::guest_home_is_this_page(), 'The directory form "' . $directory . '" is this page.');
         }

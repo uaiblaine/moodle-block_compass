@@ -128,7 +128,7 @@ class page extends block {
         if ($homeurl === null) {
             return false;
         }
-        $path = rtrim(preg_replace('~/index\.php$~', '', $homeurl->get_path(false)), '/');
+        $path = rtrim(preg_replace('~/index\.php$~', '', rtrim($homeurl->get_path(false), '/')), '/');
 
         return $path === (new \core\url('/blocks/compass'))->get_path(false);
     }
