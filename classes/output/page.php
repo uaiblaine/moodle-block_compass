@@ -114,7 +114,8 @@ class page extends block {
      *
      * The front page always redirects a HOMEPAGE_URL home to the configured URL, even with
      * redirect=0 (index.php:102), so a guest whose home is a URL that points here would bounce
-     * between the two.
+     * between the two. The directory form ('/blocks/compass/', with or without a trailing slash) is
+     * this page too: the web server serves index.php for it, and URL_MATCH_BASE sees another path.
      *
      * @return bool
      */
@@ -124,6 +125,11 @@ class page extends block {
         }
         $homeurl = get_default_home_page_url();
 
-        return $homeurl !== null && $homeurl->compare(new \core\url('/blocks/compass/index.php'), URL_MATCH_BASE);
+        if ($homeurl === null) {
+            return false;
+        }
+        $path = rtrim(preg_replace('~/index\.php$~', '', $homeurl->get_path(false)), '/');
+
+        return $path === (new \core\url('/blocks/compass'))->get_path(false);
     }
 }
