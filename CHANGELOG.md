@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Guests on the page**, version 2026101000. A guest who opens `/blocks/compass/index.php` is
+  redirected to the front page, as `my/index.php` does, instead of reading "No guests here!". When
+  the guest's home page is this very page the front page would redirect straight back, so that
+  case keeps the `noguest` error (`page::guest_home_is_this_page()`). The web services still
+  refuse guests.
 - **QA fixes**, version 2026092406. *Clear filters* in tier 3's panel also empties the search box
   (and is enabled while only a search is active), in the full and the paged mode; the remembered
   toolbar never held the query, so it follows the chips as before. Counts of exactly one read in

@@ -124,18 +124,97 @@ final class page_test extends advanced_testcase {
     }
 
     /**
-     * A guest is refused, as the block refuses one.
+     * Assert that require_access() redirects: under CLI redirect() throws rather than sending a header.
      *
      * @return void
      */
-    public function test_a_guest_is_refused(): void {
+    private function assert_redirects(): void {
+        try {
+            page::require_access();
+            $this->fail('require_access() let the viewer through');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('redirecterrordetected', $e->errorcode);
+        }
+    }
+
+    /**
+     * A guest whose home page is this page is refused, not redirected: '/' would come straight back.
+     *
+     * The controls are the next two tests: the same guest with another home page is redirected.
+     *
+     * @return void
+     */
+    public function test_a_guest_whose_home_page_is_this_page_is_refused(): void {
+        global $CFG;
+
         $this->resetAfterTest();
         set_config('enable_page', 1, 'block_compass');
+        $CFG->defaulthomepage = '/blocks/compass/index.php';
         $this->setGuestUser();
 
-        $this->expectException(\moodle_exception::class);
-        $this->expectExceptionMessage(get_string('noguest', 'error'));
+        $this->assertTrue(page::guest_home_is_this_page());
+        try {
+            page::require_access();
+            $this->fail('a guest looping through the front page was let through');
+        } catch (\moodle_exception $e) {
+            $this->assertSame('noguest', $e->errorcode);
+        }
+    }
+
+    /**
+     * A guest whose home page is the site is redirected to the front page.
+     *
+     * @return void
+     */
+    public function test_a_guest_with_the_site_home_page_is_redirected(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+        set_config('enable_page', 1, 'block_compass');
+        $CFG->defaulthomepage = HOMEPAGE_SITE;
+        $this->setGuestUser();
+
+        $this->assertFalse(page::guest_home_is_this_page());
+        $this->assert_redirects();
+    }
+
+    /**
+     * A guest whose home page is another URL is redirected; a URL with a query string on this
+     * page still counts as this page.
+     *
+     * @return void
+     */
+    public function test_a_guest_with_another_home_url_is_redirected(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+        set_config('enable_page', 1, 'block_compass');
+        $CFG->defaulthomepage = '/course/index.php';
+        $this->setGuestUser();
+
+        $this->assertSame(HOMEPAGE_URL, get_home_page());
+        $this->assertFalse(page::guest_home_is_this_page());
+        $this->assert_redirects();
+
+        $CFG->defaulthomepage = '/blocks/compass/index.php?x=1';
+        $this->assertTrue(page::guest_home_is_this_page(), 'the query string does not make it another page');
+    }
+
+    /**
+     * A logged-in user is not touched by the guest branch, even with this page as the home page.
+     *
+     * @return void
+     */
+    public function test_a_logged_in_user_is_unaffected(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+        set_config('enable_page', 1, 'block_compass');
+        $CFG->defaulthomepage = '/blocks/compass/index.php';
+        $this->setUser($this->getDataGenerator()->create_user());
+
         page::require_access();
+        $this->assertTrue(true, 'the user passes through');
     }
 
     /**

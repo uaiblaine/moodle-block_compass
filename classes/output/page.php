@@ -88,19 +88,42 @@ class page extends block {
     /**
      * The page's two gates, after require_login(): no guest, and no page while it is off.
      *
-     * A guest is refused the way the block refuses one. A page that is switched off redirects to
-     * the Dashboard: a start page stored before the setting changed must land somewhere, and the
-     * Dashboard is where the block already is.
+     * A guest is sent to the front page, as my/index.php does for a guest when allowguestmymoodle
+     * is off (my/index.php:76-78), unless that would loop ({@see self::guest_home_is_this_page()}), in
+     * which case the guest is refused the way the block refuses one. A page that is switched off
+     * redirects to the Dashboard: a start page stored before the setting changed must land
+     * somewhere, and the Dashboard is where the block already is.
      *
      * @return void
-     * @throws \moodle_exception For a guest.
+     * @throws \moodle_exception For a guest whose home page is this page.
      */
     public static function require_access(): void {
         if (isguestuser()) {
-            throw new \moodle_exception('noguest');
+            if (self::guest_home_is_this_page()) {
+                throw new \moodle_exception('noguest');
+            }
+            redirect(new \core\url('/'));
         }
         if (!\block_compass\local\config::page_enabled()) {
             redirect(new \core\url('/my/'));
         }
+    }
+
+    /**
+     * Whether the current user's home page is this page, so that redirecting to '/' would loop.
+     *
+     * The front page always redirects a HOMEPAGE_URL home to the configured URL, even with
+     * redirect=0 (index.php:102), so a guest whose home is a URL that points here would bounce
+     * between the two.
+     *
+     * @return bool
+     */
+    public static function guest_home_is_this_page(): bool {
+        if (get_home_page() != HOMEPAGE_URL) {
+            return false;
+        }
+        $homeurl = get_default_home_page_url();
+
+        return $homeurl !== null && $homeurl->compare(new \core\url('/blocks/compass/index.php'), URL_MATCH_BASE);
     }
 }
