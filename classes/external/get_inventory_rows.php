@@ -191,9 +191,9 @@ class get_inventory_rows extends external_api {
      * both through the same components. Shared with search_inventory, which adds a groupid, and
      * with get_inventory itself.
      *
-     * pend, wait, sched and cf are optional and omitted when they do not apply — never sent as false or
-     * empty — because a VALUE_OPTIONAL key the domain leaves out never enters the response and
-     * costs no bytes on the rows it does not describe.
+     * pend, wait, sched, comp and cf are optional and omitted when they do not apply — never sent as
+     * false or empty — because a VALUE_OPTIONAL key the domain leaves out never enters the response
+     * and costs no bytes on the rows it does not describe.
      *
      * @return array Field name => external_value.
      */
@@ -218,6 +218,11 @@ class get_inventory_rows extends external_api {
             'sched' => new external_value(
                 PARAM_TEXT,
                 'Present only on an enrolment that starts later: its start date, formatted for the reader',
+                VALUE_OPTIONAL
+            ),
+            'comp' => new external_value(
+                PARAM_BOOL,
+                'Present, and true, only when get_card_details will answer hascompletion true for the course',
                 VALUE_OPTIONAL
             ),
             'cf' => new external_multiple_structure(

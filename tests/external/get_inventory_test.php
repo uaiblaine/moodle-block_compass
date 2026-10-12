@@ -298,6 +298,43 @@ final class get_inventory_test extends advanced_testcase {
     }
 
     /**
+     * comp survives the allowlist on a row whose course tracks completion and is absent elsewhere.
+     *
+     * The control is the same learner's untracked rows in the same response: the fixture's three
+     * courses, created without completion, carry no comp key; the one course created with it
+     * carries comp true, after the response has been cleaned through execute_returns().
+     *
+     * @return void
+     */
+    public function test_comp_survives_the_allowlist_and_is_omitted_elsewhere(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        [$user, $courses, $cata] = $this->fixture();
+        $tracked = $this->getDataGenerator()->create_course([
+            'fullname' => 'Tracked course',
+            'category' => $cata->id,
+            'enablecompletion' => 1,
+        ]);
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $plugin->enrol_at((int) $user->id, (int) $tracked->id, time() - DAYSECS);
+        $this->setUser($user);
+
+        $data = $this->call();
+
+        $rows = [];
+        foreach ($data['groups'] as $group) {
+            foreach ($group['courses'] as $row) {
+                $rows[$row['id']] = $row;
+            }
+        }
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'comp'], array_keys($rows[(int) $tracked->id]));
+        $this->assertTrue($rows[(int) $tracked->id]['comp']);
+        foreach ($courses as $course) {
+            $this->assertArrayNotHasKey('comp', $rows[(int) $course->id], 'a course without completion carries no comp key');
+        }
+    }
+
+    /**
      * The worst case the custom-field and pending rows can produce stays under the 40 KB ceiling.
      *
      * 250 courses in 6 groups — the default inventory_max, so the largest full-mode payload — with

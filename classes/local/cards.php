@@ -64,8 +64,6 @@ final class cards {
      * @return array Strip name => list of card arrays, same order as the rows.
      */
     public static function build(int $userid, array $strips, int $now, ?callable $crests = null): array {
-        global $CFG;
-
         $allrows = [];
         foreach ($strips as $rows) {
             foreach ($rows as $courseid => $row) {
@@ -89,10 +87,9 @@ final class cards {
 
         // A course that starts later has no progress to speak of, and no completion notice either.
         $later = array_fill_keys(array_map('intval', array_keys($strips[self::SCHEDULED_STRIP] ?? [])), true);
-        $completionenabled = !empty($CFG->enablecompletion);
         $withcompletion = [];
         foreach ($entries as $courseid => $entry) {
-            if ($completionenabled && $entry['enablecompletion'] && !isset($later[$courseid])) {
+            if (self::tracks_completion(!isset($later[$courseid]), $entry)) {
                 $withcompletion[] = $courseid;
             }
         }
@@ -274,6 +271,25 @@ final class cards {
     }
 
     /**
+     * Whether a course's answer will carry completion: the one rule behind hascompletion.
+     *
+     * Tier 1's cards, details() and the comp flag of tier 3's rows ({@see explore}) all decide
+     * it here, because the client reserves the progress slot of a row from comp before
+     * details() answers: a flag that disagreed with hascompletion would leave a skeleton
+     * where no bar comes, or a bar where no room was kept, and the row would move under the
+     * pointer when the answer lands. No read: the site setting and the course layer's column.
+     *
+     * @param bool $enrolled Whether the viewer's relationship is an active enrolment.
+     * @param array $entry The course's course_meta entry.
+     * @return bool
+     */
+    public static function tracks_completion(bool $enrolled, array $entry): bool {
+        global $CFG;
+
+        return $enrolled && !empty($CFG->enablecompletion) && !empty($entry['enablecompletion']);
+    }
+
+    /**
      * "… ago" text, or the "just now" variant under a minute.
      *
      * @param string $agokey Lang key taking the formatted duration as $a.
@@ -318,7 +334,7 @@ final class cards {
      *     the course has crests.
      */
     public static function details(int $userid, array $courseids, ?int $now = null, ?callable $crests = null): array {
-        global $DB, $CFG;
+        global $DB;
 
         $now = $now ?? time();
         $courseids = array_values(array_unique(array_map('intval', $courseids)));
@@ -353,15 +369,13 @@ final class cards {
         }
 
         $allowed = array_keys($relationship);
-        $completionenabled = !empty($CFG->enablecompletion);
 
         // The course layer answers "is completion tracked here" without a course record; only
         // the courses whose progress is not cached need their record for core's computation.
         $meta = course_meta::get_many($allowed);
         $tracked = [];
         foreach ($meta as $courseid => $entry) {
-            $enrolled = $relationship[$courseid] === access::RELATIONSHIP_ENROLLED;
-            if ($enrolled && $completionenabled && $entry['enablecompletion']) {
+            if (self::tracks_completion($relationship[$courseid] === access::RELATIONSHIP_ENROLLED, $entry)) {
                 $tracked[] = $courseid;
             }
         }

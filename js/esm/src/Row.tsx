@@ -29,6 +29,12 @@
  * progress; the batch answers it with its image and crests only. The name is clamped to two
  * lines with the whole name in its title attribute.
  *
+ * The row is the same size before and after its batch answers, because a narrow block wraps it
+ * and anything that appears or goes moves the star and the archive control under the pointer:
+ * the image slot is always 56 px, and the progress slot is there from the first render exactly
+ * when the inventory says comp - a skeleton while the batch is out, then the bar, or nothing in
+ * the same room when the course has no progress for this learner yet.
+ *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -118,12 +124,16 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
             <StatePill row={row} labels={labels} />
             <Crests badges={detail?.badges} label={labels.crests} inline />
             {meta !== null && <span className="compass-row-meta small text-muted text-nowrap">{meta}</span>}
-            {/* Waiting shows a skeleton, then the rule of Card.tsx completion(): a bar when
-                there is one, "No completion configured" to a teacher only, else nothing. */}
-            {enrolled && waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
-            {answered && detail.hascompletion && detail.progress !== null && (
+            {/* The progress slot, held from the first render when comp says a bar may come: a
+                skeleton while the batch is out, then the rule of Card.tsx completion() - a bar
+                when there is one, else the empty slot, which is also what a failed batch leaves.
+                "No completion configured" goes to a teacher only, on a row with no slot. */}
+            {enrolled && row.comp && (
                 <div className="compass-row-progress">
-                    <Progress progress={detail.progress} labels={labels} compact />
+                    {waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
+                    {answered && detail.hascompletion && detail.progress !== null && (
+                        <Progress progress={detail.progress} labels={labels} compact />
+                    )}
                 </div>
             )}
             {answered && !detail.hascompletion && detail.teacher && (

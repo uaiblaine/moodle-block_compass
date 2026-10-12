@@ -207,10 +207,12 @@ export const GROUP_ARCHIVED = -2;
  *
  * pend is present, and true, only on an enrolment application awaiting approval or on the
  * waiting list, and wait beside it only on the waiting list; sched is present only on an
- * enrolment that starts later, as its start date already formatted for the reader; cf is
- * present only when the row holds a custom-field value, as a flat list read in pairs — the
- * field's index in the payload's fields array, then the value key. All four are omitted rather
- * than sent false or empty, because omission costs nothing on the wire.
+ * enrolment that starts later, as its start date already formatted for the reader; comp is
+ * present, and true, only when get_card_details will answer hascompletion true for the course,
+ * so a row keeps the room for its progress before the answer lands; cf is present only when the
+ * row holds a custom-field value, as a flat list read in pairs — the field's index in the
+ * payload's fields array, then the value key. All five are omitted rather than sent false or
+ * empty, because omission costs nothing on the wire.
  */
 export type InventoryRow = {
     id: number,
@@ -222,6 +224,7 @@ export type InventoryRow = {
     pend?: boolean,
     wait?: boolean,
     sched?: string,
+    comp?: boolean,
     cf?: number[],
 };
 

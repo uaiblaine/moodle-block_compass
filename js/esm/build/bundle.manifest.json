@@ -15,8 +15,8 @@
         "src/Progress.tsx": "61dc8514e98d35b3444aef85d0476c6c44598710",
         "src/Reload.tsx": "06fc9b7fbd06b64bbe914d4df510a89b8a0c5eb4",
         "src/RetryNotice.tsx": "f1a80592fba983c8aaa773bba829811a6f857d15",
-        "src/Row.tsx": "cf4eff2a0277b700aa7511d9d9d43fffa04f4e48",
-        "src/RowCard.tsx": "e5d39b7b29dc07708e7f07f9212f9866536fb8c5",
+        "src/Row.tsx": "7d768da60bf61649b6adfac2d7f075f3e3c754e6",
+        "src/RowCard.tsx": "cbaceed2f5d0fa5e3ab981f22c1066cec85e7cce",
         "src/RowList.tsx": "84b9b1333b1f1fa477b718ceb1e266cac0f0c13e",
         "src/Star.tsx": "7e93c4d5944ea9b288eb6fe4984e70d0c5feea21",
         "src/StatePill.tsx": "478efbd6ee2f60d72679d6f3a8cb79e19784caf6",
@@ -30,6 +30,6 @@
         "src/repository.ts": "2cfa26d38c2e38f78fdcb206e65936db8af213b8",
         "src/rowdetails.ts": "4a564f5d755cc1e93dadcf04acf6dc9b06f9becb",
         "src/str.ts": "8b8bd50cd4038965dc358a101ebfd0c7b1568388",
-        "src/types.ts": "86b7dcc954e08693212c431f5bd01f307c79aeab"
+        "src/types.ts": "898c073c1ed574c434f4c2491185589b04b73dc1"
     }
 }
