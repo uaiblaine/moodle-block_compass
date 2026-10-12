@@ -155,7 +155,8 @@ const RowCard = ({
                 <Crests badges={detail?.badges} label={labels.crests} />
                 <div className="compass-rowcard-foot mt-auto d-flex align-items-center justify-content-between gap-2">
                     <div className="compass-row-progress flex-grow-1">
-                        {enrolled && waiting && (
+                        {/* Only where a bar may come, as in Row.tsx: comp says so before the answer. */}
+                        {enrolled && row.comp && waiting && (
                             <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>
                         )}
                         {answered && detail.hascompletion && detail.progress !== null && (

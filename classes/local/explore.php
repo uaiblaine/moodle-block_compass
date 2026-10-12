@@ -156,6 +156,7 @@ final class explore {
                 if (!$paged) {
                     $dormant['courses'][] = self::row(
                         $course,
+                        $entrymeta,
                         self::course_name($entrymeta, $contexts[$courseid]),
                         $now,
                         $newwindow,
@@ -181,6 +182,7 @@ final class explore {
                 // holds whole, and get_inventory::execute_returns() pins this exact shape.
                 $groups[$groupid]['courses'][] = self::row(
                     $course,
+                    $entrymeta,
                     self::course_name($entrymeta, $contexts[$courseid]),
                     $now,
                     $newwindow,
@@ -654,6 +656,7 @@ final class explore {
         foreach ($courseids as $courseid) {
             $rows[$courseid] = self::row(
                 $courses[$courseid],
+                $meta[$courseid],
                 self::course_name($meta[$courseid], $contexts[$courseid]),
                 $now,
                 $newwindow,
@@ -882,17 +885,21 @@ final class explore {
     /**
      * One tier 3 row, the shape {@see \block_compass\external\get_inventory_rows::row_fields()} pins:
      * id, name, opened, new, fav, dorm, then pend only on an application (with wait when it is on
-     * the waiting list), sched only on an enrolment that starts later, and cf only when the row
-     * holds a field value.
+     * the waiting list), sched only on an enrolment that starts later, comp only when the course's
+     * details will carry completion, and cf only when the row holds a field value.
      *
      * dorm is the answer and not the inputs: the browser holds opened but not the enrolment
      * date, and the threshold is a site setting it does not have. sched is the start date
      * formatted for the reader, as the theme's card prints it (strftimedatefullshort), because
-     * the browser's clock and timezone are not the user's. pend, wait, sched and cf are omitted
-     * rather than sent false or empty, because a VALUE_OPTIONAL return key the array leaves out
-     * never enters the response, so a row without them costs nothing for them.
+     * the browser's clock and timezone are not the user's. comp is cards::tracks_completion(),
+     * the rule get_card_details answers hascompletion with: the row keeps the room for the
+     * progress it will get from the moment it renders, so the answer landing moves nothing.
+     * pend, wait, sched, comp and cf are omitted rather than sent false or empty, because a
+     * VALUE_OPTIONAL return key the array leaves out never enters the response, so a row
+     * without them costs nothing for them.
      *
      * @param array $course A resolve() course row.
+     * @param array $entrymeta The course's course_meta entry.
      * @param string $name The course name, formatted.
      * @param int $now Unix time to treat as now.
      * @param int $newwindow Seconds during which a never-opened enrolment is new.
@@ -900,7 +907,15 @@ final class explore {
      * @param int[] $cf The row's field values, from cf(); empty for none.
      * @return array
      */
-    private static function row(array $course, string $name, int $now, int $newwindow, int $threshold, array $cf): array {
+    private static function row(
+        array $course,
+        array $entrymeta,
+        string $name,
+        int $now,
+        int $newwindow,
+        int $threshold,
+        array $cf
+    ): array {
         $row = [
             'id' => $course['courseid'],
             'name' => $name,
@@ -917,6 +932,9 @@ final class explore {
         }
         if ($course['situation'] === access::RELATIONSHIP_SCHEDULED) {
             $row['sched'] = userdate($course['timestart'], get_string('strftimedatefullshort', 'langconfig'));
+        }
+        if (cards::tracks_completion($course['situation'] === access::RELATIONSHIP_ENROLLED, $entrymeta)) {
+            $row['comp'] = true;
         }
         if (!empty($cf)) {
             $row['cf'] = $cf;

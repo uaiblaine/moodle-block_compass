@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **A tier 3 row no longer moves when its details arrive**, version 2026101200. In a narrow
+  block (the block drawer) a list row wraps, and the progress skeleton that appeared while a
+  row's details were out, then vanished on a course without a progress bar, pushed the star
+  and the archive control onto another line and back: a press landing in that instant missed
+  the control. The inventory now says which rows will get progress - a new optional `comp`
+  key on the rows of `get_inventory`, `get_inventory_rows` and `search_inventory`, present and
+  true exactly when `get_card_details` will answer `hascompletion` true - and a row keeps its
+  progress slot from the first render when it says so, and has none otherwise. The rule lives
+  in one place, `cards::tracks_completion()`, shared by tier 1, the details and the rows; it
+  costs no read. A teacher's "No completion configured" still appears with the answer. This
+  was the intermittent first-pass failure of the archiving Behat scenario.
+
 - **Guests on the page**, version 2026101000. A guest who opens `/blocks/compass/index.php` is
   redirected to the front page, as `my/index.php` does, instead of reading "No guests here!". When
   the guest's home page is this very page the front page would redirect straight back, so that

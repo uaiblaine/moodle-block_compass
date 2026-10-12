@@ -1654,6 +1654,83 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
+     * comp marks exactly the rows get_card_details will answer hascompletion true for, in every
+     * answer that carries rows.
+     *
+     * The client reserves a row's progress slot from comp before the details arrive, so a comp
+     * that disagreed with hascompletion would move the row when the answer lands. Rows: an active
+     * enrolment in a course tracking completion (comp), one in a course that does not, an
+     * enrolment that starts later and an application in courses that do (neither: no progress to
+     * speak of), and an archived course that does (comp, in the archive's own page). Each row is
+     * held against cards::details() over the same ids, in the full build, a paged page, a search
+     * and the archive; then completion is switched off for the site and no row carries comp, with
+     * details() agreeing again - the control that comp follows the setting and is not a constant.
+     *
+     * @return void
+     */
+    public function test_comp_marks_exactly_the_rows_whose_details_carry_completion(): void {
+        set_config('enablecompletion', 1);
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $tracked = (int) $this->course_in($alpha, 'Tracked course', ['enablecompletion' => 1])->id;
+        $untracked = (int) $this->course_in($alpha, 'Untracked course', ['enablecompletion' => 0])->id;
+        $later = (int) $this->course_in($alpha, 'Later tracked course', ['enablecompletion' => 1])->id;
+        $applied = (int) $this->course_in($alpha, 'Applied tracked course', ['enablecompletion' => 1])->id;
+        $archived = (int) $this->course_in($alpha, 'Archived tracked course', ['enablecompletion' => 1])->id;
+        $this->plugingen->enrol_at($this->userid, $tracked, self::NOW - 2 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $untracked, self::NOW - 2 * DAYSECS);
+        $start = self::NOW + DAYSECS;
+        $this->plugingen->enrol_at($this->userid, $later, self::NOW - 2 * DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $archived, self::NOW - 2 * DAYSECS);
+        $this->plugingen->hide($this->userid, $archived);
+        $ids = [$tracked, $untracked, $later, $applied, $archived];
+
+        $rows = $this->rows_by_id($this->build_with(true));
+        $this->assertSame(['id', 'name', 'opened', 'new', 'fav', 'dorm', 'comp'], array_keys($rows[$tracked]));
+        $this->assertTrue($rows[$tracked]['comp']);
+        foreach ([$untracked, $later, $applied] as $courseid) {
+            $this->assertArrayNotHasKey('comp', $rows[$courseid], "course {$courseid} gets no progress");
+        }
+        $archive = array_column($this->rows_with(true, dormancy::GROUP_ARCHIVED)['rows'], null, 'id');
+        $this->assertTrue($archive[$archived]['comp'], 'an archived course is an enrolled one');
+
+        $this->assert_comp_agrees_with_details($ids, $rows + $archive);
+        $paged = array_column($this->rows_with(true, $alpha)['rows'], null, 'id');
+        $this->assert_comp_agrees_with_details($ids, $paged + $archive);
+        $found = array_column($this->search_with(true, 'course')['rows'], null, 'id');
+        $this->assertCount(4, $found, 'the search answers the four listed rows');
+        $this->assert_comp_agrees_with_details($ids, $found + $archive);
+
+        set_config('enablecompletion', 0);
+        $off = $this->rows_by_id($this->build_with(true));
+        $offarchive = array_column($this->rows_with(true, dormancy::GROUP_ARCHIVED)['rows'], null, 'id');
+        foreach ($off + $offarchive as $courseid => $row) {
+            $this->assertArrayNotHasKey('comp', $row, "course {$courseid} with completion off for the site");
+        }
+        $this->assert_comp_agrees_with_details($ids, $off + $offarchive);
+    }
+
+    /**
+     * Every row carries comp exactly when cards::details() answers hascompletion true for it.
+     *
+     * @param int[] $ids The courses to ask details() about.
+     * @param array $rows Course id => row, from any of the tier 3 answers.
+     * @return void
+     */
+    private function assert_comp_agrees_with_details(array $ids, array $rows): void {
+        $hascompletion = array_column(cards::details($this->userid, $ids, self::NOW), 'hascompletion', 'id');
+        foreach ($rows as $courseid => $row) {
+            $this->assertArrayHasKey($courseid, $hascompletion, "details() answers course {$courseid}");
+            $this->assertSame(
+                $hascompletion[$courseid],
+                !empty($row['comp']),
+                "comp and hascompletion disagree on course {$courseid}"
+            );
+        }
+    }
+
+    /**
      * One page of one group with applications listed, at depth 1 and a 30-day window.
      *
      * @param bool $pending Whether applications are listed.
