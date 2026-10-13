@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass calendar settings</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.st{--line:#e4e7eb;--muted:#68717a;--text:#1d2125;--text-2:#454c53;--accent:#0f6cbf;font-family:'Noto Sans',system-ui,sans-serif;color:var(--text);background:#fff}
+.st *{box-sizing:border-box}
+.row{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.lab{font-weight:600;font-size:14.5px}
+.key{font-size:12px;color:var(--muted);margin-top:2px}
+.desc{font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.5}
+.def{font-size:12px;color:var(--muted);margin-top:4px}
+.sel{height:38px;border:1px solid #c9ced3;border-radius:8px;padding:0 34px 0 12px;font:inherit;font-size:14px;background:#fff;color:var(--text)}
+.chk{display:flex;align-items:center;gap:10px;font-size:14px;min-height:28px}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}
+</style>
+
+<style>
+.dcx-tweaks{position:fixed;right:16px;bottom:16px;z-index:9999;background:#fff;color:#1d2125;border:1px solid #d5dade;
+  border-radius:12px;padding:10px 12px;font:13px system-ui,sans-serif;box-shadow:0 10px 30px -12px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;min-width:190px}
+.dcx-tweaks b{font-weight:600}
+.dcx-tweaks label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dcx-tweaks a{color:#0f6cbf}
+</style>
+</head>
+<body>
+<div id="dcx-root"></div>
+<script type="module">
+import { h, render, Component as PreactComponent } from 'https://cdn.jsdelivr.net/npm/preact@10.24.3/dist/preact.module.js';
+import htm from 'https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.module.js';
+const html = htm.bind(h);
+class DCLogic extends PreactComponent {}
+
+class Component extends DCLogic {
+  renderVals() {
+    return { yes: true };
+  }
+}
+
+Component.prototype.render = function () {
+  const v = this.renderVals();
+  return html`
+<div class="st" style="width: 880px; min-height: 900px; padding: 36px 44px">
+  <div style="font-size: 13px; color: var(--muted)">Site administration / Plugins / Blocks / Compass</div>
+  <h1 style="margin: 8px 0 4px; font-size: 26px; font-weight: 600">Compass</h1>
+  <h2 style="margin: 22px 0 0; font-size: 18px; font-weight: 600">Calendar strip</h2>
+  <p style="margin: 6px 0 4px; font-size: 13.5px; color: var(--text-2)">A row of days above the attention tier. The strip costs one request when the block loads; a day's details load only when someone points at it.</p>
+
+  <div class="row">
+    <div><div class="lab"><label for="s-en">Show the calendar strip</label></div><div class="key">block_compass | calendar_enabled</div></div>
+    <div>
+      <label class="chk"><input id="s-en" type="checkbox" checked=${v.yes} readOnly=${v.yes} />Show it</label>
+      <div class="desc">Off by default. Turned off, the block makes no calendar request at all.</div>
+      <div class="def">Default: No</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><div class="lab"><label for="s-where">Where it shows</label></div><div class="key">block_compass | calendar_where</div></div>
+    <div>
+      <select id="s-where" class="sel"><option selected=${v.yes}>Dashboard and the block's page</option><option>Dashboard only</option><option>The block's page only</option></select>
+      <div class="desc">The strip runs from the days before today that fill the row to the end of next month. A wider range is the calendar's job, linked from the strip.</div>
+      <div class="def">Default: Dashboard and the block's page</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><div class="lab">What the strip counts</div><div class="key">block_compass | calendar_sources</div></div>
+    <div>
+      <div class="grid2">
+        <label class="chk"><input type="checkbox" checked=${v.yes} readOnly=${v.yes} />Activity deadlines</label>
+        <label class="chk"><input type="checkbox" checked=${v.yes} readOnly=${v.yes} />Course events</label>
+        <label class="chk"><input type="checkbox" checked=${v.yes} readOnly=${v.yes} />Group events</label>
+        <label class="chk"><input type="checkbox" checked=${v.yes} readOnly=${v.yes} />Site events</label>
+        <label class="chk"><input type="checkbox" readOnly=${v.yes} />Personal events</label>
+        <label class="chk"><input type="checkbox" readOnly=${v.yes} />Category events</label>
+      </div>
+      <div class="desc">Activity deadlines are the ones the Timeline block shows, with the same action buttons.</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><div class="lab"><label for="s-style">Strip style</label></div><div class="key">block_compass | calendar_style</div></div>
+    <div>
+      <select id="s-style" class="sel"><option selected=${v.yes}>Dots</option><option>Ring</option><option>Pulse</option></select>
+      <div class="desc">Dots under each day, segments around it, or bars above it. Ring shows 15 days where dots show 21; pulse suits a narrow region.</div>
+      <div class="def">Default: Dots</div>
+    </div>
+  </div>
+
+  <div class="row" style="border-bottom: 0">
+    <div><div class="lab"><label for="s-rel">Weigh by relevance</label></div><div class="key">block_compass | calendar_relevance</div></div>
+    <div>
+      <label class="chk"><input id="s-rel" type="checkbox" checked=${v.yes} readOnly=${v.yes} />Colour days by relevance</label>
+      <div class="desc">Graded activities weigh more, most of all when due today or tomorrow; so do starred and recently opened courses and completion criteria. Late work still open weighs little. Learners can switch to a plain count, and the strip remembers their choice.</div>
+      <div class="def">Default: Yes</div>
+    </div>
+  </div>
+
+  <button type="button" style="margin-top: 18px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 600">Save changes</button>
+</div>
+`;
+};
+const TWEAKS = {};
+class Shell extends PreactComponent {
+  constructor(props) { super(props); this.state = {}; }
+  render() {
+    const rows = Object.entries(TWEAKS).map(([key, t]) => {
+      const set = (value) => this.setState({ [key]: value });
+      if (t.editor === 'boolean') {
+        return html`<label>${key} <input type="checkbox" checked=${!!this.state[key]} onChange=${(e) => set(e.target.checked)} /></label>`;
+      }
+      if (t.editor === 'enum') {
+        return html`<label>${key} <select value=${this.state[key]} onChange=${(e) => set(e.target.value)}>
+          ${t.options.map((o) => html`<option value=${o}>${o}</option>`)}</select></label>`;
+      }
+      if (t.editor === 'range' || t.editor === 'int') {
+        return html`<label>${key} <input type="number" min=${t.min} max=${t.max} step=${t.step || 1} value=${this.state[key]}
+          onChange=${(e) => set(Number(e.target.value))} style="width: 80px" /></label>`;
+      }
+      return null;
+    });
+    return html`<${Component} ...${this.state} />${rows.length ? html`<aside class="dcx-tweaks" aria-label="Mockup tweaks">
+      <b>Tweaks</b>${rows}<a href="index.html">All artboards</a></aside>` : html`<aside class="dcx-tweaks"><a href="index.html">All artboards</a></aside>`}`;
+  }
+}
+render(html`<${Shell} />`, document.getElementById('dcx-root'));
+</script>
+</body>
+</html>

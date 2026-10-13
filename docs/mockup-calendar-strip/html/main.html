@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass calendar strip</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#0f6cbf}a:hover{color:#0a4f8c}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#68717a;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;--cc-warn:#f0ad4e;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-hatch:#d4d9de;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 62%,var(--cc-surface));
+  --cc-h4:color-mix(in oklab,var(--cc-warn) 92%,var(--cc-surface));
+  --cc-glass:color-mix(in srgb,var(--cc-surface) 90%,transparent);
+  --cc-shadow:0 28px 64px -18px rgba(16,24,40,.32),0 3px 10px rgba(16,24,40,.08);
+  --activityassessment:#f90086;--activitycollaboration:#5b40ff;--activitycommunication:#eb6200;--activitycontent:#0099ad;--activityadministration:#da58ef;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);min-height:100vh;
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root.cc-dark{
+  --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#99a1a9;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-accent:#6cb2f2;--cc-on-accent:#0b1a29;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;
+  --cc-ink:#f3f4f6;--cc-on-ink:#111417;--cc-hatch:#353b40;
+  --cc-shadow:0 28px 64px -18px rgba(0,0,0,.7),0 3px 10px rgba(0,0,0,.4);
+}
+.cc-root *{box-sizing:border-box}
+.cc-root button{font:inherit;color:inherit}
+.cc-root :focus-visible{outline:2px solid var(--cc-accent);outline-offset:3px}
+
+/* Page chrome */
+.cc-nav{height:60px;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);display:flex;align-items:center;gap:28px;padding:0 24px}
+.cc-brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;color:var(--cc-text)}
+.cc-navlinks{display:flex;gap:4px;flex-wrap:wrap}
+.cc-navlinks a{color:var(--cc-text-2);text-decoration:none;padding:18px 10px;font-size:14px;border-bottom:3px solid transparent}
+.cc-navlinks a[aria-current="page"]{color:var(--cc-text);border-bottom-color:var(--cc-accent);font-weight:600}
+.cc-navright{margin-left:auto;display:flex;align-items:center;gap:12px}
+.cc-avatar{width:34px;height:34px;border-radius:50%;background:var(--cc-surface-2);border:1px solid var(--cc-line);display:grid;place-items:center;font-size:13px;font-weight:600}
+.cc-wrap{max-width:1240px;margin:0 auto;padding:28px 24px 72px}
+.cc-pagehead{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.cc-h1{margin:0;font-size:28px;font-weight:600;letter-spacing:-.01em}
+.cc-btn{border:1px solid var(--cc-line-2);background:var(--cc-surface);border-radius:8px;padding:8px 14px;font-size:14px;cursor:pointer}
+.cc-iconbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--cc-line);background:var(--cc-surface);display:grid;place-items:center;cursor:pointer;color:var(--cc-text-2);transition:background-color 120ms,border-color 120ms}
+.cc-iconbtn:hover{background:var(--cc-surface-2);border-color:var(--cc-line-2)}
+.cc-iconbtn[disabled]{opacity:.35;cursor:default}
+
+/* Block */
+.cc-block{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:14px}
+.cc-bhead{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--cc-line)}
+.cc-bhead h2{margin:0;font-size:18px;font-weight:600}
+.cc-bbody{padding:8px 22px 26px}
+
+/* Strip head */
+.cc-strip{position:relative;padding:14px 0 6px}
+.cc-shead{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.cc-stitle{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.cc-stitle h3{margin:0;font-size:16px;font-weight:600}
+.cc-stitle span{color:var(--cc-muted);font-size:14px}
+.cc-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cc-segctl{display:inline-flex;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:3px}
+.cc-segbtn{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--cc-text-2);transition:background-color 120ms,color 120ms}
+.cc-segbtn[aria-pressed="true"]{background:var(--cc-surface);color:var(--cc-text);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.cc-switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--cc-text-2);cursor:pointer;padding:0 4px;min-height:38px}
+.cc-switch input{position:absolute;opacity:0;width:1px;height:1px}
+.cc-switch-track{width:34px;height:20px;border-radius:20px;background:var(--cc-line-2);position:relative;transition:background-color 140ms;flex:none}
+.cc-switch-track::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--cc-surface);transition:transform 160ms;box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.cc-switch input:checked + .cc-switch-track{background:var(--cc-accent)}
+.cc-switch input:checked + .cc-switch-track::after{transform:translateX(14px)}
+.cc-switch input:focus-visible + .cc-switch-track{outline:2px solid var(--cc-accent);outline-offset:3px}
+.cc-navpair{display:inline-flex;gap:6px}
+.cc-todaybtn{height:38px;border-radius:10px;border:1px solid var(--cc-line);background:var(--cc-surface);padding:0 12px;font-size:13px;cursor:pointer}
+
+/* Month navigation */
+.cc-monthnav{display:flex;align-items:center;gap:8px}
+.cc-month{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;min-width:232px;text-align:center}
+.cc-todaybtn[disabled]{opacity:.45;cursor:default}
+.cc-calink{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--cc-line);text-decoration:none;font-size:13px;color:var(--cc-text-2);background:var(--cc-surface)}
+.cc-calink:hover{background:var(--cc-surface-2);color:var(--cc-text)}
+/* Month rail (removed from the design; kept unused) */
+.cc-months{display:flex;justify-content:center;align-items:baseline;gap:44px;margin:22px 0 4px;white-space:nowrap;overflow:hidden}
+.cc-mo{border:0;background:transparent;padding:4px 2px;font-size:22px;font-weight:500;letter-spacing:-.01em;color:var(--cc-muted);cursor:pointer;transition:color 160ms}
+.cc-mo:hover{color:var(--cc-text-2)}
+.cc-mo--active{color:var(--cc-text);font-weight:600}
+.cc-mo--far{opacity:.35;cursor:default}
+.cc-mo--edge{opacity:.16;cursor:default}
+
+/* Days */
+.cc-daysbox{position:relative;margin-top:14px}
+.cc-days{display:grid;grid-template-columns:repeat(21,minmax(0,1fr));column-gap:6px;align-items:start}
+.cc-days--15{grid-template-columns:repeat(15,minmax(0,1fr))}
+.cc-fade{position:absolute;top:0;bottom:22px;width:84px;pointer-events:none;z-index:3}
+.cc-fade--l{left:0;background:linear-gradient(90deg,var(--cc-surface) 8%,transparent)}
+.cc-fade--r{right:0;background:linear-gradient(270deg,var(--cc-surface) 8%,transparent)}
+.cc-col{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;padding-top:12px;transition:opacity 180ms}
+.cc-col.cc-dim{opacity:.26}
+.cc-needle{position:absolute;top:0;left:50%;width:10px;height:8px;margin-left:-5px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+.cc-day{position:relative;width:100%;max-width:44px;height:auto;aspect-ratio:1/1;padding:0;border-radius:50%;border:0;display:grid;place-items:center;font-size:17px;font-weight:600;cursor:pointer;background:transparent;color:var(--cc-text);
+  transition:background-color 160ms,box-shadow 160ms,transform 160ms,color 160ms}
+.cc-day:hover{background:var(--cc-surface-2)}
+.cc-h1{background:var(--cc-h1)}.cc-h1:hover{background:var(--cc-h1)}
+.cc-h2{background:var(--cc-h2)}.cc-h2:hover{background:var(--cc-h2)}
+.cc-h3{background:var(--cc-h3)}.cc-h3:hover{background:var(--cc-h3)}
+.cc-h4{background:var(--cc-h4)}.cc-h4:hover{background:var(--cc-h4)}
+.cc-dark .cc-h3,.cc-dark .cc-h4{color:#1d2125}
+.cc-day.cc-off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.cc-day.cc-past{color:var(--cc-muted)}
+.cc-day.cc-past.cc-h0:not(.cc-off){background:color-mix(in oklab,var(--cc-surface-2) 70%,transparent)}
+
+.cc-day.cc-today{background:var(--cc-ink);color:var(--cc-on-ink);box-shadow:0 12px 24px -10px rgba(0,0,0,.55)}
+.cc-day.cc-today.cc-h2{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h2),0 12px 24px -10px rgba(0,0,0,.55)}
+.cc-day.cc-today.cc-h3{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h3),0 12px 24px -10px rgba(0,0,0,.55)}
+.cc-day.cc-today.cc-h4{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h4),0 12px 24px -10px rgba(0,0,0,.55)}
+.cc-day.cc-open{transform:translateY(-3px)}
+.cc-day.cc-pinned{outline:2px solid var(--cc-accent);outline-offset:1px}
+.cc-day.cc-soon{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.cc-col.cc-match .cc-day{transform:translateY(-3px);box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.cc-dots{display:flex;align-items:center;justify-content:center;gap:3px;height:8px}
+.cc-dot{width:6px;height:6px;border-radius:50%;flex:none}
+.cc-dot--due{background:var(--cc-accent)}
+.cc-dot--event{width:7px;height:7px;border:1.5px solid var(--cc-text-2)}
+.cc-dot--overdue{background:var(--cc-danger);border-radius:1px;transform:rotate(45deg);width:6px;height:6px}
+.cc-dot--graded{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px}
+.cc-dot--urgent{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px;box-shadow:0 0 0 2px var(--cc-surface),0 0 0 3.5px var(--cc-accent)}
+.cc-dot--late{border:1.5px solid var(--cc-danger);border-radius:1px;transform:rotate(45deg);width:6px;height:6px}
+.cc-dot--grade{background:var(--cc-accent);border-radius:1px;transform:rotate(45deg);width:7px;height:7px}
+.cc-dot--gradesoon{background:var(--cc-accent);border-radius:1px;transform:rotate(45deg);width:7px;height:7px;box-shadow:0 0 0 2px var(--cc-surface),0 0 0 3.5px var(--cc-accent)}
+.cc-dot--class{border:1.5px solid var(--cc-text-2);border-radius:1.5px;width:7px;height:7px;opacity:.8}
+.cc-mode .cc-segbtn{display:inline-flex;align-items:center;gap:6px}
+.cc-mode svg{flex:none}
+.cc-ftlink{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;text-decoration:none;color:var(--cc-accent);margin-top:5px}
+.cc-ftlink:hover{text-decoration:underline}
+.cc-dot--done{background:var(--cc-muted);opacity:.4;width:5px;height:5px}
+.cc-more{font-size:10px;font-weight:600;color:var(--cc-muted);margin-left:1px;line-height:8px}
+.cc-wd{font-size:12.5px;color:var(--cc-muted)}
+.cc-col--today .cc-wd{color:var(--cc-text);font-weight:600}
+.cc-ring{position:absolute;left:-6px;top:-6px;width:calc(100% + 12px);height:calc(100% + 12px);transform:rotate(-90deg);pointer-events:none;display:none}
+.cc-ring circle{fill:none;stroke-width:3;stroke-linecap:round;stroke:transparent}
+.cc-ring .cc-seg--due{stroke:var(--cc-accent)}
+.cc-ring .cc-seg--event{stroke:var(--cc-text-2)}
+.cc-ring .cc-seg--overdue{stroke:var(--cc-danger)}
+.cc-ring .cc-seg--done{stroke:var(--cc-line-2)}
+.cc-ring .cc-seg--graded,.cc-ring .cc-seg--urgent{stroke:var(--cc-accent)}
+.cc-ring .cc-seg--late{stroke:var(--cc-danger);opacity:.55}
+.cc-ring .cc-seg--grade,.cc-ring .cc-seg--gradesoon{stroke:var(--cc-accent)}
+.cc-ring .cc-seg--class{stroke:var(--cc-text-2);opacity:.5}
+.cc-bar{display:none;width:20px;border-radius:7px;background:var(--cc-line);transition:height 200ms}
+.cc-bar.cc-h1{background:var(--cc-h1)}.cc-bar.cc-h2{background:var(--cc-h2)}.cc-bar.cc-h3{background:var(--cc-h3)}.cc-bar.cc-h4{background:var(--cc-h4)}
+.cc-bar.cc-barover{background:var(--cc-danger)}
+.cc-barbox{display:none;height:56px;align-items:flex-end}
+.cc-style-ring .cc-ring{display:block}
+.cc-style-ring .cc-dots{visibility:hidden}
+.cc-style-pulse .cc-barbox{display:flex}
+.cc-style-pulse .cc-bar{display:block}
+.cc-style-pulse .cc-dots{display:none}
+.cc-style-pulse .cc-day{max-width:36px;font-size:14px}
+.cc-style-pulse .cc-day.cc-h1,.cc-style-pulse .cc-day.cc-h2,.cc-style-pulse .cc-day.cc-h3,.cc-style-pulse .cc-day.cc-h4{background:transparent;color:var(--cc-text)}
+.cc-style-pulse .cc-day.cc-today{background:var(--cc-ink);color:var(--cc-on-ink)}
+.cc-track{position:relative;height:2px;background:var(--cc-line);margin:16px 6% 0;border-radius:2px}
+.cc-track-mark{position:absolute;top:-1px;height:4px;display:flex;justify-content:center;transition:left 240ms}
+.cc-track-mark::after{content:"";width:62%;height:4px;border-radius:4px;background:var(--cc-text)}
+.cc-sfoot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px;font-size:12.5px;color:var(--cc-muted)}
+.cc-legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.cc-legend span{display:inline-flex;align-items:center;gap:6px}
+.cc-sfoot-actions{display:flex;align-items:center;gap:10px;margin-left:auto;flex-wrap:wrap}
+.cc-cost{display:inline-flex;align-items:center;gap:8px}
+.cc-cost b{color:var(--cc-text-2);font-weight:600}
+
+/* Hover card */
+.cc-pop{position:absolute;top:calc(100% + 4px);z-index:40;width:400px;max-width:calc(100vw - 32px);background:var(--cc-glass);
+  -webkit-backdrop-filter:blur(22px) saturate(170%);backdrop-filter:blur(22px) saturate(170%);
+  border:1px solid var(--cc-line);border-radius:18px;box-shadow:var(--cc-shadow);text-align:left;
+  animation:cc-pop-in 170ms cubic-bezier(.2,.8,.2,1)}
+.cc-pop--center{left:50%;transform:translateX(-50%)}
+.cc-pop--start{left:50%;transform:translateX(-38px)}
+.cc-pop--end{right:50%;transform:translateX(38px)}
+.cc-pop--pinned{border-color:color-mix(in oklab,var(--cc-accent) 45%,var(--cc-line))}
+@keyframes cc-pop-in{from{opacity:0;translate:0 -6px;scale:.985}to{opacity:1;translate:0 0;scale:1}}
+.cc-arrow{position:absolute;top:-7px;width:13px;height:13px;background:var(--cc-surface);border-left:1px solid var(--cc-line);border-top:1px solid var(--cc-line);transform:rotate(45deg)}
+.cc-pop--center .cc-arrow{left:calc(50% - 6.5px)}
+.cc-pop--start .cc-arrow{left:31px}
+.cc-pop--end .cc-arrow{right:31px}
+.cc-phead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 18px 10px}
+.cc-ptitle{margin:0;font-size:16.5px;font-weight:600;letter-spacing:-.005em}
+.cc-psub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--cc-muted)}
+.cc-rel{padding:1px 8px;border-radius:20px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2);font-weight:600}
+.cc-rel--today{background:var(--cc-ink);border-color:var(--cc-ink);color:var(--cc-on-ink)}
+.cc-src{display:inline-flex;align-items:center;gap:5px}
+.cc-src::before{content:"";width:6px;height:6px;border-radius:50%;background:#3aa76d}
+.cc-src--wait::before{background:var(--cc-warn);animation:cc-blink 900ms infinite}
+@keyframes cc-blink{50%{opacity:.25}}
+.cc-x{width:32px;height:32px;border-radius:9px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--cc-muted)}
+.cc-x:hover{background:var(--cc-surface-2);color:var(--cc-text)}
+.cc-sumbar{display:flex;gap:3px;height:6px;margin:2px 18px 0}
+.cc-sumbar span{border-radius:6px;min-width:0}
+.cc-sb-over{background:var(--cc-danger);opacity:.55}.cc-sb-g{background:var(--cc-accent)}.cc-sb-due{background:color-mix(in oklab,var(--cc-accent) 45%,var(--cc-surface))}.cc-sb-ev{background:var(--cc-text-2);opacity:.55}.cc-sb-done{background:var(--cc-line-2)}
+.cc-chips{display:flex;gap:6px;flex-wrap:wrap;padding:10px 18px 2px}
+.cc-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--cc-text-2);background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:20px;padding:2px 9px}
+.cc-list{list-style:none;margin:0;padding:8px 8px 4px;max-height:372px;overflow:auto}
+.cc-it{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px;border-radius:12px;transition:background-color 120ms}
+.cc-it:hover{background:color-mix(in oklab,var(--cc-surface-2) 85%,transparent)}
+.cc-it--done{opacity:.62}
+.cc-ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;color:var(--p);background:color-mix(in oklab,var(--p) 13%,var(--cc-surface))}
+.cc-ico--assessment{--p:var(--activityassessment)}.cc-ico--collaboration{--p:var(--activitycollaboration)}
+.cc-ico--communication{--p:var(--activitycommunication)}.cc-ico--content{--p:var(--activitycontent)}.cc-ico--administration{--p:var(--activityadministration)}
+.cc-dark .cc-ico{background:color-mix(in oklab,var(--p) 26%,var(--cc-surface));color:color-mix(in oklab,var(--p) 55%,#fff)}
+.cc-itop{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--cc-muted);min-width:0}
+.cc-ccourse{display:inline-flex;align-items:center;gap:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-cdot{width:7px;height:7px;border-radius:2px;flex:none}
+.cc-ititle{display:block;color:var(--cc-text);font-weight:600;font-size:14px;text-decoration:none;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-ititle:hover{text-decoration:underline;color:var(--cc-text)}
+.cc-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.cc-badge{font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;background:var(--cc-surface-2);color:var(--cc-text-2);border:1px solid var(--cc-line)}
+.cc-badge--over{background:color-mix(in oklab,var(--cc-danger) 12%,var(--cc-surface));color:var(--cc-danger);border-color:color-mix(in oklab,var(--cc-danger) 30%,var(--cc-surface))}
+.cc-badge--urgent{background:var(--cc-accent);color:var(--cc-on-accent);border-color:var(--cc-accent)}
+.cc-badge--graded{background:color-mix(in oklab,var(--cc-accent) 10%,var(--cc-surface));color:var(--cc-accent);border-color:color-mix(in oklab,var(--cc-accent) 30%,var(--cc-surface))}
+.cc-badge--late{background:color-mix(in oklab,var(--cc-warn) 22%,var(--cc-surface));color:var(--cc-text);border-color:color-mix(in oklab,var(--cc-warn) 45%,var(--cc-surface))}
+.cc-act{font-size:12.5px;font-weight:600;text-decoration:none;border-radius:9px;padding:7px 11px;white-space:nowrap;border:1px solid transparent}
+.cc-act--primary{background:var(--cc-accent);color:var(--cc-on-accent)}
+.cc-act--primary:hover{color:var(--cc-on-accent);filter:brightness(1.08)}
+.cc-act--ghost{border-color:var(--cc-line-2);color:var(--cc-text-2);background:transparent}
+.cc-act--ghost:hover{color:var(--cc-text);background:var(--cc-surface-2)}
+.cc-skel{display:grid;grid-template-columns:38px 1fr;gap:12px;padding:10px;align-items:center}
+.cc-sk{border-radius:8px;background:linear-gradient(90deg,var(--cc-surface-2) 0,var(--cc-line) 40%,var(--cc-surface-2) 80%);background-size:300% 100%;animation:cc-shim 1100ms linear infinite}
+@keyframes cc-shim{from{background-position:100% 0}to{background-position:-100% 0}}
+.cc-empty{padding:18px 20px 22px;color:var(--cc-muted);font-size:14px}
+.cc-pfoot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 18px 14px;border-top:1px solid var(--cc-line);font-size:12.5px;color:var(--cc-muted)}
+.cc-pfoot a{font-weight:600;text-decoration:none}
+
+/* Tier 1 */
+.cc-sep{height:1px;background:var(--cc-line);margin:22px 0 20px}
+.cc-tier + .cc-tier{margin-top:26px}
+.cc-thead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cc-thead h3{margin:0;font-size:16px;font-weight:600}
+.cc-thead span{font-size:13px;color:var(--cc-muted)}
+.cc-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.cc-card{position:relative;background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:14px;overflow:hidden;transition:box-shadow 180ms,transform 180ms,border-color 180ms}
+.cc-card:hover{box-shadow:0 14px 30px -18px rgba(16,24,40,.45);transform:translateY(-2px)}
+.cc-card--lit{border-color:var(--cc-accent);box-shadow:0 0 0 2px color-mix(in oklab,var(--cc-accent) 30%,transparent)}
+.cc-cimg{display:block;width:100%;height:118px}
+.cc-star{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.92);color:#b07a00;cursor:pointer}
+.cc-star--off{color:#5d656d}
+.cc-cbadge{position:absolute;top:12px;left:12px;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px}
+.cc-cbadge--warn{background:#f0ad4e;color:#1d2125}
+.cc-cbadge--danger{background:#ca3120;color:#fff}
+.cc-cbadge--accent{background:#0f6cbf;color:#fff}
+.cc-cbadge--info{background:#008196;color:#fff}
+.cc-cbody{padding:12px 14px 14px}
+.cc-ccat{font-size:12px;color:var(--cc-muted)}
+.cc-ctitle{display:block;font-size:15px;font-weight:600;color:var(--cc-text);text-decoration:none;margin:2px 0 10px;min-height:44px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cc-prog{height:6px;border-radius:6px;background:var(--cc-surface-2);overflow:hidden;border:1px solid var(--cc-line)}
+.cc-prog span{display:block;height:100%;background:var(--cc-accent);border-radius:6px}
+.cc-pct{font-size:12px;color:var(--cc-muted);margin-top:5px}
+.cc-next{display:flex;align-items:center;gap:8px;width:100%;margin-top:12px;padding:9px 10px;border-radius:10px;border:1px solid var(--cc-line);background:var(--cc-surface-2);text-align:left;font-size:12.5px;color:var(--cc-text-2);cursor:pointer}
+.cc-next:hover{border-color:var(--cc-line-2);color:var(--cc-text)}
+.cc-next span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-ghost{border:1.5px dashed var(--cc-line-2);border-radius:14px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:6px;padding:22px;background:transparent;text-align:left;cursor:pointer;min-height:280px}
+.cc-ghost b{font-size:34px;font-weight:600;letter-spacing:-.02em}
+.cc-ghost span{color:var(--cc-muted);font-size:14px}
+.cc-ghost em{font-style:normal;color:var(--cc-accent);font-weight:600;font-size:14px;margin-top:8px}
+
+/* Network instrument */
+.cc-net{margin-top:22px;border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);overflow:hidden}
+.cc-nethead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--cc-line);font-size:13px}
+.cc-nethead b{font-weight:600}
+.cc-nethead span{color:var(--cc-muted)}
+.cc-netlist{list-style:none;margin:0;padding:6px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.cc-netlist li{display:grid;grid-template-columns:96px minmax(0,1fr) 70px 64px;gap:12px;padding:6px 18px;color:var(--cc-text-2)}
+.cc-netlist li:nth-child(odd){background:var(--cc-surface-2)}
+.cc-tag{font-family:'Noto Sans',system-ui,sans-serif;font-size:11px;font-weight:600;border-radius:6px;padding:1px 7px;justify-self:start;background:var(--cc-surface);border:1px solid var(--cc-line)}
+.cc-tag--strip{color:var(--cc-accent)}
+.cc-tag--prefetch,.cc-tag--idle,.cc-tag--cache{color:#3aa76d}
+.cc-tag--tier1{color:var(--cc-text)}
+.cc-tag--local{color:#3aa76d}
+.cc-tag--pref{color:var(--cc-text-2)}
+.cc-netbtn{border:1px solid var(--cc-line-2);background:var(--cc-surface);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer}
+.cc-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media (prefers-reduced-motion: reduce){
+  .cc-root *{animation:none!important;transition:none!important}
+}
+@media (max-width: 1080px){
+  .cc-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width: 760px){
+  .cc-navlinks{display:none}
+  .cc-wrap{padding:20px 16px 56px}
+  .cc-bbody{padding:6px 14px 20px}
+  .cc-bhead{padding:14px 16px}
+  .cc-days{display:flex;justify-content:space-between}
+  .cc-col{flex:1 1 0;min-width:0}
+  .cc-col.cc-far{display:none}
+  .cc-fade,.cc-track{display:none}
+  .cc-months{gap:20px}
+  .cc-mo{font-size:17px}
+  .cc-month{font-size:17px;min-width:0}
+  .cc-sfoot-actions{margin-left:0}
+  .cc-mo--far,.cc-mo--edge{display:none}
+  .cc-day{max-width:42px;font-size:15px}
+  .cc-pop{position:fixed;top:auto;left:0;right:0;bottom:0;width:auto;max-width:none;transform:none;border-radius:20px 20px 0 0}
+  .cc-arrow{display:none}
+  .cc-cards{grid-template-columns:minmax(0,1fr)}
+  .cc-netlist li{grid-template-columns:80px minmax(0,1fr) 60px}
+  .cc-netlist li .cc-kb{display:none}
+}
+</style>
+
+<style>
+.dcx-tweaks{position:fixed;right:16px;bottom:16px;z-index:9999;background:#fff;color:#1d2125;border:1px solid #d5dade;
+  border-radius:12px;padding:10px 12px;font:13px system-ui,sans-serif;box-shadow:0 10px 30px -12px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;min-width:190px}
+.dcx-tweaks b{font-weight:600}
+.dcx-tweaks label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dcx-tweaks a{color:#0f6cbf}
+</style>
+</head>
+<body>
+<div id="dcx-root"></div>
+<script type="module">
+import { h, render, Component as PreactComponent } from 'https://cdn.jsdelivr.net/npm/preact@10.24.3/dist/preact.module.js';
+import htm from 'https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.module.js';
+const html = htm.bind(h);
+class DCLogic extends PreactComponent {}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { off: null, hover: null, pinned: null, filter: 'all', rel: true, loaded: {}, loading: {}, meta: {}, log: [], hc: null, cardsReady: false, stripReady: false, mode: 'study' };
+    this.timers = [];
+    this.seq = 0;
+  }
+
+  data() {
+    if (this._d) {
+      return this._d;
+    }
+    const MS = 86400000;
+    const START = Date.UTC(2026, 9, 3);
+    const TODAY = 10;
+    const NDAYS = 59;
+    const COURSES = {
+      ds: { name: 'Data Structures', hue: '#3b6ea8', fav: true, active: true },
+      oc: { name: 'Organic Chemistry II', hue: '#9a6331', fav: false, active: true },
+      ee: { name: 'Ethics in Engineering', hue: '#4f7a52', fav: false, active: true },
+      la: { name: 'Linear Algebra', hue: '#6b5a9a', fav: false, active: false },
+      tw: { name: 'Technical Writing', hue: '#a04b5d', fav: false, active: false },
+      site: { name: 'Site', hue: '#68717a', fav: false, active: false },
+      ip: { name: 'Introduction to Programming', hue: '#2f7d8c', fav: false, active: false, grader: true },
+      ca: { name: 'Calculus I', hue: '#5a6b2f', fav: false, active: false, grader: false }
+    };
+    // The same person teaches two courses: editing teacher in one, a monitor who does not grade in the other.
+    const TEACH = {
+      '2026-10-08': [{ c: 'ip', m: 'assign', t: 'Lab 2: loops', time: '23:59', waiting: 9 }],
+      '2026-10-13': [{ c: 'ip', m: 'assign', t: 'Lab 3: recursion', time: '18:00', waiting: 14 }, { c: 'ca', m: 'quiz', t: 'Quiz 4', time: '23:59', cls: true, learners: 38 }],
+      '2026-10-14': [{ c: 'ip', m: 'session', t: 'Lab session, group A', time: '10:00', ev: true }, { c: 'ip', m: 'assign', t: 'Lab 3: resubmissions', time: '12:00', waiting: 4 }],
+      '2026-10-15': [{ c: 'ip', m: 'assign', t: 'Project 1 proposal', time: '23:59', cls: true, learners: 42 }, { c: 'ca', m: 'assign', t: 'Problem set 4', time: '23:59', cls: true, learners: 38 }],
+      '2026-10-20': [{ c: 'ip', m: 'quiz', t: 'Midterm', time: '09:00', cls: true, learners: 42 }, { c: 'ip', m: 'session', t: 'Teaching team meeting', time: '14:00', ev: true }],
+      '2026-10-22': [{ c: 'ip', m: 'assign', t: 'Lab 4: lists', time: '18:00', waiting: 21 }, { c: 'ca', m: 'quiz', t: 'Quiz 5', time: '23:59', cls: true, learners: 38 }],
+      '2026-10-27': [{ c: 'ip', m: 'assign', t: 'Project 1 proposal', time: '18:00', waiting: 30 }],
+      '2026-10-29': [{ c: 'ca', m: 'assign', t: 'Problem set 5', time: '23:59', cls: true, learners: 38 }],
+      '2026-11-03': [{ c: 'ip', m: 'assign', t: 'Lab 5: trees', time: '23:59', cls: true, learners: 42 }],
+      '2026-11-12': [{ c: 'ip', m: 'assign', t: 'Project 2', time: '23:59', cls: true, learners: 42 }],
+      '2026-11-19': [{ c: 'ca', m: 'quiz', t: 'Quiz 7', time: '23:59', cls: true, learners: 38 }]
+    };
+    const ITEMS = {
+      '2026-10-05': [{ c: 'tw', m: 'assign', t: 'Memo draft', time: '12:00', done: true, g: true }],
+      '2026-10-06': [{ c: 'oc', m: 'lesson', t: 'Lab safety lesson', time: '23:59', done: true }],
+      '2026-10-08': [{ c: 'oc', m: 'assign', t: 'Lab report 3', time: '23:59', late: true, until: '20 October', g: true, comp: true }, { c: 'ds', m: 'session', t: 'Office hours', time: '14:00', ev: true }],
+      '2026-10-09': [{ c: 'ee', m: 'workshop', t: 'Peer review: first case study', time: '20:00', done: true, g: true }],
+      '2026-10-12': [{ c: 'la', m: 'quiz', t: 'Weekly check 5', time: '23:59', done: true, g: true }],
+      '2026-10-13': [{ c: 'ds', m: 'quiz', t: 'Quiz 4: trees and heaps', time: '23:59', g: true, comp: true }, { c: 'ee', m: 'forum', t: 'Week 6 discussion', time: '18:00' }, { c: 'ds', m: 'session', t: 'Live session: balanced trees', time: '14:00', ev: true }],
+      '2026-10-14': [{ c: 'tw', m: 'assign', t: 'Reading checkpoint', time: '12:00', g: true }],
+      '2026-10-15': [{ c: 'ds', m: 'assign', t: 'Project milestone 2', time: '23:59', g: true, comp: true }, { c: 'oc', m: 'quiz', t: 'Pre-lab quiz 4', time: '08:00', g: true }, { c: 'ee', m: 'workshop', t: 'Submit the case study', time: '20:00', g: true, comp: true }, { c: 'la', m: 'session', t: 'Tutorial, group B', time: '10:00', ev: true }],
+      '2026-10-16': [{ c: 'la', m: 'assign', t: 'Problem set 5', time: '23:59', g: true }, { c: 'tw', m: 'forum', t: 'Peer feedback round', time: '18:00' }],
+      '2026-10-18': [{ c: 'site', m: 'site', t: 'Scheduled maintenance, 02:00 to 04:00', time: '02:00', ev: true }],
+      '2026-10-19': [{ c: 'oc', m: 'lesson', t: 'Spectroscopy primer', time: '23:59' }],
+      '2026-10-20': [{ c: 'ds', m: 'quiz', t: 'Midterm exam', time: '09:00', g: true, comp: true, action: 'Read the exam rules' }, { c: 'ds', m: 'session', t: 'Exam briefing', time: '08:30', ev: true }],
+      '2026-10-21': [{ c: 'ee', m: 'forum', t: 'Week 7 discussion', time: '18:00' }, { c: 'tw', m: 'assign', t: 'Memo, final version', time: '23:59', g: true, comp: true }],
+      '2026-10-22': [{ c: 'oc', m: 'assign', t: 'Lab report 4', time: '23:59', g: true, comp: true }, { c: 'oc', m: 'quiz', t: 'Pre-lab quiz 5', time: '08:00', g: true }, { c: 'la', m: 'quiz', t: 'Weekly check 6', time: '23:59', g: true }, { c: 'la', m: 'session', t: 'Tutorial, group B', time: '10:00', ev: true }, { c: 'ee', m: 'workshop', t: 'Peer review: second case study', time: '20:00', g: true }, { c: 'tw', m: 'forum', t: 'Style clinic questions', time: '16:00' }],
+      '2026-10-23': [{ c: 'ds', m: 'assign', t: 'Exercise set 6', time: '23:59', g: true }],
+      '2026-10-26': [{ c: 'la', m: 'assign', t: 'Problem set 6', time: '23:59', g: true }],
+      '2026-10-27': [{ c: 'oc', m: 'session', t: 'Lab session 5', time: '14:00', ev: true }],
+      '2026-10-29': [{ c: 'ds', m: 'quiz', t: 'Quiz 5: graphs', time: '23:59', g: true, comp: true }],
+      '2026-10-30': [{ c: 'ee', m: 'assign', t: 'Essay outline', time: '23:59', g: true, comp: true }, { c: 'tw', m: 'assign', t: 'Report draft', time: '23:59', g: true }],
+      '2026-11-02': [{ c: 'site', m: 'site', t: 'Public holiday, no classes', time: 'All day', ev: true }],
+      '2026-11-03': [{ c: 'la', m: 'quiz', t: 'Weekly check 7', time: '23:59', g: true }],
+      '2026-11-05': [{ c: 'ds', m: 'assign', t: 'Project milestone 3', time: '23:59', g: true, comp: true }, { c: 'oc', m: 'assign', t: 'Lab report 5', time: '23:59', g: true, comp: true }, { c: 'ee', m: 'forum', t: 'Week 9 discussion', time: '18:00' }],
+      '2026-11-10': [{ c: 'la', m: 'quiz', t: 'Weekly check 8', time: '23:59', g: true }, { c: 'oc', m: 'session', t: 'Lab session 6', time: '14:00', ev: true }],
+      '2026-11-12': [{ c: 'tw', m: 'assign', t: 'Final report', time: '23:59', g: true, comp: true }],
+      '2026-11-17': [{ c: 'ds', m: 'quiz', t: 'Quiz 6: shortest paths', time: '23:59', g: true, comp: true }, { c: 'ee', m: 'forum', t: 'Week 11 discussion', time: '18:00' }],
+      '2026-11-19': [{ c: 'oc', m: 'quiz', t: 'Pre-lab quiz 7', time: '08:00', g: true }],
+      '2026-11-24': [{ c: 'ds', m: 'assign', t: 'Final project', time: '23:59', g: true, comp: true }, { c: 'la', m: 'assign', t: 'Problem set 9', time: '23:59', g: true }],
+      '2026-11-26': [{ c: 'site', m: 'site', t: 'Teaching term ends', time: 'All day', ev: true }],
+      '2026-11-30': [{ c: 'ee', m: 'assign', t: 'Final essay', time: '23:59', g: true, comp: true }]
+    };
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    const days = [];
+    for (let i = 0; i < NDAYS; i++) {
+      const dt = new Date(START + i * MS);
+      const key = dt.getUTCFullYear() + '-' + pad(dt.getUTCMonth() + 1) + '-' + pad(dt.getUTCDate());
+      const items = [];
+      (ITEMS[key] || []).forEach((r) => {
+        const c = COURSES[r.c];
+        let kind;
+        if (r.ev) {
+          kind = 'event';
+        } else if (r.done) {
+          kind = 'done';
+        } else if (i < TODAY) {
+          if (!r.late) {
+            return;
+          }
+          kind = 'late';
+        } else {
+          kind = r.g ? 'graded' : 'due';
+        }
+        const urgent = kind === 'graded' && (i === TODAY || i === TODAY + 1);
+        let w = 0;
+        if (kind === 'late') {
+          w = 1;
+        } else if (kind === 'event') {
+          w = 0.5;
+        } else if (kind === 'due' || kind === 'graded') {
+          w = (c.fav ? 1.5 : 1) * (c.active ? 1.5 : 1) * (r.comp ? 1.5 : 1) * (r.g ? 1.5 : 1) + (urgent ? 3 : 0);
+        }
+        items.push(Object.assign({}, r, { kind: urgent ? 'urgent' : kind, w: w, course: c.name, hue: c.hue, fav: c.fav }));
+      });
+      const titems = (TEACH[key] || []).map((r) => {
+        const c = COURSES[r.c];
+        let kind = r.ev ? 'event' : (r.cls ? 'class' : 'grade');
+        if (kind === 'grade' && (i === TODAY || i === TODAY + 1)) {
+          kind = 'gradesoon';
+        }
+        let w = 0.5;
+        if (kind === 'grade' || kind === 'gradesoon') {
+          w = 1.5 + Math.min(r.waiting, 30) / 10 + (kind === 'gradesoon' ? 2 : 0);
+        }
+        return Object.assign({}, r, { kind: kind, w: w, course: c.name, hue: c.hue, fav: false });
+      });
+      days.push({ i: i, key: key, wdn: dt.getUTCDay(), num: dt.getUTCDate(), month: dt.getUTCMonth(), year: dt.getUTCFullYear(), items: items, titems: titems });
+    }
+    const CARDS = [
+      { c: 'ds', title: 'Data Structures', cat: 'Computer Science · Semester 2', pct: 62, badge: 'Graded, due today', badgeCls: 'cc-cbadge cc-cbadge--accent', next: 'Quiz 4: trees and heaps · today, 23:59', day: 10, fav: true, bg: '#dbe6f2', fg: '#3b6ea8', x1: 250, x2: 70, tri: 'M120 118 L170 40 L220 118 Z' },
+      { c: 'oc', title: 'Organic Chemistry II', cat: 'Chemistry · Semester 2', pct: 41, badge: 'Late, still open', badgeCls: 'cc-cbadge cc-cbadge--warn', next: 'Lab report 3 · accepted until 20 October', day: 5, fav: false, bg: '#f2e5d7', fg: '#9a6331', x1: 60, x2: 240, tri: 'M150 0 L210 80 L90 80 Z' },
+      { c: 'ee', title: 'Ethics in Engineering', cat: 'Humanities · Semester 2', pct: 78, badge: 'New activity', badgeCls: 'cc-cbadge cc-cbadge--info', next: 'Week 6 discussion · today, 18:00', day: 10, fav: false, bg: '#dfeadf', fg: '#4f7a52', x1: 160, x2: 30, tri: 'M220 118 L270 30 L300 118 Z' }
+    ];
+    this._d = { days: days, cards: CARDS, TODAY: TODAY };
+    return this._d;
+  }
+
+  win() {
+    return (this.props.stripStyle ?? 'dots') === 'ring' ? 15 : 21;
+  }
+
+  bounds() {
+    const D = this.data();
+    const w = this.win();
+    const min = D.TODAY - Math.floor(w / 2);
+    return { min: min, max: D.days.length - w };
+  }
+
+  curOff() {
+    const b = this.bounds();
+    const off = this.state.off === null ? b.min : this.state.off;
+    return Math.max(b.min, Math.min(b.max, off));
+  }
+
+  componentDidMount() {
+    this.boot(false);
+  }
+
+  boot(returning) {
+    const latency = this.props.latency ?? 450;
+    this.later(() => {
+      this.setState({ cardsReady: true });
+      this.addLog({ tag: 'tier1', name: 'block_compass_get_attention', detail: 'tier 1 first: the cards paint before anything else is asked', ms: '39 ms', kb: '3.1 KB' });
+      this.later(() => {
+        this.setState({ stripReady: true });
+        if (returning) {
+          this.addLog({ tag: 'cache', name: 'block_compass_get_strip', detail: 'asked after tier 1 · same sign-in: from the user’s cache, no event query', ms: '6 ms', kb: '0.9 KB' });
+        } else {
+          this.addLog({ tag: 'strip', name: 'block_compass_get_strip', detail: 'asked after tier 1 · 3 Oct to 30 Nov · past exact, the rest counted · cached for this sign-in', ms: '41 ms', kb: '0.9 KB' });
+        }
+        this.later(() => this.ensure(this.data().TODAY, 'idle'), 1200);
+      }, returning ? 120 : latency);
+    }, Math.round(latency * 0.7));
+  }
+
+  componentWillUnmount() {
+    this.timers.forEach((t) => clearTimeout(t));
+  }
+
+  later(fn, ms) {
+    const t = setTimeout(fn, ms);
+    this.timers.push(t);
+    return t;
+  }
+
+  addLog(entry) {
+    this.seq += 1;
+    const e = Object.assign({ id: this.seq }, entry);
+    this.setState((st) => ({ log: [e].concat(st.log).slice(0, 9) }));
+  }
+
+  ensure(i, tag) {
+    const D = this.data();
+    if (i < 0 || i >= D.days.length) {
+      return;
+    }
+    const st = this.state;
+    if (st.loaded[i] || st.loading[i]) {
+      return;
+    }
+    this.setState((s) => ({ loading: Object.assign({}, s.loading, { [i]: true }) }));
+    const latency = this.props.latency ?? 450;
+    const background = tag === 'prefetch' || tag === 'idle';
+    const delay = Math.round((background ? latency * 0.6 : latency) + Math.random() * 120);
+    this.later(() => {
+      const n = D.days[i].items.length;
+      const ms = 34 + Math.round(Math.random() * 30);
+      this.setState((s) => ({
+        loading: Object.assign({}, s.loading, { [i]: false }),
+        loaded: Object.assign({}, s.loaded, { [i]: true }),
+        meta: Object.assign({}, s.meta, { [i]: { ms: ms, by: tag, hits: 0 } })
+      }));
+      this.addLog({ tag: tag, name: 'block_compass_get_day', detail: D.days[i].key + ' · ' + n + (n === 1 ? ' item' : ' items'), ms: ms + ' ms', kb: (0.5 + n * 0.62).toFixed(1) + ' KB' });
+      if (!background) {
+        this.later(() => this.ensure(i + 1, 'prefetch'), 260);
+      }
+    }, delay);
+  }
+
+  touch(i) {
+    const st = this.state;
+    if (st.loaded[i]) {
+      const m = st.meta[i] || { ms: 0, by: 'hover', hits: 0 };
+      this.setState({ meta: Object.assign({}, st.meta, { [i]: Object.assign({}, m, { hits: m.hits + 1 }) }) });
+    } else {
+      this.ensure(i, 'hover');
+    }
+  }
+
+  openDay(i) {
+    this.setState({ hover: i });
+    this.touch(i);
+  }
+
+  enterDay(i) {
+    clearTimeout(this.closeT);
+    if (this.state.pinned !== null) {
+      return;
+    }
+    clearTimeout(this.openT);
+    if (this.state.hover === i) {
+      return;
+    }
+    this.openT = this.later(() => this.openDay(i), this.state.hover === null ? 120 : 40);
+  }
+
+  clickDay(i) {
+    clearTimeout(this.openT);
+    if (this.state.pinned === i) {
+      this.setState({ pinned: null });
+      return;
+    }
+    this.setState({ pinned: i, hover: i });
+    this.touch(i);
+  }
+
+  closeAll() {
+    clearTimeout(this.openT);
+    this.setState({ pinned: null, hover: null });
+  }
+
+  shift(off) {
+    const b = this.bounds();
+    this.closeAll();
+    this.setState({ off: Math.max(b.min, Math.min(b.max, off)) });
+  }
+
+  switchMode(mode) {
+    if (this.state.mode === mode) {
+      return;
+    }
+    this.closeAll();
+    this.setState({ mode: mode, loaded: {}, meta: {} });
+    this.addLog({ tag: 'local', name: 'view switch', detail: 'both views travel in the strip payload: no request', ms: '0 ms', kb: '0 KB' });
+    this.addLog({ tag: 'pref', name: 'core_user_set_user_preferences', detail: 'block_compass_calendar view=' + mode + ' (remembered)', ms: '9 ms', kb: '0.1 KB' });
+  }
+
+  rel(i, today) {
+    const n = i - today;
+    if (n === 0) {
+      return 'Today';
+    }
+    if (n === 1) {
+      return 'Tomorrow';
+    }
+    if (n === -1) {
+      return 'Yesterday';
+    }
+    return n > 0 ? 'In ' + n + ' days' : -n + ' days ago';
+  }
+
+  renderVals() {
+    const D = this.data();
+    const st = this.state;
+    const TODAY = D.TODAY;
+    const WIN = this.win();
+    const off = this.curOff();
+    const bnd = this.bounds();
+    const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const WDL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const MON = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const ACT = { quiz: 'Attempt quiz now', assign: 'Add submission', forum: 'Reply', workshop: 'Add submission', lesson: 'Open lesson', session: 'Join session', site: 'View' };
+    const PURPOSE = { quiz: 'assessment', assign: 'assessment', workshop: 'assessment', forum: 'collaboration', lesson: 'content', session: 'communication', site: 'administration' };
+    const KORDER = { urgent: 0, gradesoon: 0, graded: 1, grade: 1, due: 2, late: 3, class: 4, event: 5, done: 6 };
+    const OPEN = { urgent: true, graded: true, due: true, late: true, grade: true, gradesoon: true };
+    const teach = st.mode === 'teach';
+    const filter = st.filter;
+    const relMode = st.rel;
+    const active = st.pinned !== null ? st.pinned : st.hover;
+
+    const shownOf = (d) => (teach ? d.titems : d.items).filter((it) => (filter === 'all' ? true
+      : (filter === 'todo' ? (it.kind !== 'event' && it.kind !== 'class') : it.kind === 'event')));
+    const scoreOf = (items) => (relMode ? items.reduce((a, it) => a + it.w, 0) : items.filter((it) => it.kind !== 'done').length);
+    const levelOf = (items) => {
+      const s = scoreOf(items);
+      if (s <= 0) {
+        return 0;
+      }
+      if (!relMode) {
+        return Math.min(4, s);
+      }
+      return s < 2 ? 1 : (s < 4 ? 2 : (s < 8 ? 3 : 4));
+    };
+
+    let needle = -1;
+    let best = 0;
+    for (let i = TODAY; i < D.days.length; i++) {
+      const sc = scoreOf(shownOf(D.days[i]));
+      if (sc > best) {
+        best = sc;
+        needle = i;
+      }
+    }
+
+    const todayVi = TODAY - off;
+    const centre = todayVi >= 0 && todayVi < WIN ? todayVi : Math.floor(WIN / 2);
+    const C = 2 * Math.PI * 27;
+
+    const days = [];
+    for (let vi = 0; vi < WIN; vi++) {
+      const i = off + vi;
+      const d = D.days[i];
+      const items = shownOf(d).slice().sort((a, b) => KORDER[a.kind] - KORDER[b.kind]);
+      const cnt = { urgent: 0, graded: 0, due: 0, late: 0, event: 0, done: 0, grade: 0, gradesoon: 0, class: 0 };
+      items.forEach((it) => { cnt[it.kind] += 1; });
+      const open = cnt.urgent + cnt.graded + cnt.due + cnt.late;
+      const lvl = levelOf(items);
+      const isToday = i === TODAY;
+      const past = i < TODAY;
+      const weekend = d.wdn === 0 || d.wdn === 6;
+      const offday = weekend && d.items.length === 0;
+      let match = '';
+      if (st.hc) {
+        match = items.some((it) => it.c === st.hc && OPEN[it.kind]) ? ' cc-match' : ' cc-dim';
+      }
+      const dots = items.slice(0, 4).map((it) => ({ cls: 'cc-dot cc-dot--' + it.kind }));
+      const segN = Math.min(items.length, 6);
+      const seg = (k) => {
+        if (k >= segN) {
+          return { cls: 'cc-seg', dash: '0 ' + C, off: '0' };
+        }
+        const gap = segN > 1 ? 4 : 0;
+        const len = C / segN - gap;
+        return { cls: 'cc-seg cc-seg--' + items[k].kind, dash: len.toFixed(2) + ' ' + C.toFixed(2), off: (-(k * C) / segN - gap / 2).toFixed(2) };
+      };
+      const align = vi <= 3 ? 'start' : (vi >= WIN - 4 ? 'end' : 'center');
+      const parts = [];
+      if (cnt.urgent + cnt.graded) {
+        parts.push((cnt.urgent + cnt.graded) + ' graded');
+      }
+      if (cnt.due) {
+        parts.push(cnt.due + ' to do');
+      }
+      if (cnt.late) {
+        parts.push(cnt.late + ' late, still open');
+      }
+      if (cnt.event) {
+        parts.push(cnt.event + (cnt.event === 1 ? ' event' : ' events'));
+      }
+      if (cnt.grade + cnt.gradesoon) {
+        parts.push((cnt.grade + cnt.gradesoon) + ' to grade');
+      }
+      if (cnt.class) {
+        parts.push(cnt.class + (cnt.class === 1 ? ' class deadline' : ' class deadlines'));
+      }
+      if (!parts.length) {
+        parts.push('nothing open');
+      }
+      const label = WDL[d.wdn] + ' ' + d.num + ' ' + MON[d.month] + ': ' + parts.join(', ') + (i === needle ? '. The most relevant day ahead' : '');
+      const showPop = active === i;
+      const soon = (cnt.urgent + cnt.gradesoon) > 0 && !isToday;
+      const cls = ['cc-day', 'cc-h' + lvl, isToday ? 'cc-today' : '', past ? 'cc-past' : '', offday ? 'cc-off' : '', soon ? 'cc-soon' : '', showPop ? 'cc-open' : '', st.pinned === i ? 'cc-pinned' : ''].filter(Boolean).join(' ');
+      const day = {
+        key: d.key,
+        num: d.num,
+        wd: WD[d.wdn],
+        cls: cls,
+        colCls: 'cc-col' + (isToday ? ' cc-col--today' : '') + match + (Math.abs(vi - centre) > 3 ? ' cc-far' : ''),
+        label: label,
+        needle: i === needle,
+        dots: dots,
+        hasMore: items.length > 4,
+        more: '+' + (items.length - 4),
+        s0: seg(0), s1: seg(1), s2: seg(2), s3: seg(3), s4: seg(4), s5: seg(5),
+        barCls: 'cc-bar cc-h' + lvl,
+        barH: (items.length ? 10 + Math.min(items.length, 5) * 8 : 4) + 'px',
+        showPop: showPop,
+        enter: () => this.enterDay(i),
+        focus: () => { if (this.state.pinned === null) { clearTimeout(this.openT); this.openDay(i); } },
+        click: () => this.clickDay(i),
+        pop: null
+      };
+      if (showPop) {
+        const loaded = !!st.loaded[i];
+        const meta = st.meta[i];
+        let src = 'Loading…';
+        let srcCls = 'cc-src cc-src--wait';
+        if (loaded && meta) {
+          srcCls = 'cc-src';
+          if (meta.hits > 0) {
+            src = 'From memory, no request';
+          } else if (meta.by === 'prefetch' || meta.by === 'idle') {
+            src = 'Prefetched, no wait';
+          } else {
+            src = 'Loaded in ' + meta.ms + ' ms';
+          }
+        }
+        const chips = [];
+        if (cnt.urgent + cnt.graded) {
+          chips.push({ dot: 'cc-dot cc-dot--graded', text: (cnt.urgent + cnt.graded) + ' graded' });
+        }
+        if (cnt.due) {
+          chips.push({ dot: 'cc-dot cc-dot--due', text: cnt.due + ' to do' });
+        }
+        if (cnt.late) {
+          chips.push({ dot: 'cc-dot cc-dot--late', text: cnt.late + ' late, still open' });
+        }
+        if (cnt.event) {
+          chips.push({ dot: 'cc-dot cc-dot--event', text: cnt.event + (cnt.event === 1 ? ' event' : ' events') });
+        }
+        if (cnt.done) {
+          chips.push({ dot: 'cc-dot cc-dot--done', text: cnt.done + ' done' });
+        }
+        if (cnt.grade + cnt.gradesoon) {
+          chips.push({ dot: 'cc-dot cc-dot--grade', text: (cnt.grade + cnt.gradesoon) + ' to grade' });
+        }
+        if (cnt.class) {
+          chips.push({ dot: 'cc-dot cc-dot--class', text: cnt.class + (cnt.class === 1 ? ' class deadline' : ' class deadlines') });
+        }
+        const sorted = items.slice().sort((a, b) => (KORDER[a.kind] - KORDER[b.kind]) || (relMode ? b.w - a.w : 0) || a.time.localeCompare(b.time));
+        const list = sorted.map((it) => ({
+          rowCls: 'cc-it cc-it--' + it.kind,
+          icoCls: 'cc-ico cc-ico--' + PURPOSE[it.m],
+          isQuiz: it.m === 'quiz', isAssign: it.m === 'assign', isForum: it.m === 'forum', isWorkshop: it.m === 'workshop',
+          isLesson: it.m === 'lesson', isSession: it.m === 'session', isSite: it.m === 'site',
+          time: it.time, course: it.course, hue: it.hue, title: it.t,
+          isUrgent: it.kind === 'urgent',
+          urgentText: i === TODAY ? 'Graded, due today' : 'Graded, due tomorrow',
+          isGradedOnly: it.kind === 'graded',
+          isLate: it.kind === 'late',
+          lateText: 'Late, accepted until ' + it.until,
+          isComp: !!it.comp && OPEN[it.kind] === true,
+          isFav: it.fav && OPEN[it.kind] === true && it.kind !== 'late',
+          isDone: it.kind === 'done',
+          isEvent: it.kind === 'event',
+          eventText: it.m === 'site' ? 'Site event' : 'Course event',
+          isGrade: it.kind === 'grade' || it.kind === 'gradesoon',
+          isGradeSoon: it.kind === 'gradesoon',
+          gradeSoonText: i === TODAY ? 'Grading due today' : 'Grading due tomorrow',
+          waitingText: (it.waiting || 0) + (it.waiting === 1 ? ' submission waiting' : ' submissions waiting'),
+          isClass: it.kind === 'class',
+          classText: 'Class deadline · ' + (it.learners || 0) + ' learners',
+          hasFt: it.kind === 'class' && (this.props.feedbackTracker ?? true),
+          action: it.kind === 'done' ? 'View' : (it.kind === 'grade' || it.kind === 'gradesoon' ? 'Grade'
+            : (it.kind === 'class' ? 'View' : (it.action || ACT[it.m]))),
+          actCls: 'cc-act ' + (['urgent', 'graded', 'due', 'grade', 'gradesoon'].indexOf(it.kind) >= 0 ? 'cc-act--primary' : 'cc-act--ghost')
+        }));
+        const pinned = st.pinned === i;
+        day.pop = {
+          cls: 'cc-pop cc-pop--' + align + (pinned ? ' cc-pop--pinned' : ''),
+          title: WDL[d.wdn] + ', ' + d.num + ' ' + MON[d.month],
+          rel: this.rel(i, TODAY),
+          relCls: 'cc-rel' + (isToday ? ' cc-rel--today' : ''),
+          countText: items.length + (items.length === 1 ? ' item' : ' items'),
+          src: src,
+          srcCls: srcCls,
+          pinned: pinned,
+          close: () => this.closeAll(),
+          nOver: cnt.late, nDue: cnt.due + cnt.urgent + cnt.graded + cnt.grade + cnt.gradesoon, nEv: cnt.event + cnt.class, nDone: cnt.done,
+          chips: chips,
+          loading: !loaded,
+          skel: items.slice(0, 3).map((x, k) => ({ w: [72, 58, 66][k] + '%' })),
+          isEmpty: loaded && items.length === 0,
+          emptyText: filter === 'events' ? 'No events on this day.' : (teach ? 'Nothing to grade, no class deadline.' : 'Nothing open. A free day.'),
+          hasItems: loaded && items.length > 0,
+          items: list,
+          hint: pinned ? 'Pinned. Esc or the close button lets it go.' : 'Click the day to pin this card.'
+        };
+      }
+      days.push(day);
+    }
+
+    const first = D.days[off];
+    const last = D.days[off + WIN - 1];
+    const monthLabel = first.month === last.month
+      ? MON[first.month] + ' ' + first.year
+      : MON[first.month] + ' – ' + MON[last.month] + ' ' + last.year;
+
+    const activeDay = active !== null ? D.days[active] : null;
+    const cards = D.cards.map((c) => {
+      let lit = false;
+      if (activeDay) {
+        lit = shownOf(activeDay).some((it) => it.c === c.c && OPEN[it.kind] === true);
+      }
+      return Object.assign({}, c, {
+        cls: 'cc-card' + (lit ? ' cc-card--lit' : ''),
+        starCls: 'cc-star' + (c.fav ? '' : ' cc-star--off'),
+        starFill: c.fav ? 'currentColor' : 'none',
+        starLabel: c.fav ? 'Remove ' + c.title + ' from starred' : 'Star ' + c.title,
+        pctW: c.pct + '%',
+        enter: () => this.setState({ hc: c.c }),
+        leave: () => this.setState({ hc: null }),
+        openDay: () => {
+          const target = c.day;
+          const b = this.bounds();
+          const o = Math.max(b.min, Math.min(b.max, target - Math.floor(this.win() / 2)));
+          this.setState({ off: o, pinned: target, hover: target });
+          this.touch(target);
+        }
+      });
+    });
+
+    const byId = {};
+    cards.forEach((c) => { byId[c.c] = c; });
+    const tiers = [
+      { title: 'Continue where you left off', cards: [byId.ds, byId.oc, byId.ee], ghost: false },
+      { title: 'My favourites', cards: [byId.ds], ghost: true }
+    ];
+    const skelDays = [];
+    for (let k = 0; k < WIN; k++) {
+      skelDays.push({ k: k });
+    }
+    const requests = st.log.filter((e) => e.tag !== 'cache' && e.tag !== 'local').length;
+    const log = st.log.map((e) => ({ tagCls: 'cc-tag cc-tag--' + e.tag, tag: e.tag === 'idle' ? 'idle: today' : e.tag, name: e.name, detail: e.detail, ms: e.ms, kb: e.kb }));
+
+    return {
+      themeCls: (this.props.dark ?? false) ? 'cc-dark' : '',
+      stripStyle: this.props.stripStyle ?? 'dots',
+      showNet: this.props.showNetwork ?? true,
+      daysCls: 'cc-days cc-days--' + WIN,
+      daysLabel: 'Days, ' + WIN + ' shown',
+      monthLabel: monthLabel,
+      hasBoth: true,
+      mStudy: !teach,
+      mTeach: teach,
+      setStudy: () => this.switchMode('study'),
+      setTeach: () => this.switchMode('teach'),
+      fAll: filter === 'all',
+      fTodo: filter === 'todo',
+      fEvents: filter === 'events',
+      setAll: () => this.setState({ filter: 'all' }),
+      setTodo: () => this.setState({ filter: 'todo' }),
+      setEvents: () => this.setState({ filter: 'events' }),
+      rel: relMode,
+      toggleRel: () => this.setState({ rel: !this.state.rel }),
+      atStart: off <= bnd.min,
+      atEnd: off >= bnd.max,
+      prevWeek: () => this.shift(this.curOff() - 7),
+      nextWeek: () => this.shift(this.curOff() + 7),
+      goToday: () => this.shift(this.bounds().min),
+      days: days,
+      trackOn: todayVi >= 0 && todayVi < WIN,
+      trackLeft: ((todayVi / WIN) * 100).toFixed(3) + '%',
+      trackW: (100 / WIN).toFixed(3) + '%',
+      enterWrap: () => clearTimeout(this.closeT),
+      leaveWrap: () => {
+        clearTimeout(this.openT);
+        if (this.state.pinned !== null) {
+          return;
+        }
+        this.closeT = this.later(() => this.setState({ hover: null }), 200);
+      },
+      keyWrap: (e) => {
+        if (e.key === 'Escape') {
+          this.closeAll();
+        }
+      },
+      blurWrap: (e) => {
+        if (this.state.pinned !== null) {
+          return;
+        }
+        if (!e.relatedTarget || !e.currentTarget.contains(e.relatedTarget)) {
+          this.setState({ hover: null });
+        }
+      },
+      costText: 'Today to the end of next month, from one request; past days only to fill the row. A wider range is the calendar’s job.',
+      tiers: tiers,
+      cardsReady: st.cardsReady,
+      cardsWaiting: !st.cardsReady,
+      stripReady: st.stripReady,
+      stripWaiting: !st.stripReady,
+      skelDays: skelDays,
+      log: log,
+      simulateReturn: () => {
+        this.closeAll();
+        this.setState({ loaded: {}, loading: {}, meta: {}, off: null, cardsReady: false, stripReady: false });
+        this.boot(true);
+      },
+      netSummary: requests + (requests === 1 ? ' request' : ' requests') + ' that reached the database · one per day pointed at, then never again'
+    };
+  }
+}
+
+Component.prototype.render = function () {
+  const v = this.renderVals();
+  return html`
+<div class=${`cc-root ${v.themeCls} cc-style-${v.stripStyle}`}>
+  <nav class="cc-nav" aria-label="Site">
+    <span class="cc-brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M15.5 8.5l-2 5-5 2 2-5z"></path></svg>
+      Campus
+    </span>
+    <div class="cc-navlinks">
+      <a href="#">Home</a>
+      <a href="#" aria-current="page">Dashboard</a>
+      <a href="#">My courses</a>
+      <a href="#">Site administration</a>
+    </div>
+    <div class="cc-navright">
+      <button type="button" class="cc-iconbtn" aria-label="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"></path></svg>
+      </button>
+      <span class="cc-avatar" aria-label="Your profile">LM</span>
+    </div>
+  </nav>
+
+  <main class="cc-wrap">
+    <div class="cc-pagehead">
+      <h1 class="cc-h1">Dashboard</h1>
+      <button type="button" class="cc-btn">Customise this page</button>
+    </div>
+
+    <section class="cc-block" aria-labelledby="cc-btitle">
+      <div class="cc-bhead">
+        <h2 id="cc-btitle">Compass</h2>
+        <button type="button" class="cc-iconbtn" aria-label="Reload Compass">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg>
+        </button>
+      </div>
+
+      <div class="cc-bbody">
+        <div class="cc-strip" onMouseEnter=${v.enterWrap} onMouseLeave=${v.leaveWrap} onKeyDown=${v.keyWrap} onBlur=${v.blurWrap}>
+          <div class="cc-shead">
+            <div class="cc-monthnav">
+              <button type="button" class="cc-iconbtn" aria-label="Earlier days" disabled=${v.atStart} onClick=${v.prevWeek}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+              </button>
+              <h3 class="cc-month" aria-live="polite">${v.monthLabel}</h3>
+              <button type="button" class="cc-iconbtn" aria-label="Later days" disabled=${v.atEnd} onClick=${v.nextWeek}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+              </button>
+              <button type="button" class="cc-todaybtn" disabled=${v.atStart} onClick=${v.goToday}>Today</button>
+            </div>
+            <div class="cc-controls">
+              ${(v.hasBoth) ? html`
+                <div class="cc-segctl cc-mode" role="group" aria-label="Show the strip for">
+                  <button type="button" class="cc-segbtn" aria-pressed=${v.mStudy} onClick=${v.setStudy}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"></path><path d="M7 11.5V16c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5"></path></svg>
+                    Studying
+                  </button>
+                  <button type="button" class="cc-segbtn" aria-pressed=${v.mTeach} onClick=${v.setTeach}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg>
+                    Teaching
+                  </button>
+                </div>
+              ` : null}
+              <div class="cc-segctl" role="group" aria-label="Show on the strip">
+                <button type="button" class="cc-segbtn" aria-pressed=${v.fAll} onClick=${v.setAll}>Everything</button>
+                <button type="button" class="cc-segbtn" aria-pressed=${v.fTodo} onClick=${v.setTodo}>To do</button>
+                <button type="button" class="cc-segbtn" aria-pressed=${v.fEvents} onClick=${v.setEvents}>Events</button>
+              </div>
+            </div>
+          </div>
+
+          ${(v.stripReady) ? html`
+          <div class="cc-daysbox">
+            <span class="cc-fade cc-fade--l" aria-hidden="true"></span>
+            <span class="cc-fade cc-fade--r" aria-hidden="true"></span>
+            <div class=${v.daysCls} role="list" aria-label=${v.daysLabel}>
+              ${(v.days || []).map((d, __i0) => html`
+                <div class=${d.colCls} role="listitem">
+                  ${(d.needle) ? html`
+                    <span class="cc-needle" title="The most relevant day ahead" aria-hidden="true"></span>
+                  ` : null}
+                  <span class="cc-barbox" aria-hidden="true"><span class=${d.barCls} style=${`height: ${d.barH}`}></span></span>
+                  <button type="button" class=${d.cls} aria-label=${d.label} aria-expanded=${d.showPop} aria-haspopup="dialog" onMouseEnter=${d.enter} onFocus=${d.focus} onClick=${d.click}>
+                    <svg class="cc-ring" viewBox="0 0 60 60" aria-hidden="true">
+                      <circle cx="30" cy="30" r="27" class=${d.s0.cls} style=${`stroke-dasharray: ${d.s0.dash}; stroke-dashoffset: ${d.s0.off}`}></circle>
+                      <circle cx="30" cy="30" r="27" class=${d.s1.cls} style=${`stroke-dasharray: ${d.s1.dash}; stroke-dashoffset: ${d.s1.off}`}></circle>
+                      <circle cx="30" cy="30" r="27" class=${d.s2.cls} style=${`stroke-dasharray: ${d.s2.dash}; stroke-dashoffset: ${d.s2.off}`}></circle>
+                      <circle cx="30" cy="30" r="27" class=${d.s3.cls} style=${`stroke-dasharray: ${d.s3.dash}; stroke-dashoffset: ${d.s3.off}`}></circle>
+                      <circle cx="30" cy="30" r="27" class=${d.s4.cls} style=${`stroke-dasharray: ${d.s4.dash}; stroke-dashoffset: ${d.s4.off}`}></circle>
+                      <circle cx="30" cy="30" r="27" class=${d.s5.cls} style=${`stroke-dasharray: ${d.s5.dash}; stroke-dashoffset: ${d.s5.off}`}></circle>
+                    </svg>
+                    <span>${d.num}</span>
+                  </button>
+                  <span class="cc-dots" aria-hidden="true">
+                    ${(d.dots || []).map((dot, __i1) => html`<span class=${dot.cls}></span>`)}
+                    ${(d.hasMore) ? html`<span class="cc-more">${d.more}</span>` : null}
+                  </span>
+                  <span class="cc-wd" aria-hidden="true">${d.wd}</span>
+
+                  ${(d.showPop) ? html`
+                    <div class=${d.pop.cls} role="dialog" aria-label=${d.pop.title}>
+                      <span class="cc-arrow" aria-hidden="true"></span>
+                      <div class="cc-phead">
+                        <div>
+                          <p class="cc-ptitle">${d.pop.title}</p>
+                          <div class="cc-psub">
+                            <span class=${d.pop.relCls}>${d.pop.rel}</span>
+                            <span>${d.pop.countText}</span>
+                            <span class=${d.pop.srcCls}>${d.pop.src}</span>
+                          </div>
+                        </div>
+                        ${(d.pop.pinned) ? html`
+                          <button type="button" class="cc-x" aria-label="Close" onClick=${d.pop.close}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+                          </button>
+                        ` : null}
+                      </div>
+                      <div class="cc-sumbar" aria-hidden="true">
+                        <span class="cc-sb-over" style=${`flex-grow: ${d.pop.nOver}`}></span>
+                        <span class="cc-sb-due" style=${`flex-grow: ${d.pop.nDue}`}></span>
+                        <span class="cc-sb-ev" style=${`flex-grow: ${d.pop.nEv}`}></span>
+                        <span class="cc-sb-done" style=${`flex-grow: ${d.pop.nDone}`}></span>
+                      </div>
+                      <div class="cc-chips">
+                        ${(d.pop.chips || []).map((ch, __i1) => html`
+                          <span class="cc-chip"><span class=${ch.dot} aria-hidden="true"></span>${ch.text}</span>
+                        `)}
+                      </div>
+
+                      ${(d.pop.loading) ? html`
+                        <div aria-busy="true" aria-label="Loading the day">
+                          ${(d.pop.skel || []).map((sk, __i1) => html`
+                            <div class="cc-skel">
+                              <span class="cc-sk" style="width: 38px; height: 38px; border-radius: 11px"></span>
+                              <span style="display: flex; flex-direction: column; gap: 7px">
+                                <span class="cc-sk" style="width: 46%; height: 9px"></span>
+                                <span class="cc-sk" style=${`width: ${sk.w}; height: 12px`}></span>
+                              </span>
+                            </div>
+                          `)}
+                        </div>
+                      ` : null}
+
+                      ${(d.pop.isEmpty) ? html`
+                        <p class="cc-empty">${d.pop.emptyText}</p>
+                      ` : null}
+
+                      ${(d.pop.hasItems) ? html`
+                        <ul class="cc-list">
+                          ${(d.pop.items || []).map((it, __i1) => html`
+                            <li class=${it.rowCls}>
+                              <span class=${it.icoCls} aria-hidden="true">
+                                ${(it.isQuiz) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"></rect><path d="M8.5 12.5l2.5 2.5 4.5-5"></path></svg>` : null}
+                                ${(it.isAssign) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="M9 13h6M9 17h4"></path></svg>` : null}
+                                ${(it.isForum) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 20 12z"></path></svg>` : null}
+                                ${(it.isWorkshop) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"></circle><path d="M3.5 19a5.5 5.5 0 0 1 11 0"></path><circle cx="17" cy="9.5" r="2.5"></circle><path d="M15.8 14.3A4.5 4.5 0 0 1 21 18.6"></path></svg>` : null}
+                                ${(it.isLesson) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a2 2 0 0 1 2-2h14v16H6a2 2 0 0 0-2 2 2 2 0 0 0 2 2h14"></path><path d="M8.5 7.5h7"></path></svg>` : null}
+                                ${(it.isSession) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"></rect><path d="M16 10.5l5-3v9l-5-3"></path></svg>` : null}
+                                ${(it.isSite) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h3l7 4V6l-7 4z"></path><path d="M17 9a4 4 0 0 1 0 6"></path></svg>` : null}
+                              </span>
+                              <div style="min-width: 0">
+                                <div class="cc-itop">
+                                  <span>${it.time}</span>
+                                  <span class="cc-ccourse"><span class="cc-cdot" style=${`background: ${it.hue}`}></span>${it.course}</span>
+                                </div>
+                                <a class="cc-ititle" href="#">${it.title}</a>
+                                <div class="cc-badges">
+                                  ${(it.isUrgent) ? html`<span class="cc-badge cc-badge--urgent">${it.urgentText}</span>` : null}
+                                  ${(it.isGradedOnly) ? html`<span class="cc-badge cc-badge--graded">Graded</span>` : null}
+                                  ${(it.isLate) ? html`<span class="cc-badge cc-badge--late">${it.lateText}</span>` : null}
+                                  ${(it.isGradeSoon) ? html`<span class="cc-badge cc-badge--urgent">${it.gradeSoonText}</span>` : null}
+                                  ${(it.isGrade) ? html`<span class="cc-badge cc-badge--graded">${it.waitingText}</span>` : null}
+                                  ${(it.isClass) ? html`<span class="cc-badge">${it.classText}</span>` : null}
+                                  ${(it.isComp) ? html`<span class="cc-badge">Counts toward completion</span>` : null}
+                                  ${(it.isFav) ? html`<span class="cc-badge">Starred course</span>` : null}
+                                  ${(it.isDone) ? html`<span class="cc-badge">Done</span>` : null}
+                                  ${(it.isEvent) ? html`<span class="cc-badge">${it.eventText}</span>` : null}
+                                </div>
+                                ${(it.hasFt) ? html`
+                                  <a class="cc-ftlink" href="#">Submission progress in Feedback tracker
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg>
+                                  </a>
+                                ` : null}
+                              </div>
+                              <a class=${it.actCls} href="#">${it.action}</a>
+                            </li>
+                          `)}
+                        </ul>
+                      ` : null}
+
+                      <div class="cc-pfoot">
+                        <span>${d.pop.hint}</span>
+                        <a href="#">Open this day in the calendar</a>
+                      </div>
+                    </div>
+                  ` : null}
+                </div>
+              `)}
+            </div>
+            <div class="cc-track" aria-hidden="true">
+              ${(v.trackOn) ? html`
+                <span class="cc-track-mark" style=${`left: ${v.trackLeft}; width: ${v.trackW}`}></span>
+              ` : null}
+            </div>
+          </div>
+
+          <div class="cc-sfoot">
+            ${(v.mStudy) ? html`
+              <div class="cc-legend" aria-hidden="true">
+                <span><span class="cc-dot cc-dot--graded"></span>Graded</span>
+                <span><span class="cc-dot cc-dot--due"></span>To do</span>
+                <span><span class="cc-dot cc-dot--late"></span>Late, still open</span>
+                <span><span class="cc-dot cc-dot--event"></span>Event</span>
+                <span><span class="cc-dot cc-dot--done"></span>Done</span>
+                <span><span class="cc-needle" style="position: static; margin: 0"></span>Most relevant day ahead</span>
+              </div>
+            ` : null}
+            ${(v.mTeach) ? html`
+              <div class="cc-legend" aria-hidden="true">
+                <span><span class="cc-dot cc-dot--grade"></span>To grade</span>
+                <span><span class="cc-dot cc-dot--class"></span>Class deadline</span>
+                <span><span class="cc-dot cc-dot--event"></span>Event</span>
+                <span><span class="cc-needle" style="position: static; margin: 0"></span>Heaviest grading day ahead</span>
+              </div>
+            ` : null}
+            <div class="cc-sfoot-actions">
+                <label class="cc-switch">
+                  <input type="checkbox" role="switch" checked=${v.rel} onChange=${v.toggleRel} />
+                  <span class="cc-switch-track" aria-hidden="true"></span>
+                  Weigh by relevance
+                </label>
+                <a class="cc-calink" href="#">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
+                  Open the calendar
+                </a>
+            </div>
+          </div>
+          ` : null}
+          ${(v.stripWaiting) ? html`
+            <div class="cc-daysbox" aria-busy="true" aria-label="Loading the calendar strip">
+              <div class=${v.daysCls}>
+                ${(v.skelDays || []).map((k, __i0) => html`
+                  <div class="cc-col">
+                    <span class="cc-sk cc-day" style="cursor: default"></span>
+                    <span class="cc-dots"></span>
+                    <span class="cc-sk" style="width: 22px; height: 10px"></span>
+                  </div>
+                `)}
+              </div>
+              <div class="cc-track"></div>
+            </div>
+            <div class="cc-sfoot"><span>Your courses come first; the strip follows.</span></div>
+          ` : null}
+        </div>
+
+        <div class="cc-sep"></div>
+
+        ${(v.cardsWaiting) ? html`
+          <div class="cc-tier" aria-busy="true" aria-label="Loading your courses">
+            <span class="cc-sk" style="display: block; width: 240px; height: 16px; margin-bottom: 16px"></span>
+            <div class="cc-cards">
+              <span class="cc-sk" style="display: block; height: 280px; border-radius: 14px"></span>
+              <span class="cc-sk" style="display: block; height: 280px; border-radius: 14px"></span>
+              <span class="cc-sk" style="display: block; height: 280px; border-radius: 14px"></span>
+            </div>
+          </div>
+        ` : null}
+        ${(v.cardsReady) ? html`
+          ${(v.tiers || []).map((t, __i0) => html`
+            <section class="cc-tier" aria-label=${t.title}>
+              <div class="cc-thead">
+                <h3>${t.title}</h3>
+              </div>
+              <div class="cc-cards">
+                ${(t.cards || []).map((c, __i1) => html`
+                  <article class=${c.cls} onMouseEnter=${c.enter} onMouseLeave=${c.leave}>
+                    <svg class="cc-cimg" viewBox="0 0 300 118" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                      <rect width="300" height="118" fill=${c.bg}></rect>
+                      <circle cx=${c.x1} cy="30" r="78" fill=${c.fg} opacity="0.22"></circle>
+                      <circle cx=${c.x2} cy="104" r="46" fill=${c.fg} opacity="0.35"></circle>
+                      <path d=${c.tri} fill=${c.fg} opacity="0.5"></path>
+                    </svg>
+                    <button type="button" class=${c.starCls} aria-label=${c.starLabel} aria-pressed=${c.fav}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill=${c.starFill} stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8-4.3-4.1 5.9-.8z"></path></svg>
+                    </button>
+                    <div class="cc-cbody">
+                      <div class="cc-ccat">${c.cat}</div>
+                      <a class="cc-ctitle" href="#">${c.title}</a>
+                      <div class="cc-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${c.pct} aria-label="Course progress"><span style=${`width: ${c.pctW}`}></span></div>
+                      <div class="cc-pct">${c.pct}% complete</div>
+                    </div>
+                  </article>
+                `)}
+                ${(t.ghost) ? html`
+                  <button type="button" class="cc-ghost">
+                    <b>+12</b>
+                    <span>other courses</span>
+                    <em>Explore all</em>
+                  </button>
+                ` : null}
+              </div>
+            </section>
+          `)}
+        ` : null}
+      </div>
+    </section>
+
+    ${(v.showNet) ? html`
+      <section class="cc-net" aria-label="Requests made by the strip (mockup instrument)">
+        <div class="cc-nethead">
+          <b>Requests (mockup instrument, not part of the block)</b>
+          <span>${v.costText} ${v.netSummary}</span>
+          <button type="button" class="cc-netbtn" onClick=${v.simulateReturn}>Simulate coming back to the page</button>
+        </div>
+        <ol class="cc-netlist">
+          ${(v.log || []).map((e, __i0) => html`
+            <li><span class=${e.tagCls}>${e.tag}</span><span class="cc-nm">${e.name} · ${e.detail}</span><span>${e.ms}</span><span class="cc-kb">${e.kb}</span></li>
+          `)}
+        </ol>
+      </section>
+    ` : null}
+  </main>
+</div>
+`;
+};
+const TWEAKS = {"stripStyle": {"editor": "enum", "options": ["dots", "ring", "pulse"], "default": "dots", "section": "Strip"}, "dark": {"editor": "boolean", "default": false, "section": "Theme"}, "showNetwork": {"editor": "boolean", "default": true, "section": "Instrument"}, "latency": {"editor": "range", "min": 0, "max": 1500, "step": 50, "unit": "ms", "default": 450, "section": "Instrument"}, "feedbackTracker": {"editor": "boolean", "default": true, "section": "Integration"}};
+class Shell extends PreactComponent {
+  constructor(props) { super(props); this.state = {"stripStyle": "dots", "dark": false, "showNetwork": true, "latency": 450, "feedbackTracker": true}; }
+  render() {
+    const rows = Object.entries(TWEAKS).map(([key, t]) => {
+      const set = (value) => this.setState({ [key]: value });
+      if (t.editor === 'boolean') {
+        return html`<label>${key} <input type="checkbox" checked=${!!this.state[key]} onChange=${(e) => set(e.target.checked)} /></label>`;
+      }
+      if (t.editor === 'enum') {
+        return html`<label>${key} <select value=${this.state[key]} onChange=${(e) => set(e.target.value)}>
+          ${t.options.map((o) => html`<option value=${o}>${o}</option>`)}</select></label>`;
+      }
+      if (t.editor === 'range' || t.editor === 'int') {
+        return html`<label>${key} <input type="number" min=${t.min} max=${t.max} step=${t.step || 1} value=${this.state[key]}
+          onChange=${(e) => set(Number(e.target.value))} style="width: 80px" /></label>`;
+      }
+      return null;
+    });
+    return html`<${Component} ...${this.state} />${rows.length ? html`<aside class="dcx-tweaks" aria-label="Mockup tweaks">
+      <b>Tweaks</b>${rows}<a href="index.html">All artboards</a></aside>` : html`<aside class="dcx-tweaks"><a href="index.html">All artboards</a></aside>`}`;
+  }
+}
+render(html`<${Shell} />`, document.getElementById('dcx-root'));
+</script>
+</body>
+</html>
