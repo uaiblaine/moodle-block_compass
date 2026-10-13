@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Day cell anatomy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.an{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#68717a;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-danger:#ca3120;--cc-warn:#f0ad4e;--cc-ink:#121518;--cc-on-ink:#fff;--cc-hatch:#d4d9de;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 62%,var(--cc-surface));
+  --cc-h4:color-mix(in oklab,var(--cc-warn) 92%,var(--cc-surface));
+  font-family:'Noto Sans',system-ui,sans-serif;color:var(--cc-text);background:var(--cc-page);font-variant-numeric:tabular-nums;
+}
+.an *{box-sizing:border-box}
+.panel{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:16px;padding:24px 26px}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0 0 4px}
+.h{margin:0 0 4px;font-size:20px;font-weight:600;letter-spacing:-.01em}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.5}
+.day{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-size:17px;font-weight:600;color:var(--cc-text);position:relative}
+.h0{background:transparent}.h1{background:var(--cc-h1)}.h2{background:var(--cc-h2)}.h3{background:var(--cc-h3)}.h4{background:var(--cc-h4)}
+.off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.past{color:var(--cc-muted);background:var(--cc-surface-2)}
+.over{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 3.5px var(--cc-danger)}
+.today{background:var(--cc-ink);color:var(--cc-on-ink);box-shadow:0 12px 24px -10px rgba(0,0,0,.55)}
+.today.halo{box-shadow:0 0 0 3px var(--cc-surface),0 0 0 5.5px var(--cc-h3),0 12px 24px -10px rgba(0,0,0,.55)}
+.pinned{outline:2px solid var(--cc-accent);outline-offset:4px}
+.dim{opacity:.3}
+.match{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-accent)}
+.dots{display:flex;gap:3px;height:8px;align-items:center;justify-content:center}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}
+.due{background:var(--cc-accent)}
+.event{width:7px;height:7px;border:1.5px solid var(--cc-text-2)}
+.overdue{background:var(--cc-danger);border-radius:1px;transform:rotate(45deg)}
+.done{background:var(--cc-muted);opacity:.4;width:5px;height:5px}
+.graded,.urgent{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px}
+.urgent{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 3.5px var(--cc-accent)}
+.late{border:1.5px solid var(--cc-danger);border-radius:1px;transform:rotate(45deg)}
+.soon{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-accent)}
+.grade{background:var(--cc-accent);border-radius:1px;transform:rotate(45deg);width:7px;height:7px}
+.class{border:1.5px solid var(--cc-text-2);border-radius:1.5px;width:7px;height:7px;opacity:.8}
+.more{font-size:10px;font-weight:600;color:var(--cc-muted);line-height:8px}
+.wd{font-size:12.5px;color:var(--cc-muted)}
+.col{display:flex;flex-direction:column;align-items:center;gap:7px}
+.cap{font-size:12.5px;color:var(--cc-text-2);text-align:center;line-height:1.35}
+.needle{width:10px;height:8px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+.callout{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--cc-text-2)}
+.callout b{color:var(--cc-text);font-weight:600}
+.lead{flex:1 1 auto;height:1px;background:var(--cc-line-2);min-width:24px}
+.num{width:22px;height:22px;border-radius:50%;background:var(--cc-ink);color:var(--cc-on-ink);font-size:11.5px;font-weight:700;display:grid;place-items:center;flex:none}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{text-align:left;font-weight:600;color:var(--cc-muted);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--cc-line)}
+td{padding:9px 10px;border-bottom:1px solid var(--cc-line);color:var(--cc-text-2);vertical-align:middle}
+td b{color:var(--cc-text);font-weight:600}
+.ring{position:absolute;left:-6px;top:-6px;width:60px;height:60px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:3;stroke-linecap:round}
+.bar{width:20px;border-radius:7px}
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;align-items:end}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2)}
+</style>
+</helmet>
+<div class="an" style="width: 1200px; min-height: 1240px; padding: 40px; display: flex; flex-direction: column; gap: 24px">
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px">
+    <section class="panel" style="display: flex; flex-direction: column; gap: 20px">
+      <div>
+        <p class="kicker">Anatomy</p>
+        <h2 class="h">One day, five signals</h2>
+        <p class="p">Colour answers "how much does this day matter", the dots answer "how many and of what kind". Shape carries the kind, so nothing depends on hue alone.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 36px; padding: 8px 0 4px">
+        <div class="col" style="transform: scale(2.1); transform-origin: center; margin: 70px 70px 70px 80px">
+          <span class="needle"></span>
+          <span class="day h4">15</span>
+          <span class="dots"><span class="dot graded"></span><span class="dot graded"></span><span class="dot graded"></span><span class="dot event"></span></span>
+          <span class="wd">Thu</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 18px; flex: 1 1 auto">
+          <div class="callout"><span class="num">1</span><span><b>Needle.</b> The single most relevant day ahead in the loaded window.</span></div>
+          <div class="callout"><span class="num">2</span><span><b>Heat fill.</b> Five steps of the theme's warning colour, from the relevance score.</span></div>
+          <div class="callout"><span class="num">3</span><span><b>Number.</b> Black disc only for today; hatched only for an empty weekend.</span></div>
+          <div class="callout"><span class="num">4</span><span><b>Dots.</b> Up to four, ordered graded, to do, late, event, done; then "+N".</span></div>
+          <div class="callout"><span class="num">5</span><span><b>Weekday.</b> Short name; today's in bold. Never uppercase.</span></div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Mark</th><th>Means</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td><span class="dot urgent" style="display: inline-block"></span></td><td><b>Graded, due today or tomorrow</b>: the day gets a ring</td><td>Grade item, due within 48 h</td></tr>
+          <tr><td><span class="dot graded" style="display: inline-block"></span></td><td><b>Graded</b>, open, due that day</td><td>Action event whose activity has a grade item</td></tr>
+          <tr><td><span class="dot due" style="display: inline-block"></span></td><td><b>To do</b>, open, not graded</td><td>Action event with an action</td></tr>
+          <tr><td><span class="dot late" style="display: inline-block"></span></td><td><b>Late, still open</b>; a closed one is not shown</td><td>Past day, action still actionable</td></tr>
+          <tr><td><span class="dot event" style="display: inline-block"></span></td><td><b>Event</b>: session, site or course date</td><td>Standard calendar event</td></tr>
+          <tr><td colspan="3" style="color: var(--cc-muted); font-size: 12.5px; padding-top: 14px">Teaching view: courses where the user holds no graded role (gradebookroles)</td></tr>
+          <tr><td><span class="dot grade" style="display: inline-block"></span></td><td><b>To grade</b>: submissions waiting; a ring when grading is due today or tomorrow</td><td>Grading-due event, for those who can grade</td></tr>
+          <tr><td><span class="dot class" style="display: inline-block"></span></td><td><b>Class deadline</b>, for following the class; weighs little</td><td>The learners' deadline, no callback</td></tr>
+          <tr><td><span class="dot done" style="display: inline-block"></span></td><td><b>Done</b>, kept as a trace</td><td>Completion or submission recorded</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" style="display: flex; flex-direction: column; gap: 18px">
+      <div>
+        <p class="kicker">Relevance</p>
+        <h2 class="h">What makes a day heavy</h2>
+        <p class="p">A weight of the strip's own, per item, summed per day: what is graded and close comes first; what is past weighs little, and what is past and closed is not shown. The switch on the strip falls back to a plain count.</p>
+      </div>
+      <table>
+        <thead><tr><th>Item</th><th>Weight</th></tr></thead>
+        <tbody>
+          <tr><td><b>Open to do</b></td><td>1</td></tr>
+          <tr><td>… in a starred course</td><td>× 1.5</td></tr>
+          <tr><td>… in a course opened recently</td><td>× 1.5</td></tr>
+          <tr><td>… counts toward course completion</td><td>× 1.5</td></tr>
+          <tr><td>… is graded (has a grade item)</td><td>× 1.5</td></tr>
+          <tr><td>… graded and due today or tomorrow</td><td>+ 3</td></tr>
+          <tr><td><b>Late, still open</b></td><td>1</td></tr>
+          <tr><td><b>Past and closed</b></td><td>not shown</td></tr>
+          <tr><td><b>Event</b></td><td>0.5</td></tr>
+          <tr><td><b>Done</b></td><td>0</td></tr>
+        </tbody>
+      </table>
+      <div style="display: flex; justify-content: space-between; gap: 10px; padding-top: 4px">
+        <div class="col"><span class="day h0" style="border: 1px dashed var(--cc-line-2)">·</span><span class="cap">0<br>nothing</span></div>
+        <div class="col"><span class="day h1">14</span><span class="cap">under 2<br>light</span></div>
+        <div class="col"><span class="day h2">16</span><span class="cap">under 4<br>moderate</span></div>
+        <div class="col"><span class="day h3">21</span><span class="cap">under 8<br>busy</span></div>
+        <div class="col"><span class="day h4">20</span><span class="cap">8 or more<br>heavy</span></div>
+      </div>
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding-top: 8px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span class="tag">By relevance</span>
+          <div class="strip">
+            <sc-for list="{{relWeek}}" as="d" hint-placeholder-count="7">
+              <div class="col"><span class="{{d.cls}}" style="width: 38px; height: 38px; font-size: 14px">{{d.n}}</span><span class="wd">{{d.wd}}</span></div>
+            </sc-for>
+          </div>
+          <p class="p" style="font-size: 13px">Tomorrow's single graded checkpoint reads busy, with a ring.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <span class="tag">By count</span>
+          <div class="strip">
+            <sc-for list="{{cntWeek}}" as="d" hint-placeholder-count="7">
+              <div class="col"><span class="{{d.cls}}" style="width: 38px; height: 38px; font-size: 14px">{{d.n}}</span><span class="wd">{{d.wd}}</span></div>
+            </sc-for>
+          </div>
+          <p class="p" style="font-size: 13px">By count it is one item, the lightest step.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 22px">
+    <div>
+      <p class="kicker">States</p>
+      <h2 class="h">Every state a day can be in</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{states}}" as="s" hint-placeholder-count="12">
+        <div class="col" style="gap: 10px">
+          <div class="col" style="min-height: 92px; justify-content: flex-end">
+            <span class="{{s.cls}}">{{s.n}}</span>
+            <span class="dots"><sc-for list="{{s.dots}}" as="x" hint-placeholder-count="2"><span class="{{x.c}}"></span></sc-for></span>
+            <span class="wd">{{s.wd}}</span>
+          </div>
+          <span class="cap">{{s.cap}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 20px">
+    <div>
+      <p class="kicker">Strip styles (admin setting)</p>
+      <h2 class="h">Dots, ring or pulse: one data set, three readings</h2>
+      <p class="p">Same week, same request; the admin picks one. Dots is the default. Ring trades the dot row for segments around the day and needs about a third more width per day, so it shows 15 days where dots show 21. Pulse is the status-page reading, for a narrow region.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px">
+      <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--cc-line); border-radius: 14px; padding: 18px">
+        <span class="tag">Dots</span>
+        <div class="strip">
+          <sc-for list="{{week}}" as="d" hint-placeholder-count="7">
+            <div class="col" style="gap: 6px">
+              <span class="{{d.cls}}" style="width: 38px; height: 38px; font-size: 14px">{{d.n}}</span>
+              <span class="dots"><sc-for list="{{d.dots}}" as="x" hint-placeholder-count="2"><span class="{{x.c}}"></span></sc-for><sc-if value="{{d.hasMore}}" hint-placeholder-val="{{false}}"><span class="more">{{d.more}}</span></sc-if></span>
+              <span class="wd">{{d.wd}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--cc-line); border-radius: 14px; padding: 18px">
+        <span class="tag">Ring</span>
+        <div class="strip" style="grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{ringWeek}}" as="d" hint-placeholder-count="5">
+            <div class="col" style="gap: 10px; padding-top: 6px">
+              <span class="{{d.cls}}" style="width: 38px; height: 38px; font-size: 14px">
+                <svg class="ring" viewBox="0 0 60 60" style="width: 50px; height: 50px" aria-hidden="true">
+                  <circle cx="30" cy="30" r="27" style="stroke: {{d.g0.color}}; stroke-dasharray: {{d.g0.dash}}; stroke-dashoffset: {{d.g0.off}}"></circle>
+                  <circle cx="30" cy="30" r="27" style="stroke: {{d.g1.color}}; stroke-dasharray: {{d.g1.dash}}; stroke-dashoffset: {{d.g1.off}}"></circle>
+                  <circle cx="30" cy="30" r="27" style="stroke: {{d.g2.color}}; stroke-dasharray: {{d.g2.dash}}; stroke-dashoffset: {{d.g2.off}}"></circle>
+                  <circle cx="30" cy="30" r="27" style="stroke: {{d.g3.color}}; stroke-dasharray: {{d.g3.dash}}; stroke-dashoffset: {{d.g3.off}}"></circle>
+                  <circle cx="30" cy="30" r="27" style="stroke: {{d.g4.color}}; stroke-dasharray: {{d.g4.dash}}; stroke-dashoffset: {{d.g4.off}}"></circle>
+                  <circle cx="30" cy="30" r="27" style="stroke: {{d.g5.color}}; stroke-dasharray: {{d.g5.dash}}; stroke-dashoffset: {{d.g5.off}}"></circle>
+                </svg>
+                {{d.n}}
+              </span>
+              <span class="wd">{{d.wd}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--cc-line); border-radius: 14px; padding: 18px">
+        <span class="tag">Pulse</span>
+        <div class="strip">
+          <sc-for list="{{week}}" as="d" hint-placeholder-count="7">
+            <div class="col" style="gap: 6px">
+              <span style="height: 56px; display: flex; align-items: flex-end"><span class="{{d.barCls}}" style="height: {{d.barH}}"></span></span>
+              <span class="{{d.pulseCls}}" style="width: 32px; height: 32px; font-size: 13px">{{d.n}}</span>
+              <span class="wd">{{d.wd}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const C = 2 * Math.PI * 27;
+    const COLOR = { urgent: 'var(--cc-accent)', graded: 'var(--cc-accent)', due: 'color-mix(in oklab, var(--cc-accent) 45%, var(--cc-surface))', late: 'color-mix(in oklab, var(--cc-danger) 55%, var(--cc-surface))', event: 'var(--cc-text-2)', done: 'var(--cc-line-2)' };
+    const mk = (n, wd, cls, kinds) => {
+      const segN = Math.min(kinds.length, 6);
+      const gap = segN > 1 ? 4 : 0;
+      const seg = (i) => (i >= segN ? { color: 'transparent', dash: '0 ' + C.toFixed(2), off: '0' } : {
+        color: COLOR[kinds[i]],
+        dash: (C / segN - gap).toFixed(2) + ' ' + C.toFixed(2),
+        off: (-(i * C) / segN - gap / 2).toFixed(2)
+      });
+      const lvl = (cls.match(/h(\d)/) || [0, '0'])[1];
+      return {
+        n: n, wd: wd, cls: 'day ' + cls,
+        dots: kinds.slice(0, 4).map((k) => ({ c: 'dot ' + k })),
+        hasMore: kinds.length > 4, more: '+' + (kinds.length - 4),
+        g0: seg(0), g1: seg(1), g2: seg(2), g3: seg(3), g4: seg(4), g5: seg(5),
+        barCls: 'bar h' + lvl,
+        barH: (kinds.length ? 10 + Math.min(kinds.length, 5) * 8 : 4) + 'px',
+        pulseCls: 'day' + (cls.indexOf('today') >= 0 ? ' today' : '')
+      };
+    };
+    const week = [
+      mk(13, 'Tue', 'today halo h4', ['urgent', 'due', 'event']),
+      mk(14, 'Wed', 'h3 soon', ['urgent']),
+      mk(15, 'Thu', 'h4', ['graded', 'graded', 'graded', 'event']),
+      mk(16, 'Fri', 'h2', ['graded', 'due']),
+      mk(17, 'Sat', 'off', []),
+      mk(18, 'Sun', 'h1', ['event']),
+      mk(19, 'Mon', 'h1', ['due'])
+    ];
+    const ringWeek = week.slice(0, 5);
+    const relWeek = [
+      { n: 13, wd: 'Tue', cls: 'day today' }, { n: 14, wd: 'Wed', cls: 'day h3 soon' }, { n: 15, wd: 'Thu', cls: 'day h4' },
+      { n: 16, wd: 'Fri', cls: 'day h2' }, { n: 17, wd: 'Sat', cls: 'day off' }, { n: 18, wd: 'Sun', cls: 'day h1' }, { n: 19, wd: 'Mon', cls: 'day h1' }
+    ];
+    const cntWeek = [
+      { n: 13, wd: 'Tue', cls: 'day today' }, { n: 14, wd: 'Wed', cls: 'day h1' }, { n: 15, wd: 'Thu', cls: 'day h4' },
+      { n: 16, wd: 'Fri', cls: 'day h2' }, { n: 17, wd: 'Sat', cls: 'day off' }, { n: 18, wd: 'Sun', cls: 'day h1' }, { n: 19, wd: 'Mon', cls: 'day h1' }
+    ];
+    const st = (n, wd, cls, kinds, cap) => Object.assign(mk(n, wd, cls, kinds), { cap: cap });
+    const states = [
+      st(7, 'Wed', 'h0', [], 'Empty weekday'),
+      st(10, 'Sat', 'off', [], 'Empty weekend'),
+      st(6, 'Tue', 'past', ['done'], 'Past, all done'),
+      st(8, 'Thu', 'past h1', ['late', 'event'], 'Past, late but still open'),
+      st(19, 'Mon', 'h1', ['due'], 'Light'),
+      st(16, 'Fri', 'h2', ['graded', 'due'], 'Moderate'),
+      st(20, 'Tue', 'h3', ['graded', 'event'], 'Busy'),
+      st(22, 'Thu', 'h4', ['graded', 'graded', 'graded', 'graded', 'event', 'due'], 'Heavy, six items'),
+      st(13, 'Tue', 'today halo h4', ['urgent', 'due', 'event'], 'Today, its heat as a halo'),
+      st(14, 'Wed', 'h3 soon', ['urgent'], 'Tomorrow, graded: a ring'),
+      st(15, 'Thu', 'h4 pinned', ['graded', 'graded', 'graded', 'event'], 'Pinned by a click'),
+      st(21, 'Wed', 'h2 match', ['graded', 'due'], 'Lit by the pointed course')
+    ];
+    return { week: week, ringWeek: ringWeek, relWeek: relWeek, cntWeek: cntWeek, states: states };
+  }
+}
+</script>
+</body>
+</html>

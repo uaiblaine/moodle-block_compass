@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compass calendar settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.st{--line:#e4e7eb;--muted:#68717a;--text:#1d2125;--text-2:#454c53;--accent:#0f6cbf;font-family:'Noto Sans',system-ui,sans-serif;color:var(--text);background:#fff}
+.st *{box-sizing:border-box}
+.row{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;padding:16px 0;border-bottom:1px solid var(--line)}
+.lab{font-weight:600;font-size:14.5px}
+.key{font-size:12px;color:var(--muted);margin-top:2px}
+.desc{font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.5}
+.def{font-size:12px;color:var(--muted);margin-top:4px}
+.sel{height:38px;border:1px solid #c9ced3;border-radius:8px;padding:0 34px 0 12px;font:inherit;font-size:14px;background:#fff;color:var(--text)}
+.chk{display:flex;align-items:center;gap:10px;font-size:14px;min-height:28px}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}
+</style>
+</helmet>
+<div class="st" style="width: 880px; min-height: 900px; padding: 36px 44px">
+  <div style="font-size: 13px; color: var(--muted)">Site administration / Plugins / Blocks / Compass</div>
+  <h1 style="margin: 8px 0 4px; font-size: 26px; font-weight: 600">Compass</h1>
+  <h2 style="margin: 22px 0 0; font-size: 18px; font-weight: 600">Calendar strip</h2>
+  <p style="margin: 6px 0 4px; font-size: 13.5px; color: var(--text-2)">A row of days above the attention tier. The strip costs one request when the block loads; a day's details load only when someone points at it.</p>
+
+  <div class="row">
+    <div><div class="lab"><label for="s-en">Show the calendar strip</label></div><div class="key">block_compass | calendar_enabled</div></div>
+    <div>
+      <label class="chk"><input id="s-en" type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Show it</label>
+      <div class="desc">Off by default. Turned off, the block makes no calendar request at all.</div>
+      <div class="def">Default: No</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><div class="lab"><label for="s-where">Where it shows</label></div><div class="key">block_compass | calendar_where</div></div>
+    <div>
+      <select id="s-where" class="sel"><option selected="{{yes}}">Dashboard and the block's page</option><option>Dashboard only</option><option>The block's page only</option></select>
+      <div class="desc">The strip runs from the days before today that fill the row to the end of next month. A wider range is the calendar's job, linked from the strip.</div>
+      <div class="def">Default: Dashboard and the block's page</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><div class="lab">What the strip counts</div><div class="key">block_compass | calendar_sources</div></div>
+    <div>
+      <div class="grid2">
+        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Activity deadlines</label>
+        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Course events</label>
+        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Group events</label>
+        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Site events</label>
+        <label class="chk"><input type="checkbox" readOnly="{{yes}}">Personal events</label>
+        <label class="chk"><input type="checkbox" readOnly="{{yes}}">Category events</label>
+      </div>
+      <div class="desc">Activity deadlines are the ones the Timeline block shows, with the same action buttons.</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div><div class="lab"><label for="s-style">Strip style</label></div><div class="key">block_compass | calendar_style</div></div>
+    <div>
+      <select id="s-style" class="sel"><option selected="{{yes}}">Dots</option><option>Ring</option><option>Pulse</option></select>
+      <div class="desc">Dots under each day, segments around it, or bars above it. Ring shows 15 days where dots show 21; pulse suits a narrow region.</div>
+      <div class="def">Default: Dots</div>
+    </div>
+  </div>
+
+  <div class="row" style="border-bottom: 0">
+    <div><div class="lab"><label for="s-rel">Weigh by relevance</label></div><div class="key">block_compass | calendar_relevance</div></div>
+    <div>
+      <label class="chk"><input id="s-rel" type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Colour days by relevance</label>
+      <div class="desc">Graded activities weigh more, most of all when due today or tomorrow; so do starred and recently opened courses and completion criteria. Late work still open weighs little. Learners can switch to a plain count, and the strip remembers their choice.</div>
+      <div class="def">Default: Yes</div>
+    </div>
+  </div>
+
+  <button type="button" style="margin-top: 18px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 600">Save changes</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { yes: true };
+  }
+}
+</script>
+</body>
+</html>

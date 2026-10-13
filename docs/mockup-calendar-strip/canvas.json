@@ -1,0 +1,18 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-13T12:00:00Z"},
+  "title": "Compass Calendar Strip",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1240, "title": "Dashboard: strip over tier 1, hover card", "is_interactive": true, "expand": "fill"},
+    "Anatomy.dc.html": {"x": 1520, "y": 0, "w": 1200, "h": 1240, "title": "Day cell anatomy and the three strip styles"},
+    "Mobile.dc.html": {"x": 2800, "y": 0, "w": 390, "h": 844, "title": "Phone: tap opens a sheet"},
+    "Settings.dc.html": {"x": 3270, "y": 0, "w": 880, "h": 900, "title": "Site administration: Compass calendar"}
+  },
+  "order": ["Main.dc.html", "Anatomy.dc.html", "Mobile.dc.html", "Settings.dc.html"],
+  "notes": {
+    "headline": {"x": 0, "y": -300, "text": "Compass calendar strip: time ordered by what matters", "kind": "title1", "maxW": 4150}
+  },
+  "designSystems": []
+}
