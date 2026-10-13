@@ -565,13 +565,14 @@ final class strip {
         $course = 'CASE WHEN e.courseid <> 0 THEN e.courseid ELSE COALESCE(cm.course, 0) END';
         $sql = "SELECT e.id, {$course} AS courseid, e.groupid, e.type, e.eventtype, e.modulename, e.instance,
                        e.{$sortcolumn} AS sorttime, cm.id AS cmid, cm.visible AS cmvisible,
-                       CASE WHEN cm.availability IS NULL THEN 0 ELSE 1 END AS restricted,
+                       CASE WHEN cm.availability IS NULL AND cs.availability IS NULL THEN 0 ELSE 1 END AS restricted,
                        {$facts},
                        CASE WHEN c.groupmodeforce = 1 THEN c.groupmode ELSE cm.groupmode END AS groupmode,
                        " . context_helper::get_preload_record_columns_sql('ctx') . "
                   FROM {event} e
              LEFT JOIN {modules} mo ON mo.name = e.modulename
              LEFT JOIN {course_modules} cm ON cm.instance = e.instance AND cm.module = mo.id
+             LEFT JOIN {course_sections} cs ON cs.id = cm.section
              LEFT JOIN {course} c ON c.id = {$course}
              LEFT JOIN {context} ctx ON ctx.contextlevel = :{$p}ctxlevel AND ctx.instanceid = cm.id";
 
@@ -768,11 +769,14 @@ final class strip {
      *   or tomorrow's date; in a teaching course it is a class deadline, informational, never
      *   through the callbacks (decision 11);
      * - a standard event is an event of its course's view, or of both views without one;
-     * - visibility: a learning course's module is visible (the statement asks); a teaching
-     *   course's module, and grading work, follow core's rule for the teacher
-     *   ({@see \core_course\cm_info::update_user_visible()}): visible, or the user holds
-     *   moodle/course:viewhiddenactivities; restricted by availability, it is asked of modinfo
-     *   (decision 6, restricted()) unless the user holds moodle/course:ignoreavailabilityrestrictions.
+     * - visibility is core's uservisible ({@see \core_course\cm_info::update_user_visible()},
+     *   course/classes/cm_info.php:1500-1540 and :1665) for every row with a course module:
+     *   mod/<modname>:view at the module context, dropped without it (can_view_module());
+     *   a learning course's module is visible (the statement asks); a teaching course's module, and
+     *   grading work, are visible or the user holds moodle/course:viewhiddenactivities; a module
+     *   whose own availability or whose section's (the statement's `restricted`, cm_info.php:1488-1496)
+     *   carries a condition is asked of modinfo (decision 6, restricted()) unless the user holds
+     *   moodle/course:ignoreavailabilityrestrictions. No extra read: the context columns are in the row.
      *
      * @param int $userid The current user.
      * @param \stdClass[] $rows Rows from future().
@@ -823,7 +827,8 @@ final class strip {
             $candidates[] = ['row' => $row, 'role' => $role, 'teacher' => $isteaching, 'context' => $context, 'view' => $view];
         }
 
-        // Visibility: the teacher's rule, then the restricted rows asked of modinfo in one pass.
+        // Visibility: the view capability and the teacher's rule per row, then the rows restricted by
+        // their own or their section's availability asked of modinfo in one pass.
         $ask = [];
         foreach ($candidates as $i => $candidate) {
             $row = $candidate['row'];
@@ -831,6 +836,10 @@ final class strip {
                 continue;
             }
             $context = $candidate['context'];
+            if ($context === null || !self::can_view_module($row->modulename, $context, $userid)) {
+                unset($candidates[$i]);
+                continue;
+            }
             if ($candidate['teacher'] && (int) $row->cmvisible !== 1) {
                 if ($context === null || !has_capability('moodle/course:viewhiddenactivities', $context, $userid)) {
                     unset($candidates[$i]);
@@ -907,6 +916,27 @@ final class strip {
     }
 
     /**
+     * Whether the user holds the module's view capability: core's rule, whatever the module.
+     *
+     * Mirrors {@see \core_course\cm_info::is_user_access_restricted_by_capability()}
+     * (course/classes/cm_info.php:1665): a module without a mod/<name>:view capability restricts no one.
+     * Costs no read: the capability list and the module context are already in memory.
+     *
+     * @param string $modname The module name of the row.
+     * @param context $context The row's preloaded module context.
+     * @param int $userid The current user.
+     * @return bool
+     */
+    private static function can_view_module(string $modname, context $context, int $userid): bool {
+        $capability = 'mod/' . $modname . ':view';
+        if (!get_capability_info($capability)) {
+            return true;
+        }
+
+        return has_capability($capability, $context, $userid);
+    }
+
+    /**
      * The module context of a row, preloaded from the row's own columns, or null without a module.
      *
      * @param \stdClass $row A row from future(); its ctx* columns are consumed.
@@ -929,7 +959,8 @@ final class strip {
      * groups_get_activity_group()), which lives in the session and which the grader may have
      * switched; the strip cannot read it and mirrors its default instead: in SEPARATEGROUPS
      * without moodle/site:accessallgroups, the grader's participation groups in the course, and
-     * every participant when the grader has none (core's active group is then 0, all). Three
+     * every participant when the grader has none (core's active group is then 0, all, so a teacher
+     * with no participation group counts everyone). Three
      * differences remain, all documented and none an exposure: several groups are counted
      * together where core counts the first; the activity's grouping is not applied; and in
      * VISIBLEGROUPS every participant is counted where core defaults to the grader's first group.
@@ -963,7 +994,7 @@ final class strip {
      * Only the rows passed are asked, and only their courses' modinfo is built.
      *
      * @param int $userid The user.
-     * @param \stdClass[] $rows Rows from future() whose course module carries an availability condition.
+     * @param \stdClass[] $rows Rows from future() whose course module or its section carries an availability condition.
      * @return array Course module id => true for each one the user cannot see.
      */
     public static function restricted(int $userid, array $rows): array {

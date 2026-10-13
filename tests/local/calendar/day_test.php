@@ -134,6 +134,47 @@ final class day_test extends advanced_testcase {
     }
 
     /**
+     * The teaching day does not name a class deadline of an activity the user may not view.
+     *
+     * mod/assign:view prohibited for the teacher in one activity's context; the sibling due the
+     * same day is the control and keeps its name. Before the prohibition both are shown.
+     *
+     * @return void
+     */
+    public function test_a_teaching_day_does_not_name_an_activity_the_user_cannot_view(): void {
+        global $DB, $PAGE;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $at = $now + 3 * DAYSECS;
+        $gen->create_module('assign', ['course' => $course->id, 'name' => 'Openwork', 'duedate' => $at]);
+        $blocked = $gen->create_module('assign', ['course' => $course->id, 'name' => 'Sealedwork', 'duedate' => $at + HOURSECS]);
+
+        $this->setUser($teacher);
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $tz = \core_date::get_user_timezone_object();
+        $date = strip::local_day($at, $tz);
+
+        $before = day::get((int) $teacher->id, $date, 'teaching', $now, 1700000000, $tz, $output);
+        $this->assertCount(2, $before['items'], 'With the capability both show: the control.');
+
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        assign_capability('mod/assign:view', CAP_PROHIBIT, $roleid, \core\context\module::instance((int) $blocked->cmid)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($teacher);
+
+        $after = day::get((int) $teacher->id, $date, 'teaching', $now, 1700000000, $tz, $output);
+        $this->assertCount(1, $after['items']);
+        $this->assertStringContainsString('Openwork', $after['items'][0]['name']);
+        $this->assertStringNotContainsString('Sealedwork', json_encode($after['items']));
+    }
+
+    /**
      * A learning day shows at most LIMIT items and says when it held more.
      *
      * Fifty events are the control: exactly the limit, nothing cut.
@@ -165,6 +206,46 @@ final class day_test extends advanced_testcase {
 
         \calendar_event::load(array_pop($ids))->delete();
         $day = day::learning((int) $user->id, $date, [(int) $course->id], [], [], ['course'], $now, $tz, $output);
+        $this->assertCount(day::LIMIT, $day['items']);
+        $this->assertFalse($day['truncated']);
+    }
+
+    /**
+     * A teaching day shows at most LIMIT items and says when it held more.
+     *
+     * The seam is day::get(): LIMIT plus one class events of a teaching course, standard events
+     * because they cost a row each where an assignment costs a module. Exactly LIMIT is the
+     * control: nothing cut, no flag.
+     *
+     * @return void
+     */
+    public function test_a_teaching_day_is_capped_with_a_flag(): void {
+        global $PAGE;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $this->setUser($teacher);
+        $tz = \core_date::get_user_timezone_object();
+        $date = strip::local_day($now + 4 * DAYSECS, $tz);
+        $start = (new \DateTimeImmutable($date . ' 08:00:00', $tz))->getTimestamp();
+        $ids = [];
+        for ($i = 0; $i < day::LIMIT + 1; $i++) {
+            $ids[] = $this->course_event((int) $course->id, $start + $i * 60);
+        }
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $signin = 1700000000;
+
+        $day = day::get((int) $teacher->id, $date, 'teaching', $now, $signin, $tz, $output);
+        $this->assertCount(day::LIMIT, $day['items']);
+        $this->assertTrue($day['truncated']);
+
+        \calendar_event::load(array_pop($ids))->delete();
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $day = day::get((int) $teacher->id, $date, 'teaching', $now, $signin, $tz, $output);
         $this->assertCount(day::LIMIT, $day['items']);
         $this->assertFalse($day['truncated']);
     }

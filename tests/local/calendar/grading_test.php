@@ -232,6 +232,78 @@ final class grading_test extends advanced_testcase {
     }
 
     /**
+     * In SEPARATEGROUPS a grader with no participation group counts everyone, as core's active group 0 does.
+     *
+     * A grader in a group is the control: the same strip counts only that group's submissions.
+     *
+     * @return void
+     */
+    public function test_a_separate_groups_grader_without_a_group_counts_everyone(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $course = $gen->create_course();
+        $assign = $gen->create_module('assign', [
+            'course' => $course->id,
+            'gradingduedate' => $now + 3 * DAYSECS,
+            'groupmode' => SEPARATEGROUPS,
+        ]);
+        $one = $gen->create_group(['courseid' => $course->id]);
+        $two = $gen->create_group(['courseid' => $course->id]);
+        foreach ([[$one, 2], [$two, 1]] as [$group, $count]) {
+            for ($i = 0; $i < $count; $i++) {
+                $student = $this->student((int) $course->id);
+                $gen->create_group_member(['groupid' => $group->id, 'userid' => $student]);
+                $this->submission((int) $assign->id, $student, 'submitted', $now - HOURSECS);
+            }
+        }
+        $grouped = $this->teacher((int) $course->id, 'teacher');
+        $gen->create_group_member(['groupid' => $one->id, 'userid' => $grouped]);
+        $loose = $this->teacher((int) $course->id, 'teacher');
+
+        foreach ([[$grouped, 2], [$loose, 3]] as [$userid, $expected]) {
+            $this->assertSame($expected, $this->core_count($assign->cmid, $userid), "core for user {$userid}");
+            cache::make('block_compass', 'calendarstrip')->purge();
+            $this->setUser($userid);
+            $tz = \core_date::get_user_timezone_object();
+            $days = strip::build($userid, $now, $tz)['views']['teaching']['days'];
+            $this->assertSame($expected, $days[strip::local_day($now + 3 * DAYSECS, $tz)]['waiting'], "block for user {$userid}");
+        }
+    }
+
+    /**
+     * Only the latest attempt of a student waits: an older attempt row is history.
+     *
+     * Three students. One has a submitted first attempt and a new, empty second one (nothing
+     * waits); one has only a submitted first attempt, the latest (the control); one resubmitted
+     * (a submitted older attempt and a submitted latest one) and waits once. Core agrees.
+     *
+     * @return void
+     */
+    public function test_only_the_latest_attempt_waits(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $course = $gen->create_course();
+        $assign = $gen->create_module('assign', ['course' => $course->id]);
+        $id = (int) $assign->id;
+
+        $reopened = $this->student((int) $course->id);
+        $this->submission($id, $reopened, 'submitted', $now - 5 * HOURSECS, 0, 0);
+        $this->submission($id, $reopened, 'new', $now - 4 * HOURSECS, 1, 1);
+
+        $single = $this->student((int) $course->id);
+        $this->submission($id, $single, 'submitted', $now - 5 * HOURSECS);
+
+        $again = $this->student((int) $course->id);
+        $this->submission($id, $again, 'submitted', $now - 5 * HOURSECS, 0, 0);
+        $this->submission($id, $again, 'submitted', $now - 4 * HOURSECS, 1, 1);
+
+        $this->assertSame(2, $this->core_count($assign->cmid, $this->teacher((int) $course->id, 'editingteacher')));
+        $this->assertSame([$id => 2], grading::waiting([$id => null], $now));
+    }
+
+    /**
      * Many assignments cost one read.
      *
      * @return void
@@ -321,9 +393,18 @@ final class grading_test extends advanced_testcase {
      * @param int $userid The student.
      * @param string $status submitted or draft.
      * @param int $time Its modification time.
+     * @param int $attempt The attempt number.
+     * @param int $latest 1 for the student's latest attempt, 0 for an older one.
      * @return void
      */
-    private function submission(int $assignid, int $userid, string $status, int $time): void {
+    private function submission(
+        int $assignid,
+        int $userid,
+        string $status,
+        int $time,
+        int $attempt = 0,
+        int $latest = 1
+    ): void {
         global $DB;
 
         $DB->insert_record('assign_submission', (object) [
@@ -333,8 +414,8 @@ final class grading_test extends advanced_testcase {
             'timemodified' => $time,
             'status' => $status,
             'groupid' => 0,
-            'attemptnumber' => 0,
-            'latest' => 1,
+            'attemptnumber' => $attempt,
+            'latest' => $latest,
         ]);
     }
 

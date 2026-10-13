@@ -284,6 +284,285 @@ final class strip_test extends advanced_testcase {
     }
 
     /**
+     * A teacher without moodle/course:viewhiddenactivities does not see a hidden activity's class deadline.
+     *
+     * The other direction of the rule above. The activity is created hidden, so its event stays
+     * visible (the premise of the test above). Before the prohibition the editing teacher sees
+     * its deadline, the control that the row is in the counted statement and reaches the teacher
+     * by the capability alone; after a role override prohibits the capability, the visible
+     * activity beside it is still counted and the hidden one is not.
+     *
+     * @return void
+     */
+    public function test_a_teacher_without_the_hidden_activity_capability_does_not_see_a_hidden_deadline(): void {
+        global $DB;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + 3 * DAYSECS]);
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + 6 * DAYSECS, 'visible' => 0]);
+        $tz = \core_date::get_user_timezone_object();
+        $visibleday = strip::local_day($now + 3 * DAYSECS, $tz);
+        $hiddenday = strip::local_day($now + 6 * DAYSECS, $tz);
+
+        $this->setUser($teacher);
+        $days = strip::build((int) $teacher->id, $now, $tz)['views']['teaching']['days'];
+        $this->assertSame(1, $days[$visibleday]['class']);
+        $this->assertSame(1, $days[$hiddenday]['class'], 'With the capability the hidden activity shows: the control.');
+
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        assign_capability(
+            'moodle/course:viewhiddenactivities',
+            CAP_PROHIBIT,
+            $roleid,
+            \core\context\course::instance($course->id)->id
+        );
+        accesslib_clear_all_caches_for_unit_testing();
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($teacher);
+
+        $days = strip::build((int) $teacher->id, $now, $tz)['views']['teaching']['days'];
+        $this->assertSame(1, $days[$visibleday]['class']);
+        $this->assertArrayNotHasKey($hiddenday, $days);
+    }
+
+    /**
+     * An action event that passed earlier today is not a counted due date: the past path decides it.
+     *
+     * Three assignments of one course, due an hour ago, exactly now and an hour ahead. The counted
+     * statement returns the last two (the one at now is the boundary's control, and the one ahead
+     * the plain control); the one due an hour ago exists as an event, and is core's to decide.
+     *
+     * @return void
+     */
+    public function test_an_action_event_before_now_is_not_counted_as_due(): void {
+        global $DB;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $user = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $earlier = $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now - HOURSECS]);
+        $edge = $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now]);
+        $ahead = $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + HOURSECS]);
+        $this->assertTrue($DB->record_exists('event', [
+            'modulename' => 'assign',
+            'instance' => $earlier->id,
+            'eventtype' => 'due',
+            'timesort' => $now - HOURSECS,
+        ]));
+
+        $this->setUser($user);
+        $rows = strip::future(
+            (int) $user->id,
+            [(int) $course->id],
+            [],
+            [],
+            [],
+            ['deadlines'],
+            $now,
+            $now - DAYSECS,
+            $now + 10 * DAYSECS
+        );
+        $instances = [];
+        foreach ($rows as $row) {
+            if ($row->eventtype === 'due') {
+                $instances[] = (int) $row->instance;
+            }
+        }
+
+        $this->assertEqualsCanonicalizing([(int) $edge->id, (int) $ahead->id], $instances);
+    }
+
+    /**
+     * An activity restricted by an availability condition the learner does not meet is not counted.
+     *
+     * The activity whose condition the learner meets (available from yesterday) is the control:
+     * it is restricted too, so both reach the modinfo question, and only the unmet one is dropped.
+     *
+     * @return void
+     */
+    public function test_an_activity_the_learner_cannot_access_is_not_counted(): void {
+        $this->setAdminUser();
+        set_config('enableavailability', 1);
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $user = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $unmet = json_encode(\core_availability\tree::get_root_json(
+            [\availability_date\condition::get_json('>=', $now + 365 * DAYSECS)]
+        ));
+        $met = json_encode(\core_availability\tree::get_root_json(
+            [\availability_date\condition::get_json('>=', $now - DAYSECS)]
+        ));
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + 3 * DAYSECS, 'availability' => $met]);
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + 6 * DAYSECS, 'availability' => $unmet]);
+
+        $this->setUser($user);
+        $tz = \core_date::get_user_timezone_object();
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+
+        $this->assertSame(1, $days[strip::local_day($now + 3 * DAYSECS, $tz)]['graded']);
+        $this->assertArrayNotHasKey(strip::local_day($now + 6 * DAYSECS, $tz), $days);
+    }
+
+    /**
+     * An activity in a section restricted from the learner is not counted, in either view.
+     *
+     * The section's availability is not on the course module, so only the section join of the
+     * statement flags the row for modinfo. The same section without the condition is the control
+     * (counted); the teacher, who ignores availability restrictions, still sees it.
+     *
+     * @return void
+     */
+    public function test_an_activity_in_a_restricted_section_is_not_counted(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        set_config('enableavailability', 1);
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $user = $gen->create_user();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course(['numsections' => 2]);
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $gen->create_module('assign', ['course' => $course->id, 'section' => 1, 'duedate' => $now + 3 * DAYSECS]);
+        $unmet = json_encode(\core_availability\tree::get_root_json(
+            [\availability_date\condition::get_json('>=', $now + 365 * DAYSECS)]
+        ));
+        $tz = \core_date::get_user_timezone_object();
+        $day = strip::local_day($now + 3 * DAYSECS, $tz);
+
+        $this->setUser($user);
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+        $this->assertSame(1, $days[$day]['graded'], 'Without the restriction the activity is counted: the control.');
+
+        $DB->set_field('course_sections', 'availability', $unmet, ['course' => $course->id, 'section' => 1]);
+        rebuild_course_cache((int) $course->id, true);
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($user);
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+        $this->assertArrayNotHasKey($day, $days);
+
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($teacher);
+        $days = strip::build((int) $teacher->id, $now, $tz)['views']['teaching']['days'];
+        $this->assertSame(1, $days[$day]['class'], 'The teacher ignores availability restrictions.');
+    }
+
+    /**
+     * A learner whose role cannot view the activity does not get its deadline counted.
+     *
+     * mod/assign:view prohibited in one activity's context; the untouched sibling is the control.
+     *
+     * @return void
+     */
+    public function test_an_activity_without_the_view_capability_is_not_counted(): void {
+        global $DB;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $user = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + 3 * DAYSECS]);
+        $blocked = $gen->create_module('assign', ['course' => $course->id, 'duedate' => $now + 6 * DAYSECS]);
+        $tz = \core_date::get_user_timezone_object();
+        $open = strip::local_day($now + 3 * DAYSECS, $tz);
+        $closed = strip::local_day($now + 6 * DAYSECS, $tz);
+
+        $this->setUser($user);
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+        $this->assertSame(1, $days[$closed]['graded'], 'With the capability it is counted: the control.');
+
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'student'], MUST_EXIST);
+        assign_capability('mod/assign:view', CAP_PROHIBIT, $roleid, \core\context\module::instance((int) $blocked->cmid)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($user);
+
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+        $this->assertSame(1, $days[$open]['graded']);
+        $this->assertArrayNotHasKey($closed, $days);
+    }
+
+    /**
+     * A site event counts for its day without putting the site in the day's courses.
+     *
+     * The course event of the same day is the control: its course is listed, the site's is not.
+     *
+     * @return void
+     */
+    public function test_a_site_event_does_not_list_the_site_among_a_days_courses(): void {
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $user = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $this->setUser($user);
+        $at = $now + 4 * DAYSECS;
+        $this->event('course', (int) $course->id, 0, 0, $at);
+        $this->event('site', SITEID, 0, 0, $at);
+        unset_config('calendar_sources', 'block_compass');
+
+        $tz = \core_date::get_user_timezone_object();
+        $day = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'][strip::local_day($at, $tz)];
+
+        $this->assertSame(2, $day['event'], 'Both events count: the control that the site event is on the day.');
+        $this->assertSame([(int) $course->id], $day['courseids']);
+    }
+
+    /**
+     * Above inventory_max the course set keeps the starred courses, then the most recently opened.
+     *
+     * Four courses and a bound of two: the starred one that was never opened and the most recently
+     * opened of the rest are kept. At a bound of four the same set is whole and not flagged, which
+     * is also the edge where the count equals the bound.
+     *
+     * @return void
+     */
+    public function test_the_course_set_is_bounded_at_inventory_max_keeping_starred_then_recent(): void {
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+        $user = $gen->create_user();
+        $starred = $gen->create_course();
+        $recent = $gen->create_course();
+        $older = $gen->create_course();
+        $never = $gen->create_course();
+        foreach ([$starred, $recent, $older, $never] as $course) {
+            $plugin->enrol_at((int) $user->id, (int) $course->id, $now - 10 * DAYSECS);
+        }
+        $plugin->favourite((int) $user->id, (int) $starred->id);
+        $plugin->access_at((int) $user->id, (int) $recent->id, $now - HOURSECS);
+        $plugin->access_at((int) $user->id, (int) $older->id, $now - 5 * DAYSECS);
+        $this->setUser($user);
+
+        set_config('inventory_max', 4, 'block_compass');
+        [$courses, $bounded] = strip::courses((int) $user->id, $now);
+        $this->assertCount(4, $courses);
+        $this->assertFalse($bounded, 'A set equal to the bound is not cut.');
+
+        set_config('inventory_max', 2, 'block_compass');
+        [$courses, $bounded] = strip::courses((int) $user->id, $now);
+        $this->assertEqualsCanonicalizing(
+            [(int) $starred->id, (int) $recent->id],
+            array_map('intval', array_keys($courses))
+        );
+        $this->assertTrue($bounded);
+
+        $payload = strip::build((int) $user->id, $now, \core_date::get_user_timezone_object());
+        $this->assertTrue($payload['bounded']);
+        $this->assertEqualsCanonicalizing([(int) $starred->id, (int) $recent->id], $payload['courseids']);
+    }
+
+    /**
      * An override replaces the base event: core's lowest-priority rule (bench P5).
      *
      * Learner A is in the overridden group, so the group override (priority 1) replaces the base

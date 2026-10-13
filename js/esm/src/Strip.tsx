@@ -59,6 +59,9 @@ type StripProps = {
     config: BlockConfig,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
     onExplore: (kind: GhostKind) => Promise<void>,
+    // The course ids the open calendar day holds, for the cards' outline (decision 9).
+    litIds: number[],
+    onPoint: (courseid: number | null) => void,
 };
 
 /**
@@ -68,7 +71,19 @@ type StripProps = {
  *     overflow link, the column count, the config and the two callbacks; see StripProps.
  * @returns {object} The rendered section, or nothing when the strip is empty.
  */
-const Strip = ({title, name, cards, ghost, overflow, columns, config, onToggleFavourite, onExplore}: StripProps) => {
+const Strip = ({
+    title,
+    name,
+    cards,
+    ghost,
+    overflow,
+    columns,
+    config,
+    onToggleFavourite,
+    onExplore,
+    litIds,
+    onPoint,
+}: StripProps) => {
     const headingid = useId();
     const Heading = sectionTag(config.headinglevel);
 
@@ -99,7 +114,13 @@ const Strip = ({title, name, cards, ghost, overflow, columns, config, onToggleFa
                 <div className={`compass-cards-list compass-cards-${columns}`} role="list">
                     {cards.map((card) => (
                         <div className="compass-cards-item" role="listitem" key={card.id}>
-                            <Card card={card} config={config} onToggleFavourite={onToggleFavourite} />
+                            <Card
+                                card={card}
+                                config={config}
+                                onToggleFavourite={onToggleFavourite}
+                                lit={litIds.includes(card.id)}
+                                onPoint={onPoint}
+                            />
                         </div>
                     ))}
                     {ghost && (

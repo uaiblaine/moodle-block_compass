@@ -54,6 +54,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     only the day after a pointed day is prefetched, when it holds something. Item times are
     formatted in the browser from `timestart`, in the user's timezone; core's `formattedtime`
     markup is not injected.
+  - **Card and strip light each other** (stage 11d), version 2026101304. Pointing at a tier 1 card
+    (hover or focus) lights the strip days whose payload `courseids` hold its course and dims the
+    others; opening a day (hover or pin) outlines the cards of the courses it holds, with an
+    outline as well as the dim so colour is never the only signal. Both come from data in memory,
+    through two pieces of state in `Block.tsx`, so neither costs a request. One Behat scenario
+    (`block_compass_calendar.feature`) opens a day by focus, reads the assignment and core's
+    "Add submission" action, runs axe with the card open, and closes it with Escape.
 
 ### Changed
 

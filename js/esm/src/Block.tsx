@@ -142,6 +142,11 @@ const Block = (config: BlockConfig) => {
     const [width, setWidth] = useState(0);
     // The calendar strip's turn: 0 until tier 1's first request settles, then one more per reload.
     const [calendarturn, setCalendarturn] = useState(0);
+    // The two halves of the card/strip lighting (ADR-014 decision 9), lifted here because they
+    // join two siblings: the course a tier 1 card is pointed at, and the courses the open
+    // calendar day holds. Both come from data already in memory; neither costs a request.
+    const [pointed, setPointed] = useState<number | null>(null);
+    const [dayCourses, setDayCourses] = useState<number[]>([]);
     const {labels} = config;
 
     /**
@@ -450,7 +455,14 @@ const Block = (config: BlockConfig) => {
                 <Reload busy={reloading} config={config} onReload={reloadAll} />
             </div>
             {config.calendar && (
-                <CalendarStrip config={config} calendar={config.calendar} turn={calendarturn} width={width} />
+                <CalendarStrip
+                    config={config}
+                    calendar={config.calendar}
+                    turn={calendarturn}
+                    width={width}
+                    pointedCourse={pointed}
+                    onOpenCourses={setDayCourses}
+                />
             )}
             {reconnecting !== null && (
                 <div className="compass-status compass-reconnecting text-muted small" role="status" aria-live="polite">
@@ -480,6 +492,8 @@ const Block = (config: BlockConfig) => {
                         config={config}
                         onToggleFavourite={toggleFavourite}
                         onExplore={explore}
+                        litIds={dayCourses}
+                        onPoint={setPointed}
                     />
                     {/* The one notice an application gets in tier 1: it is never a card in a strip
                         (ADR-009). */}

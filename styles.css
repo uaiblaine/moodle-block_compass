@@ -1923,3 +1923,37 @@ body[data-bs-theme="dark"] .block_compass,
         animation: none;
     }
 }
+
+/*
+ * Card and strip light each other (ADR-014 decision 9). Pointing at a tier 1 card rings the days
+ * that hold its course and dims the rest; an open day outlines its courses' cards. The ring and
+ * the outline carry the meaning, the dim only supports it, so colour is never the sole signal.
+ */
+.block_compass .compass-cal-col.compass-cal-col-dim {
+    opacity: 0.26;
+    transition: opacity 180ms;
+}
+
+.block_compass .compass-cal-col.compass-cal-col-match .compass-cal-day {
+    transform: translateY(-3px);
+    box-shadow: var(--block_compass-cal-ring);
+    outline: 2px solid var(--block_compass-cal-accent);
+    outline-offset: 2px;
+}
+
+.block_compass .compass-card.compass-card-lit {
+    border-color: var(--block_compass-cal-accent);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--block_compass-cal-accent) 30%, transparent);
+    outline: 2px solid var(--block_compass-cal-accent);
+    outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-cal-col.compass-cal-col-dim {
+        transition: none;
+    }
+
+    .block_compass .compass-cal-col.compass-cal-col-match .compass-cal-day {
+        transform: none;
+    }
+}

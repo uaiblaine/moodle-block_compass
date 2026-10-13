@@ -43,6 +43,10 @@ type CardProps = {
     card: CourseCard,
     config: BlockConfig,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
+    // Whether the open calendar day holds this course (ADR-014 decision 9): an outline, never colour alone.
+    lit: boolean,
+    // Pointing at the card (hover or focus) or leaving it: null when nothing is pointed at.
+    onPoint: (courseid: number | null) => void,
 };
 
 /**
@@ -79,7 +83,7 @@ const completion = (card: CourseCard, labels: Record<string, string>) => {
  * @param {object} props The card payload, the block config and the favourite callback.
  * @returns {object} The rendered card.
  */
-const Card = ({card, config, onToggleFavourite}: CardProps) => {
+const Card = ({card, config, onToggleFavourite, lit, onPoint}: CardProps) => {
     const {labels} = config;
     const Title = titleTag(config.headinglevel);
     const later = card.sched !== undefined;
@@ -88,7 +92,23 @@ const Card = ({card, config, onToggleFavourite}: CardProps) => {
         : card.lastaccesstext;
 
     return (
-        <div className={`compass-card card h-100${card.isnew ? ' compass-card-new' : ''}`} data-course-id={card.id}>
+        <div
+            className={`compass-card card h-100${card.isnew ? ' compass-card-new' : ''}${lit ? ' compass-card-lit' : ''}`}
+            data-course-id={card.id}
+            onPointerEnter={(event) => {
+                if (event.pointerType !== 'touch') {
+                    onPoint(card.id);
+                }
+            }}
+            onPointerLeave={() => onPoint(null)}
+            onFocus={() => onPoint(card.id)}
+            onBlur={(event) => {
+                // Focus moving between the card's own controls is still pointing at the card.
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    onPoint(null);
+                }
+            }}
+        >
             {card.hasimage
                 ? <img className="compass-card-img card-img-top" src={card.imageurl} alt="" loading="lazy" />
                 : <div className="compass-card-img compass-card-img-empty card-img-top" aria-hidden="true"></div>}

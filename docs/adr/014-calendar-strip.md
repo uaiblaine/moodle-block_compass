@@ -1,14 +1,16 @@
 # ADR-014: A calendar strip above tier 1: days counted in one cached request, a day's items on demand, graded work first
 
-**Status:** Proposed (2026-10-13). The maintainer's answers of 2026-10-13 are folded in (section
-"The maintainer's answers"). E1, E2 and E4 are measured; a prototype corrected decisions 5, 7, 8 and 9
-(`docs/perf/2026-10-13-bench-calendar-e2.md`, `docs/perf/2026-10-13-bench-calendar-e4-e3.md`).
-E3 needs real data, which no local stack has: its read-only kit (`docs/perf/e3-production-kit.sql`)
-waits for a run on a production replica. The sequenced-versus-parallel paint measurement of
-decision 2 needs the services registered.
+**Status:** Accepted (2026-10-13), implemented in Phase 11: the measurement prototype `06e4019`,
+stage 11a `f95df00` (the server domain), 11b `c479d9d` (`get_strip` and `get_day`), 11c `8b8482b`
+(the React client), and 11d (card and strip lighting, the Behat scenario), the commit that lands
+this record. Where the code departs from the decision text, section "Implementation amendments
+(Phase 11, 2026-10-13)" says what and why.
+Proposed (2026-10-13). The maintainer's answers of 2026-10-13 were folded in (section "The
+maintainer's answers"); E1, E2, E4 and E5 were measured, and the prototype corrected decisions 5,
+7, 8 and 9 before acceptance (`docs/perf/2026-10-13-bench-calendar-e2.md`,
+`docs/perf/2026-10-13-bench-calendar-e4-e3.md`).
 **Date:** 2026-10-13
-**Phase:** 11 (proposed; a measurement prototype exists, uncommitted, in `classes/local/calendar/`
-and `tests/local/calendar/`)
+**Phase:** 11 (stages 11a to 11d)
 **Supersedes:** nothing
 **Amends:**
 - CLAUDE.md "What not to do" on `course_modinfo` outside progress, for one bounded case
@@ -581,7 +583,115 @@ A capability such as "can grade" misses the teacher who follows the class withou
   together, so the switch costs no request. The view last chosen is remembered in the decision 10
   preference (`block_compass_calendar`, a new `view` member).
 
-## Consequences## Consequences
+## Implementation amendments (Phase 11, 2026-10-13)
+
+What the code does where it differs from, or makes precise, the decision text above. Each item
+was settled during stages 11a to 11d; file:line references are to the tree this record lands
+with. The decision text above is kept as the maintainer reviewed it.
+
+1. **Decision 5, what the counted statement keeps.**
+   - **Grading work of the window's past days stays.** The action branch keeps a `gradingdue` row
+     whatever its date inside the window, while every other action row starts at the current
+     instant (`classes/local/calendar/strip.php:660`; the reason at `:225-226`): a submission
+     waiting since last week is still work for the grader. The vault path skips `gradingdue`
+     (`:1064-1066`), so nothing is counted twice.
+   - **A disabled module is dropped** on both branches, `mo.visible = 1` (`strip.php:661`, `:739`),
+     mirroring core's raw strategy (`raw_event_retrieval_strategy.php`, the `m.visible` filter).
+   - **The `calendar_sources` mapping** (`classes/local/config.php:354-357`; `strip.php:532`,
+     `:698-722`): `deadlines` is every action event, grading work included (without it the action
+     branch does not run); `course` is the course events and the activities' standard events;
+     `group`, `site`, `user` and `category` select the non-activity events by `eventtype`. The
+     setting's key for personal events is `user`, core's `eventtype`, where decision 10's table
+     says "personal".
+   - **Now is the boundary**, as decision 5 already states: the past path runs to `$now - 1`
+     (`strip.php:241-245`) and the action branch starts at `:anow` (`:660`).
+2. **Decision 6, widened by the security diff read: visibility is core's `uservisible` for every
+   counted activity.** The first version asked modinfo only when `cm.availability` was set, the
+   fact the row made easy to reach; the promise is about what core would show this user. The
+   implementation reproduces `cm_info::update_user_visible()` row by row, for the future part of
+   both views (`strip.php:765-779`, `:830-858`):
+   - **availability of the activity or of its section** sends the row to modinfo: the statement's
+     `restricted` column reads `cm.availability` and `cs.availability` (`strip.php:568`, `:575`);
+   - **`mod/<name>:view`** is checked at the module context for every row with a course module,
+     mirroring `cm_info::is_user_access_restricted_by_capability()`
+     (`course/classes/cm_info.php:1665`), at no read because the context columns are in the row
+     (`strip.php:839`, `can_view_module()` at `:930-937`);
+   - **the teacher's rule**: a hidden module counts only with `moodle/course:viewhiddenactivities`
+     (`strip.php:843-848`), and `moodle/course:ignoreavailabilityrestrictions` skips the modinfo
+     question (`:852-856`).
+   The past part and the learning day get the same from core's factory and from the
+   `uservisible` filter `calendar_get_view()` passes.
+3. **Decision 7, how a day is read and formatted.**
+   - **One page, a cap of 50 with a flag**: `api::get_events()` with `limitnum` 0
+     (`classes/local/calendar/day.php:292`); at most `LIMIT` (50, `:64`) items and `truncated`
+     (`:240-241` learning, `:536-537` teaching).
+   - **Core's renderer is created only on a cache miss.** Fetching it initialises the theme and
+     core's globally available filters, a recordset of three reads on PostgreSQL, measured with
+     SQL debugging and a stack trace; a reopened day must not pay that. `get_day` passes a closure
+     (`classes/external/get_day.php:97`) that `day::get()` calls only when the day is not in the
+     entry (`day.php:84-87`, `:109`).
+   - **Names are formatted in an explicit context, with its filters preloaded**: one
+     `filters::preload()` for every context a day formats (`day.php:404-411`, `:544-554`); the
+     course short name in the course context (`:430-433`), never `$PAGE`'s, which
+     `validate_context()` leaves on the user context.
+   - **The client formats the time itself** from `timestart`, with `Intl` in the user's Moodle
+     timezone (`js/esm/src/CalendarCard.tsx:104`, `:286`). The service still returns core's
+     `formattedtime` (`get_day.php:126`, `PARAM_RAW`), but that HTML never reaches the page
+     (`CalendarCard.tsx:25-27`, `js/esm/src/types.ts:279`).
+4. **Decision 8, what the entry holds, and its residual.** Besides the payload, the marker, the
+   first day, the timezone, the build time and the opened days, the entry keeps the sets (courses,
+   learning, teaching, groups, categories; `strip.php:211-223`) so that `get_day` and the opened
+   days reuse them without a read (`classes/local/calendar_cache.php:28-41`). The TTL is 30 minutes
+   (`calendar_cache.php:52`, `:90-98`). **Residual, stated plainly:** a change of role, enrolment,
+   availability or hidden state can lag by up to the TTL, because no event invalidates a user
+   entry (ADR-001's user-layer rule). A new sign-in or a new day rebuilds at once.
+5. **Decision 10, the budgets as measured.** Every Compass service pays a floor of **2 reads**:
+   the per-request user preference reload and `validate_context()`'s context
+   (`tests/external/get_strip_budget_test.php:67-78`, `tests/external/get_day_budget_test.php:42-53`).
+   - `get_strip`: a hit costs **2** (`get_strip_budget_test.php:105`); cold and warm rebuilds
+     **≤ 61** (E2's 60 + 1, `:92`, `:100`).
+   - `get_day`: a reopened day costs **2**; a teaching day **9** on PostgreSQL through the service
+     (the floor, the renderer's three-read recordset, the counted statement, the grading
+     statement, the names statement and one filter preload), **5** in the domain
+     (`tests/local/calendar/day_test.php:293-302`, `:338`); a learning day **≤ 64** (E2's 63 + 1,
+     not yet re-measured after the limit-0 change).
+   - **Both services declare `readonlysession`** (`db/services.php:76`, `:84`). Core's
+     `calendar_show_event_type()` memoises its default filter in
+     `$SESSION->calendarshoweventtype`; `tests/external/readonly_session_test.php:72-73` tolerates
+     that one key for these two services only, because core's own read-only
+     `core_calendar_get_action_events_by_timesort` goes through the same path
+     (`lib/db/services.php:279`).
+6. **Decision 11, the grading count and who teaches.**
+   - **The grading statement mirrors `count_submissions_need_grading_with_groups()`**
+     (`classes/local/calendar/grading.php:30-31`), with three documented differences in groups
+     (`strip.php:955-967`): the grader's participation groups are summed where core counts its
+     single active group; the activity's grouping is not applied; and in `VISIBLEGROUPS` everyone
+     is counted where core defaults to the grader's first group, an open question below.
+   - **A `SEPARATEGROUPS` grader with no group counts everyone**, as core's active group 0 does
+     (`strip.php:973-990`).
+   - **`gradingdue` belongs to the teaching view in any course where the user can grade**
+     (`strip.php:807-815`), so a dual-role user's grading work never lands among their own
+     deadlines.
+   - **"Teaching" is enrolled with no `gradebookroles` role** (the maintainer's rule,
+     `strip.php:361-380`), so the class's deadlines reach any non-graded role, bounded by the same
+     `uservisible` and view-capability rule as item 2.
+7. **A trap worth a line: `SITEID` is a string.** It is `$SITE->id` as the database returned it
+   (`lib/setup.php:861`), so a strict comparison with an int course id is false and every site
+   event was dropped; the comparisons cast it, `(int) SITEID` (`strip.php:796-798`, `:825`,
+   `:1200`; `day.php:674`). A test found it.
+8. **The client (stages 11c and 11d).**
+   - The strip asks `get_strip` only when `get_attention` settles, answered or failed
+     (`js/esm/src/Block.tsx:203`, `:213`; `js/esm/src/CalendarStrip.tsx:341`).
+   - The Studying / Teaching switch shows only to someone with both views (`CalendarStrip.tsx:336`,
+     `:926`).
+   - Weekday, month and time names come from `Intl` in the page language
+     (`js/esm/src/calendar.ts:339-342`), never from lang strings.
+   - Card and strip light each other from data in memory: pointing at a tier 1 card lights the
+     days holding its course and dims the others (`CalendarStrip.tsx:976-981`); opening a day
+     outlines its courses' cards (`:377-384`, `js/esm/src/Card.tsx:96`), lifted into two pieces of
+     state in `Block.tsx` (`:145-149`). Neither costs a request.
+
+## Consequences
 
 **Positive**
 
@@ -659,7 +769,7 @@ events included. Nothing here observes them, under ADR-001's user-layer rule.
 - **A month rail.** Removed by the maintainer: no selected state, uneven sizes, space better
   spent.
 
-**Evidence owed before acceptance**
+**Evidence runs (E1 to E5)**
 
 - **E1, done 2026-10-13.** See `docs/perf/2026-10-13-bench-calendar-strip.md`, with seeds
   `docs/perf/bench-calendar.sql` and `bench-calendar-mariadb.sql`.
@@ -674,9 +784,9 @@ events included. Nothing here observes them, under ADR-001's user-layer rule.
   - Strip: 60 reads cold, 0 on a hit. A six-item day: 63 reads.
   - It corrected decisions 5, 7, 8 and 9 and re-measured the future statement as P5 on both
     databases.
-  - **Still owed:** tier 1's first paint and the strip's paint, sequenced and in parallel
-    (decision 2). That needs the services registered and the React component, so it moves to
-    the implementation phase.
+  - **Still owed after Phase 11:** tier 1's first paint and the strip's paint, sequenced and in
+    parallel (decision 2). The services and the component now exist; the order stays sequenced
+    until it is measured (a question below).
 - **E3, kit ready, run owed.** No local stack has calendar data: m502 has 4 events and the
   other stacks none. `docs/perf/e3-production-kit.sql` measures, read-only on a production
   replica:
@@ -697,8 +807,21 @@ events included. Nothing here observes them, under ADR-001's user-layer rule.
   - A day: about 850 B raw (120-140 B gzip) per item; 6 items are about 5-6 KB raw / 850 B gzip.
   - No short keys needed. The run also found the midnight boundary defect (decision 5).
 
+**Phase 11 gates (2026-10-13).** Isolated 5.2 leg: PHPUnit 469 tests / 4763 assertions /
+6 skipped (the measurement tests, run with `BLOCK_COMPASS_MEASURE`); Behat 6 scenarios / 165
+steps incl. the calendar scenario with axe; mutation sweep: `mdl mutate --fast` over the 39 calendar gates (the stage 11d gates, the three visibility gates of the security read, and the repaired `page_guest_gate` and `heading_rung`) on PostgreSQL and on MariaDB: every gate reddened every test its `#   ->` line names, 39 of 39 on both families. The budgets
+these runs pin are in amendment 5.
+
 ## Questions for the maintainer
 
+Still open when this record was accepted; an answer that changes a decision supersedes it with a
+new record.
+
+- **`VISIBLEGROUPS` grading count (amendment 6):** the strip counts every participant where
+  core defaults to the grader's first group. Keep it, or mirror core's default?
+- **Future counts on a screen reader:** a future count is an upper bound (decision 5), but the
+  day's label reads it as a plain number ("2 graded"). Should it say "up to 2"?
 - **E3:** the production run of `docs/perf/e3-production-kit.sql`, when production has calendar
-  use. It decides the TTL and the stamp (decision 8).
-- **Paint order (decision 2):** measured once the services are registered.
+  use. It decides the TTL (30 minutes until then) and the stamp (decision 8, amendment 4).
+- **Paint order (decision 2):** tier 1's first paint and the strip's, sequenced and in parallel,
+  now measurable with the services registered and the component mounted.

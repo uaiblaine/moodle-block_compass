@@ -87,6 +87,10 @@ type CalendarStripProps = {
     calendar: CalendarConfig,
     turn: number,
     width: number,
+    // The course a tier 1 card is pointed at, or null: its days light, the others dim (decision 9).
+    pointedCourse: number | null,
+    // Told the course ids of the open day (empty when none is open), for the cards' outline.
+    onOpenCourses: (courseids: number[]) => void,
 };
 
 /**
@@ -292,7 +296,7 @@ const dayClass = (look: DayLook): string => [
  *     settled, then bumped by every reload) and the block's measured width; see CalendarStripProps.
  * @returns {object} The rendered strip, its skeleton, its notice, or nothing.
  */
-const CalendarStrip = ({config, calendar, turn, width}: CalendarStripProps) => {
+const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCourses}: CalendarStripProps) => {
     const {strings} = calendar;
     const [payload, setPayload] = useState<StripPayload | null>(null);
     const [failed, setFailed] = useState(false);
@@ -367,6 +371,17 @@ const CalendarStrip = ({config, calendar, turn, width}: CalendarStripProps) => {
 
         return undefined;
     }, [turn, attempt]);
+
+    // Tell the block which courses the open day holds, so its cards can be outlined. The ids are
+    // the payload's own; the effect runs before the early returns below, as every hook must.
+    const openday = pinned ?? hover;
+    useEffect(() => {
+        const day = payload && openday !== null
+            ? payload.views[drawnView(payload, view)].days.find((entry) => entry.date === openday)
+            : undefined;
+        onOpenCourses(day ? day.courseids : []);
+    }, [payload, openday, view, onOpenCourses]);
+    useEffect(() => () => onOpenCourses([]), [onOpenCourses]);
 
     useEffect(() => () => {
         window.clearTimeout(opentimer.current);
@@ -447,7 +462,8 @@ const CalendarStrip = ({config, calendar, turn, width}: CalendarStripProps) => {
     const weekday = formatter({weekday: 'short', timeZone: 'UTC'});
     const longday = formatter({weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'});
     const tabstop = tabstopOf(visible, focusdate, payload.today);
-    const open = pinned ?? hover;
+    const open = openday;
+    const bydate = new Map(payload.views[drawn].days.map((entry) => [entry.date, entry]));
 
     /**
      * Remember the strip as the viewer left it. A failed write keeps the choice on this page.
@@ -957,6 +973,12 @@ const CalendarStrip = ({config, calendar, turn, width}: CalendarStripProps) => {
                         const nothing = kindsOf(drawn).every((kind) => (day.counts[kind] ?? 0) === 0);
                         const istoday = date === payload.today;
                         const isopen = open === date;
+                        // Pointing at a card: the days holding its course match, the others dim.
+                        const holds = pointedCourse !== null && !!bydate.get(date)?.courseids.includes(pointedCourse);
+                        let lighting = '';
+                        if (pointedCourse !== null) {
+                            lighting = holds ? ' compass-cal-col-match' : ' compass-cal-col-dim';
+                        }
                         const dayclass = dayClass({
                             level,
                             today: istoday,
@@ -971,7 +993,7 @@ const CalendarStrip = ({config, calendar, turn, width}: CalendarStripProps) => {
                             <div
                                 key={date}
                                 role="listitem"
-                                className={istoday ? 'compass-cal-col compass-cal-col-today' : 'compass-cal-col'}
+                                className={`${istoday ? 'compass-cal-col compass-cal-col-today' : 'compass-cal-col'}${lighting}`}
                             >
                                 {date === needle && <span className="compass-cal-needle" aria-hidden="true" />}
                                 {calendar.style === 'pulse' && (
