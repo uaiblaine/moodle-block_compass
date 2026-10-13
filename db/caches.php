@@ -120,4 +120,20 @@ $definitions = [
         'staticaccelerationsize' => 50,
         'ttl' => 3600,
     ],
+
+    // The calendar strip (ADR-014 decision 8). Key: userid. Value: the strip payload, the sets
+    // a day's request reuses, the sign-in marker ($USER->currentlogin), the window's first day,
+    // the timezone, the time it was built, and the days opened during this sign-in. Served only
+    // when the marker, the first day and the timezone match and the entry is younger than
+    // calendar_cache::TTL; anything else rebuilds it. Never invalidated from course or
+    // calendar events (the user-layer rule above); dropped with the account. The TTL here is a
+    // safety net for entries nobody asks for again.
+    'calendarstrip' => [
+        'mode' => \core_cache\store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 2,
+        'ttl' => 1800,
+    ],
 ];

@@ -24,23 +24,25 @@
 
 namespace block_compass\privacy;
 
+use block_compass\local\calendar_preference;
 use block_compass\local\explore_preference;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\user_preference_provider;
 use core_privacy\local\request\writer;
 
 /**
- * The two things the plugin stores of its own: the viewer's choice of tier 3 view, and the
- * tier 3 toolbar as they left it.
+ * The three things the plugin stores of its own: the viewer's choice of tier 3 view, the tier 3
+ * toolbar as they left it, and the calendar strip as they left it.
  *
  * Everything else it shows is core's — courses, enrolments, favourites, the archived-course
  * preferences of the Course overview block — and stays core's to export and to delete.
  *
- * Two caches keyed by user hold copies derived from that core data: the inventory (each
- * enrolment's dates and status, the last access, the star) and the progress per course. They
- * are not exported, since they say nothing core's own export does not. When an account is
- * deleted, {@see \block_compass\observer::user_deleted()} drops the user's inventory entry and
- * the progress entries of every course it lists. Whatever the observer cannot reach is bounded
+ * Three caches keyed by user hold copies derived from that core data: the inventory (each
+ * enrolment's dates and status, the last access, the star), the progress per course, and the
+ * calendar strip (counts per day of core's calendar events, completion and grading). They are
+ * not exported, since they say nothing core's own export does not. When an account is
+ * deleted, {@see \block_compass\observer::user_deleted()} drops the user's inventory entry, the
+ * progress entries of every course it lists and the calendar strip entry. Whatever the observer cannot reach is bounded
  * by the TTLs in db/caches.php: an hour for progress in a course no cached inventory entry
  * lists, a day for an inventory entry left behind by any deletion that does not go through
  * delete_user().
@@ -71,6 +73,10 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
             explore_preference::NAME,
             'privacy:metadata:preference:block_compass_explore'
         );
+        $collection->add_user_preference(
+            calendar_preference::NAME,
+            'privacy:metadata:preference:block_compass_calendar'
+        );
 
         return $collection;
     }
@@ -85,8 +91,8 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
      * falls back to a default for a stored view it cannot draw
      * ({@see \block_compass\output\block::view()}); an export answers a different question —
      * what is held about this person — so it must not name a view they never chose. The toolbar
-     * state is exported as stored for the same reason: it is the JSON the viewer's own browser
-     * wrote.
+     * and calendar states are exported as stored for the same reason: each is the JSON the
+     * viewer's own browser wrote.
      *
      * @param int $userid The user whose data is being exported.
      * @return void
@@ -114,6 +120,16 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
                 explore_preference::NAME,
                 $explore,
                 get_string('privacy:metadata:preference:block_compass_explore', 'block_compass')
+            );
+        }
+
+        $calendar = get_user_preferences(calendar_preference::NAME, null, $userid);
+        if ($calendar !== null) {
+            writer::export_user_preference(
+                'block_compass',
+                calendar_preference::NAME,
+                $calendar,
+                get_string('privacy:metadata:preference:block_compass_calendar', 'block_compass')
             );
         }
     }
