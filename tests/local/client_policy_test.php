@@ -115,7 +115,9 @@ final class client_policy_test extends advanced_testcase {
         $exporter = file_get_contents($root . '/classes/output/block.php');
         $ones = array_filter(array_keys($strings['en']), static fn($key) => str_ends_with($key, '_one'));
 
-        $this->assertCount(10, $ones);
+        // Ten for the block's labels, nine for the calendar strip's strings, which the shell ships
+        // under the calendar key (block::CALENDAR_STRINGS).
+        $this->assertCount(19, $ones);
         foreach ($ones as $key) {
             $this->assertArrayHasKey($key, $strings['pt_br'], $key);
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
@@ -172,11 +174,15 @@ final class client_policy_test extends advanced_testcase {
                 'getInventory' => 'block_compass_get_inventory',
                 'getInventoryRows' => 'block_compass_get_inventory_rows',
                 'searchInventory' => 'block_compass_search_inventory',
+                'getStrip' => 'block_compass_get_strip',
+                'getDay' => 'block_compass_get_day',
             ] as $name => $service
         ) {
             $this->assertMatchesRegularExpression("/read<[^>]*>\\('{$service}'/", $source, "{$name} must go through read()");
         }
         $this->assertStringContainsString("call<unknown>('core_course_set_favourite_courses'", $source);
+        // The strip's preference is a write, through core's route like the other two, never read().
+        $this->assertStringContainsString("{name: 'block_compass_calendar', value: JSON.stringify(state), userid: 0}", $source);
         $this->assertDoesNotMatchRegularExpression('/read<[^>]*>\(\'core_/', $source);
     }
 }

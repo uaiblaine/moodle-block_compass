@@ -36,6 +36,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     an unknown view or a date outside the window is an invalid parameter). Both declare
     `'readonlysession' => true`; budget tests pin the domain ceilings plus the one read of the
     web service layer. Still no client.
+  - **The strip's client** (stage 11c), version 2026101303. Where `calendar_enabled` is on and
+    `calendar_where` names the surface (the Dashboard, the block's own page, or both), the shell
+    ships a `calendar` props object (style, the relevance default, the remembered preference,
+    core's month and day view URLs, the user's timezone and every string the strip shows, in
+    `lang/en` and `lang/pt_br`); off, it ships nothing and nothing mounts. `CalendarStrip.tsx`
+    mounts between the content head and tier 1, reserves its place with a skeleton of the same
+    shape, and asks for `get_strip` only once `get_attention` has settled. The row opens centred on
+    today (21 days, 15 for the ring style, 7 below 640 px of block width), moves a week at a time
+    within the window, and draws heat steps, today's ink disc with its halo, the accent ring for
+    graded work due today or tomorrow, the hatched empty weekend, the needle and the marks by kind
+    as dots, ring arcs or pulse bars. The Studying/Teaching switch (only for someone with both
+    kinds of course), the Everything/To do/Events filter and the relevance switch are remembered in
+    `block_compass_calendar`. `CalendarCard.tsx` opens a day on hover intent, focus or a click that
+    pins it (a dialog with a close button; Escape closes it; a bottom sheet on a narrow block) and
+    lists `get_day`'s items with core's action buttons; the days fetched are kept for the page, and
+    only the day after a pointed day is prefetched, when it holds something. Item times are
+    formatted in the browser from `timestart`, in the user's timezone; core's `formattedtime`
+    markup is not injected.
 
 ### Changed
 

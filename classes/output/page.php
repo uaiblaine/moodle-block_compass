@@ -47,7 +47,7 @@ class page extends block {
      * The page's shell: the block's, one rung under an h1.
      */
     public function __construct() {
-        parent::__construct(headinglevel: 2);
+        parent::__construct(headinglevel: 2, surface: self::SURFACE_PAGE);
         $this->hidetitle = config::hide_page_title();
     }
 

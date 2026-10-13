@@ -26,7 +26,10 @@
  */
 
 import {amd} from './amd';
-import type {Attention, CardDetail, ExploreState, FilterParam, Inventory, RowPage, SearchHits} from './types';
+import type {
+    Attention, CalendarState, CalendarView, CardDetail, DayAnswer, ExploreState, FilterParam, Inventory, RowPage, SearchHits,
+    StripPayload,
+} from './types';
 
 type AjaxRequest = {methodname: string, args: Record<string, unknown>};
 
@@ -127,7 +130,7 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
 /**
  * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.
  *
- * Reads only: the five services below answer questions, so asking again changes nothing. Writes
+ * Reads only: the seven services below answer questions, so asking again changes nothing. Writes
  * are never retried - the star goes through call(), the view, the toolbar and the archive through
  * core_user/repository - because a write that may have landed must not be sent again. The
  * callers' sequence numbers already drop an answer that arrives after they moved on.
@@ -245,6 +248,41 @@ export const getInventoryRows = (
  */
 export const searchInventory = (query: string, filters: FilterParam[]): Promise<SearchHits> =>
     read<SearchHits>('block_compass_search_inventory', {query, filters});
+
+/**
+ * The calendar strip for the current user: both views' days over the window (ADR-014).
+ *
+ * A read like the others, so it gets the bounded retry. The block asks for it only once tier 1
+ * has settled (decision 2).
+ *
+ * @returns {Promise} The payload.
+ */
+export const getStrip = (): Promise<StripPayload> =>
+    read<StripPayload>('block_compass_get_strip', {});
+
+/**
+ * One day's items in one view, through core's pipeline for the learning view (decision 7).
+ *
+ * @param {string} date The day, Y-m-d in the user's timezone, inside the strip's window.
+ * @param {string} view learning or teaching.
+ * @returns {Promise} The day's items.
+ */
+export const getDay = (date: string, view: CalendarView): Promise<DayAnswer> =>
+    read<DayAnswer>('block_compass_get_day', {date, view});
+
+/**
+ * Remember the calendar strip as the viewer left it: the view, the filter and the relevance switch.
+ *
+ * One JSON object through core's preference route, as the tier 3 toolbar is; the shell validates
+ * its shape when it reads it back (classes/local/calendar_preference.php). A write, so never retried.
+ *
+ * @param {object} state The view, the filter and the relevance switch.
+ * @returns {Promise} Resolves once the preference is written.
+ */
+export const setCalendarPreference = async(state: CalendarState): Promise<void> => {
+    const repository = await amd<UserRepository>('core_user/repository');
+    await repository.setUserPreferences([{name: 'block_compass_calendar', value: JSON.stringify(state), userid: 0}]);
+};
 
 /**
  * Remember the tier 3 toolbar as the viewer left it.

@@ -1,0 +1,14 @@
+var h=["gradedsoon","graded","todo","late","event","done"],b=["gradesoon","grade","class","event"],w=["gradedsoon","graded","todo","late","gradesoon","grade"],m={gradedsoon:4.5,graded:1.5,todo:1,late:1,event:.5,done:0,gradesoon:3.5,grade:1.5,class:.5},p=e=>e<10?`0${e}`:String(e),g=e=>{let[t,r,n]=e.split("-").map(Number);return Date.UTC(t,r-1,n)},f=e=>{let t=new Date(e);return`${t.getUTCFullYear()}-${p(t.getUTCMonth()+1)}-${p(t.getUTCDate())}`},y=(e,t)=>f(g(e)+t*864e5),K=(e,t)=>Math.round((g(t)-g(e))/864e5),I=(e,t)=>{let[r,n]=t.split("-").map(Number),o=Date.UTC(r,n+1,1)-864e5,s=[];for(let d=g(e);d<=o;d+=864e5)s.push(f(d));return s},M=(e,t)=>Math.max(0,e-Math.floor(t/2)),c=e=>e==="teaching"?b:h,x=(e,t)=>{let r=c(e);return t==="events"?["event"]:t==="todo"?r.filter(n=>n!=="event"&&n!=="class"):r},T=(e,t)=>{let r={};return c(t).forEach(n=>{r[n]=e?e[n]??0:0}),{counts:r,weight:e?e.weight:0,settled:!1}},S=(e,t,r)=>{let n={};c(r).forEach(a=>{n[a]=0}),t.forEach(a=>{n[a.kind]=(n[a.kind]??0)+1});let o=a=>c(r).filter(l=>l!=="event"&&l!=="class").reduce((l,C)=>l+(a[C]??0)*m[C],0),s=a=>((a.event??0)+(a.class??0))*m.event,d=Math.max(0,e.weight-s(e.counts)),i=o(e.counts),u=o(n),D=i>0?d*(u/i):u;return{counts:n,weight:D+s(n),settled:!0}},N=(e,t,r,n)=>{let o=x(t,r);if(!n)return o.filter(i=>i!=="done").reduce((i,u)=>i+(e.counts[u]??0),0);let s=(e.counts.event??0)*m.event,d=(e.counts.class??0)*m.class;return r==="events"?s:r==="todo"?Math.max(0,e.weight-s-d):e.weight},E=(e,t)=>e<=0?0:t?e<2?1:e<4?2:e<8?3:4:Math.min(4,e),_=(e,t)=>{let r=[];return t.forEach(n=>{for(let o=0;o<(e.counts[n]??0);o++)r.push(n)}),r},F=(e,t)=>{let r=c(t);return[...e].sort((n,o)=>r.indexOf(n.kind)-r.indexOf(o.kind)||n.timestart-o.timestart)},v=e=>{let t=document.documentElement.lang||void 0;try{return new Intl.DateTimeFormat(t,e)}catch{let{timeZone:n,...o}=e;return new Intl.DateTimeFormat(void 0,n==="UTC"?e:o)}};export{h as LEARNING_KINDS,w as OPEN_KINDS,b as TEACHING_KINDS,y as addDays,f as dayString,g as dayTime,K as daysBetween,v as formatter,T as fromPayload,M as homeOffset,c as kindsOf,_ as marks,N as score,S as settle,x as shownKinds,F as sortItems,E as step,I as windowDays};
+/**
+ * The calendar strip's arithmetic: days, the window, what a day shows and how much it weighs.
+ *
+ * Every date here is a Y-m-d string in the user's Moodle timezone, as the strip payload sends
+ * them, and is handled as a UTC midnight: the server already bucketed the instants into local
+ * days (classes/local/calendar/strip.php), so the client only counts calendar days, and a UTC
+ * day is always 24 hours long. The browser's own clock and zone are never asked what today is.
+ *
+ * @module     block_compass/calendar
+ * @copyright  2026 Anderson Blaine
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+//# sourceMappingURL=calendar.js.map
