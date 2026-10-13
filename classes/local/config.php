@@ -336,4 +336,94 @@ final class config {
 
         return $value < self::MIN_PREWARM_BUDGET_SECONDS ? self::DEFAULT_PREWARM_BUDGET_SECONDS : $value;
     }
+
+    /** @var string[] Where the calendar strip may render: both surfaces, the Dashboard only, the block's page only. */
+    public const CALENDAR_WHERE = ['both', 'dashboard', 'page'];
+
+    /** @var string Where the calendar strip renders when nothing is stored. */
+    public const DEFAULT_CALENDAR_WHERE = 'both';
+
+    /**
+     * @var string[] The calendar sources, in the order the setting lists them.
+     *
+     * deadlines is every action event (type 1), grading work included; course is a course's own
+     * events and its activities' standard events (an activity opening); group, site, user and
+     * category are the non-activity events of that eventtype. {@see calendar\strip::future()}
+     * reads them in that sense.
+     */
+    public const CALENDAR_SOURCES = ['deadlines', 'course', 'group', 'site', 'user', 'category'];
+
+    /** @var string[] The sources counted when nothing is stored: the first four (ADR-014 decision 10). */
+    public const DEFAULT_CALENDAR_SOURCES = ['deadlines', 'course', 'group', 'site'];
+
+    /** @var string[] The strip styles the admin chooses from (ADR-014 decision 9). */
+    public const CALENDAR_STYLES = ['dots', 'ring', 'pulse'];
+
+    /** @var string The strip style when nothing is stored. */
+    public const DEFAULT_CALENDAR_STYLE = 'dots';
+
+    /**
+     * Whether the calendar strip is on: off unless an explicit 1 is stored (ADR-014 decision 1).
+     *
+     * @return bool
+     */
+    public static function calendar_enabled(): bool {
+        return (int) get_config('block_compass', 'calendar_enabled') === 1;
+    }
+
+    /**
+     * Where the calendar strip renders. An unset or unrecognised value means both surfaces.
+     *
+     * @return string both, dashboard or page.
+     */
+    public static function calendar_where(): string {
+        $value = (string) get_config('block_compass', 'calendar_where');
+
+        return in_array($value, self::CALENDAR_WHERE, true) ? $value : self::DEFAULT_CALENDAR_WHERE;
+    }
+
+    /**
+     * The calendar sources the strip and a day count, in CALENDAR_SOURCES order.
+     *
+     * admin_setting_configmulticheckbox stores the ticked keys comma-separated, and an empty
+     * string when none is ticked (lib/adminlib.php, get_setting() and write_setting()). So
+     * never set (false) means the defaults, and a stored empty string means nothing at all:
+     * the admin unticked every source. Unknown keys, from an upgrade or a hand-edited table, are
+     * dropped before they can reach a statement.
+     *
+     * @return string[] A subset of CALENDAR_SOURCES.
+     */
+    public static function calendar_sources(): array {
+        $stored = get_config('block_compass', 'calendar_sources');
+        if ($stored === false) {
+            return self::DEFAULT_CALENDAR_SOURCES;
+        }
+        $ticked = array_map('trim', explode(',', (string) $stored));
+
+        return array_values(array_intersect(self::CALENDAR_SOURCES, $ticked));
+    }
+
+    /**
+     * The strip style. An unset or unrecognised value means dots.
+     *
+     * @return string dots, ring or pulse.
+     */
+    public static function calendar_style(): string {
+        $value = (string) get_config('block_compass', 'calendar_style');
+
+        return in_array($value, self::CALENDAR_STYLES, true) ? $value : self::DEFAULT_CALENDAR_STYLE;
+    }
+
+    /**
+     * Whether the strip weighs days by relevance unless the viewer switched it off. Never set means on.
+     *
+     * The site's default of the viewer's own switch ({@see calendar_preference::defaults()}).
+     *
+     * @return bool
+     */
+    public static function calendar_relevance(): bool {
+        $value = get_config('block_compass', 'calendar_relevance');
+
+        return $value === false || $value === '' || (int) $value === 1;
+    }
 }

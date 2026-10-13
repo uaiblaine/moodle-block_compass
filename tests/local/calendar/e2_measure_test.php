@@ -27,6 +27,8 @@ namespace block_compass\local\calendar;
 
 use advanced_testcase;
 use block_compass\local\budget;
+use block_compass\local\calendar_cache;
+use block_compass\local\config;
 use core_cache\cache;
 use core_calendar\local\event\container;
 use core_calendar\local\event\strategies\raw_event_retrieval_strategy;
@@ -51,6 +53,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * read time() (assign's can_edit_submission(), quiz's timeclose check, lesson's is_accessible())
  * and \core\clock, so a fixed past "now" would have them answer for another day. Every instant
  * is still an explicit hour of a day counted from today's local midnight, in a fixed timezone.
+ *
+ * Skipped unless the environment sets BLOCK_COMPASS_MEASURE: this is a measurement instrument, not
+ * a behaviour test. It builds heavy fixtures, prints its measurements to STDERR, and its
+ * assertions only sanity-check the measured run; the contract is held by strip_test, day_test,
+ * grading_test and course_filter_test, which always run.
  *
  * @package    block_compass
  * @category   test
@@ -91,6 +98,9 @@ final class e2_measure_test extends advanced_testcase {
     public function test_e2_measurements(): void {
         global $PAGE, $USER;
 
+        if (!getenv('BLOCK_COMPASS_MEASURE')) {
+            $this->markTestSkipped('A measurement instrument (ADR-014 evidence E2): set BLOCK_COMPASS_MEASURE=1 to run it.');
+        }
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         set_config('enableavailability', 1);
@@ -117,7 +127,7 @@ final class e2_measure_test extends advanced_testcase {
         $cold = strip::get($userid, $now, $signin, $tz);
         $this->report('strip get: cold (every plugin cache purged)', $meter);
 
-        strip::cache()->purge();
+        cache::make('block_compass', 'calendarstrip')->purge();
         $this->new_request();
         $meter = budget::start();
         $warm = strip::get($userid, $now, $signin, $tz);
@@ -141,17 +151,28 @@ final class e2_measure_test extends advanced_testcase {
         $this->report('part: inventory get + courses (cold fill)', $meter);
         $courseids = array_keys($courses);
         $meter = budget::start();
-        $groupids = strip::groups($userid, $courseids);
+        $groupids = array_keys(strip::groups($userid, $courseids));
         $this->report('part: groups statement', $meter);
         $meter = budget::start();
-        $rows = strip::future($userid, $courseids, $groupids, $window['todaystart'], $window['from'], $window['to']);
+        $rows = strip::future(
+            $userid,
+            $courseids,
+            [],
+            $groupids,
+            [],
+            config::calendar_sources(),
+            $now,
+            $window['from'],
+            $window['to']
+        );
         $this->report('part: future UNION ALL statement (' . count($rows) . ' rows)', $meter);
         $meter = budget::start();
         $hidden = strip::restricted($userid, $rows);
         $this->report('part: restricted modinfo check', $meter);
+        $sets = strip::compute($userid, $now, $tz)['sets'];
         $meter = budget::start();
-        $cangrade = strip::gradingdue($userid, $rows);
-        $this->report('part: gradingdue capability check', $meter);
+        strip::collect($userid, $rows, $sets, $now, $window, $tz);
+        $this->report('part: collect (capabilities, modinfo, grading)', $meter);
         $meter = budget::start();
         $past = strip::past($userid, $courseids, $groupids, $window['from'], $window['todaystart'] - 1, $tz);
         $this->report('part: past days via core vault (' . count($past) . ' kept)', $meter);
@@ -170,7 +191,7 @@ final class e2_measure_test extends advanced_testcase {
             $groupids,
             ['type = :type', 'timesort >= :timefrom', 'timesort <= :timeto'],
             ['type' => CALENDAR_EVENT_TYPE_ACTION, 'timefrom' => $window['from'], 'timeto' => $window['todaystart'] - 1],
-            strip::PAST_LIMIT
+            day::LIMIT
         );
         $this->report('past: raw SQL only, 2 pages (no factory)', $meter);
         $this->new_request();
@@ -182,7 +203,7 @@ final class e2_measure_test extends advanced_testcase {
             $window['todaystart'] - 1,
             null,
             null,
-            strip::PAST_LIMIT,
+            day::LIMIT,
             CALENDAR_EVENT_TYPE_ACTION,
             [],
             $groupids,
@@ -202,14 +223,13 @@ final class e2_measure_test extends advanced_testcase {
         $meter = budget::start();
         $facts = day::facts($userid, $events);
         $this->report('day: facts statement', $meter);
-        $meter = budget::start();
-        $items = day::export($events, $facts, $now, $tz, $output);
-        $this->report('day: export (event_exporter, related cache)', $meter);
+        $this->assertNotEmpty($facts);
 
         $this->new_request();
         $meter = budget::start();
+        $items = day::items($userid, $date, $warm['courseids'], $warm['groupids'], $now, $tz, $output);
+        $this->report('day: items total (events, facts, export)', $meter);
         $again = day::items($userid, $date, $warm['courseids'], $warm['groupids'], $now, $tz, $output);
-        $this->report('day: items total', $meter);
         $this->assertSame($items, $again);
 
         $this->new_request();
@@ -224,8 +244,8 @@ final class e2_measure_test extends advanced_testcase {
         );
         $this->report('day: raw SQL only, 2 pages (no factory)', $meter);
 
-        $this->assert_strip($warm, $rows, $hidden, $cangrade, $past, $f, $now, $tz);
-        $this->assert_day($items, $warm['days'][$date], $f);
+        $this->assert_strip($warm, $rows, $hidden, $past, $f, $now, $tz);
+        $this->assert_day($items, $warm['views']['learning']['days'][$date], $f);
         $this->assert_cache_conditions($userid, $now, $signin, $tz, $window);
     }
 
@@ -235,7 +255,6 @@ final class e2_measure_test extends advanced_testcase {
      * @param array $strip The payload.
      * @param array $rows The future statement's rows.
      * @param array $hidden restricted()'s answer.
-     * @param array $cangrade gradingdue()'s answer.
      * @param array $past past()'s answer.
      * @param array $f The fixture.
      * @param int $now Now.
@@ -246,13 +265,12 @@ final class e2_measure_test extends advanced_testcase {
         array $strip,
         array $rows,
         array $hidden,
-        array $cangrade,
         array $past,
         array $f,
         int $now,
         \DateTimeZone $tz
     ): void {
-        $days = $strip['days'];
+        $days = $strip['views']['learning']['days'];
         $d = $this->day($now, $tz, self::DAY);
         $open = fn(array $day): int => $day['gradedsoon'] + $day['graded'] + $day['todo'];
 
@@ -261,7 +279,6 @@ final class e2_measure_test extends advanced_testcase {
         $this->assertArrayHasKey($f['events']['restrictedquiz'], $rows);
         $this->assertArrayHasKey($f['events']['gradingdue'], $rows);
         $this->assertEquals([$f['cms']['restricted'] => true, $f['cms']['restrictedquiz'] => true], $hidden);
-        $this->assertSame([(int) $f['courses'][0]->id => false], $cangrade);
 
         // The six-item day: four open activities and two events; neither excluded row counted.
         $this->assertSame(4, $open($days[$d]), json_encode($days[$d]));
@@ -336,13 +353,13 @@ final class e2_measure_test extends advanced_testcase {
      * @return void
      */
     private function assert_cache_conditions(int $userid, int $now, int $signin, \DateTimeZone $tz, array $window): void {
-        $entry = ['payload' => [], 'signin' => $signin, 'firstday' => $window['firstday'], 'timezone' => $tz->getName(),
-            'built' => $now];
-        $this->assertTrue(strip::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + strip::TTL - 1));
-        $this->assertFalse(strip::is_fresh($entry, $window['firstday'], $tz->getName(), $signin + 1, $now));
-        $this->assertFalse(strip::is_fresh($entry, '2000-01-01', $tz->getName(), $signin, $now));
-        $this->assertFalse(strip::is_fresh($entry, $window['firstday'], 'UTC', $signin, $now));
-        $this->assertFalse(strip::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + strip::TTL));
+        $entry = calendar_cache::entry([], [], $signin, $window['firstday'], $tz->getName(), $now);
+        $ttl = calendar_cache::TTL;
+        $this->assertTrue(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + $ttl - 1));
+        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin + 1, $now));
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2000-01-01', $tz->getName(), $signin, $now));
+        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], 'UTC', $signin, $now));
+        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + $ttl));
 
         $this->new_request();
         $meter = budget::start();
@@ -415,10 +432,9 @@ final class e2_measure_test extends advanced_testcase {
      * @return void
      */
     private function purge_plugin_caches(): void {
-        foreach (['coursemeta', 'categorymeta', 'details', 'inventory'] as $area) {
+        foreach (['coursemeta', 'categorymeta', 'details', 'inventory', 'calendarstrip'] as $area) {
             cache::make('block_compass', $area)->purge();
         }
-        strip::cache()->purge();
     }
 
     /**

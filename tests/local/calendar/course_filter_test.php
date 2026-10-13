@@ -79,10 +79,35 @@ final class course_filter_test extends advanced_testcase {
         $payload = strip::build((int) $user->id, $now, \core_date::get_user_timezone_object());
         $this->assertSame([(int) $visible->id], array_map('intval', $payload['courseids']));
         $counted = 0;
-        foreach ($payload['days'] as $day) {
+        foreach ($payload['views']['learning']['days'] as $day) {
             $counted += $day['graded'] + $day['gradedsoon'] + $day['todo'];
             $this->assertSame([(int) $visible->id], array_map('intval', $day['courseids']));
         }
         $this->assertSame(1, $counted, 'Only the visible, uncompleted course\'s assignment counts.');
+    }
+
+    /**
+     * A course the user archived (the Course overview block's hidden flag) is left out; the other
+     * course, enrolled the same way, is the control.
+     *
+     * @return void
+     */
+    public function test_an_archived_course_is_left_out(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+        $user = $gen->create_user();
+        $kept = $gen->create_course();
+        $archived = $gen->create_course();
+        foreach ([$kept, $archived] as $course) {
+            $plugin->enrol_at((int) $user->id, (int) $course->id, $now - 10 * DAYSECS);
+        }
+        $plugin->hide((int) $user->id, (int) $archived->id);
+
+        $this->setUser($user);
+        [$courses] = strip::courses((int) $user->id, $now);
+
+        $this->assertSame([(int) $kept->id], array_map('intval', array_keys($courses)));
     }
 }

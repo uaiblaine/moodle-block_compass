@@ -58,6 +58,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * read time() (assign's can_edit_submission(), quiz's timeclose check) and \core\clock; every
  * instant is an explicit hour of a day counted from today's local midnight, in a fixed timezone.
  *
+ * Skipped unless the environment sets BLOCK_COMPASS_MEASURE: this is a measurement instrument, not
+ * a behaviour test. It builds heavy fixtures, prints its measurements to STDERR, and its
+ * assertions only sanity-check the measured run; the contract is held by strip_test, day_test,
+ * grading_test and course_filter_test, which always run.
+ *
  * @package    block_compass
  * @category   test
  * @copyright  2026 Anderson Blaine
@@ -117,6 +122,9 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
     public function test_e5_worst_learner(): void {
         global $PAGE, $USER;
 
+        if (!getenv('BLOCK_COMPASS_MEASURE')) {
+            $this->markTestSkipped('A measurement instrument (ADR-014 evidence E5): set BLOCK_COMPASS_MEASURE=1 to run it.');
+        }
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         set_config('enableavailability', 1);
@@ -143,7 +151,7 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
         $this->assertGreaterThanOrEqual($all - $this->passed, $total, 'Only instants already past may be dropped.');
         $this->assertFalse($strip['truncated']);
 
-        strip::cache()->purge();
+        cache::make('block_compass', 'calendarstrip')->purge();
         strip::get($userid, $now, $signin, $tz);
         $this->new_request();
         $meter = budget::start();
@@ -154,7 +162,7 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
 
         $busiest = $this->busiest($strip);
         $this->assertNotNull($busiest);
-        $stripcount = $this->day_total($strip['days'][$busiest]);
+        $stripcount = $this->day_total($strip['views']['learning']['days'][$busiest]);
         [$items, $reads, $ms] = $this->cold(
             fn() => day::items($userid, $busiest, $strip['courseids'], $strip['groupids'], $now, $tz, $output)
         );
@@ -175,6 +183,9 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
     public function test_e5_teacher(): void {
         global $PAGE, $USER, $DB;
 
+        if (!getenv('BLOCK_COMPASS_MEASURE')) {
+            $this->markTestSkipped('A measurement instrument (ADR-014 evidence E5): set BLOCK_COMPASS_MEASURE=1 to run it.');
+        }
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         set_config('enableavailability', 1);
@@ -199,7 +210,7 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
         $this->assertGreaterThan(0, $total);
         $this->assertFalse($strip['truncated']);
 
-        strip::cache()->purge();
+        cache::make('block_compass', 'calendarstrip')->purge();
         strip::get($userid, $now, $signin, $tz);
         $this->new_request();
         $meter = budget::start();
@@ -216,7 +227,18 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
         $this->line('teacher day items: busiest day (' . $busiest . ')', $reads, $ms, $items, count($items));
 
         // The over-count: the strip's total, against the student deadlines among the rows it counts.
-        $rows = strip::future($userid, $strip['courseids'], $strip['groupids'], $now, $window['from'], $window['to']);
+        // Role-blind on purpose (no teaching set): this line measures what such a count would show.
+        $rows = strip::future(
+            $userid,
+            $strip['courseids'],
+            [],
+            $strip['groupids'],
+            [],
+            ['deadlines', 'course', 'group', 'site'],
+            $now,
+            $window['from'],
+            $window['to']
+        );
         $bytype = [];
         foreach ($rows as $row) {
             if ((int) $row->type === CALENDAR_EVENT_TYPE_ACTION) {
@@ -334,10 +356,9 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
      * @return void
      */
     private function purge_plugin_caches(): void {
-        foreach (['coursemeta', 'categorymeta', 'details', 'inventory'] as $area) {
+        foreach (['coursemeta', 'categorymeta', 'details', 'inventory', 'calendarstrip'] as $area) {
             cache::make('block_compass', $area)->purge();
         }
-        strip::cache()->purge();
     }
 
     /**
@@ -348,7 +369,7 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
      */
     private function total_items(array $strip): int {
         $total = 0;
-        foreach ($strip['days'] as $data) {
+        foreach ($strip['views']['learning']['days'] as $data) {
             $total += $this->day_total($data);
         }
 
@@ -379,7 +400,7 @@ final class e5_heavy_scenarios_test extends advanced_testcase {
     private function busiest(array $strip): ?string {
         $best = null;
         $bestcount = -1;
-        foreach ($strip['days'] as $date => $data) {
+        foreach ($strip['views']['learning']['days'] as $date => $data) {
             $count = $this->day_total($data);
             if ($count > $bestcount) {
                 $best = $date;

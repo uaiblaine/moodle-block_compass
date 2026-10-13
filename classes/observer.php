@@ -24,6 +24,7 @@
 
 namespace block_compass;
 
+use block_compass\local\calendar_cache;
 use block_compass\local\category_meta;
 use block_compass\local\course_fields;
 use block_compass\local\course_meta;
@@ -129,14 +130,15 @@ final class observer {
     }
 
     /**
-     * An account was deleted: drop what the two user layers hold about it.
+     * An account was deleted: drop what the three user layers hold about it.
      *
      * The inventory entry is read before it is dropped, because it is the only list of the
      * details keys the user can have: those keys are "<userid>_<courseid>" and a cache store
      * cannot delete by prefix. delete_user() removes the enrolments before it raises this event
      * (lib/moodlelib.php), so the database no longer knows the courses either. Progress cached for
      * a course the entry does not list — no entry cached, or one that expired first — is out of
-     * reach here and lapses with the details TTL.
+     * reach here and lapses with the details TTL. The calendar strip entry is keyed by the user
+     * alone, so it goes by its key.
      *
      * @param user_deleted $event The event; objectid is the deleted user's id.
      * @return void
@@ -146,5 +148,6 @@ final class observer {
         $courseids = inventory::cached_courseids($userid);
         inventory::delete($userid);
         details::delete_many($userid, $courseids);
+        calendar_cache::delete($userid);
     }
 }

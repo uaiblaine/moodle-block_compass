@@ -46,6 +46,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * read time() (assign's can_edit_submission(), quiz's timeclose check) and \core\clock; every
  * instant is an explicit hour of a day counted from today's local midnight, in a fixed timezone.
  *
+ * Skipped unless the environment sets BLOCK_COMPASS_MEASURE: this is a measurement instrument, not
+ * a behaviour test. It builds heavy fixtures, prints its measurements to STDERR, and its
+ * assertions only sanity-check the measured run; the contract is held by strip_test, day_test,
+ * grading_test and course_filter_test, which always run.
+ *
  * @package    block_compass
  * @category   test
  * @copyright  2026 Anderson Blaine
@@ -96,6 +101,9 @@ final class e4_payload_test extends advanced_testcase {
     public function test_e4_e2_sized_learner(): void {
         global $PAGE, $USER;
 
+        if (!getenv('BLOCK_COMPASS_MEASURE')) {
+            $this->markTestSkipped('A measurement instrument (ADR-014 evidence E4): set BLOCK_COMPASS_MEASURE=1 to run it.');
+        }
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         set_config('enableavailability', 1);
@@ -126,6 +134,9 @@ final class e4_payload_test extends advanced_testcase {
     public function test_e4_dense_learner(): void {
         global $PAGE, $USER;
 
+        if (!getenv('BLOCK_COMPASS_MEASURE')) {
+            $this->markTestSkipped('A measurement instrument (ADR-014 evidence E4): set BLOCK_COMPASS_MEASURE=1 to run it.');
+        }
         $this->resetAfterTest();
         set_config('enablecompletion', 1);
         set_config('enableavailability', 1);
@@ -147,7 +158,7 @@ final class e4_payload_test extends advanced_testcase {
         $this->assertFalse($strip['truncated']);
 
         // The size per day with items: the average of the whole payload, and the largest single day entry.
-        $days = $strip['days'];
+        $days = $strip['views']['learning']['days'];
         $json = json_encode($strip);
         $gzip = gzencode($json, 6);
         $count = count($days);
@@ -201,7 +212,7 @@ final class e4_payload_test extends advanced_testcase {
      */
     private function total_items(array $strip): int {
         $total = 0;
-        foreach ($strip['days'] as $data) {
+        foreach ($strip['views']['learning']['days'] as $data) {
             $total += $this->day_total($data);
         }
 

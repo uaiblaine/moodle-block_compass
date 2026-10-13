@@ -30,7 +30,7 @@ use core_user;
 use PHPUnit\Framework\Attributes\CoversFunction;
 
 /**
- * The two preferences the plugin writes, what core does with their definitions, and the icon map.
+ * The three preferences the plugin writes, what core does with their definitions, and the icon map.
  *
  * They are tested through core rather than by reading the arrays back, because the arrays are
  * not what protects anything: the endpoint the client posts to looks the definition up, asks
@@ -152,5 +152,32 @@ final class lib_test extends advanced_testcase {
         $this->assertStringContainsString('fa-box-open', $unarchive);
         // Not an eye, which on this control reads as "open this course".
         $this->assertStringNotContainsString('fa-eye', $archive);
+    }
+
+    /**
+     * The calendar strip's remembered state is declared raw and nullable, and only the viewer writes it.
+     *
+     * Same shape as the toolbar's: the route passes a JSON string untouched, and the reader,
+     * calendar_preference::read(), validates it.
+     *
+     * @return void
+     */
+    public function test_the_calendar_preference_is_declared_raw_and_read_by_its_own_reader(): void {
+        $this->resetAfterTest();
+        $me = $this->getDataGenerator()->create_user();
+        $other = $this->getDataGenerator()->create_user();
+        $this->setUser($me);
+
+        $definition = core_user::get_preference_definition('block_compass_calendar');
+        $this->assertSame(PARAM_RAW, $definition['type']);
+        $this->assertSame(NULL_ALLOWED, $definition['null']);
+        $this->assertNull($definition['default']);
+        $this->assertArrayNotHasKey('choices', $definition);
+
+        $json = '{"view":"teaching","filter":"todo","relevance":false}';
+        $this->assertSame($json, core_user::clean_preference($json, 'block_compass_calendar'));
+
+        $this->assertTrue(core_user::can_edit_preference('block_compass_calendar', $me));
+        $this->assertFalse(core_user::can_edit_preference('block_compass_calendar', $other));
     }
 }

@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- **The calendar strip's server domain** (ADR-014, stage 11a of Phase 11), version 2026101301.
+  No service, client or Behat yet: those are stages 11b to 11d, so nothing reaches a user.
+  - `classes/local/calendar/strip.php` counts a user's calendar items per day, from ten days
+    ago to the end of next month, in two views: *learning* (courses where the user holds a
+    `gradebookroles` role) and *teaching* (every other course of the set). Past learning
+    deadlines go through core's event vault with one page (`limitnum` 0); the rest is one
+    counted statement (E1's P5): both branches join the course module, an override replaces
+    its base event (core's lowest-priority rule, checked for module events only), and the
+    admin's sources decide what is counted.
+  - The teaching view counts grading work (assignments whose *grading due* falls in the
+    window, where the user can grade, with submissions waiting) from one statement that
+    mirrors `assign::count_submissions_need_grading()`, pinned by a parity test, and shows
+    the class's deadlines as information, without module callbacks.
+  - `classes/local/calendar/day.php` returns one day's items (at most 50, with a flag) for
+    either view; a day opened once in a sign-in costs nothing the second time.
+  - A seventh cache definition, `calendarstrip` (wrapper `classes/local/calendar_cache.php`),
+    served only for the same sign-in, first day of the window and timezone, within 30 minutes;
+    dropped with the account.
+  - Five settings, off by default: `calendar_enabled`, `calendar_where`, `calendar_sources`,
+    `calendar_style`, `calendar_relevance`; a user preference, `block_compass_calendar` (view,
+    filter, relevance), read by `classes/local/calendar_preference.php` and exported by the
+    privacy provider.
+
 ### Changed
 
 - **The five read services run without the session lock**, version 2026101300.
