@@ -31,6 +31,7 @@ $functions = [
         'description' => 'Tier 1 of the Compass block for the current user: Continue, New and Favourites, plus the ghost counts.',
         'type' => 'read',
         'ajax' => true,
+        'readonlysession' => true,
     ],
     'block_compass_get_inventory' => [
         'classname' => 'block_compass\external\get_inventory',
@@ -40,6 +41,7 @@ $functions = [
             . 'group\'s header and the custom-field filters; above the inventory size threshold, the group headers alone.',
         'type' => 'read',
         'ajax' => true,
+        'readonlysession' => true,
     ],
     'block_compass_get_inventory_rows' => [
         'classname' => 'block_compass\external\get_inventory_rows',
@@ -47,6 +49,7 @@ $functions = [
         'description' => 'One page of one tier 3 group for the current user, in paged mode.',
         'type' => 'read',
         'ajax' => true,
+        'readonlysession' => true,
     ],
     'block_compass_search_inventory' => [
         'classname' => 'block_compass\external\search_inventory',
@@ -54,6 +57,7 @@ $functions = [
         'description' => 'Server-side search over the current user\'s courses by name, in paged mode.',
         'type' => 'read',
         'ajax' => true,
+        'readonlysession' => true,
     ],
     'block_compass_get_card_details' => [
         'classname' => 'block_compass\external\get_card_details',
@@ -61,5 +65,6 @@ $functions = [
         'description' => 'Progress and course image for a batch of the current user\'s courses.',
         'type' => 'read',
         'ajax' => true,
+        'readonlysession' => true,
     ],
 ];

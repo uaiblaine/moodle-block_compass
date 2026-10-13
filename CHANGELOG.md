@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Changed
+
+- **The five read services run without the session lock**, version 2026101300.
+  `get_attention`, `get_inventory`, `get_inventory_rows`, `search_inventory` and
+  `get_card_details` now declare `'readonlysession' => true`, as core does for its own reads. None
+  of them writes `$SESSION`; `tests/external/readonly_session_test.php` checks this on each
+  service's fullest path, and three new mutation gates show the check would catch it.
+  - **It takes effect only on a site that sets `$CFG->enable_read_only_sessions`**, with its
+    session-mode caches mapped outside the session store.
+  - On such a site, a block read no longer queues behind the page's other requests of the same
+    session (the mail count beside first paint, a preference write beside tier 3), or they
+    behind it.
+  - Measured on m502, four simultaneous calls of one service took 4.8 to 10.7 times one call
+    before the change and 0.9 to 1.9 times after it. Method and numbers:
+    `docs/perf/2026-10-13-readonly-sessions.md`.
+
 ### Fixed
 
 - **A tier 3 row no longer moves when its details arrive**, version 2026101200. In a narrow
