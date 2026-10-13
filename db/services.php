@@ -67,4 +67,20 @@ $functions = [
         'ajax' => true,
         'readonlysession' => true,
     ],
+    'block_compass_get_strip' => [
+        'classname' => 'block_compass\\external\\get_strip',
+        'methodname' => 'execute',
+        'description' => 'The calendar strip of the current user: per-day counters of the learning and teaching views.',
+        'type' => 'read',
+        'ajax' => true,
+        'readonlysession' => true,
+    ],
+    'block_compass_get_day' => [
+        'classname' => 'block_compass\\external\\get_day',
+        'methodname' => 'execute',
+        'description' => 'The items of one day of the calendar strip for the current user, in one view.',
+        'type' => 'read',
+        'ajax' => true,
+        'readonlysession' => true,
+    ],
 ];

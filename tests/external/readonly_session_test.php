@@ -43,6 +43,16 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * preference bundle into $USER->preference, which a read-only request discards and the next
  * request reloads.
  *
+ * One key is tolerated, for the two calendar services only (see CALENDAR_SERVICES): the write is
+ * core's, not the plugin's. calendar_show_event_type() (calendar/lib.php:1995-2003) memoises the
+ * default event-type filter in $SESSION->calendarshoweventtype when the user has no persisted
+ * filter, and is reached through core's raw retrieval strategy (calendar_set_filters,
+ * calendar/lib.php:1633-1654). In a read-only session that write is dropped and the next request
+ * recomputes the same default. Core declares 'readonlysession' => true on
+ * core_calendar_get_action_events_by_timesort (lib/db/services.php:279), which takes the same
+ * path. Every other key still fails; test_the_tolerance_is_one_key_for_two_services is the
+ * control.
+ *
  * @package    block_compass
  * @category   test
  * @copyright  2026 Anderson Blaine
@@ -53,7 +63,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
 #[CoversClass(get_inventory_rows::class)]
 #[CoversClass(search_inventory::class)]
 #[CoversClass(get_card_details::class)]
+#[CoversClass(get_strip::class)]
+#[CoversClass(get_day::class)]
 final class readonly_session_test extends advanced_testcase {
+    /** @var string[] Services that reach core's calendar filter memo, and may add the one key below. */
+    private const CALENDAR_SERVICES = ['block_compass_get_strip', 'block_compass_get_day'];
+
+    /** @var string The $SESSION key core's calendar_show_event_type() memoises. */
+    private const CALENDAR_SERVICE_TOLERATED = 'calendarshoweventtype';
+
     /**
      * resetAfterTest() does not restore superglobals: drop the sesskey the calls plant in $_POST.
      *
@@ -76,6 +94,8 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_get_inventory_rows',
             'block_compass_search_inventory',
             'block_compass_get_card_details',
+            'block_compass_get_strip',
+            'block_compass_get_day',
         ];
 
         return array_combine($names, array_map(fn(string $name): array => [$name], $names));
@@ -129,7 +149,7 @@ final class readonly_session_test extends advanced_testcase {
      */
     public function test_every_service_is_a_read_declared_read_only(): void {
         $functions = self::declared_functions();
-        $this->assertCount(5, $functions);
+        $this->assertCount(7, $functions);
 
         foreach (array_keys($functions) as $name) {
             $this->assertSame('read', $functions[$name]['type'], $name);
@@ -233,10 +253,13 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_get_card_details' => [
                 'courseids' => array_map(fn($course): int => (int) $course->id, array_values($courses)),
             ],
+            'block_compass_get_day' => ['date' => date('Y-m-d', $now), 'view' => 'learning'],
             default => [],
         };
         $CFG->enable_read_only_sessions = true;
-        foreach (['coursemeta', 'categorymeta', 'coursefields', 'filterfields', 'inventory', 'details'] as $definition) {
+        set_config('calendar_enabled', 1, 'block_compass');
+        $definitions = ['coursemeta', 'categorymeta', 'coursefields', 'filterfields', 'inventory', 'details', 'calendarstrip'];
+        foreach ($definitions as $definition) {
             cache::make('block_compass', $definition)->purge();
         }
         $plugin->simulate_new_request();
@@ -259,7 +282,43 @@ final class readonly_session_test extends advanced_testcase {
                 true,
                 array_column($data['details'], 'hascompletion')
             ),
+            'block_compass_get_strip' => $this->assertTrue($data['enabled']),
+            'block_compass_get_day' => $this->assertSame('learning', $data['view']),
         };
-        $this->assertSame([], self::changed_keys($before, $after), "$name changed \$SESSION");
+        $this->assertSame([], self::unexpected_keys($name, self::changed_keys($before, $after)), "$name changed \$SESSION");
+    }
+
+    /**
+     * The changed keys minus the one core write tolerated for the calendar services.
+     *
+     * @param string $name The service.
+     * @param array $keys The changed keys.
+     * @return array The keys that fail the check.
+     */
+    private static function unexpected_keys(string $name, array $keys): array {
+        if (!in_array($name, self::CALENDAR_SERVICES, true)) {
+            return $keys;
+        }
+
+        return array_values(array_diff($keys, [self::CALENDAR_SERVICE_TOLERATED]));
+    }
+
+    /**
+     * The tolerance is one key for two services: the key passes for them, fails for any other
+     * service, and a different key added by a calendar service still fails.
+     *
+     * @return void
+     */
+    public function test_the_tolerance_is_one_key_for_two_services(): void {
+        $this->assertSame([], self::unexpected_keys('block_compass_get_day', ['calendarshoweventtype']));
+        $this->assertSame([], self::unexpected_keys('block_compass_get_strip', ['calendarshoweventtype']));
+        $this->assertSame(
+            ['calendarshoweventtype'],
+            self::unexpected_keys('block_compass_get_attention', ['calendarshoweventtype'])
+        );
+        $this->assertSame(
+            ['block_compass_probe'],
+            self::unexpected_keys('block_compass_get_day', ['block_compass_probe', 'calendarshoweventtype'])
+        );
     }
 }

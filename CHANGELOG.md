@@ -30,6 +30,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `calendar_style`, `calendar_relevance`; a user preference, `block_compass_calendar` (view,
     filter, relevance), read by `classes/local/calendar_preference.php` and exported by the
     privacy provider.
+  - **Two read services for the strip** (stage 11b), version 2026101302: `block_compass_get_strip`
+    (per-day counters of both views as lists, no parameters, an empty result when
+    `calendar_enabled` is off) and `block_compass_get_day` (`date` inside the window and `view`;
+    an unknown view or a date outside the window is an invalid parameter). Both declare
+    `'readonlysession' => true`; budget tests pin the domain ceilings plus the one read of the
+    web service layer. Still no client.
 
 ### Changed
 

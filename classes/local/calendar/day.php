@@ -27,6 +27,7 @@ namespace block_compass\local\calendar;
 use block_compass\local\calendar_cache;
 use block_compass\local\config;
 use block_compass\local\course_meta;
+use block_compass\local\filters;
 use core\output\renderer_base;
 use core\url;
 use core_calendar\external\event_exporter;
@@ -80,7 +81,10 @@ final class day {
      * @param int $now Unix time to treat as now.
      * @param int $signin The sign-in marker, $USER->currentlogin.
      * @param \DateTimeZone $tz The user's timezone.
-     * @param renderer_base $output A renderer, fetched before any meter starts.
+     * @param renderer_base|\Closure $output A renderer, or a closure that returns one. Only a cache
+     *     miss calls it: fetching core's renderer initialises the theme and core's globally available
+     *     filters (moodle_page::initialise_theme_and_output(), a recordset: three reads on
+     *     PostgreSQL), which a reopened day must not pay.
      * @return array|null The day's answer, or null when the date is not a day of the window or the
      *     view is not one of strip::VIEWS; the service turns null into its own error.
      */
@@ -91,7 +95,7 @@ final class day {
         int $now,
         int $signin,
         \DateTimeZone $tz,
-        renderer_base $output
+        renderer_base|\Closure $output
     ): ?array {
         if (!in_array($view, strip::VIEWS, true) || !self::in_window($date, strip::window($now, $tz))) {
             return null;
@@ -101,7 +105,7 @@ final class day {
         if (isset($entry['days'][$key])) {
             return $entry['days'][$key];
         }
-        $day = self::build($userid, $date, $view, $entry['sets'], $now, $tz, $output);
+        $day = self::build($userid, $date, $view, $entry['sets'], $now, $tz, $output instanceof \Closure ? $output() : $output);
         calendar_cache::set_day($userid, $entry, $key, $day);
 
         return $day;
@@ -397,6 +401,14 @@ final class day {
      */
     private static function export(array $kept, renderer_base $output): array {
         $cache = new events_related_objects_cache(array_column($kept, 0));
+        // Every name below is formatted in a context on the preloaded paths (the event's, and the
+        // course's for the course short name), so one read fills the filter cache for all of them;
+        // never in $PAGE's, which validate_context() leaves on the user context.
+        $contexts = [];
+        foreach ($kept as [$event]) {
+            $contexts[] = $cache->get_context($event);
+        }
+        filters::preload($contexts);
         $items = [];
         foreach ($kept as [$event, $fact, $kind]) {
             $context = $cache->get_context($event);
@@ -415,7 +427,11 @@ final class day {
                 'id' => (int) $event->get_id(),
                 'name' => format_string($event->get_name(), true, ['context' => $context, 'escape' => false]),
                 'courseid' => $course ? (int) $course->id : 0,
-                'courseshortname' => $course ? format_string($course->shortname, true, ['escape' => false]) : '',
+                'courseshortname' => $course ? format_string(
+                    $course->shortname,
+                    true,
+                    ['context' => $context->get_course_context(false) ?: $context, 'escape' => false]
+                ) : '',
                 'modulename' => $event->get_course_module() ? (string) $event->get_course_module()->get('modname') : '',
                 'purpose' => (string) $exported->purpose,
                 'iconurl' => (string) ($exported->icon->iconurl ?? ''),
@@ -525,6 +541,17 @@ final class day {
 
         $names = self::names(array_map(fn(array $item): int => (int) $item['row']->id, $kept));
         $courses = course_meta::get_many(array_column($kept, 'courseid'));
+        // The names are formatted in the module context, the short names in the course context:
+        // one read fills the filter cache for both and for every ancestor.
+        $contexts = [];
+        foreach ($kept as $item) {
+            $itemcourse = $courses[(int) $item['courseid']] ?? null;
+            $contexts[] = $itemcourse !== null ? course_meta::context_of($itemcourse) : \core\context\system::instance();
+            if ($item['row']->cmid !== null) {
+                $contexts[] = \core\context\module::instance((int) $item['row']->cmid);
+            }
+        }
+        filters::preload($contexts);
         $exported = [];
         foreach ($kept as $item) {
             $exported[] = self::export_teaching($item, $names[(int) $item['row']->id] ?? null, $courses, $output);

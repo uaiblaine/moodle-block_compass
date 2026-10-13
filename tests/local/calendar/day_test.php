@@ -209,14 +209,15 @@ final class day_test extends advanced_testcase {
      * Protocol of the strip's budget test (strip_test): the strip and the day computed once so
      * core is warm, the strip's entry purged, a new request simulated, the strip rebuilt outside
      * the meter (the day reads the entry it belongs to), a new request, and the day measured.
-     * Teaching day accounting, four reads: the counted statement over the day, the grading
-     * statement, the names statement, and the user preferences. The last is core's: the time of
+     * Teaching day accounting, five reads: the counted statement over the day, the grading
+     * statement, the names statement, one filter preload (filters::preload(), ADR-001's rule for
+     * every formatted name), and the user preferences. The last is core's: the time of
      * each item is rendered by core_calendar\output\humandate, whose format_time() calls
      * get_user_preferences('calendar_timeformat'), and new_request() unsets $USER->preference as a
      * fresh request starts without it (a hit on the strip's entry never reaches hidden_courses,
      * which pays that load on a rebuild). The course entries come from the coursemeta layer the
-     * strip warmed, the module contexts from the counted statement's rows. Learning day: E2's 63 reads for a
-     * six-item day is the ceiling, pending the re-measure after the limit-0 change. The second
+     * strip warmed, the module contexts from the counted statement's rows. Learning day: E2's 63 reads for
+     * a six-item day is the ceiling, pending the re-measure after the limit-0 change. The second
      * opening of each must cost 0, and the first's reads are the control that it was computed.
      *
      * @return void
@@ -253,7 +254,7 @@ final class day_test extends advanced_testcase {
         day::get($userid, $date, 'teaching', $now, $signin, $tz, $output);
         day::get($userid, $date, 'learning', $now, $signin, $tz, $output);
 
-        $ceilings = ['teaching' => 4, 'learning' => 63];
+        $ceilings = ['teaching' => 5, 'learning' => 63];
         foreach ($ceilings as $view => $ceiling) {
             cache::make('block_compass', 'calendarstrip')->purge();
             $this->new_request();
