@@ -330,13 +330,14 @@ body[data-bs-theme="dark"] .block_compass,
 }
 
 .block_compass .compass-card-img-empty {
-    background: repeating-linear-gradient(
-        135deg,
-        var(--block_compass-line) 0,
-        var(--block_compass-line) 6px,
-        var(--block_compass-surface) 6px,
-        var(--block_compass-surface) 14px
-    );
+    background:
+        repeating-linear-gradient(
+            135deg,
+            var(--block_compass-line) 0,
+            var(--block_compass-line) 6px,
+            var(--block_compass-surface) 6px,
+            var(--block_compass-surface) 14px
+        );
     opacity: 0.6;
 }
 
@@ -638,12 +639,13 @@ body[data-bs-theme="dark"] .block_compass,
     display: block;
     min-height: 0.75rem;
     border-radius: 0.25rem;
-    background-image: linear-gradient(
-        90deg,
-        var(--block_compass-line) 25%,
-        var(--block_compass-surface) 50%,
-        var(--block_compass-line) 75%
-    );
+    background-image:
+        linear-gradient(
+            90deg,
+            var(--block_compass-line) 25%,
+            var(--block_compass-surface) 50%,
+            var(--block_compass-line) 75%
+        );
     background-size: 400% 100%;
     animation: block_compass-skeleton 1400ms ease-in-out infinite;
 }
