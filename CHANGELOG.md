@@ -89,6 +89,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
       `cal_am`/`cal_pm`), not from the browser's `Intl`: "October 2026" and "2:30 PM" in English
       (12-hour, as core's `strftimetime`), "outubro de 2026" and "14:30" in Brazilian Portuguese.
       `Intl` is kept only to read an instant's numbers in the user's timezone.
+  - **The strip's polish after the maintainer's review** (ADR-014 amendment 10), version 2026101400.
+    - **Weekends, holidays and recesses.** An empty weekend day is hatched, past or not, hovered or
+      not; a weekend day holding items keeps its heat and its weekday carries the hatch. Which days
+      are weekends is core's `calendar_weekend` (Saturday and Sunday when never saved). Where
+      `block_feedback_tracker` is installed its academic calendar is the truth instead: its weekend
+      mask, and its per-day exceptions read in one statement over the window (holiday, recess,
+      closed and a whole-day optional day are days off, cross-hatched; a school day on a weekend
+      cancels the hatch; an optional day with a window inside it stays a working day). A day's
+      screen-reader sentence and its card's header name the day ("Saturday, 17 October, weekend";
+      the plugin's own label and the institution's note), and the legend gains "Weekend", and
+      "Holiday or recess" while one is in view. `get_strip` returns `weekend` and `specialdays`;
+      a rebuild costs one more read with the plugin installed, none without it.
+    - **The mockup's remaining pieces**: edge fades where more days lie beyond the row, a track
+      marking today's place under it (both hidden on a narrow block), core's chevrons for the arrows,
+      core's calendar glyph in "Open the calendar" and the course and grades glyphs in the
+      Studying / Teaching switch, a danger-coloured pulse bar for a day with late work, the needle's
+      tooltip, and a "Starred course" pill on an open item of a starred course (`get_day` items
+      carry `starred`, from the inventory's favourite flag; the pill follows `enable_favourites`).
 
 ### Changed
 
@@ -107,6 +125,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     `docs/perf/2026-10-13-readonly-sessions.md`.
 
 ### Fixed
+
+- **The reload control takes its clicks on the block's page without its title**, version
+  2026101400. With `hide_page_title` on, the control sits in the page's top-right corner, and the
+  calendar strip's header, positioned and later in the page, covered it. The control is now stacked
+  above the first row and the strip's header is padded away from it, as the other first rows are.
+- **Contrast in dark mode and on the strip's controls**, version 2026101400. A card's outline
+  button, the calendar's dots, needle and rings, and the checked relevance switch were painted with
+  the theme's primary, 1.1:1 on the dark body for a navy brand; they now take the brand's ink,
+  which dark mode mixes towards the body colour (5.99:1 for that navy, 8.03:1 for Boost's blue). A
+  day card's "View" button gets the body colour as its text in dark mode, the busiest-but-one heat
+  step mixes more warning into the dark surface so its numeral reads (5.35:1), and a past or pulse
+  day no longer paints a dark numeral on a surface it does not fill. In light mode the header's
+  arrows, Today and "Open the calendar" draw the Reload button's 4.8:1 border instead of the 1.3:1
+  hairline, and a disabled arrow or Today fades as core's disabled buttons do (0.65).
 
 - **A tier 3 row no longer moves when its details arrive**, version 2026101200. In a narrow
   block (the block drawer) a list row wraps, and the progress skeleton that appeared while a

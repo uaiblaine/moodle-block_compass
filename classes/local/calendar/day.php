@@ -67,7 +67,7 @@ final class day {
     /** @var string[] The keys an item carries: the allowlist of decision 7. */
     public const ALLOWLIST = [
         'id', 'name', 'courseid', 'courseshortname', 'modulename', 'purpose', 'iconurl', 'timestart',
-        'formattedtime', 'viewurl', 'action', 'kind', 'graded', 'gradedsoon', 'criterion', 'lateuntil',
+        'formattedtime', 'viewurl', 'action', 'kind', 'graded', 'gradedsoon', 'criterion', 'lateuntil', 'starred',
     ];
 
     /**
@@ -167,11 +167,31 @@ final class day {
                 $sources,
                 $now,
                 $tz,
-                $output
+                $output,
+                self::starred($sets)
             );
         }
 
         return ['date' => $date, 'view' => $view] + $result;
+    }
+
+    /**
+     * The courses of the entry's set the user starred: the inventory's favourite flag, the fact the
+     * strip already weighs (decision 4), so a day's "Starred course" badge needs no read. Whether
+     * the badge shows is the client's, behind enable_favourites, which hides the star's UI.
+     *
+     * @param array $sets The sets strip::compute() returns.
+     * @return int[] Course ids.
+     */
+    public static function starred(array $sets): array {
+        $starred = [];
+        foreach ($sets['courses'] as $courseid => $course) {
+            if ($course['isfavourite']) {
+                $starred[] = (int) $courseid;
+            }
+        }
+
+        return $starred;
     }
 
     /**
@@ -214,6 +234,7 @@ final class day {
      * @param int $now Unix time to treat as now.
      * @param \DateTimeZone $tz The user's timezone.
      * @param renderer_base $output A renderer.
+     * @param int[] $starred The courses of the set the user starred, from the entry's sets ({@see starred()}).
      * @return array items and truncated.
      */
     public static function learning(
@@ -225,7 +246,8 @@ final class day {
         array $sources,
         int $now,
         \DateTimeZone $tz,
-        renderer_base $output
+        renderer_base $output,
+        array $starred = []
     ): array {
         [$start, $end] = self::bounds($date, $tz);
         $events = self::events($userid, $courseids, $groupids, $start, $end, $categoryids);
@@ -244,7 +266,7 @@ final class day {
         }
 
         return [
-            'items' => self::export(array_slice($kept, 0, self::LIMIT), $output),
+            'items' => self::export(array_slice($kept, 0, self::LIMIT), $output, $starred),
             'truncated' => count($kept) > self::LIMIT,
         ];
     }
@@ -404,9 +426,10 @@ final class day {
      *
      * @param array $kept List of [event, fact, kind].
      * @param renderer_base $output A renderer.
+     * @param int[] $starred The courses the user starred.
      * @return array List of items, each with exactly the ALLOWLIST keys.
      */
-    private static function export(array $kept, renderer_base $output): array {
+    private static function export(array $kept, renderer_base $output, array $starred): array {
         $cache = new events_related_objects_cache(array_column($kept, 0));
         // Every name below is formatted in a context on the preloaded paths (the event's, and the
         // course's for the course short name), so one read fills the filter cache for all of them;
@@ -451,6 +474,7 @@ final class day {
                 'gradedsoon' => $kind === 'gradedsoon',
                 'criterion' => $fact !== null && $fact->criterionid !== null,
                 'lateuntil' => $kind === 'late' && $fact !== null ? (int) $fact->cutoffdate : 0,
+                'starred' => $course && in_array((int) $course->id, $starred, true),
             ];
         }
 
@@ -560,8 +584,10 @@ final class day {
         }
         filters::preload($contexts);
         $exported = [];
+        $starred = self::starred($sets);
         foreach ($kept as $item) {
-            $exported[] = self::export_teaching($item, $names[(int) $item['row']->id] ?? null, $courses, $output);
+            $exported[] = self::export_teaching($item, $names[(int) $item['row']->id] ?? null, $courses, $output)
+                + ['starred' => in_array((int) $item['courseid'], $starred, true)];
         }
 
         return ['items' => $exported, 'truncated' => $truncated];
@@ -602,7 +628,7 @@ final class day {
      * @param \stdClass|null $event Its row from names(), null if the event vanished meanwhile.
      * @param array $courses Course entries from course_meta::get_many().
      * @param renderer_base $output A renderer.
-     * @return array The item, with exactly the ALLOWLIST keys.
+     * @return array The item, with the ALLOWLIST keys but the last, starred, which teaching() adds.
      */
     private static function export_teaching(array $item, ?\stdClass $event, array $courses, renderer_base $output): array {
         $row = $item['row'];

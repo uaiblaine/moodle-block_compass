@@ -398,8 +398,8 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
-     * The calendar props carry the settings, the viewer's remembered state, core's calendar URLs and
-     * every string, translated.
+     * The calendar props carry the settings, the viewer's remembered state, core's calendar URLs,
+     * core's glyphs and every string, translated.
      *
      * @return void
      */
@@ -429,6 +429,11 @@ final class block_compass_test extends advanced_testcase {
         $this->assertSame(shell::CALENDAR_STRINGS, array_keys($calendar['strings']));
         foreach (shell::CALENDAR_STRINGS as $key) {
             $this->assertSame(get_string($key, 'block_compass'), $calendar['strings'][$key], $key);
+        }
+        // Core's own glyphs, rendered with an empty alt, so core hides each from assistive technology.
+        $this->assertSame(['prev', 'next', 'calendar', 'learning', 'teaching'], array_keys($calendar['icons']));
+        foreach ($calendar['icons'] as $name => $icon) {
+            $this->assertStringContainsString('aria-hidden="true"', $icon, $name);
         }
     }
 

@@ -248,6 +248,43 @@ final class get_day_test extends advanced_testcase {
     }
 
     /**
+     * An item says when its course is one the user starred (the mockup's "Starred course" badge).
+     *
+     * The learning course is starred through core's favourites service before the inventory is
+     * first read, so the strip's sets carry the flag; the teaching course is not starred and is the
+     * control. The flag is the inventory's ISFAVOURITE, the fact the strip already weighs, so the
+     * item costs no read for it.
+     *
+     * @return void
+     */
+    public function test_an_item_of_a_starred_course_says_so(): void {
+        [$teacher, $teach, $learn, $at] = $this->fixture();
+        $this->setUser($teacher);
+        $usercontext = \core\context\user::instance((int) $teacher->id);
+        \core_favourites\service_factory::get_service_for_user_context($usercontext)->create_favourite(
+            'core_course',
+            'courses',
+            (int) $learn->id,
+            \core\context\course::instance((int) $learn->id)
+        );
+        $date = strip::local_day($at, \core_date::get_user_timezone_object());
+
+        $learning = $this->call($date, 'learning')['items'];
+        $teaching = $this->call($date, 'teaching')['items'];
+
+        $this->assertNotSame([], $learning);
+        $this->assertNotSame([], $teaching);
+        foreach ($learning as $item) {
+            $this->assertSame((int) $learn->id === $item['courseid'], $item['starred'], $item['name']);
+        }
+        $this->assertContains(true, array_column($learning, 'starred'), 'the starred course\'s deadline says so');
+        foreach ($teaching as $item) {
+            $this->assertSame((int) $teach->id, $item['courseid']);
+            $this->assertFalse($item['starred'], 'the control: a course not starred');
+        }
+    }
+
+    /**
      * A date outside the window, a date that is not a day and a view outside the vocabulary are invalid parameters.
      *
      * The last case, a day of the window in a known view, is the control that the service answers.

@@ -27,6 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
+use block_compass\local\calendar\days_off;
 use core_cache\cache;
 use core_calendar\local\event\container;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -38,10 +39,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * is warm; reset the per-request state a second call in one process would inherit
  * (simulate_new_request(), the calendar container's statics, the modinfo instance cache); purge
  * the user layers the case says; measure the second call. The domain's ceiling is E2's 60 reads
- * for eight courses; the web service adds the one read validate_context() pays for the user
- * context, which the context cache, empty at every request, does not have. A hit on the strip's
- * entry costs that read alone. The fixture's due dates follow the real clock (the vault's
- * callbacks read time()), as strip_test's do.
+ * for eight courses, plus the one statement over block_feedback_tracker's calendar where that
+ * plugin is installed (ADR-014 amendment 10; none where it is not); the web service adds the one
+ * read validate_context() pays for the user context, which the context cache, empty at every
+ * request, does not have. A hit on the strip's entry costs that read alone. The fixture's due
+ * dates follow the real clock (the vault's callbacks read time()), as strip_test's do.
  *
  * @package    block_compass
  * @category   test
@@ -64,7 +66,8 @@ final class get_strip_budget_test extends advanced_testcase {
     }
 
     /**
-     * Budget: a cold and a warm rebuild stay within 60 + 1 reads, a hit costs the service's floor.
+     * Budget: a cold and a warm rebuild stay within 60 + 1 reads (61 + 1 with block_feedback_tracker
+     * installed), a hit costs the service's floor.
      *
      * The floor, measured with SQL debugging on 2026-10-13, is two reads every Compass service pays:
      * the per-request reload of the user's preferences (SELECT name, value FROM {user_preferences})
@@ -81,6 +84,7 @@ final class get_strip_budget_test extends advanced_testcase {
         $user = $this->fixture();
         $this->setUser($user);
         get_strip::execute();
+        $ceiling = days_off::tracked() ? 62 : 61;
 
         foreach (['inventory', 'details', 'calendarstrip'] as $area) {
             cache::make('block_compass', $area)->purge();
@@ -89,7 +93,7 @@ final class get_strip_budget_test extends advanced_testcase {
         $meter = budget::start();
         $cold = get_strip::execute();
         $coldreads = $meter->reads();
-        $this->assertLessThanOrEqual(61, $coldreads, "get_strip cost {$coldreads} reads cold; the budget is 60 + 1.");
+        $this->assertLessThanOrEqual($ceiling, $coldreads, "get_strip cost {$coldreads} reads cold; the budget is {$ceiling}.");
 
         cache::make('block_compass', 'calendarstrip')->purge();
         $this->new_request();
@@ -97,7 +101,7 @@ final class get_strip_budget_test extends advanced_testcase {
         $warm = get_strip::execute();
         $warmreads = $meter->reads();
         $this->assertGreaterThan(1, $warmreads, 'The warm rebuild must read: the control for the hit.');
-        $this->assertLessThanOrEqual(61, $warmreads, "get_strip cost {$warmreads} reads warm; the budget is 60 + 1.");
+        $this->assertLessThanOrEqual($ceiling, $warmreads, "get_strip cost {$warmreads} reads warm; the budget is {$ceiling}.");
 
         $this->new_request();
         $meter = budget::start();

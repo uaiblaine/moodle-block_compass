@@ -225,6 +225,9 @@ export type CalendarConfig = {
     timezone: string,
     bound: number,
     daylimit: number,
+    // Core's own glyphs, rendered by the shell with an empty alt (aria-hidden): the arrows' chevrons,
+    // the calendar link's glyph and the two views' glyphs.
+    icons: {prev: string, next: string, calendar: string, learning: string, teaching: string},
     strings: Record<string, string>,
 };
 
@@ -252,6 +255,18 @@ export type StripView = {
     needle: string | null,
 };
 
+/**
+ * A day the institution's calendar marks (block_feedback_tracker, ADR-014 amendment 10): a day off
+ * (holiday, recess, closed, optional) or a school day that falls on a weekend and cancels its mark.
+ * The label is the type in that plugin's words, the note the institution's, both formatted text.
+ */
+export type SpecialDay = {
+    date: string,
+    type: 'holiday' | 'recess' | 'closed' | 'optional' | 'schoolday',
+    label: string,
+    note: string,
+};
+
 /** The whole block_compass_get_strip answer. */
 export type StripPayload = {
     enabled: boolean,
@@ -264,6 +279,9 @@ export type StripPayload = {
     haslearning: boolean,
     hasteaching: boolean,
     views: {learning: StripView, teaching: StripView},
+    // Weekend days as core's mask: bit i for weekday i, 0 = Sunday.
+    weekend: number,
+    specialdays: SpecialDay[],
 };
 
 /** Core's action for an event, as the Timeline shows it. */
@@ -297,6 +315,7 @@ export type DayItem = {
     gradedsoon: boolean,
     criterion: boolean,
     lateuntil: number,
+    starred: boolean,
 };
 
 /** The whole block_compass_get_day answer. */

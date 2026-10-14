@@ -673,8 +673,9 @@ final class strip_test extends advanced_testcase {
      * cache); purge the user layers the case says, keep the shared ones warm; measure the second
      * call. Warm: inventory warm, strip entry purged. Cold: every user layer purged. Hit: nothing
      * purged. The ceiling of a rebuild is E2's 60 reads for eight courses
-     * (docs/perf/2026-10-13-bench-calendar-e2.md), pending the re-measure after the limit-0 change;
-     * the warm rebuild proves the hit's zero is a cache hit and not an empty strip.
+     * (docs/perf/2026-10-13-bench-calendar-e2.md), pending the re-measure after the limit-0 change,
+     * plus one where block_feedback_tracker is installed (its calendar's statement, ADR-014
+     * amendment 10); the warm rebuild proves the hit's zero is a cache hit and not an empty strip.
      *
      * @return void
      */
@@ -688,6 +689,7 @@ final class strip_test extends advanced_testcase {
         $userid = (int) $USER->id;
         $signin = (int) $USER->currentlogin;
         strip::get($userid, $now, $signin, $tz);
+        $ceiling = days_off::tracked() ? 61 : 60;
 
         foreach (['inventory', 'details', 'calendarstrip'] as $area) {
             cache::make('block_compass', $area)->purge();
@@ -696,7 +698,7 @@ final class strip_test extends advanced_testcase {
         $meter = budget::start();
         $cold = strip::get($userid, $now, $signin, $tz);
         $coldreads = $meter->reads();
-        $this->assertLessThanOrEqual(60, $coldreads, "The cold strip cost {$coldreads} reads; the ceiling is 60.");
+        $this->assertLessThanOrEqual($ceiling, $coldreads, "The cold strip cost {$coldreads} reads; the ceiling is {$ceiling}.");
 
         cache::make('block_compass', 'calendarstrip')->purge();
         $this->new_request();
@@ -704,7 +706,7 @@ final class strip_test extends advanced_testcase {
         $warm = strip::get($userid, $now, $signin, $tz);
         $warmreads = $meter->reads();
         $this->assertGreaterThan(0, $warmreads, 'The warm rebuild must read: the control for the hit.');
-        $this->assertLessThanOrEqual(60, $warmreads, "The warm strip cost {$warmreads} reads; the ceiling is 60.");
+        $this->assertLessThanOrEqual($ceiling, $warmreads, "The warm strip cost {$warmreads} reads; the ceiling is {$ceiling}.");
 
         $this->new_request();
         $meter = budget::start();

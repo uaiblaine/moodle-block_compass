@@ -136,6 +136,7 @@ class get_day extends external_api {
             'gradedsoon' => new external_value(PARAM_BOOL, 'Graded and due today or tomorrow'),
             'criterion' => new external_value(PARAM_BOOL, 'The activity is a completion criterion of its course'),
             'lateuntil' => new external_value(PARAM_INT, 'Cut-off date of a late item, 0 when none'),
+            'starred' => new external_value(PARAM_BOOL, 'The item\'s course is one the user starred'),
         ]);
     }
 

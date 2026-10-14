@@ -24,6 +24,7 @@
 
 namespace block_compass\external;
 
+use block_compass\local\calendar\days_off;
 use block_compass\local\calendar\strip;
 use block_compass\local\config;
 use core\context\user as context_user;
@@ -41,7 +42,9 @@ use core_external\external_value;
  * (strip::get()), and either way the web service pays the one read validate_context() costs.
  * The entry's internal sets (courses, groups, categories) never leave the server: get_day reuses
  * them. Dates in the lists are Y-m-d in the user's timezone, because an external structure
- * cannot have dynamic keys.
+ * cannot have dynamic keys. The weekend mask and the institution's marked days (ADR-014
+ * amendment 10) come from the entry raw; their labels and notes are formatted here, at response
+ * time, as names are, which reads nothing.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -102,6 +105,8 @@ class get_strip extends external_api {
                 'learning' => self::view_result($payload['views']['learning'], strip::KINDS, false),
                 'teaching' => self::view_result($payload['views']['teaching'], strip::TEACHING_KINDS, true),
             ],
+            'weekend' => (int) $payload['daysoff']['weekend'],
+            'specialdays' => days_off::export($payload['daysoff']['days']),
         ];
     }
 
@@ -124,6 +129,8 @@ class get_strip extends external_api {
             'haslearning' => false,
             'hasteaching' => false,
             'views' => ['learning' => $view, 'teaching' => $view],
+            'weekend' => 0,
+            'specialdays' => [],
         ];
     }
 
@@ -210,6 +217,16 @@ class get_strip extends external_api {
                 'learning' => self::view_structure(strip::KINDS, false),
                 'teaching' => self::view_structure(strip::TEACHING_KINDS, true),
             ]),
+            'weekend' => new external_value(PARAM_INT, 'Weekend days, bit i for weekday i, 0 = Sunday'),
+            'specialdays' => new external_multiple_structure(
+                new external_single_structure([
+                    'date' => new external_value(PARAM_ALPHANUMEXT, 'Day, Y-m-d'),
+                    'type' => new external_value(PARAM_ALPHA, 'holiday, recess, closed, optional or schoolday'),
+                    'label' => new external_value(PARAM_TEXT, 'The type in block_feedback_tracker\'s words; empty when it is gone'),
+                    'note' => new external_value(PARAM_TEXT, 'The institution\'s note, formatted, unescaped; empty for none'),
+                ]),
+                'The days the institution\'s calendar marks in the window, by date; empty without block_feedback_tracker'
+            ),
         ]);
     }
 }

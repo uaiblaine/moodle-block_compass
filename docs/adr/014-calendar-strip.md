@@ -754,6 +754,88 @@ with. The decision text above is kept as the maintainer reviewed it.
      `formatToParts()` with Latin digits and a 24-hour cycle, read as numbers and never shown
      (`calendar.ts:399`, `:425`); a zone `Intl` does not know falls back to the browser's.
 
+10. **The maintainer's review of the strip on m502 (2026-10-14), version 2026101400.** Three
+    requests: the mockup's elements not yet built, the reload control made unclickable by the strip
+    when the page title is hidden, and the contrast findings of an accessibility sweep.
+    - **Weekends, holidays and recesses: the source rule.** Two sources, never both
+      (`classes/local/calendar/days_off.php`). Without `block_feedback_tracker`, the weekend is core's
+      `calendar_weekend`, read from `$CFG` as core's week view reads it
+      (`calendar/classes/external/week_exporter.php`), with `CALENDAR_DEFAULT_WEEKEND` (65, Saturday
+      and Sunday, `calendar/lib.php`) when the setting was never saved; nothing is read from the
+      database. With the plugin installed (presence asked of `core_component` first, as
+      `grading::source()` and `theme_badges` ask), its academic calendar is the truth: its weekend
+      mask (`calendar::weekendmask()`, ISO bits, 0 = Monday, default 96), turned into core's
+      numbering (0 = Sunday), and its per-day exceptions in `{block_feedback_tracker_cday}`, read as
+      `day_rule_resolver::for_date()` reads a row: holiday, recess and closed are days off; an
+      optional row with a start and an end, end after start, is a sub-day event and leaves the day
+      unmarked; an optional row without that window is a day off; a school day travels only when it
+      falls on a weekend, whose mark it cancels. Dates are compared as calendar dates: the
+      institution's holiday on the 12th is the 12th in the user's timezone too.
+    - **Cost.** One statement over the window's dates on the table's unique `daydate` index
+      (`BETWEEN` the window's first and last day, at most `days_off::LIMIT` = 100 rows, above the
+      72 days a window spans), read when the strip's entry is built, so once per sign-in and day
+      like the rest of the entry; never `for_date()` per day, which costs one read per uncached day.
+      None at all without the plugin. The payload carries the weekend mask and only the marked days
+      (`weekend`, `specialdays`: date, type, label, note); labels (the plugin's own
+      `calendar::daytype_label()`, so the two plugins name a day alike) and notes (admin text,
+      `format_string()` in the system context, unescaped for `PARAM_TEXT`) are formatted at response
+      time from the raw row the entry keeps, which reads nothing with `filterall` off. Budgets:
+      a strip rebuild is **≤ 61 in the domain, ≤ 62 through the service, with the plugin installed**
+      (one more than amendment 5's 60 and 61, which stand without it); a hit stays at the 2-read
+      floor; `get_day` is unchanged (it never reads the calendar).
+    - **What the strip shows.** An empty weekend or day off is hatched (the mockup's `cc-off`), past
+      or not, hovered or not, in every style; the institution's days off are cross-hatched, so the
+      two differ by shape. A day holding items keeps its heat on the disc and carries the hatch on
+      its weekday label instead. The day's sentence names it ("Saturday, 17 October, weekend";
+      "Monday, 12 October, Holiday (Founders' day)"), the card's header shows a quiet chip with the
+      type and the note, and the legend lists "Weekend", and "Holiday or recess" only while such a
+      day is in view.
+    - **Residuals.** The marked days are cached with the entry: an exception the institution adds
+      during a sign-in reaches the strip at the next rebuild (TTL, a new day or a new sign-in), the
+      user-layer rule of ADR-001. A sub-day optional event is not shown at all: the strip has no
+      notion of part of a day. The note's filters run only with `filterall` on, and then cost the
+      system context's filter read on the response that formats one.
+    - **The mockup's remaining elements**: edge fades (`cc-fade`) where the arrows can still move,
+      a track marking today's place under the row (`cc-track`, the mockup's semantics: a mark only
+      while today is in the row), both hidden on a narrow block as on the mockup's phone; core's own
+      glyphs, rendered by the shell as the block's other icons are (`i/previous` and `i/next` for the
+      arrows, swapped by core's direction classes; `i/calendar` for "Open the calendar"; `i/course`,
+      the mortarboard, and `i/grades`, core's nearest to the mockup's monitor, for the two views);
+      the pulse style's danger bar for a day with late work (`cc-barover`); the needle's tooltip
+      (the legend's own string); and the "Starred course" pill on an open item of a starred course,
+      from a `starred` boolean on every `get_day` item (the inventory's favourite flag, already in
+      the entry's sets, so no read), shown only while `enable_favourites` shows the star.
+    - **Not built, on purpose.** The card's source indicator (`cc-src`) demonstrates the mockup's
+      cache model and tells a learner nothing they can act on. The Feedback tracker link
+      (`cc-ftlink`) waits for the ledger seam of amendment 9 to be used. The custom pill switch
+      stays Bootstrap's `form-switch`, as core draws every switch.
+    - **The reload control without the page title.** `hide_page_title` corners the control at the
+      page's top-right; the strip, positioned and later in the page, painted its header over it, and
+      the control took no click (measured at 588 px). The control is now stacked above the first row
+      (`z-index: 4`: above the strip's edge fades, below an open day's card) and the strip's header
+      is padded away from it like the other first rows. Pinned by a Behat step that clicks it and by
+      `accessibility_rules_test::test_the_reload_control_stays_above_the_first_row_without_the_title`.
+    - **Contrast.** The sweep (axe, wcag2a/aa/21aa/22aa and best-practice) found the block clean in
+      light mode and, in dark mode, a card's outline button and the strip's marks (dots, needle,
+      checked switch) at 1.1:1 for the theme's navy brand: Bootstrap does not move the primary in
+      dark mode. One token, `--block_compass-brand-ink`, is the primary in light mode and, in dark
+      mode, `color-mix(in oklab, primary 35%, body colour)`: 5.99:1 for that navy and 8.03:1 for
+      Boost's blue on the dark body (4.92:1 and 6.60:1 on the tertiary background), so it clears
+      4.5:1 as text and 3:1 as a mark. The calendar's accent, the plain brand token (rings and
+      outlines) in dark mode, the checked switch and the dark outline buttons go through it, and an
+      accent pill's text follows its fill. The dark override keeps the block's scope rule (html or
+      body, two selectors, never `:root` alone). Found while computing the same ratios: the third heat
+      step is a mid-tone in dark mode (3.64:1 for its dark numeral), now mixed at 80 % there (5.35:1);
+      a past or pulse day no longer paints a dark numeral on a fill it does not have; a day card's
+      outline-secondary "View" is 3.36:1 in dark mode and takes the body colour as text. In light
+      mode the header's controls draw the Reload button's border (gray-600, 4.8:1, 3.4:1 in dark)
+      instead of the hairline (1.3:1), and a disabled arrow or Today fades as core's disabled buttons
+      do (opacity 0.65, 5.76:1 for its text). The pulse style's empty-day stub (the hairline, 1.3:1)
+      stays: it is a decorative baseline inside an `aria-hidden` bar, and the day's button names the
+      count. Guards: the Behat scenario runs axe over the block in dark mode, and
+      `accessibility_rules_test::test_marks_go_through_the_dark_aware_ink` pins the pairing (axe
+      checks text, not marks).
+
 ## Consequences
 
 **Positive**

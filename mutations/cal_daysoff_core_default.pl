@@ -1,0 +1,1 @@
+s/ : CALENDAR_DEFAULT_WEEKEND;/ : 0;/;

@@ -31,7 +31,7 @@
  */
 
 import {fillObject} from './str';
-import type {CalendarFilter, CalendarKind, CalendarView, DayItem, StripDay} from './types';
+import type {CalendarFilter, CalendarKind, CalendarView, DayItem, SpecialDay, StripDay} from './types';
 
 /** One calendar day in milliseconds; exact for UTC dates. */
 const DAY_MS = 86400000;
@@ -380,6 +380,42 @@ export const dateParts = (date: string): DateParts => {
     const [year, month, day] = date.split('-').map(Number);
 
     return {year, month, day, weekday: weekdayOf(year, month, day)};
+};
+
+/**
+ * What a day is besides its items (ADR-014 amendment 10): a weekend, a day off the institution's
+ * calendar marks, or a working day; and the institution's entry for it, when there is one.
+ */
+export type DayOff = {
+    mark: '' | 'weekend' | 'holiday',
+    special: SpecialDay | null,
+};
+
+/**
+ * Whether a weekday is in a weekend mask: bit i for weekday i, 0 = Sunday, read without bitwise
+ * operators, which the lint forbids.
+ *
+ * @param {number} mask The mask, 0 to 127.
+ * @param {number} weekday 0 (Sunday) to 6.
+ * @returns {boolean} Whether the weekday is a weekend day.
+ */
+export const inWeekend = (mask: number, weekday: number): boolean => Math.floor(mask / 2 ** weekday) % 2 === 1;
+
+/**
+ * What a day is: the institution's entry wins (a holiday, a recess, a closed day or a whole-day
+ * optional one is a day off, a school day on a weekend cancels the weekend), else the weekend mask.
+ *
+ * @param {string} date Y-m-d.
+ * @param {number} mask The weekend mask the strip payload carries.
+ * @param {object|undefined} special The institution's entry for the day, if any.
+ * @returns {object} The mark and the entry.
+ */
+export const dayOff = (date: string, mask: number, special: SpecialDay | undefined): DayOff => {
+    if (special) {
+        return {mark: special.type === 'schoolday' ? '' : 'holiday', special};
+    }
+
+    return {mark: inWeekend(mask, dateParts(date).weekday) ? 'weekend' : '', special: null};
 };
 
 /** One numeric extractor per timezone: building an Intl formatter costs more than using one. */

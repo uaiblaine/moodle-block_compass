@@ -27,6 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
+use block_compass\local\calendar\days_off;
 use block_compass\local\calendar\strip;
 use block_compass\local\calendar_cache;
 use core_cache\cache;
@@ -50,6 +51,7 @@ final class get_strip_test extends advanced_testcase {
     /** @var string[] The keys the service returns at the top level, in order. */
     private const TOP_KEYS = [
         'enabled', 'firstday', 'today', 'from', 'to', 'truncated', 'bounded', 'haslearning', 'hasteaching', 'views',
+        'weekend', 'specialdays',
     ];
 
     /**
@@ -213,11 +215,58 @@ final class get_strip_test extends advanced_testcase {
         $this->assertSame([], $data['views']['learning']['days']);
         $this->assertSame([], $data['views']['teaching']['days']);
         $this->assertNull($data['views']['learning']['needle']);
+        $this->assertSame([0, []], [$data['weekend'], $data['specialdays']]);
 
         $meter = budget::start();
         get_strip::execute();
         $this->assertSame(0, $meter->reads(), 'An off calendar must cost no read.');
         $this->assertFalse(calendar_cache::get((int) $user->id), 'It must not build the entry.');
+    }
+
+    /**
+     * The weekend and the institution's marked days travel with the strip (ADR-014 amendment 10).
+     *
+     * Without block_feedback_tracker the weekend is core's calendar_weekend and no day is marked; the
+     * setting is moved off its default (Saturday and Sunday) to Sunday and Monday, so the mask read is
+     * the setting's and not a constant. With the plugin installed its calendar is the truth: its ISO
+     * mask, moved to Monday and Tuesday (ISO bits 0 and 1, core's 1 and 2: 6), and a holiday in the
+     * window whose note, admin text, comes back through format_string() (tags gone, the ampersand
+     * kept unescaped for a PARAM_TEXT field) and whose label is the plugin's own word.
+     *
+     * @return void
+     */
+    public function test_the_weekend_and_the_marked_days_travel_with_the_strip(): void {
+        global $DB;
+
+        [$user] = $this->fixture();
+        $this->setUser($user);
+        set_config('calendar_weekend', 3);
+        $today = strip::window(time(), \core_date::get_user_timezone_object())['today'];
+        if (days_off::tracked()) {
+            set_config('weekendmask', 3, 'block_feedback_tracker');
+            $DB->insert_record('block_feedback_tracker_cday', (object) [
+                'daydate' => (int) str_replace('-', '', $today),
+                'daytype' => 'holiday',
+                'note' => '<b>Founders</b> & friends',
+                'timecreated' => 1,
+                'timemodified' => 1,
+            ]);
+        }
+
+        $data = $this->call();
+
+        if (!days_off::tracked()) {
+            $this->assertSame(3, $data['weekend'], 'core\'s calendar_weekend, Sunday and Monday');
+            $this->assertSame([], $data['specialdays']);
+            return;
+        }
+        $this->assertSame(6, $data['weekend'], 'block_feedback_tracker\'s ISO Monday and Tuesday, in core\'s numbering');
+        $this->assertSame([[
+            'date' => $today,
+            'type' => 'holiday',
+            'label' => get_string('caleditor_type_holiday', 'block_feedback_tracker'),
+            'note' => 'Founders & friends',
+        ]], $data['specialdays']);
     }
 
     /**

@@ -52,7 +52,9 @@ use core_calendar\local\event\entities\action_event_interface;
  *   of the set where they are not graded, or grading work. The client offers the switch only
  *   when both hold; the teaching view's days are empty when hasteaching is false;
  * - courseids and groupids: the course set and the user's groups in it, which light the tier 1
- *   cards (decision 9).
+ *   cards (decision 9);
+ * - daysoff: the window's weekend mask and the days the institution marked off, raw
+ *   ({@see days_off::read()}; ADR-014 amendment 10), shared by both views.
  *
  * Who is a learner where is the gradebook's rule (graded_courses()): a course where the user holds
  * one of $CFG->gradebookroles is a learning course, every other course of the set a teaching
@@ -247,7 +249,9 @@ final class strip {
      * graded roles, the groups, the counted statement, the modinfo of courses with restricted
      * rows (decision 6), the course groups when grading work lies in a group-mode activity of a
      * grader without accessallgroups (grading_groups()), the grading statement when grading work is
-     * in the window, and the past through core's vault (decision 5), learning courses only.
+     * in the window, the past through core's vault (decision 5), learning courses only, and, only
+     * when block_feedback_tracker is installed, its calendar's exceptions over the window (one
+     * statement, {@see days_off::read()}).
      *
      * @param int $userid The current user.
      * @param int $now Unix time to treat as now.
@@ -303,6 +307,9 @@ final class strip {
             $past = self::past($userid, $learning, self::groups_in($groups, $learning), $window['from'], $now - 1, $tz);
         }
 
+        // Weekends and the institution's days off: one statement with block_feedback_tracker, none without.
+        $daysoff = days_off::read($window['firstday'], $window['lastday']);
+
         $views = ['learning' => [], 'teaching' => []];
         $grading = 0;
         foreach ($items as $item) {
@@ -338,6 +345,7 @@ final class strip {
             'hasteaching' => $hasteaching,
             'courseids' => $courseids,
             'groupids' => array_keys($groups),
+            'daysoff' => $daysoff,
         ];
 
         return ['payload' => $payload, 'sets' => $sets, 'stamp' => $inventory['stamp']];
