@@ -61,6 +61,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     through two pieces of state in `Block.tsx`, so neither costs a request. One Behat scenario
     (`block_compass_calendar.feature`) opens a day by focus, reads the assignment and core's
     "Add submission" action, runs axe with the card open, and closes it with Escape.
+  - **A new day re-validates the strip's sets** (MDL Shield, LOW): `day::get()` on a day miss
+    compares the entry's inventory stamp and group set with the current ones (two reads) and
+    rebuilds the entry when either differs, so a user unenrolled inside the 30 minutes is not shown
+    the course-level events of what they left, and a grader moved between groups counts the new
+    group's work (a learner's group events are re-filtered by core itself). The strip's own
+    hit stays at two reads. Residual: the strip's counts (numbers and course ids, never names) and
+    days already opened can lag an enrolment, group, hidden-course or role change until the TTL or
+    the next day opening.
 
 ### Changed
 

@@ -46,8 +46,11 @@ use PHPUnit\Framework\Attributes\CoversClass;
  *   MariaDB (moodle_page::initialise_theme_and_output(), reached because a cache miss needs core's
  *   renderer for the event exporter; the service fetches it only then); the counted statement over
  *   the day; the grading statement; the names statement; and one filter preload
- *   (filters::preload(), ADR-001's rule for every formatted name).
- * - Learning, 63 + 1: day_test's 63 plus validate_context()'s read; to be pinned from the next run.
+ *   (filters::preload(), ADR-001's rule for every formatted name). Plus the two reads of a day
+ *   miss, strip::revalidated(): the inventory stamp statement (a valid hit costs one) and the
+ *   groups statement. Total 11.
+ * - Learning, 63 + 1 + 2: day_test's 63 plus validate_context()'s read plus the same two
+ *   revalidation reads; to be pinned from the next run.
  * The service fetches the renderer itself, inside the meter, and only on a cache miss.
  * A reopened day costs the service's floor and nothing of the domain's: the per-request user
  * preferences reload and validate_context()'s context read, the two reads every Compass service pays.
@@ -116,7 +119,7 @@ final class get_day_budget_test extends advanced_testcase {
         get_day::execute($date, 'teaching');
         get_day::execute($date, 'learning');
 
-        $ceilings = ['teaching' => 9, 'learning' => 63 + 1];
+        $ceilings = ['teaching' => 9 + 2, 'learning' => 63 + 1 + 2];
         foreach ($ceilings as $view => $ceiling) {
             cache::make('block_compass', 'calendarstrip')->purge();
             $this->new_request();

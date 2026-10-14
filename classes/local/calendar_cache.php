@@ -37,6 +37,10 @@ use core_cache\cache;
  *   recorded fact that holds across web nodes, and no session id is kept;
  * - firstday and timezone: the window's first day (Y-m-d) and the timezone name it was built in;
  * - built: the instant it was built;
+ * - stamp: the inventory stamp ({@see inventory::get()}) the sets were read under. A newly opened
+ *   day compares it with the current one, and the group set with a fresh one, before it is built
+ *   ({@see calendar\strip::revalidated()}); the strip's own hit (is_fresh()) does not, so it stays
+ *   at no database read;
  * - days: the days opened during this sign-in, keyed "<view>_<Y-m-d>", so that reopening one on a
  *   later page view costs nothing.
  *
@@ -107,9 +111,19 @@ final class calendar_cache {
      * @param string $firstday The window's first day, Y-m-d.
      * @param string $timezone The timezone name.
      * @param int $built The instant it was built.
+     * @param array|null $stamp The inventory stamp the sets were read under; null never matches a
+     *     current stamp, so a day opened from such an entry rebuilds it first.
      * @return array The entry.
      */
-    public static function entry(array $payload, array $sets, int $signin, string $firstday, string $timezone, int $built): array {
+    public static function entry(
+        array $payload,
+        array $sets,
+        int $signin,
+        string $firstday,
+        string $timezone,
+        int $built,
+        ?array $stamp = null
+    ): array {
         return [
             'payload' => $payload,
             'sets' => $sets,
@@ -117,6 +131,7 @@ final class calendar_cache {
             'firstday' => $firstday,
             'timezone' => $timezone,
             'built' => $built,
+            'stamp' => $stamp,
             'days' => [],
         ];
     }

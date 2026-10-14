@@ -298,8 +298,10 @@ final class day_test extends advanced_testcase {
      * fresh request starts without it (a hit on the strip's entry never reaches hidden_courses,
      * which pays that load on a rebuild). The course entries come from the coursemeta layer the
      * strip warmed, the module contexts from the counted statement's rows. Learning day: E2's 63 reads for
-     * a six-item day is the ceiling, pending the re-measure after the limit-0 change. The second
-     * opening of each must cost 0, and the first's reads are the control that it was computed.
+     * a six-item day is the ceiling, pending the re-measure after the limit-0 change. A day miss also
+     * revalidates the entry's sets (strip::revalidated()): the inventory stamp statement (1 read on a
+     * valid hit) and the groups statement (1 read), so the ceilings are the domain's 5 and 63
+     * plus those 2. The second opening of each must cost 0, and the first's reads are the control that it was computed.
      *
      * @return void
      */
@@ -335,7 +337,7 @@ final class day_test extends advanced_testcase {
         day::get($userid, $date, 'teaching', $now, $signin, $tz, $output);
         day::get($userid, $date, 'learning', $now, $signin, $tz, $output);
 
-        $ceilings = ['teaching' => 5, 'learning' => 63];
+        $ceilings = ['teaching' => 5 + 2, 'learning' => 63 + 2];
         foreach ($ceilings as $view => $ceiling) {
             cache::make('block_compass', 'calendarstrip')->purge();
             $this->new_request();
@@ -354,6 +356,148 @@ final class day_test extends advanced_testcase {
             $this->assertSame($first, $again);
             $this->assertNotSame([], $first['items']);
         }
+    }
+
+    /**
+     * A user unenrolled inside the strip's cache entry is not shown the course events of the course.
+     *
+     * The strip is opened (the entry is built with the course in its sets) and a day of the course's
+     * events is opened first: the control that the event is listed while the user is enrolled. After
+     * core's unenrolment, a second day of the same course, never opened, is built from the entry:
+     * the inventory stamp differs, the entry is rebuilt, and the event is not listed. The course has
+     * no group, so the group comparison cannot be what rebuilt the entry.
+     *
+     * @return void
+     */
+    public function test_a_day_opened_after_unenrolment_does_not_list_the_courses_events(): void {
+        global $DB, $PAGE, $USER;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $learner = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($learner->id, $course->id, 'student');
+        $at = $now + 3 * DAYSECS;
+        $this->setUser($learner);
+        $first = $this->course_event((int) $course->id, $at);
+        $second = $this->course_event((int) $course->id, $at + DAYSECS);
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $tz = \core_date::get_user_timezone_object();
+        $userid = (int) $USER->id;
+        $signin = 1700000000;
+        strip::get($userid, $now, $signin, $tz);
+
+        $before = day::get($userid, strip::local_day($at, $tz), 'learning', $now, $signin, $tz, $output);
+        $this->assertSame([$first], array_column($before['items'], 'id'), 'Control: enrolled, the event is listed.');
+
+        $instance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'manual'], '*', MUST_EXIST);
+        enrol_get_plugin('manual')->unenrol_user($instance, $userid);
+        $this->new_request();
+        $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'learning', $now, $signin, $tz, $output);
+        $this->assertNotContains($second, array_column($after['items'], 'id'));
+        $this->assertSame([], $after['items']);
+    }
+
+    /**
+     * A user removed from a group inside the strip's cache entry is not shown the group's events.
+     *
+     * The same protocol as the unenrolment, with the enrolment untouched (the inventory stamp is the
+     * same). Core's raw strategy re-reads the user's groups itself (calendar_set_filters() in
+     * raw_event_retrieval_strategy.php), so this behaviour holds even from a stale entry; the
+     * entry's group comparison is held by the teaching test below. The course event of the second
+     * day is the control that the course is still in the sets.
+     *
+     * @return void
+     */
+    public function test_a_day_opened_after_leaving_a_group_does_not_list_the_groups_events(): void {
+        global $PAGE, $USER;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $learner = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($learner->id, $course->id, 'student');
+        $group = $gen->create_group(['courseid' => $course->id]);
+        $gen->create_group_member(['groupid' => $group->id, 'userid' => $learner->id]);
+        $at = $now + 3 * DAYSECS;
+        $this->setUser($learner);
+        $firstgroup = $this->course_event((int) $course->id, $at, (int) $group->id);
+        $secondgroup = $this->course_event((int) $course->id, $at + DAYSECS, (int) $group->id);
+        $secondcourse = $this->course_event((int) $course->id, $at + DAYSECS + HOURSECS);
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $tz = \core_date::get_user_timezone_object();
+        $userid = (int) $USER->id;
+        $signin = 1700000000;
+        strip::get($userid, $now, $signin, $tz);
+
+        $before = day::get($userid, strip::local_day($at, $tz), 'learning', $now, $signin, $tz, $output);
+        $this->assertSame([$firstgroup], array_column($before['items'], 'id'), 'Control: a member sees the group event.');
+
+        groups_remove_member($group->id, $userid);
+        $this->new_request();
+        $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'learning', $now, $signin, $tz, $output);
+        $ids = array_column($after['items'], 'id');
+        $this->assertNotContains($secondgroup, $ids);
+        $this->assertSame([$secondcourse], $ids, 'Control: the course event of the same day is still listed.');
+    }
+
+    /**
+     * A grader moved to another group inside the strip's cache entry counts the new group's work.
+     *
+     * Separate groups, a non-editing teacher (no moodle/site:accessallgroups) in group A, one
+     * submission waiting in A and two in B on each of two assignments graded on consecutive days.
+     * The first day, opened while the teacher is in A, counts one: the control. The teacher is
+     * then moved to B, which leaves the enrolment and so the inventory stamp untouched: only the
+     * comparison of the entry's group set with the user's groups can rebuild the entry, and the
+     * second day, never opened, counts B's two.
+     *
+     * @return void
+     */
+    public function test_a_grading_day_opened_after_changing_groups_counts_the_new_group(): void {
+        global $PAGE;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course(['groupmode' => SEPARATEGROUPS, 'groupmodeforce' => 1]);
+        $gen->enrol_user($teacher->id, $course->id, 'teacher');
+        $a = $gen->create_group(['courseid' => $course->id]);
+        $b = $gen->create_group(['courseid' => $course->id]);
+        $gen->create_group_member(['groupid' => $a->id, 'userid' => $teacher->id]);
+        $at = $now + 3 * DAYSECS;
+        $first = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $at]);
+        $second = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $at + DAYSECS]);
+        foreach ([$a, $b, $b] as $group) {
+            $student = $gen->create_user();
+            $gen->enrol_user($student->id, $course->id, 'student');
+            $gen->create_group_member(['groupid' => $group->id, 'userid' => $student->id]);
+            foreach ([$first, $second] as $assign) {
+                $this->submission((int) $assign->id, (int) $student->id, $now - HOURSECS);
+            }
+        }
+
+        $this->setUser($teacher);
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $tz = \core_date::get_user_timezone_object();
+        $userid = (int) $teacher->id;
+        $signin = 1700000000;
+        strip::get($userid, $now, $signin, $tz);
+
+        $before = day::get($userid, strip::local_day($at, $tz), 'teaching', $now, $signin, $tz, $output);
+        $grade = array_values(array_filter($before['items'], fn(array $item): bool => $item['kind'] === 'grade'));
+        $this->assertCount(1, $grade);
+        $this->assertSame(1, $grade[0]['action']['itemcount'], 'Control: in group A, A\'s one submission waits.');
+
+        groups_remove_member($a->id, $userid);
+        groups_add_member($b->id, $userid);
+        $this->new_request();
+        $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'teaching', $now, $signin, $tz, $output);
+        $grade = array_values(array_filter($after['items'], fn(array $item): bool => $item['kind'] === 'grade'));
+        $this->assertCount(1, $grade);
+        $this->assertSame(2, $grade[0]['action']['itemcount']);
     }
 
     /**
@@ -395,18 +539,19 @@ final class day_test extends advanced_testcase {
      *
      * @param int $courseid The course.
      * @param int $timestart When.
+     * @param int $groupid A group id for a group event, 0 for a course event.
      * @return int The event id.
      */
-    private function course_event(int $courseid, int $timestart): int {
+    private function course_event(int $courseid, int $timestart, int $groupid = 0): int {
         global $USER;
 
         $event = \calendar_event::create((object) [
             'name' => 'Day event ' . $timestart,
             'description' => '',
             'format' => FORMAT_HTML,
-            'eventtype' => 'course',
+            'eventtype' => $groupid ? 'group' : 'course',
             'courseid' => $courseid,
-            'groupid' => 0,
+            'groupid' => $groupid,
             'userid' => $USER->id,
             'modulename' => '',
             'instance' => 0,

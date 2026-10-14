@@ -127,11 +127,66 @@ final class strip {
             return $entry;
         }
 
+        return self::rebuild($userid, $now, $signin, $tz, $window['firstday']);
+    }
+
+    /**
+     * Build the entry from the database, store it whole and return it.
+     *
+     * @param int $userid The current user.
+     * @param int $now Unix time to treat as now.
+     * @param int $signin The sign-in marker, $USER->currentlogin.
+     * @param \DateTimeZone $tz The user's timezone.
+     * @param string $firstday The window's first day, Y-m-d.
+     * @return array The entry {@see calendar_cache} describes.
+     */
+    private static function rebuild(int $userid, int $now, int $signin, \DateTimeZone $tz, string $firstday): array {
         $built = self::compute($userid, $now, $tz);
-        $entry = calendar_cache::entry($built['payload'], $built['sets'], $signin, $window['firstday'], $tz->getName(), $now);
+        $entry = calendar_cache::entry(
+            $built['payload'],
+            $built['sets'],
+            $signin,
+            $firstday,
+            $tz->getName(),
+            $now,
+            $built['stamp']
+        );
         calendar_cache::set($userid, $entry);
 
         return $entry;
+    }
+
+    /**
+     * The entry a NEW day may be built from: the fresh entry, or a rebuilt one when its sets are stale.
+     *
+     * A fresh entry is trusted for TTL, but the enrolments and group memberships behind its course and
+     * group sets can change inside that time, and a day built from stale sets would list the course-level
+     * and group events of a course or group the user has left (core's api::get_events() does not check
+     * enrolment). So, only when a day is about to be built, the sets are compared with recorded facts:
+     * the inventory stamp the entry was built under against the current one (enrolments, one read on a
+     * valid inventory hit, {@see inventory::get()}), and the entry's group set against groups() over the
+     * entry's own courses (one read). Either difference rebuilds the entry whole, the path a miss takes.
+     *
+     * Residual: the strip's counts (numbers and course ids, never names) and the days already opened
+     * are served from the entry as they were until TTL or until the next day opening finds a difference;
+     * a hidden-course, completion or role change is not in the stamp or the group set and reaches the
+     * sets only at the next rebuild.
+     *
+     * @param int $userid The current user.
+     * @param array $entry A fresh entry from {@see entry()}.
+     * @param int $now Unix time to treat as now.
+     * @param int $signin The sign-in marker, $USER->currentlogin.
+     * @param \DateTimeZone $tz The user's timezone.
+     * @return array The entry to build the day from.
+     */
+    public static function revalidated(int $userid, array $entry, int $now, int $signin, \DateTimeZone $tz): array {
+        $stamp = inventory::get($userid)['stamp'];
+        $groups = self::groups($userid, array_map('intval', array_keys($entry['sets']['courses'])));
+        if (($entry['stamp'] ?? null) === $stamp && $groups == $entry['sets']['groups']) {
+            return $entry;
+        }
+
+        return self::rebuild($userid, $now, $signin, $tz, self::window($now, $tz)['firstday']);
     }
 
     /**
@@ -196,14 +251,16 @@ final class strip {
      * @param int $userid The current user.
      * @param int $now Unix time to treat as now.
      * @param \DateTimeZone $tz The user's timezone.
-     * @return array payload and sets: courses (id => isfavourite, timeaccess), learning and
+     * @return array payload, stamp (the inventory stamp the sets were read under, read before them so a
+     *     change in between shows as a difference later) and sets: courses (id => isfavourite, timeaccess), learning and
      *     teaching (course ids), groups (id => courseid, participation) and categories (ids).
      */
     public static function compute(int $userid, int $now, \DateTimeZone $tz): array {
         self::require_core();
         $window = self::window($now, $tz);
         $sources = config::calendar_sources();
-        [$courses, $bounded, $categoryids] = self::courses($userid, $now);
+        $inventory = inventory::get($userid);
+        [$courses, $bounded, $categoryids] = self::courses($userid, $now, $inventory);
         $courseids = array_map('intval', array_keys($courses));
         $learning = self::graded_courses($userid, $courseids);
         $teaching = array_values(array_diff($courseids, $learning));
@@ -282,7 +339,7 @@ final class strip {
             'groupids' => array_keys($groups),
         ];
 
-        return ['payload' => $payload, 'sets' => $sets];
+        return ['payload' => $payload, 'sets' => $sets, 'stamp' => $inventory['stamp']];
     }
 
     /**
@@ -297,13 +354,14 @@ final class strip {
      *
      * @param int $userid The user.
      * @param int $now Unix time to treat as now.
+     * @param array|null $inventory The entry from inventory::get() when the caller already holds it.
      * @return array [course id => inventory course entry, whether the set was bounded, the ids of
      *     the courses' categories and of every parent category].
      */
-    public static function courses(int $userid, int $now): array {
+    public static function courses(int $userid, int $now, ?array $inventory = null): array {
         global $DB;
 
-        $courses = inventory::courses(inventory::get($userid), $now, hidden_courses::ids($userid));
+        $courses = inventory::courses($inventory ?? inventory::get($userid), $now, hidden_courses::ids($userid));
         $paths = [];
         if ($courses) {
             // Hidden courses and courses the user has completed do not count (the maintainer,

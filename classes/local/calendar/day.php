@@ -53,7 +53,8 @@ use core_course\output\activity_icon;
  * the callbacks to learn it (decision 11).
  *
  * A day opened once in a sign-in is kept in the strip's cache entry, so reopening it costs
- * nothing (decision 8, {@see get()}).
+ * nothing (decision 8, {@see get()}). Residual: a kept day, like the strip's counts, can lag an
+ * enrolment, group, hidden-course or role change until TTL.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -73,7 +74,11 @@ final class day {
      * A day of the current user's window, from the sign-in's cache entry when it was opened before.
      *
      * The strip's entry is read (or rebuilt) first: its sets are the day's course, group and
-     * category sets, and its freshness is the day's.
+     * category sets, and its freshness is the day's. A day already in the entry is returned as it
+     * is. A day to build first re-validates the sets against the enrolment stamp and the user's
+     * groups, rebuilding the entry when either differs ({@see strip::revalidated()}), so a user
+     * who left a course or a group inside TTL is not shown its course-level and group events;
+     * that costs two reads on a day miss and none on a reopened day.
      *
      * @param int $userid The current user.
      * @param string $date The day, Y-m-d in the user's timezone.
@@ -105,6 +110,8 @@ final class day {
         if (isset($entry['days'][$key])) {
             return $entry['days'][$key];
         }
+        // A new day is built from sets checked against the enrolment stamp and the groups (two reads).
+        $entry = strip::revalidated($userid, $entry, $now, $signin, $tz);
         $day = self::build($userid, $date, $view, $entry['sets'], $now, $tz, $output instanceof \Closure ? $output() : $output);
         calendar_cache::set_day($userid, $entry, $key, $day);
 

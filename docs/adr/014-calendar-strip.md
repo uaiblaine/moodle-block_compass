@@ -642,12 +642,30 @@ with. The decision text above is kept as the maintainer reviewed it.
    first day, the timezone, the build time and the opened days, the entry keeps the sets (courses,
    learning, teaching, groups, categories; `strip.php:211-223`) so that `get_day` and the opened
    days reuse them without a read (`classes/local/calendar_cache.php:28-41`). The TTL is 30 minutes
-   (`calendar_cache.php:52`, `:90-98`). **Residual, stated plainly:** a change of role, enrolment,
-   availability or hidden state can lag by up to the TTL, because no event invalidates a user
-   entry (ADR-001's user-layer rule). A new sign-in or a new day rebuilds at once.
+   (`calendar_cache.php:52`, `:90-98`).
+   **Re-validation before a new day (MDL Shield, PR #26, LOW):** a day built from cached sets
+   could list the course events of a course the user had just left, and count a group's grading
+   work for a grader who had just left that group. Before
+   building a day that is not cached, `day::get()` now calls `strip::revalidated()`, which:
+   - compares the entry's stored inventory stamp (ADR-002, the recorded fact of enrolment
+     changes) with the current one;
+   - compares the entry's group set with a fresh read of the user's groups;
+   - rebuilds the entry, through the same path a miss takes, when either differs.
+
+   The group comparison matters for the teaching day: a grader moved between groups would
+   otherwise count the old group's submissions. A learner's group events are safe without it,
+   because core's raw strategy re-reads the user's groups (`calendar_set_filters()`).
+
+   This costs 2 reads, only on a day miss. A strip hit and a reopened day keep their 2-read floor.
+   **Residual, stated plainly:** the strip's own counts (numbers and course ids, never names), a
+   day already opened in the entry, and a change of role, hidden course or availability can lag
+   by up to the TTL, because no event invalidates a user entry (ADR-001's user-layer rule). A new
+   sign-in or a new day rebuilds at once.
 5. **Decision 10, the budgets as measured.** Every Compass service pays a floor of **2 reads**:
    the per-request user preference reload and `validate_context()`'s context
    (`tests/external/get_strip_budget_test.php:67-78`, `tests/external/get_day_budget_test.php:42-53`).
+   - A day miss now adds 2 reads for the re-validation above, so the ceilings are teaching
+     **11** through the service (7 in the domain) and learning **≤ 66** (65 in the domain).
    - `get_strip`: a hit costs **2** (`get_strip_budget_test.php:105`); cold and warm rebuilds
      **≤ 61** (E2's 60 + 1, `:92`, `:100`).
    - `get_day`: a reopened day costs **2**; a teaching day **9** on PostgreSQL through the service
@@ -809,7 +827,7 @@ events included. Nothing here observes them, under ADR-001's user-layer rule.
 
 **Phase 11 gates (2026-10-13).** Isolated 5.2 leg: PHPUnit 469 tests / 4763 assertions /
 6 skipped (the measurement tests, run with `BLOCK_COMPASS_MEASURE`); Behat 6 scenarios / 165
-steps incl. the calendar scenario with axe; mutation sweep: `mdl mutate --fast` over the 39 calendar gates (the stage 11d gates, the three visibility gates of the security read, and the repaired `page_guest_gate` and `heading_rung`) on PostgreSQL and on MariaDB: every gate reddened every test its `#   ->` line names, 39 of 39 on both families. The budgets
+steps incl. the calendar scenario with axe; mutation sweep: `mdl mutate --fast` over the 42 calendar gates (the stage 11d gates, the three visibility gates of the security read, the three re-validation gates of the MDL Shield fix, and the repaired `page_guest_gate` and `heading_rung`) on PostgreSQL and on MariaDB: every gate reddened every test its `#   ->` line names, 42 of 42 on both families. The budgets
 these runs pin are in amendment 5.
 
 ## Questions for the maintainer

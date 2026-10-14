@@ -112,8 +112,8 @@ Breaking one is a design change: stop and raise it with the maintainer.
 - **Budgets** (§6.6): `get_attention` ≤ 7 warm / 8 cold; `get_inventory` ≤ 3 / 6;
   rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses;
   `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer.
-  `get_strip` 2 on a hit, ≤ 61 cold or warm; `get_day` 2 reopened, 9 teaching (PostgreSQL),
-  ≤ 64 learning (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
+  `get_strip` 2 on a hit, ≤ 61 cold or warm; `get_day` 2 reopened, 11 teaching (PostgreSQL),
+  ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
   preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
   reset per-request state, purge the user's layers, keep the shared ones warm, measure the second
