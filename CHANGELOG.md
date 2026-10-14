@@ -4,809 +4,108 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+Each Moodle version has a branch of its own, and each branch numbers its versions in the
+namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Moodle 5.2,
+`20260420XX`; `MOODLE_503_STABLE` is Moodle 5.3, `20261005XX`. Releases are named
+`v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
+[`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
 
-### Added
+## v5.3-r1 (2026100500) - unreleased
 
-- **The calendar strip's server domain** (ADR-014, stage 11a of Phase 11), version 2026101301.
-  No service, client or Behat yet: those are stages 11b to 11d, so nothing reaches a user.
-  - `classes/local/calendar/strip.php` counts a user's calendar items per day, from ten days
-    ago to the end of next month, in two views: *learning* (courses where the user holds a
-    `gradebookroles` role) and *teaching* (every other course of the set). Past learning
-    deadlines go through core's event vault with one page (`limitnum` 0); the rest is one
-    counted statement (E1's P5): both branches join the course module, an override replaces
-    its base event (core's lowest-priority rule, checked for module events only), and the
-    admin's sources decide what is counted.
-  - The teaching view counts grading work (assignments whose *grading due* falls in the
-    window, where the user can grade, with submissions waiting) from one statement that
-    mirrors `assign::count_submissions_need_grading()`, pinned by a parity test, and shows
-    the class's deadlines as information, without module callbacks.
-  - `classes/local/calendar/day.php` returns one day's items (at most 50, with a flag) for
-    either view; a day opened once in a sign-in costs nothing the second time.
-  - A seventh cache definition, `calendarstrip` (wrapper `classes/local/calendar_cache.php`),
-    served only for the same sign-in, first day of the window and timezone, within 30 minutes;
-    dropped with the account.
-  - Five settings, off by default: `calendar_enabled`, `calendar_where`, `calendar_sources`,
-    `calendar_style`, `calendar_relevance`; a user preference, `block_compass_calendar` (view,
-    filter, relevance), read by `classes/local/calendar_preference.php` and exported by the
-    privacy provider.
-  - **Two read services for the strip** (stage 11b), version 2026101302: `block_compass_get_strip`
-    (per-day counters of both views as lists, no parameters, an empty result when
-    `calendar_enabled` is off) and `block_compass_get_day` (`date` inside the window and `view`;
-    an unknown view or a date outside the window is an invalid parameter). Both declare
-    `'readonlysession' => true`; budget tests pin the domain ceilings plus the one read of the
-    web service layer. Still no client.
-  - **The strip's client** (stage 11c), version 2026101303. Where `calendar_enabled` is on and
-    `calendar_where` names the surface (the Dashboard, the block's own page, or both), the shell
-    ships a `calendar` props object (style, the relevance default, the remembered preference,
-    core's month and day view URLs, the user's timezone and every string the strip shows, in
-    `lang/en` and `lang/pt_br`); off, it ships nothing and nothing mounts. `CalendarStrip.tsx`
-    mounts between the content head and tier 1, reserves its place with a skeleton of the same
-    shape, and asks for `get_strip` only once `get_attention` has settled. The row opens centred on
-    today (21 days, 15 for the ring style, 7 below 640 px of block width), moves a week at a time
-    within the window, and draws heat steps, today's ink disc with its halo, the accent ring for
-    graded work due today or tomorrow, the hatched empty weekend, the needle and the marks by kind
-    as dots, ring arcs or pulse bars. The Studying/Teaching switch (only for someone with both
-    kinds of course), the Everything/To do/Events filter and the relevance switch are remembered in
-    `block_compass_calendar`. `CalendarCard.tsx` opens a day on hover intent, focus or a click that
-    pins it (a dialog with a close button; Escape closes it; a bottom sheet on a narrow block) and
-    lists `get_day`'s items with core's action buttons; the days fetched are kept for the page, and
-    only the day after a pointed day is prefetched, when it holds something. Item times are
-    formatted in the browser from `timestart`, in the user's timezone; core's `formattedtime`
-    markup is not injected.
-  - **Card and strip light each other** (stage 11d), version 2026101304. Pointing at a tier 1 card
-    (hover or focus) lights the strip days whose payload `courseids` hold its course and dims the
-    others; opening a day (hover or pin) outlines the cards of the courses it holds, with an
-    outline as well as the dim so colour is never the only signal. Both come from data in memory,
-    through two pieces of state in `Block.tsx`, so neither costs a request. One Behat scenario
-    (`block_compass_calendar.feature`) opens a day by focus, reads the assignment and core's
-    "Add submission" action, runs axe with the card open, and closes it with Escape.
-  - **A new day re-validates the strip's sets** (MDL Shield, LOW): `day::get()` on a day miss
-    compares the entry's inventory stamp and group set with the current ones (two reads) and
-    rebuilds the entry when either differs, so a user unenrolled inside the 30 minutes is not shown
-    the course-level events of what they left, nor a teacher removed from a group its events on the
-    teaching day (a learner's group events are re-filtered by core itself). The strip's own
-    hit stays at two reads. Residual: the strip's counts (numbers and course ids, never names) and
-    days already opened can lag an enrolment, group, hidden-course or role change until the TTL or
-    the next day opening.
-  - **The maintainer's three answers** (ADR-014 amendment 9), version 2026101305.
-    - The grading count mirrors core's **default active group** exactly: one group or every
-      participant per assignment, as `groups_get_activity_group()` first chooses it. No group mode
-      or `moodle/site:accessallgroups` counts everyone; `SEPARATEGROUPS` counts the first of the
-      grader's groups by name, or everyone when the grader has none; `VISIBLEGROUPS` counts the
-      grader's first group, else the course's first group, else everyone. Groups are participation
-      groups inside the activity's grouping, filtered by group visibility unless the grader holds
-      `moodle/course:viewhiddengroups`. Formerly the grader's groups were summed, the grouping was
-      ignored and `VISIBLEGROUPS` counted everyone. This costs one more read, only when grading work
-      lies in a group-mode activity of a grader without `accessallgroups`. The count now goes through
-      one selection point, `grading::source()`, behind a `grading_source` interface, ready for
-      `block_feedback_tracker`'s ledger; today it returns core's counter.
-    - A day's screen-reader sentence says **"up to N"** for a count that is an upper bound (graded
-      and to-do items of the future, before their callbacks run), and the exact number once the day
-      has been opened on the page.
-    - **Month, weekday and time names come from the language file** (`cal_month_01` to
-      `cal_month_12`, `cal_weekday_0` to `_6` and their short forms, the `cal_format_*` templates,
-      `cal_am`/`cal_pm`), not from the browser's `Intl`: "October 2026" and "2:30 PM" in English
-      (12-hour, as core's `strftimetime`), "outubro de 2026" and "14:30" in Brazilian Portuguese.
-      `Intl` is kept only to read an instant's numbers in the user's timezone.
-  - **The strip's polish after the maintainer's review** (ADR-014 amendment 10), version 2026101400.
-    - **Weekends, holidays and recesses.** An empty weekend day is hatched, past or not, hovered or
-      not; a weekend day holding items keeps its heat and its weekday carries the hatch. Which days
-      are weekends is core's `calendar_weekend` (Saturday and Sunday when never saved). Where
-      `block_feedback_tracker` is installed its academic calendar is the truth instead: its weekend
-      mask, and its per-day exceptions read in one statement over the window (holiday, recess,
-      closed and a whole-day optional day are days off, cross-hatched; a school day on a weekend
-      cancels the hatch; an optional day with a window inside it stays a working day). A day's
-      screen-reader sentence and its card's header name the day ("Saturday, 17 October, weekend";
-      the plugin's own label and the institution's note), and the legend gains "Weekend", and
-      "Holiday or recess" while one is in view. `get_strip` returns `weekend` and `specialdays`;
-      a rebuild costs one more read with the plugin installed, none without it.
-    - **The mockup's remaining pieces**: edge fades where more days lie beyond the row, a track
-      marking today's place under it (both hidden on a narrow block), core's chevrons for the arrows,
-      core's calendar glyph in "Open the calendar" and the course and grades glyphs in the
-      Studying / Teaching switch, a danger-coloured pulse bar for a day with late work, the needle's
-      tooltip, and a "Starred course" pill on an open item of a starred course (`get_day` items
-      carry `starred`, from the inventory's favourite flag; the pill follows `enable_favourites`).
+First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
+the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
+`MOODLE_503_STABLE` branch.
 
 ### Changed
 
-- **The five read services run without the session lock**, version 2026101300.
-  `get_attention`, `get_inventory`, `get_inventory_rows`, `search_inventory` and
-  `get_card_details` now declare `'readonlysession' => true`, as core does for its own reads. None
-  of them writes `$SESSION`; `tests/external/readonly_session_test.php` checks this on each
-  service's fullest path, and three new mutation gates show the check would catch it.
-  - **It takes effect only on a site that sets `$CFG->enable_read_only_sessions`**, with its
-    session-mode caches mapped outside the session store.
-  - On such a site, a block read no longer queues behind the page's other requests of the same
-    session (the mail count beside first paint, a preference write beside tier 3), or they
-    behind it.
-  - Measured on m502, four simultaneous calls of one service took 4.8 to 10.7 times one call
-    before the change and 0.9 to 1.9 times after it. Method and numbers:
-    `docs/perf/2026-10-13-readonly-sessions.md`.
+- Moodle 5.3 port: see MOODLE_503_STABLE.
 
-### Fixed
+## v5.2-r1 (2026042000) - unreleased
 
-- **The reload control takes its clicks on the block's page without its title**, version
-  2026101400. With `hide_page_title` on, the control sits in the page's top-right corner, and the
-  calendar strip's header, positioned and later in the page, covered it. The control is now stacked
-  above the first row and the strip's header is padded away from it, as the other first rows are.
-- **Contrast in dark mode and on the strip's controls**, version 2026101400. A card's outline
-  button, the calendar's dots, needle and rings, and the checked relevance switch were painted with
-  the theme's primary, 1.1:1 on the dark body for a navy brand; they now take the brand's ink,
-  which dark mode mixes towards the body colour (5.99:1 for that navy, 8.03:1 for Boost's blue). A
-  day card's "View" button gets the body colour as its text in dark mode, the busiest-but-one heat
-  step mixes more warning into the dark surface so its numeral reads (5.35:1), and a past or pulse
-  day no longer paints a dark numeral on a surface it does not fill. In light mode the header's
-  arrows, Today and "Open the calendar" draw the Reload button's 4.8:1 border instead of the 1.3:1
-  hairline, and a disabled arrow or Today fades as core's disabled buttons do (0.65).
-
-- **A tier 3 row no longer moves when its details arrive**, version 2026101200. In a narrow
-  block (the block drawer) a list row wraps, and the progress skeleton that appeared while a
-  row's details were out, then vanished on a course without a progress bar, pushed the star
-  and the archive control onto another line and back: a press landing in that instant missed
-  the control. The inventory now says which rows will get progress - a new optional `comp`
-  key on the rows of `get_inventory`, `get_inventory_rows` and `search_inventory`, present and
-  true exactly when `get_card_details` will answer `hascompletion` true - and a row keeps its
-  progress slot from the first render when it says so, and has none otherwise. The rule lives
-  in one place, `cards::tracks_completion()`, shared by tier 1, the details and the rows; it
-  costs no read. A teacher's "No completion configured" still appears with the answer. This
-  was the intermittent first-pass failure of the archiving Behat scenario.
-
-- **Guests on the page**, version 2026101000. A guest who opens `/blocks/compass/index.php` is
-  redirected to the front page, as `my/index.php` does, instead of reading "No guests here!". When
-  the guest's home page is this very page the front page would redirect straight back, so that
-  case keeps the `noguest` error (`page::guest_home_is_this_page()`), including a home page
-  written as the directory (`/blocks/compass/`, with or without the slash). The web services still
-  refuse guests.
-- **QA fixes**, version 2026092406. *Clear filters* in tier 3's panel also empties the search box
-  (and is enabled while only a search is active), in the full and the paged mode; the remembered
-  toolbar never held the query, so it follows the chips as before. Counts of exactly one read in
-  the singular: *1 course* in a group header and in the live region, *1 active filter*, *1
-  enrolment application awaiting approval*, the strips' *+1 favourite* link and their link names,
-  the ghost's *other course* and the *Archive all* confirmation (new `*_one` strings, English and
-  Portuguese). The progress percentage is truncated, as the Course overview block does, so 41.67 %
-  reads 41 % in both (it was rounded to 42 %); a value already cached keeps the old number for up
-  to an hour. Every read of the block (`get_attention`, `get_inventory`, `get_inventory_rows`,
-  `search_inventory`, `get_card_details`) is retried twice, 2 s apart, after any failure before
-  the load-failure notice appears; writes are not retried.
+First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
 ### Added
 
-- **A Starts-soon strip in tier 1** (ADR-013, 2026-10-08 amendment, reversing decision D6's
-  "never in the attention strips" for tier 1), version 2026092405. A fourth strip, *Starts soon*,
-  right under *New enrolments*, lists the courses whose enrolment starts later, soonest first, capped at the strip size with a
-  *+N more* link that opens the full list on the *Scheduled* chip. Its cards take the theme
-  card's look with the *Access from {date}* pill tier 3 uses, the theme's crests when it is
-  installed, and link to the course's enrolment page; they carry no progress, star, archive
-  control or button. It is shown whenever such an enrolment exists, so a learner whose only
-  courses start later sees them there. It replaces the *N enrolments that start later* line; the
-  line for applications awaiting approval stays. The strip rides on the statement that already
-  classified these enrolments, now reading later starts first, so `get_attention` keeps its
-  budget (7 reads warm, 8 cold, plus the web service's one).
-- **The theme's institutional crests on cards** (ADR-013 decision 9), version 2026092404. With
-  the *Boost Union FUNDASEG* theme installed, the cards of the first tier and the cards and rows
-  of the full list show up to three of the course's crests, read through the theme's one public
-  callback (`course_badges`), which decides who may see them. A new setting, *Show the theme's
-  institutional badges on cards* (`show_theme_badges`), offered only while the theme is
-  installed, switches them: on for a new installation, off after an upgrade (the upgrade step
-  stores off).
+**My courses by relevance, in three tiers**
 
-- **Enrolments that start later are listed, in tier 3 only** (ADR-013, reversing ADR-000
-  decision 14 for that tier), version 2026092402. A course the learner is enrolled in from a
-  later date is a row of its category with an *Access from {date}* pill, under a new
-  *Scheduled* chip after *Awaiting approval*, with no star, progress or archive control, and
-  linking to the course's enrolment page. Tier 1 never draws it as a card: a line under *New
-  enrolments* says how many there are and opens tier 3 on the chip, and a learner whose only
-  courses start later is no longer told they are not enrolled in any course. (Superseded for
-  tier 1 by the Starts-soon strip, version 2026092405.)
-- **Applications on the waiting list are told apart.** They were already listed with the
-  applications awaiting a decision; their pill now reads *On the waiting list*.
+- *Continue where you left off*: the courses opened most recently, as full cards with image,
+  progress and a button.
+- *New enrolments*: courses enrolled in during the last `new_days` days and never opened, with
+  the enrolment method and the enrolment deadline.
+- *Starts soon*: enrolments that start later, soonest first, with an *Access from {date}* pill
+  and a link to the course's enrolment page.
+- *My favourites*: every course carrying core's course star, the same star the Course overview
+  block sets.
+- One ghost card closes the strips and counts every other course; a strip that overflows says
+  so in its heading ("+4 new") and opens the full list on the matching filter.
+- *All courses*: every course grouped by category, with a side index, a sort (category, name,
+  last opened), a search box, and a list or a cards view.
+- A filter panel with status chips (All, New, Favourites, Awaiting approval, Scheduled) and up
+  to three course custom fields chosen by the administrator.
+- Progress and the course image load only for the rows a learner can see.
+- A *Dormant* group gathers courses not opened for `dormant_months`, with an *Archive all*
+  control; an *Archived* group holds the courses removed from view.
+- Archiving is the Course overview block's own "Removed from view": a course archived in one
+  block is archived in the other.
+- Enrolment applications through *Enrolment on application* (`enrol_apply`) are listed with an
+  *Application under review* or *On the waiting list* pill, when `enable_pending` is on.
+- Learners above `inventory_max` courses get a paged list: groups load 100 courses at a time
+  and the search runs on the server.
+- The view, the sort, the chips and the open filter panel are remembered for each user.
+- "No completion configured" is said to teachers only.
+- With the Boost Union FUNDASEG theme, cards and rows show the course's institutional crests.
+- A failed read retries itself, then offers *Try again* and *Reload page*; a reload control
+  refreshes the whole block.
 
-### Changed
+**Calendar strip** (off by default)
 
-- **Cards and the block's page have a width cap.** A first-tier card is never wider than 373 px:
-  in a wide block the card grid stops short instead of stretching its cards. The block's own page
-  (`/blocks/compass/index.php`) keeps its content to 1080 px, centred.
-- **Tier 3 takes the theme's card and list look** (ADR-013 decision 8), version 2026092404: a
-  card has the theme card's 150 px cover and body measures, a list row is a framed line with the
-  image as a 56 px square at its start and the crests at 24 px. A later start and an application
-  show their cover and crests too: the details batch answers them with the image and crests only,
-  never progress, after asking `local_unlistedcourses` which rows they are.
-- **Tier 1's cards take the theme card's size** (ADR-013 decision 7), version 2026092403: a
-  150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600 and the meta line
-  at .8125rem, three tracks with a 16 px gap. The column count is the block's own (3, 2 or 1,
-  from 824 and 544 px of block width, the theme's track arithmetic) through the same
-  ResizeObserver pattern tier 3 uses, never a media query; the ghost card stretches to its
-  row's height.
-- **Compass depends on `local_unlistedcourses` (2026042003 or later)** and asks it what every
-  enrolment row means (`access::classify_enrolment()`), through one class,
-  `local\relationship`. The two predicates Compass kept of its own are gone: enrol_apply's
-  queue rule (`pending.php`, in PHP and as the SQL of the tier 1 count) and the active test
-  that dropped the enrolments that start later. The SQL active-enrolment fast path of the
-  strips is kept: it is core's `is_enrolled()` rule. A course holding a later start and an
-  application now shows as Scheduled, the provider's stronger relationship.
-- **The state of a row moves from the corner badge into a state pill**, the theme card's own:
-  *Application under review*, *On the waiting list* and *Access from {date}*, each with its icon
-  and Compass's own colour tokens. The corner badge is *New* alone.
-- **`get_attention` costs one read more**: the counts of the two notices come from a statement
-  of their own whose rows the provider classifies (7 reads with the shared layers warm, 8 fully
-  cold, plus the user-context read).
+- A row of days above the first tier, from ten days ago to the end of next month, each day
+  coloured by what it holds, on the Dashboard, the Compass page or both.
+- Relevance weighting: graded work, starred courses and work due today or tomorrow weigh more;
+  each user can switch it off.
+- Three styles: dots, a ring and pulse bars.
+- A *Studying* / *Teaching* switch for users who learn in some courses and teach in others,
+  and an *Everything* / *To do* / *Events* filter, both remembered.
+- Pointing at a day, focusing it or clicking it opens a day card with the day's items and the
+  action buttons core's Timeline offers (a bottom sheet on a narrow block).
+- The teaching view counts submissions waiting to be graded, in the group core shows the
+  grader first.
+- Weekends are hatched; with `block_feedback_tracker` installed, its academic calendar marks
+  weekends, holidays and recesses.
+- A future count that may still shrink reads "up to N" until the day is opened.
+- Month, weekday and time names come from the language pack.
+- Pointing at a first-tier card lights its days on the strip; opening a day outlines its cards.
+- Only activities the user can see are counted; hidden and completed courses are left out.
 
-### Fixed
+**The Compass page**
 
-- **Tier 3's "No completion configured" reaches the teacher.** The details batch's client mapping
-  dropped the `teacher` flag since R4, so the notice was never drawn in tier 3.
+- `/blocks/compass/index.php`, behind `enable_page`: the block alone on the theme's page,
+  offered as a start page for the site and for each user.
+- The page title can be hidden from sight (`hide_page_title`) and kept for screen readers.
 
-- **The date on a New card is labelled as the enrolment deadline.** It is the earlier of the
-  enrolment's own end and the method's last day to enrol, which read as a course deadline under
-  the old *Deadline:* / *Prazo:* label. The string `deadline` now reads *Enrolment deadline:* /
-  *Prazo de inscrição:*; the rule that picks the date is unchanged. Lang only, so no version bump.
-- **The code findings of the comment audit**, version 2026092401.
-  - **A custom-field filter works as soon as it is configured.** `coursefields` was filled with
-    the configured fields only, so a field added to `filter_fields` showed its chips and matched
-    no course until the course was edited or a custom-field event purged the layer. It is now
-    filled with every eligible field, as ADR-009's amendments already said it was.
-  - **Controls that disable themselves keep the keyboard.** The star, *Clear filters* and
-    *Archive all* are `aria-disabled` while they cannot act, never `disabled`, so the focused
-    control no longer drops focus to the page body. When *Archive all* empties the dormant
-    group, focus goes to the section title. Opening tier 3 scrolls and focuses it once per
-    press, no longer again when a paged payload lands afterwards.
-  - **A star toggled in tier 1 updates an open tier 3** — the row's star, the Favourites
-    count and the facets — with no request.
-  - **Notifications are guarded.** Every use of `core/notification` goes through one module,
-    `notify.ts`, so a failed load is never an unhandled rejection (tier 1's favourite error
-    path had no guard), and a confirmation that cannot load counts as a cancel.
-  - **With *Show favourites* off, tier 1 no longer queries the favourites strip**: one read
-    fewer per first paint.
-  - **Deleting an account drops that user's cached inventory and progress** at once, from an
-    observer of `\core\event\user_deleted` (registered on upgrade), instead of leaving them to
-    the 24 h and 1 h TTLs.
-  - **The name order is total and numbers compare by value on both sides.** Pages and search
-    hits compare collation sort keys with ties to the lower course id, so two names the
-    collator calls equal can no longer swap across a page boundary; full mode's flat list
-    (A–Z and Recent) now puts "Unit 2" before "Unit 10", as the grouped view, the pages and
-    the search already did.
-  - The client's `fill()` substitutes every `{$a}` of a string, as core's `get_string()` does
-    (no current string has two).
-  - **Dead code removed:** the unread `nodata` card field (service and client), the empty
-    `reset()` methods of three cache wrappers, the `.compass-dialogue` and `.compass-row-star`
-    selectors, and the `blocking` key of `db/tasks.php`, which 5.2 does not read.
-  - **Stronger guards.** The static rules now read `hidden={…}`, a tag to its own end past
-    the arrow functions inside it, single-quoted badge classes and a computed `className` to
-    its matching brace, each with positive controls. The busy-controls rule reads three more
-    files, and six new accessibility rules pin the other client fixes, one of them failing any
-    class the stylesheet styles and nothing renders. The completion observer's guard test can
-    now fail, the pre-warming overhead is bounded at the traced seven reads, and each new guard
-    has its mutation gate.
-  - **Web-service descriptions** in `db/services.php` say what `get_inventory` and
-    `get_card_details` return today, and no parameter description cites a design record.
+**Administration and scale**
 
-### Changed
+- Seven read-only web services that do not hold the session lock, each with a read budget
+  enforced by a test.
+- Seven application caches; a shared in-memory store (Redis) is recommended for all of them.
+- An optional nightly task pre-warms the course lists of recently active users.
+- The client is one React bundle, announced with preload hints only where the block renders.
 
-- **Code comments audited against Moodle's comment guidance**, version 2026092400. Every
-  comment in the PHP, TypeScript, Mustache, CSS, Behat and workflow sources was checked against the
-  code it describes and rewritten where it was wrong or where it carried planning history rather
-  than a fact: 141 comments that contradicted their code were corrected, and every reference to
-  ADR numbers, phases, decisions and the development environment left the source (they stay in
-  `docs/` and the git history). Comments only - the token stream of every source file is unchanged.
-  `js/esm/build` is rebuilt because the per-file outputs carry the modules' docblocks; the bundle
-  itself is byte-identical.
+### Notes
 
-### Fixed
+- Privacy: three user preferences of its own (`block_compass_view`, `block_compass_explore`,
+  `block_compass_calendar`); deleting an account drops that user's cached entries at once.
+- Accessibility: WCAG 2.2 AA, checked by axe in every Behat scenario and by static rules over
+  the client; dark mode is supported.
+- Languages: English and Brazilian Portuguese.
 
-- **The dark-mode override now follows the host wherever it writes the colour-mode attribute**,
-  version 2026091200.
-  `--block_compass-brand-text` exists because the brand on Boost's dark body is 3.02:1, under the
-  4.5:1 floor (ADR-008, decision 3); its override was anchored at `:root[data-bs-theme="dark"]`.
-  Measured on the 5.2 checkout, that anchor saw nothing at all: `theme_boost` does not listen to
-  core's `before_html_attributes` hook on 5.2 and ships no `enablecolourmodes` setting, so no core
-  theme writes the attribute on the html element on the branch this block supports. The host that
-  does write it is `theme_moove`, on `document.body` (`amd/src/darkmode.js:35`), redefining the
-  whole `--bs-*` set there - so under moove's dark mode the brand text kept its light 3.02:1 value
-  on a dark body. (The html arm is kept as the forward-looking half: on 5.3-dev `theme_boost` does
-  listen, `classes/hook_listener.php:93`.)
+### Upgrading from a development build
 
-  The block's TOKENS were never affected, and that is worth recording because it is the reason
-  this change is four selectors rather than a re-architecture: they are declared on
-  `.block_compass, .compass-dialogue`, i.e. read at the surface, which is where Bootstrap's own
-  components read `--bs-*` and why a scope anywhere above them already worked. Only the override
-  named a scope, and it named the wrong one. (The sibling family `local_dimensions` /
-  `block_dimensions` did have to move its whole block, from `:root` to `body`, for exactly this
-  reason - it declared derived tokens at the root and snapshotted the light values.)
+There is no upgrade path from the date-numbered development builds (`2026090400` to
+`2026101400`, never published): this release is a fresh install. A site that ran one of them
+sets the stored version back, then upgrades; its settings are kept:
 
-  The rule is now scoped to html-or-body and nothing deeper:
-  `body[data-bs-theme="dark"] .block_compass`, `[data-bs-theme="dark"] body .block_compass`, and
-  the same pair for `.compass-dialogue`. That keeps the guarantee the `:root` anchor was written
-  for - `theme_boost_union` sets this same attribute on its navbar alone, and a bare
-  `[data-bs-theme="dark"] .block_compass` would match through any ancestor at any depth, since CSS
-  descendant combinators have no nearest-ancestor-wins rule - while covering both places a host
-  actually writes it.
-
-  New arm `accessibility_rules_test::test_dark_override_scope_is_html_or_body` pins it, with a
-  vacuity guard so it cannot pass by examining no selector. Mutation-checked both ways: re-anchor
-  an arm at `:root` and it reddens; drop the `body` from an arm, leaving a bare attribute selector,
-  and it reddens. Verified in the browser on m502 through moove's own switch - the token resolves
-  `#0f47ad` in light and `#dee2e6` in dark.
-
-### Added
-
-- The Compass page's title can be hidden (ADR-012, amendment 4), version 2026091101. A setting
-  `hide_page_title` (off) hands the theme an empty heading — core then renders no heading element —
-  and the page renders "Compass" itself as a visually hidden `<h1>` at the top of its content, so
-  the level-one heading stays for assistive technology and the ladder under it is unchanged; the
-  reload control moves to the page's top-right corner and the first card starts 68 px higher,
-  with the theme's panel margins left alone. Measured before deciding: no WCAG 2.2 A/AA criterion
-  requires an `<h1>`, Moodle's Behat accessibility step runs no heading rule, and axe's
-  best-practice `page-has-heading-one` passes with the hidden heading and fails without it.
-  Tests: `config_test`, `page_test`, an eighteenth static accessibility rule (the hidden title
-  is hidden from sight only), scenario 5's hidden-title branch, four mutation gates.
-- Phase 10 — the client arrives in one file and is announced at the top of the body, and the
-  block gets a page of its own (ADR-011, ADR-012), version 2026091100. **One bundle.** A generic step of the
-  fleet's tooling (`moodle-dev/ci/esm-bundle.mjs`, opted into by `js/esm/bundle.json`) builds
-  `js/esm/build/bundle.js` over `Block.tsx` beside core's per-file outputs, with the same esbuild
-  options core uses minus the plugin that keeps relative imports external, and writes a manifest
-  of source hashes that `bundle_test` recomputes: a source edited without a rebundle is red on
-  every runtime leg, and `mdl ci` rebuilds the bundle into a scratch directory and compares it
-  byte for byte with the committed one. The mount point is `@moodle/lms/block_compass/bundle`;
-  25 module requests become 1 and five levels of the loader's waterfall become none. **Seven
-  `modulepreload` hints** from a `before_standard_top_of_body_html_generation` callback — the
-  top of the body and not the head, because the head hook's output precedes the import map and
-  a module preload before the map makes the browser ignore the map, measured live before the
-  hook moved — written where the block is and nowhere else: on the Dashboard only when `$PAGE->blocks->is_block_present('compass')`
-  — answered from the instances `starting_output()` loaded before the layout ran — and on the
-  block's own page always; each `href` is the import map's own loader for the ESM route plus the
-  specifier, so the hint and the loader's later request are one cache entry, and a router that
-  throws leaves the output untouched. **Two batched reads in the service**: every card's and every
-  detail's image in one `get_many` over core's `course_image` cache, reproducing the exporter's
-  conversions byte for byte, and the `uncategorised` string fetched only for a card whose category
-  is gone. **A page of its own**, `/blocks/compass/index.php`, behind the `enable_page` setting
-  (off by default): the block's shell on Boost's `base` layout — no regions, so no block drawer,
-  no sticky blocks and no "Add a block" in editing mode — in the system context under the theme's
-  own heading, rendering the same bundle; off, it redirects to the Dashboard. While it is on,
-  "Compass" is offered as a choice for *Start page for users* and in each user's own preference
-  through core's `extend_default_homepage` hook, and the site root, a login and the Home node all
-  land on it. **A third rung of the heading ladder**: the shell exports `headinglevel` — 4 under
-  core's block title, 3 with the title hidden, 2 on the page under the theme's `<h1>` — instead of
-  the `titlehidden` flag, and the static rule pins three ladders. A fifth Behat scenario opens the
-  page and makes it the start page; scenario 1 asserts the seven hints; fourteen mutation gates
-  hold the guards.
-
-### Fixed
-
-- Three things the maintainer found after Phase 9, version 2026090801. **The archived group in
-  full mode is now held and filtered like every other group**: its first open fetches the archive
-  page after page (100 rows a request) until it is all here, name-ordered and unfiltered, and the
-  chip, the field selection and the search narrow the held rows in the browser, so a query
-  nothing archived matches empties the group and clearing it brings the rows back; there is no
-  "Show more" on it in full mode any more. Its matching rows count in the announced "N courses
-  shown" and in "No course matches." once they are here; the chips' own numbers still count the
-  listed courses only. Before, the page was fetched with the toolbar of that moment as server parameters
-  and never looked at again: a search left the group empty for the rest of the page's life, and
-  a chip pressed afterwards never reached it (ADR-007, amendment 3). The header count stays the
-  server's total until the rows arrive, as ADR-007 decided. **Icon-only controls carry core's
-  `icon-no-margin`** on their glyph — the star, the archive box, the list/cards toggle and the
-  reload control — because core's `.icon` rule adds a right margin meant for a glyph before a
-  label, which pushed each glyph off centre; the Filter button keeps it, its glyph preceding a
-  word. **The accordion's chevron is `inline-flex`**, scoped to the block: core's
-  `icons-collapse-expand` rule makes the span a block-level flex box, which broke the summary
-  line and dropped the group name under the glyph. Both fixes are rules over the block's own
-  markup and stylesheet, never over core's classes, and two static rules and two mutation gates
-  hold them. Scenario 4 now searches with the archive open and clears the search.
-
-### Added
-
-- Phase 9 — UX polish, a remembered toolbar, a teacher-only notice, and resilience (ADR-010),
-  version 2026090800. Twelve decisions, most of them small and every one of them the maintainer's
-  own list. **Opening tier 3 moves the reader there**: the ghost and every heading link scroll the
-  section into view and put the keyboard on it, without easing under `prefers-reduced-motion` or
-  on a Behat site, and the ghost restores the remembered chip rather than forcing *All*. **The
-  archive control is a box** — `fa-box-archive`, and `fa-box-open` for bringing back — from the
-  plugin's own icon map, because the eye core lent it read as "open this course". **A chip that
-  would show nothing is not drawn** in full mode, the pressed one and *All* excepted, and a field
-  group whose every chip is empty vanishes with its label; paged mode keeps every chip, since no
-  count is true there yet. **The cards are a column-counted grid**: three columns without the
-  category index, two with it, one under 640 px of section width, each a class the client picks,
-  so a lone card keeps its column instead of stretching. **The star sits in the card's top-right
-  corner on a surface disc with a line border** — what keeps it at 3:1 over any course image —
-  and the *New* badge in the top-left, on both tiers' cards; **tier 3 rows and cards carry the
-  star** beside the archive control, toggling through the same core service as tier 1's, and a
-  toggle in tier 3 reloads tier 1 so the strip agrees. **The accordion's chevrons are core's own**
-  section-header pair, shown and hidden by core's `icons-collapse-expand` rule with a tighter
-  padding. **Nothing is uppercase**: the strip heading is emphasised with weight, and a static
-  rule bans `text-uppercase` and `text-transform` across the client and the stylesheet. **The
-  toolbar is remembered** — sort, chip, field selection and whether the panel is open — in a
-  second preference, `block_compass_explore`, a JSON value declared `PARAM_RAW` and validated by
-  its own reader on the way in (vocabularies, the pending chip only while the feature is on, field
-  keys as shortnames with non-negative integer values; whether a field is still configured is the
-  client's decision, when the inventory's fields arrive); written through core's own preferences
-  endpoint 500 ms after a change settles, never on mount, and exported by the privacy provider.
-  An empty selection reaches the client as `[]` whatever the shell encodes, because core's react
-  helper decodes the props associatively and encodes them again; the client normalises it on the
-  two lines that read it, and a test pins both. **"No completion configured" is said only to a viewer who
-  is not a learner of the course** — no `moodle/course:isincompletionreports` there, checked
-  without the administrator's blanket allow, on the context the cache already rebuilds, for no
-  read — and only when completion is off; a learner sees a bar or nothing, because for them the
-  absence is not a fact worth stating. The flag rides both `get_attention` and `get_card_details`.
-  **The category line on cards is a setting**, `show_category`, on unless an explicit zero is
-  stored. **Resilience**: a reload control at the content's top-right that remounts tier 3 and
-  reloads tier 1; a bounded automatic retry in the repository for reads only and transport
-  failures only — a rejection without an `errorcode`, or one made while the browser says it is
-  offline — after 1 s and 3 s plus up to 500 ms of jitter, announced as "Reconnecting… (attempt X
-  of Y)" above the strips and in tier 3's loading region, and cleared when the read settles; an
-  amber notice
-  with *Try again* and *Reload page* in every error state — tier 1, the inventory, a failed group
-  page and a failed search, the last two new (ADR-005 said tier 3 printed nothing; ADR-007 said
-  reopening was the retry) — and a retry of whatever failed when the browser comes back online.
-  Eleven mutation gates cover the guards; three static rules join the accessibility test (no
-  uppercase, the column-counted grid, the card corners); scenario 3 of the Behat feature asserts
-  a hidden empty chip, the one-column grid the block drawer measures (about 315 px, under the
-  640 px the index needs) and the focus after a heading link.
-
-- Phase 8 — complete favourites, one ghost, a filter panel, and applications awaiting approval
-  (ADR-009), version 2026090702. Four things change what tier 1 and tier 3 show, and most of it
-  is subtraction. The **favourites strip lists every favourite**, the ones already in Continue or
-  New included: the exclusivity rule of PLAN.md §2 is superseded for that strip only, because
-  favouriting is a statement the learner makes about what is theirs and the strip is where it is
-  visible — on the maintainer's own Dashboard it had never rendered, both favourites having been
-  claimed by the other two strips. The ghost arithmetic follows: `shown` counts distinct courses,
-  `favouritesmore` is the true total minus the strip's own size. **One ghost card** ends tier 1 —
-  the tier 2 card, unchanged in meaning and on the wire, moved into the last strip's grid — and
-  each strip's overflow becomes a link in its heading, "+4 new", opening tier 3 on the matching
-  chip. **An enrolment application awaiting approval** (`enrol_apply`) is a tier 3 row in its own
-  category with an "Awaiting approval" badge, no star, no archive control and no progress, linking
-  to the course's own enrolment page rather than into the course, plus one notice line under New
-  enrolments; never a card, at the maintainer's request, because approval is not guaranteed and a
-  card that can vanish breeds anxiety. The rule is `enrol_apply`'s own — not active, period still
-  open, on an `apply` instance — and **not** `status = 2`, which names only the deferred subset;
-  it costs one more integer per inventory row, `APPLYINSTANCE`, which never leaves the server, and
-  one scalar subquery beside the three aggregates of the counts statement, which adds no read and
-  leaves the other three counts provably untouched. Off by default (`enable_pending`), and forced
-  off without the plugin. **The toolbar** is a sort platter, an icon-only list/cards toggle, the
-  search box and a Filter button opening a panel of chip groups — Status first, then one group per
-  **course custom field** the administrator chose (`filter_fields`, select and checkbox types
-  visible to everyone, at most 3): one value per group, groups combine with AND, counts on the
-  chips in full mode, and the selection a parameter of the two paging services in paged mode. The
-  values live in two new caches — `coursefields`, per course, a sibling of `coursemeta` because tier
-  1 writes that layer from rows that carry no field columns, and `filterfields`, one entry for the
-  whole site — dropped by the course events and by four new `core_customfield` observers. On the
-  wire a row gains `pend` and `cf` only when they apply — omission is the zero-cost shape — and the
-  saturated 250-row response, every row an application carrying three fields, measures 34 172
-  bytes against the 40 000 ceiling, which the payload test now confirms. And, from the maintainer's
-  note on acceptance, **a course name is at most two lines**, ellipsis and all, with the whole
-  name as a tooltip. The static accessibility rules gain the clamp, the two new icon-only
-  components and the platters' named groups; Behat stays at four scenarios, the third gaining the
-  field chip and the heading link. Twenty-nine mutation gates are added, one per guard, and one is
-  retired — the strip-exclusivity gate, whose rule this phase supersedes for the favourites strip.
-
-- Phase 7, first half — the accessibility audit is a gate (ADR-008), version 2026090701.
-  The audit rides inside the scenarios that already existed rather than being written
-  down: the feature carries `@accessibility` and each of the four scenarios gains one of
-  core's own axe steps, scoped to this block with the `best-practice` extra tests, placed
-  where the most is on screen — both strips rendered, the ghost count visible, tier 3 open
-  with its index, groups and rows, and the Archived group open, because axe cannot see
-  inside a closed `details`. Core turns axe on by default and no runner in this fleet turns
-  it off, so the gate holds from this commit with nothing to configure. It was proved
-  non-vacuous before any fix was made: with the archive control stripped of its name the
-  run reddened at scenario 3 with `3 violations of rule 'button-name' found (severity:
-  critical)`, and went green again once the name was restored. Seven findings are fixed. The
-  **heading ladder** now follows the block title: under core's own `<h3>` the section
-  titles are `<h4>` and the card titles `<h5>`, and when `hide_block_title` removes that
-  `<h3>` each moves one rung up — the level is chosen in `heading.ts` from a `titlehidden`
-  prop the shell exports, a literal heading tag in a component is banned, and scenario 2 now
-  runs with the title hidden so axe measures that configuration too; every size class is
-  untouched (1.3.1). Brand-coloured **text** goes through a second token,
-  `--block_compass-brand-text`, overridden under `:root[data-bs-theme="dark"]` — the one
-  dark mechanism 5.2 has; a `.theme-dark` class is emitted by nothing in the checkout or in
-  the fleet's themes — to the body text colour, the one colour dark mode guarantees readable:
-  the brand on Boost's dark body is 3.02:1 against the 4.5:1 floor for text, and Bootstrap's
-  own dark emphasis tint of a brand is no safer — a navy brand measured 3.28:1 on the
-  development site, and the brand itself 1.10:1 — while outlines, borders and backgrounds
-  keep the plain token and clear their own 3:1 one (1.4.3). The **archive
-  control** declares a 1.5 rem minimum box, since `btn-link btn-sm p-0` computes to about
-  23 px against the 24 px minimum and axe-core 4.10.3 does not measure target size at all
-  (2.5.8). And the **group summary**, the **row link** and the **card link** state focus
-  rings of their own, instead of relying on the browser default and on an underline drawn
-  inside the link (2.4.7). Two more came from the driven pass in the browser: the **star** is
-  painted with the same text token, because Boost paints `btn-link` with the brand itself —
-  1.10:1 on a navy brand in dark mode (1.4.11) — and a **list row wraps** when its parts no
-  longer fit on one line, since at 375 px it overflowed the block by 19 px (1.4.10). `tests/local/accessibility_rules_test.php` reads what axe cannot
-  — alt attributes, positive tabindex values, `outline: none`, the names of the two
-  icon-only buttons and of the three `role="group"` toolbars, the ladder, the token pairing
-  and the minimum box — every rule carrying the vacuity guard its sibling
-  `bootstrap_compat_test` carries, and every one of them mutation-checked by hand. Finding
-  4 of the record, focus dropped when a search is cleared, is **withdrawn**: the restore
-  only ever runs while focus is in the search input, which sits in the toolbar outside every
-  group, so no group can close on the focused element and the test could not have been made
-  non-vacuous either.
-
-- Phase 5 — dormancy and archiving (ADR-007), version 2026090603. Tier 3 gains two groups
-  that are not categories. **Dormant** gathers the courses gone quiet — no access for
-  `dormant_months` (new setting, default 12, calendar months), or never opened and enrolled
-  longer ago than that — out of their categories and into one collapsed group at the end,
-  with an **Archive all** control. It costs nothing: both inputs were already in the ten
-  integers the inventory keeps per enrolment, and ADR-000 decision 15 had put the last
-  access in the stamp for exactly this. **Archived** holds the courses the learner removed
-  from view, which tier 3 used to drop entirely; its header travels alone in both modes and
-  its rows arrive on first open, so archiving never grows the first paint or pushes a
-  tidy-up into paged mode. Every row and card carries an archive control, and the archive
-  is the Course overview block's own `block_myoverview_hidden_course_*` preference, written
-  through core's preferences endpoint in batches of 50 (and brought back one at a time
-  through the single-preference route, because a `null` in the batch route is a 500 —
-  measured) — a course archived here disappears
-  from the native My courses, and one removed from view there appears under Archived here.
-  A failed batch stops and reloads rather than retrying, because the endpoint abandons the
-  rest of a batch on its first bad item and a retry would write over a state it no longer
-  knows; every archive action reloads tier 1 as well, because the strips and the ghost
-  counts are the server's decision. The row gains a sixth key, `dorm`, in all three tier 3
-  services. The Behat budget rises to four: the fourth scenario archives in Compass and
-  finds the course under the Course overview block's own "Removed from view" filter, which
-  is what proves the row is core's.
-
-### Changed
-
-- Phase 7, second half — the documentation for the first release (ADR-008). The README
-  gains a **Sizing** section built only from numbers already measured, each naming where
-  and when: what one cached inventory occupies (40.9 KB at 300 enrolments, 272 KB at
-  2 000, 408 KB at 3 000 on a default store, and 18.4 / 122 / 183 KB with igbinary,
-  `docs/perf/2026-09-04-bench-postgres17.md`), the database time behind a first paint
-  (under 6 ms for an ordinary user, about 140 ms for the heaviest user measured, on
-  PostgreSQL 17 with 1 075 000 enrolment rows), the per-endpoint read and payload budgets
-  the tests enforce, what a page and a search cost in paged mode, and the plan's own
-  dimensioning scenario named as a scenario rather than as a measurement. It gains a
-  **Redis walk-through** in the admin UI's own words — *Add instance* on the Redis store,
-  *Server(s)*, *Key prefix*, *Use serializer*, then *Edit mappings* on each of the four
-  definitions or the store set under *Stores used when no mapping is present* — an
-  **Accessibility** section stating the bar, the gate and what neither reaches (a real
-  screen reader, forced-colors mode), a **Testing** section (265 tests over 25 files, four
-  Behat scenarios each carrying the axe step, 52 mutation gates, the PHP × database
-  matrix), and the two screenshots the plugins directory expects. What it loses is every
-  claim that had gone stale: PHP 8.2 where Moodle 5.2 requires 8.3.0
-  (`admin/environment.xml:5124`), a status frozen at Phase 3 while archiving was already
-  described two screens below it, a privacy paragraph older than R4 that still said the
-  plugin stores nothing of its own, a settings list missing `dormant_months` and
-  `default_view` entirely — naming `hide_block_title` only as "whether the block title is
-  hidden", with no default and no word of what it does to the headings — and closing on a
-  promise dormancy had already kept, and a cache-store section that never said how to
-  create the store. The lang string
-  `cachestores_desc` counted **three** definitions in both packs while `db/caches.php`
-  declares four — an administrator following it verbatim left `categorymeta` on the file
-  store, which is the degraded case the notice exists to prevent — and is corrected in
-  lockstep. `.gitattributes` loses a verification hint that could not answer the question
-  it was written for: `git check-attr export-ignore` reports `unspecified` for a file
-  inside an excluded directory, so only listing the archive proves what ships.
-  `CLAUDE.md` takes the same discipline: the 2 000-enrolment entry is the measured
-  272 KB rather than PLAN.md's 60 KB estimate, 4.5× low, which that file had been
-  repeating as fact; ADR-007 and ADR-008 join the record table; the client-side rules
-  gain the two ADR-008 added — headings come from `heading.ts` and no component writes a
-  heading tag of its own, and brand-coloured text is painted with
-  `--block_compass-brand-text`, overridden under `:root[data-bs-theme="dark"]` and never
-  under `.theme-dark`, which nothing on 5.2 emits; the Behat note records the axe step and
-  the static half beside it; and the definition of done says that a green Behat leg is now
-  also the accessibility verdict. No version bump: nothing served changes, and the release
-  commit carries the bump.
-
-- A tier 3 card inside a category group no longer prints that category, version
-  2026090602. ADR-005 has a card take its category from the enclosing group, and the flat
-  views still do — but inside the group itself that repeats the header one line above every
-  card. Found by driving the browser; no test reads a card's category, so nothing else
-  would have.
-
-### Added
-
-- Phase R4 — lazy details, the course image, and the list/cards view (ADR-005),
-  version 2026090601. A tier 3 row now gains progress, and in the cards view the course
-  image, **only once somebody can see it**: one `IntersectionObserver` per region with a
-  200 px buffer, a pending set drained on a fixed 100 ms interval into batches of at most
-  24 ids, and one request in flight at a time. A row that leaves before its id goes out is
-  dropped rather than deferred, a row whose answer arrives is unobserved so scrolling back
-  costs nothing, and rows that are never seen are never asked for — which is the phase's
-  acceptance criterion.
-  `block_compass_get_card_details` answers with `imageurl` and `hasimage` alongside the
-  progress it already returned. The image travels with the visible batch rather than with
-  the inventory because core's `course_image` datasource loops per course whatever the
-  entry point: putting it in the inventory would cost a read per course for courses nobody
-  scrolls to. Measured for one course: 1 read warm, 3 cold, the third read saved by warming
-  the batch's course contexts from the course layer first.
-  Tier 3 renders as a compact list or as cards, chosen from the toolbar and remembered in
-  the new `block_compass_view` user preference, with a new `default_view` site setting
-  behind it. Switching costs no request: the rows and their details are already held, so
-  only the rendering changes. The preference brings `lib.php` with
-  `block_compass_user_preferences()` — its `choices` vocabulary is what constrains what may
-  be stored, since `PARAM_ALPHA` alone would accept any run of letters — and turns the
-  privacy provider from a `null_provider` into a metadata plus `user_preference_provider`
-  pair, which is what core's compliance check requires of a component that stores anything.
-  Virtualisation stays deferred, as ADR-005 decided, with its revisit triggers on the
-  record.
-
-- Phase R3 — tier 3 is React, and nothing is AMD (ADR-006), version 2026090502.
-  `explore.js` (824 lines), `filter.js` and `repository.js` are deleted with their
-  build output, and so are the `explore`, `group`, `row` and `rows` templates:
-  `templates/` holds the shell alone. Tier 3 is `Explore.tsx` with `Group.tsx` and
-  `Row.tsx`, rendered **inside** the React tree — the region it used to need beside
-  it is gone from the shell, and with it the last piece of the block's DOM that code
-  outside React touched.
-  Both modes keep every behaviour ADR-004 specified: full mode filters, sorts and
-  flattens without a request; paged mode fetches a group on first open and page by
-  page, treats the chip and the sort as parameters of those fetches, and asks the
-  server to search. Sequence numbers per group and per search drop the answer to a
-  superseded request, and a page that arrives holding rows the group already has
-  replaces them rather than appending — the server restarted the group.
-  `repository.ts` is now the repository rather than a typed view of one: it reaches
-  `core/ajax` through the bridge, which with `core/notification` is the only AMD the
-  plugin still touches.
-  `filter.js` became `js/esm/src/filter.ts`, unchanged step for step — including the
-  `\u0300-\u036f` strip written as escapes, not as the literal combining marks. Its
-  PHP twin `classes/local/matcher.php` and the parity fixture that pins the two are
-  untouched; every citation of the old path now names the new one.
-
-- Phase R2 — tier 1 is React (ADR-006), version 2026090501. The block shell is now
-  a single mount point: `classes/output/block.php` exports one props object and
-  `templates/block.mustache` hands it to `block_compass/Block`, which owns the
-  loading and error states, the three strips, the cards, the ghost cards, the
-  favourite star, the empty state and the live region. `main.js`, `attention.js`
-  and `favourites.js` are deleted with their build output, and so are the
-  `card`, `cards`, `progress`, `ghost` and `tier2` templates.
-  Two things the shell now ships that a Mustache template would have fetched for
-  itself, because an ES module cannot: the language strings, since there is no
-  `core/str` for ESM, and the two star icons as server-rendered markup, since
-  there is no `pix` helper either. A string the client uses is a key in the props
-  or it does not exist.
-  `js/esm/src/repository.ts` puts types on `amd/src/repository.js` through the
-  bridge rather than reimplementing it: tier 3 is still AMD until R3, and two copies
-  of the call list is how a half-migrated client starts answering differently.
-  Tier 3's region stays a sibling of the React tree, outside it, because
-  `explore.js` writes into it directly and React would undo that on the next render.
-  The R1 compromise is gone: `Ghost` no longer reads the block root out of the DOM,
-  it takes what it needs as props.
-  `bootstrap_compat_test` gains the gate R1 recorded as owed: one shared pattern for
-  the badge attribute, and a guard proving it reads a badge in the React sources and
-  not merely somewhere — with one Mustache badge still alive in tier 3, the rule's own
-  total would have stayed non-zero while every React badge went unread.
-
-- Phase R1, the React spike — the tier 2 ghost card is a React component
-  (ADR-006), version 2026090405. `js/esm/src/Ghost.tsx` is mounted from the new
-  `templates/tier2.mustache` through core's Mustache `react` section, which
-  `block_compass/attention` renders in the browser and core's `react_autoinit`
-  mounts off its `MutationObserver`. `js/esm/build/` is committed beside it, the
-  way `amd/build/` is. The component owns its own click and hides the tier 2
-  region once tier 3 is open, so that path leaves `main.js`; the per-strip ghost
-  cards are untouched and still render `templates/ghost.mustache`.
-  `js/esm/src/amd.ts` is the one place that knows a React component cannot
-  import an AMD module — the served import map has six keys, four families, none AMD
-  — and reaches `block_compass/explore` and `core/notification` through
-  RequireJS's global, as core's own ESM reaches `window.M.cfg`.
-  The section's fallback content is deliberately not a button: it states the
-  count, which stays true, and offers no action, because a failed mount is
-  silent and there would be nothing behind it. The Behat step that clicks
-  "Explore all" is therefore also the proof that React mounted.
-  Two gates arrive with it: `js/esm/src/.eslintrc` restores the jsdoc rules core
-  applies to `amd/src` and applies to nothing under `js/esm/src`, and
-  `mdl grunt` and `mdl ci` now run `tsc --noEmit`, without which `strict: true`
-  is an editor setting. `tests/local/bootstrap_compat_test.php` scans
-  `js/esm/src` — it is the only thing in any pipeline that reads a class name.
-
-- Phase 3, scale — the `paged` mode of tier 3 (ADR-004), version 2026090404.
-  Above `inventory_max` (default 250) `block_compass_get_inventory` answers
-  `mode: paged` with every group's `id`, `name` and `count` and its `courses`
-  empty; the mode is derived at response time from the same validated
-  inventory entry full mode reads — `total > inventory_max` — so paged mode
-  adds no SQL to `classes/local/` and its per-request budget is full mode's.
-  Two read-only services page and search that entry:
-  `block_compass_get_inventory_rows` (one group, 100 rows a page by cursor,
-  `chip` and `sort` as parameters, the whole group ordered on the raw course
-  name with `core_collator` so that only the shipped names are formatted, a
-  vanished cursor restarting the group) and `block_compass_search_inventory`
-  (up to 50 hits by course name, never the shortname, each with its `groupid`;
-  a query under two characters is not searched). The search runs in PHP with
-  exactly the client's rule: `classes/local/matcher.php` mirrors `filter.js`'s
-  `normalise()` and `matches()` step for step — NFD through `Normalizer`, strip
-  the combining marks, lower-case, trim; every word of the query a substring of
-  the name — pinned by a parity fixture shared with the JavaScript rule. This
-  **supersedes ADR-000 decision 18** (a `$DB->sql_like()` search over the
-  user's enrolments), recorded there as decision 23: `sql_like()` cannot be
-  accent-insensitive on PostgreSQL and is collation-dependent on MariaDB, and
-  the bench showed the planner scanning `{course}` anyway. The client renders
-  paged groups closed with their counts, fetches a page on the first open,
-  appends rows through the new `rows` template, shows a *Show more* button
-  while there are more, refetches loaded groups on a chip or sort change (sort
-  never flattens in paged mode), and sends the search to the server after a
-  300 ms debounce, hiding the groups and the index while a query is active.
-  Setting `inventory_max`; strings `showmore`, `searchtooshort`,
-  `searchtruncated`, `loadingrows`, `pagednote`.
-- Phase 3, scale — optional pre-warming (ADR-003). The scheduled task
-  `\block_compass\task\warm_active_users` is registered in `db/tasks.php`
-  (daily at 04:00 site time, random minute), always scheduled and gated by
-  `enable_prewarm` (off by default): with the setting off it says so and
-  returns. `classes/local/prewarm.php::run()` selects the users active within
-  `prewarm_days` (default 7) by keyset on the primary key in batches of 200,
-  calls `inventory::fill()` for each — not `get()`: a valid hit does not renew
-  the TTL — and warms `coursemeta` and `categorymeta` for their courses and
-  group ancestors, never `details`, under `prewarm_budget_seconds` (default
-  600, floor 60) checked between users. Its position persists in plugin config
-  (`prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep`), so a sweep spans as
-  many nights as it needs and keeps one window from start to end. Without a
-  shared in-memory store it warms only the cron node's file cache, which the
-  README and the setting's description say. Settings `enable_prewarm`,
-  `prewarm_days`, `prewarm_budget_seconds`; string `task_warm_active_users`.
-- `docs/adr/003-prewarming.md` and `docs/adr/004-paged-mode.md`, accepted,
-  with the Phase 3 section of the PostgreSQL 17 bench behind them.
-- Phase 2, tier 3 in full mode: `block_compass_get_inventory` (every active
-  course grouped by category at the configured depth; three reads per request
-  with the user's inventory cold or on a valid hit, see the budget entry
-  below), the `inventory` cache wrapper with its seven-aggregate stamp
-  validation (no observers, no TTL reliance), the explore region (category
-  index hidden when the section itself is narrow, disclosure groups, light
-  rows, search that restores the groups' open state when cleared, sort by
-  category or as one flat list by name or by last opened, chips — all
-  toggling or reordering nodes already on the page; sort and chips are
-  `aria-pressed` toggle groups), ghost cards that open tier 3 in place,
-  settings `group_depth`, `enable_search` and `show_index`. After the Phase 2
-  review the tier 3 row travels as `id`, `name`, `opened`, `new`, `fav` (the
-  first draft's `fullname`, `lastaccess`, `isnew`, `isfavourite` put 500 rows at
-  66 KB raw against the plan's 40 KB) and the degraded-mode threshold
-  `inventory_max`, which Phase 3 implements, defaults to 250 rather than 1 500
-  (ADR-000 amendments, decisions 20–22).
-
-- The category layer of the shared cache: the `categorymeta` definition and
-  its wrapper (raw category name, path, depth and context columns, keyed by
-  category id, shared by every user — core's own `coursecatrecords` cache is
-  request-scoped, so category names would otherwise cost a read on every
-  request), with observers on `course_category_updated` (which also drops the
-  descendants' entries: a move rewrites their paths and the event cannot tell
-  a move from a rename) and `course_category_deleted`. Group and card category
-  names are formatted from it in the category's own context; a category that no
-  longer exists reads "Uncategorised". ADR-001 amended accordingly.
-- The budget protocol counts reads per request: the state core keeps only for
-  one request (the filter array, the user's preference bundle) is reset between
-  the warm-up call and the measured call, so the figures are those of a real
-  second request. The PLAN.md figures hold with the shared layers (`coursemeta`,
-  `categorymeta`) warm — `get_attention` 6, `get_inventory` 3 on a miss and on a
-  valid hit — and each cold shared layer adds one read (`get_attention` 7,
-  `get_inventory` at most 6 fully cold). The web services pay one read more
-  than the domain methods: the user context `validate_context()` asks for,
-  since the context cache starts empty every request.
-- `docs/adr/002-inventory-stamp.md`, accepted, and the PostgreSQL 17 bench
-  behind it (`docs/perf/`).
-- Phase 1, tier 1: `block_compass_get_attention` (Continue, New enrolments and
-  Favourites strips plus the ghost counts, four bounded database reads) and
-  `block_compass_get_card_details` (progress for a batch of cards, computed and
-  cached on demand); the `coursemeta` and `details` cache wrappers with their
-  observers (`db/events.php`); a one-query bulk preload of string filters so
-  course and category names format without a read per context; cards, ghost and
-  progress templates rendered client-side; the favourite star through core's
-  `core_course_set_favourite_courses`; settings `attention_max`, `new_days`,
-  `enable_favourites` and `hide_block_title`.
-- `docs/adr/001-two-layer-cache.md`, accepted: what each cache layer holds,
-  how it is filled and invalidated, and the six-read first-paint accounting.
-- Phase 0 scaffold: block shell rendered through a templatable (no data access
-  in the block class), `db/caches.php` with the three definitions of the two-layer
-  cache (`coursemeta`, `inventory`, `details`), the query budget meter
-  `classes/local/budget.php` with its tests, a null privacy provider, en and pt_br
-  language packs, admin settings page carrying the cache-store notice, CI
-  workflow (Moodle 5.02), mutation gates and coverage configuration.
-- `docs/adr/000-scope-and-baseline.md`: the decisions the plan left open,
-  settled with the maintainer before Phase 0.
-
-### Changed
-
-- `block_compass_get_inventory` may now answer `mode: paged`; its return
-  structure is unchanged (`courses` stays a required key and paged groups carry
-  an empty array), so a Phase 2 client keeps working and simply sees empty
-  groups. PLAN.md §6.6's "≤ 2 reads" for the degraded headers reads "≤ 3 with
-  the shared layers warm, plus the web-service read" in `CLAUDE.md` under the
-  per-request accounting adopted in Phase 2 — the figure is restated, not the
-  design (ADR-004; ADR-000 decision 23).
-
-### Fixed
-
-- The block showed a permanently visible, empty warning with a "Try again"
-  button on every Dashboard, from Phase 1 until now. The error region carries
-  `hidden` and is unhidden only on a failure, but it also carried `d-flex`, and
-  Bootstrap's display utilities are `!important`; Boost's own
-  `[hidden] { display: none !important; }` has the same specificity, so source
-  order decided it and the utility won. The layout moves to a plugin class
-  guarded by `:not([hidden])`, which is the general fix, and
-  `bootstrap_compat_test` now fails any element carrying both `hidden` and a
-  Bootstrap display utility. Found by opening the page: phpcs reads PHP, the
-  Mustache lint reads structure, stylelint reads the stylesheet, and Behat's
-  "I should see" never asks whether an empty span is displayed.
+```sh
+php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
+php admin/cli/upgrade.php
+```

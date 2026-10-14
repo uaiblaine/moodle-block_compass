@@ -118,7 +118,6 @@ if ($ADMIN->fulltree) {
     ));
 
     // The theme's crests: offered only while the theme is installed, the one place they come from.
-    // On for a new install; an upgrade stores off (db/upgrade.php).
     if (\block_compass\local\theme_badges::theme_installed()) {
         $settings->add(new admin_setting_configcheckbox(
             'block_compass/show_theme_badges',

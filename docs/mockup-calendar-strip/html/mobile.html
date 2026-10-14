@@ -23,6 +23,10 @@ body{margin:0}
 .day{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:600;border:0;background:transparent;color:var(--cc-text);font-family:inherit}
 .h1{background:var(--cc-h1)}.h2{background:var(--cc-h2)}.h3{background:var(--cc-h3)}.h4{background:var(--cc-h4)}
 .off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 6px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.wd.wdoff{position:relative}
+.wd.wdoff::after{content:"";position:absolute;left:-4px;right:-4px;bottom:-6px;height:5px;border-radius:2px;background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.ico.blank{background:var(--cc-surface-2)}
 .today{background:var(--cc-ink);color:var(--cc-on-ink)}
 .today.halo{box-shadow:0 0 0 2.5px var(--cc-surface),0 0 0 4.5px var(--cc-h3)}
 .sel{outline:2px solid var(--cc-accent);outline-offset:3px}
@@ -64,26 +68,27 @@ class DCLogic extends PreactComponent {}
 
 class Component extends DCLogic {
   renderVals() {
-    const d = (n, wd, cls, dots, label, needle) => ({ n: n, wd: wd, cls: 'day ' + cls, dots: dots.map((k) => 'dot ' + k), label: label, needle: !!needle });
+    // Weekday label hatched when a weekend or day off holds items; the disc hatched when it is empty
+    // (ADR-014 amendment 10). Sentences as the language file words them, "up to" until a day is loaded.
+    const d = (n, wd, cls, dots, label, needle, wdoff) => ({ n: n, wd: wd, cls: 'day ' + cls, dots: dots.map((k) => 'dot ' + k), label: label, needle: !!needle, wdCls: 'wd' + (wdoff ? ' wdoff' : '') });
     const week = [
-      d(12, 'Mon', 'past', [], 'Monday 12 October: nothing open'),
-      d(13, 'Tue', 'today halo', ['urgent', 'due', 'event'], 'Today, Tuesday 13 October: 1 graded, 1 to do, 1 event'),
-      d(14, 'Wed', 'h3 soon', ['urgent'], 'Wednesday 14 October: 1 graded, due tomorrow'),
-      d(15, 'Thu', 'h4 sel', ['graded', 'graded', 'graded', 'event'], 'Thursday 15 October: 3 graded, 1 event, open'),
-      d(16, 'Fri', 'h2', ['graded', 'due'], 'Friday 16 October: 1 graded, 1 to do'),
-      d(17, 'Sat', 'off', [], 'Saturday 17 October: nothing'),
-      d(18, 'Sun', 'h1', ['event'], 'Sunday 18 October: 1 event')
+      d(12, 'Mon', 'hol', [], 'Monday, 12 October, Holiday (Founders\u2019 Day): nothing open'),
+      d(13, 'Tue', 'today halo', ['urgent', 'due', 'event'], 'Tuesday, 13 October: up to 1 graded, due today, up to 1 to do, 1 event'),
+      d(14, 'Wed', 'h3 soon', ['urgent'], 'Wednesday, 14 October: up to 1 graded, due tomorrow'),
+      d(15, 'Thu', 'h4 sel', ['graded', 'graded', 'graded', 'event'], 'Thursday, 15 October: 3 graded, 1 event. Most relevant day ahead', true),
+      d(16, 'Fri', 'h2', ['graded', 'due'], 'Friday, 16 October: up to 1 graded, up to 1 to do'),
+      d(17, 'Sat', 'off', [], 'Saturday, 17 October, weekend: nothing open'),
+      d(18, 'Sun', 'h1', ['event'], 'Sunday, 18 October, weekend: 1 event', false, true)
     ];
-    week[0].cls = 'day';
     const FILE = 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4';
     const QUIZ = 'M7.5 4h9A3.5 3.5 0 0 1 20 7.5v9a3.5 3.5 0 0 1-3.5 3.5h-9A3.5 3.5 0 0 1 4 16.5v-9A3.5 3.5 0 0 1 7.5 4zM8.5 12.5l2.5 2.5 4.5-5';
     const PEOPLE = 'M9 4.8a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4zM3.5 19a5.5 5.5 0 0 1 11 0M17 7a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM15.8 14.3A4.5 4.5 0 0 1 21 18.6';
     const VIDEO = 'M5.5 6h8A2.5 2.5 0 0 1 16 8.5v7a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 3 15.5v-7A2.5 2.5 0 0 1 5.5 6zM16 10.5l5-3v9l-5-3';
     const items = [
-      { p: 'ico p-assess', icon: FILE, time: '23:59', course: 'Data Structures', title: 'Project milestone 2', hasBadge: true, badge: 'Counts toward completion', action: 'Add submission', actCls: 'act primary' },
-      { p: 'ico p-assess', icon: PEOPLE, time: '20:00', course: 'Ethics in Engineering', title: 'Submit the case study', hasBadge: true, badge: 'Counts toward completion', action: 'Add submission', actCls: 'act primary' },
-      { p: 'ico p-assess', icon: QUIZ, time: '08:00', course: 'Organic Chemistry II', title: 'Pre-lab quiz 4', hasBadge: true, badge: 'Graded', action: 'Attempt quiz now', actCls: 'act primary' },
-      { p: 'ico p-comm', icon: VIDEO, time: '10:00', course: 'Linear Algebra', title: 'Tutorial, group B', hasBadge: true, badge: 'Course event', action: 'Join session', actCls: 'act ghost' }
+      { p: 'ico p-assess', icon: FILE, time: '11:59 PM', course: 'DS201', title: 'Project milestone 2', badges: ['Graded', 'Counts toward completion', 'Starred course'], action: 'Add submission', actCls: 'act primary' },
+      { p: 'ico p-assess', icon: PEOPLE, time: '8:00 PM', course: 'EE110', title: 'Submit the case study', badges: ['Graded', 'Counts toward completion'], action: 'Add submission', actCls: 'act primary' },
+      { p: 'ico p-assess', icon: QUIZ, time: '8:00 AM', course: 'OC202', title: 'Pre-lab quiz 4', badges: ['Graded'], action: 'Attempt quiz now', actCls: 'act primary' },
+      { p: 'ico blank', icon: '', time: '10:00 AM', course: 'LA150', title: 'Tutorial, group B', badges: ['Event'], action: 'View', actCls: 'act ghost' }
     ];
     return { week: week, items: items };
   }
@@ -104,17 +109,17 @@ Component.prototype.render = function () {
   <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto">
     <section style="background: var(--cc-surface); border: 1px solid var(--cc-line); border-radius: 14px; padding: 14px 12px 16px">
       <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 2px 10px">
-        <button type="button" aria-label="Earlier days" disabled=${v.yes} style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--cc-line); background: var(--cc-surface); display: grid; place-items: center; opacity: .4">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+        <button type="button" aria-label="Earlier days" data-core-icon="i/previous" disabled=${v.yes} style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--cc-line); background: var(--cc-surface); display: grid; place-items: center; opacity: .65">
+          <svg width="15" height="15" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M41.4 233.4a32 32 0 0 0 0 45.3l160 160a32 32 0 0 0 45.3-45.3L109.3 256l137.4-137.4a32 32 0 0 0-45.3-45.3l-160 160z"></path></svg>
         </button>
         <span style="font-size: 17px; font-weight: 600">October 2026</span>
-        <button type="button" aria-label="Later days" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--cc-line); background: var(--cc-surface); display: grid; place-items: center">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+        <button type="button" aria-label="Later days" data-core-icon="i/next" style="width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--cc-line); background: var(--cc-surface); display: grid; place-items: center">
+          <svg width="15" height="15" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M278.6 233.4a32 32 0 0 1 0 45.3l-160 160a32 32 0 0 1-45.3-45.3L210.7 256 73.4 118.6a32 32 0 0 1 45.3-45.3l160 160z"></path></svg>
         </button>
       </div>
       <div role="group" aria-label="Show the strip for" style="display: flex; background: var(--cc-surface-2); border: 1px solid var(--cc-line); border-radius: 10px; padding: 3px; margin: 0 2px 10px">
-        <button type="button" aria-pressed="true" style="flex: 1 1 0; min-height: 40px; border: 0; border-radius: 8px; background: var(--cc-surface); font: inherit; font-size: 13.5px; font-weight: 600; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12)">Studying</button>
-        <button type="button" aria-pressed="false" style="flex: 1 1 0; min-height: 40px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px; color: var(--cc-text-2)">Teaching</button>
+        <button type="button" aria-pressed="true" style="flex: 1 1 0; min-height: 40px; border: 0; border-radius: 8px; background: var(--cc-surface); font: inherit; font-size: 13.5px; font-weight: 600; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12)" data-core-icon="i/course"><svg width="15" height="15" viewBox="0 0 640 512" fill="currentColor" aria-hidden="true" style="margin-right: 6px; vertical-align: -2px"><path d="M320 32c-8.1 0-16.1 1.4-23.7 4.1L15.8 137.4C6.3 140.9 0 149.9 0 160s6.3 19.1 15.8 22.6l57.9 20.9C57.3 229.3 48 259.8 48 291.9v28.1c0 28.4-10.8 57.7-22.3 80.8-6.5 13-13.9 25.8-22.5 37.6-3.2 4.3-4.1 9.9-2.3 15s6 8.9 11.2 10.2l64 16c4.2 1.1 8.7.3 12.4-2s6.3-6.1 7.1-10.4c8.6-42.8 4.3-81.2-2.1-108.7-3.2-14.2-7.5-28.7-13.5-42v-24.6c0-30.2 10.2-58.7 27.9-81.5 12.9-15.5 29.6-28 49.2-35.7l157-61.7c8.2-3.2 17.5.8 20.7 9s-.8 17.5-9 20.7l-157 61.7c-12.4 4.9-23.3 12.4-32.2 21.6l159.6 57.6c7.6 2.7 15.6 4.1 23.7 4.1s16.1-1.4 23.7-4.1l280.6-101c9.5-3.4 15.8-12.5 15.8-22.6s-6.3-19.1-15.8-22.6L343.7 36.1C336.1 33.4 328.1 32 320 32zM128 408c0 35.3 86 72 192 72s192-36.7 192-72l-15.3-145.4L354.5 314c-11.1 4-22.8 6-34.5 6s-23.5-2-34.5-6l-142.2-51.4z"></path></svg>Studying</button>
+        <button type="button" aria-pressed="false" style="flex: 1 1 0; min-height: 40px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13.5px; color: var(--cc-text-2)" data-core-icon="i/grades"><svg width="12" height="15" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true" style="margin-right: 6px; vertical-align: -2px"><path d="M192 0c-41.8 0-77.4 26.7-90.5 64H64C28.7 64 0 92.7 0 128v320c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V128c0-35.3-28.7-64-64-64h-37.5C269.4 26.7 233.8 0 192 0zm0 64a32 32 0 1 1 0 64 32 32 0 1 1 0-64zm113 177L177 369c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47 111-111c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"></path></svg>Teaching</button>
       </div>
       <div style="display: flex; padding-top: 4px">
         ${(v.week || []).map((d, __i0) => html`
@@ -122,7 +127,7 @@ Component.prototype.render = function () {
             <span style="height: 7px">${(d.needle) ? html`<span class="needle" style="display: block"></span>` : null}</span>
             <button type="button" class=${d.cls} aria-label=${d.label}>${d.n}</button>
             <span class="dots">${(d.dots || []).map((x, __i1) => html`<span class=${x}></span>`)}</span>
-            <span class="wd">${d.wd}</span>
+            <span class=${d.wdCls}>${d.wd}</span>
           </div>
         `)}
       </div>
@@ -147,7 +152,6 @@ Component.prototype.render = function () {
         <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; font-size: 12.5px; color: var(--cc-muted)">
           <span style="padding: 1px 8px; border-radius: 20px; background: var(--cc-surface-2); border: 1px solid var(--cc-line); font-weight: 600; color: var(--cc-text-2)">In 2 days</span>
           <span>4 items</span>
-          <span>Prefetched, no wait</span>
         </div>
       </div>
       <button type="button" aria-label="Close" style="width: 44px; height: 44px; border: 0; background: transparent; display: grid; place-items: center; color: var(--cc-muted); margin: -6px -10px 0 0">
@@ -171,7 +175,7 @@ Component.prototype.render = function () {
           <div style="min-width: 0; flex: 1 1 auto">
             <div style="font-size: 12px; color: var(--cc-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${it.time} · ${it.course}</div>
             <a href="#" style="display: block; color: var(--cc-text); font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">${it.title}</a>
-            ${(it.hasBadge) ? html`<span class="badge" style="display: inline-block; margin-top: 4px">${it.badge}</span>` : null}
+            <span style="display: flex; gap: 5px; flex-wrap: wrap; margin-top: 4px">${(it.badges || []).map((b, __i1) => html`<span class="badge">${b}</span>`)}</span>
           </div>
           <a href="#" class=${it.actCls}>${it.action}</a>
         </li>

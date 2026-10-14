@@ -44,7 +44,10 @@ declare global {
     interface Window {
         require?: RequireJs,
         /* Moodle's own page globals; see the file comment. */
-        M: {cfg: {wwwroot: string, jsrev: number}},
+        M: {
+            cfg: {wwwroot: string, jsrev: number},
+            util?: {js_pending: (key: string) => void, js_complete: (key: string) => void},
+        },
     }
 }
 

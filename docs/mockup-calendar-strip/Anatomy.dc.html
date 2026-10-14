@@ -29,6 +29,16 @@ body{margin:0}
 .day{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-size:17px;font-weight:600;color:var(--cc-text);position:relative}
 .h0{background:transparent}.h1{background:var(--cc-h1)}.h2{background:var(--cc-h2)}.h3{background:var(--cc-h3)}.h4{background:var(--cc-h4)}
 .off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 6px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.wd.wdoff,.wd.wdhol{position:relative}
+.wd.wdoff::after,.wd.wdhol::after{content:"";position:absolute;left:-4px;right:-4px;bottom:-6px;height:5px;border-radius:2px;background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.wd.wdhol::after{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 4px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.sw{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid var(--cc-line-2);vertical-align:middle}
+.bar.over{background:var(--cc-danger)}
+.notes{margin:0;padding-left:18px;font-size:13.5px;color:var(--cc-text-2);line-height:1.55;display:flex;flex-direction:column;gap:6px}
+.notes b{color:var(--cc-text);font-weight:600}
+.notes code{font-size:12.5px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:4px;padding:0 4px}
+.oos{color:var(--cc-muted)}
 .past{color:var(--cc-muted);background:var(--cc-surface-2)}
 .over{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 3.5px var(--cc-danger)}
 .today{background:var(--cc-ink);color:var(--cc-on-ink);box-shadow:0 12px 24px -10px rgba(0,0,0,.55)}
@@ -68,7 +78,7 @@ td b{color:var(--cc-text);font-weight:600}
 .tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2)}
 </style>
 </helmet>
-<div class="an" style="width: 1200px; min-height: 1240px; padding: 40px; display: flex; flex-direction: column; gap: 24px">
+<div class="an" style="width: 1200px; min-height: 1640px; padding: 40px; display: flex; flex-direction: column; gap: 24px">
 
   <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px">
     <section class="panel" style="display: flex; flex-direction: column; gap: 20px">
@@ -87,9 +97,9 @@ td b{color:var(--cc-text);font-weight:600}
         <div style="display: flex; flex-direction: column; gap: 18px; flex: 1 1 auto">
           <div class="callout"><span class="num">1</span><span><b>Needle.</b> The single most relevant day ahead in the loaded window.</span></div>
           <div class="callout"><span class="num">2</span><span><b>Heat fill.</b> Five steps of the theme's warning colour, from the relevance score.</span></div>
-          <div class="callout"><span class="num">3</span><span><b>Number.</b> Black disc only for today; hatched only for an empty weekend.</span></div>
+          <div class="callout"><span class="num">3</span><span><b>Number.</b> Black disc only for today; hatched for an empty weekend, cross-hatched for an empty holiday or recess.</span></div>
           <div class="callout"><span class="num">4</span><span><b>Dots.</b> Up to four, ordered graded, to do, late, event, done; then "+N".</span></div>
-          <div class="callout"><span class="num">5</span><span><b>Weekday.</b> Short name; today's in bold. Never uppercase.</span></div>
+          <div class="callout"><span class="num">5</span><span><b>Weekday.</b> Short name from the language file; today's in bold, never uppercase. A weekend or day off that holds items keeps its heat on the disc and carries the hatch under this label.</span></div>
         </div>
       </div>
       <table>
@@ -104,6 +114,9 @@ td b{color:var(--cc-text);font-weight:600}
           <tr><td><span class="dot grade" style="display: inline-block"></span></td><td><b>To grade</b>: submissions waiting; a ring when grading is due today or tomorrow</td><td>Grading-due event, for those who can grade</td></tr>
           <tr><td><span class="dot class" style="display: inline-block"></span></td><td><b>Class deadline</b>, for following the class; weighs little</td><td>The learners' deadline, no callback</td></tr>
           <tr><td><span class="dot done" style="display: inline-block"></span></td><td><b>Done</b>, kept as a trace</td><td>Completion or submission recorded</td></tr>
+          <tr><td colspan="3" style="color: var(--cc-muted); font-size: 12.5px; padding-top: 14px">Days off: one source, never both (ADR-014 amendment 10)</td></tr>
+          <tr><td><span class="sw off"></span></td><td><b>Weekend</b>: hatched disc when empty, a hatch under the weekday when it holds items</td><td>Core's <code>calendar_weekend</code>, or block_feedback_tracker's weekend mask</td></tr>
+          <tr><td><span class="sw hol"></span></td><td><b>Holiday or recess</b>: cross-hatched; the card shows its type and note as a chip; in the legend only while one is in view</td><td>block_feedback_tracker's academic calendar, when installed</td></tr>
         </tbody>
       </table>
     </section>
@@ -164,13 +177,13 @@ td b{color:var(--cc-text);font-weight:600}
       <p class="kicker">States</p>
       <h2 class="h">Every state a day can be in</h2>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px">
+    <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 18px 8px">
       <sc-for list="{{states}}" as="s" hint-placeholder-count="12">
         <div class="col" style="gap: 10px">
           <div class="col" style="min-height: 92px; justify-content: flex-end">
             <span class="{{s.cls}}">{{s.n}}</span>
             <span class="dots"><sc-for list="{{s.dots}}" as="x" hint-placeholder-count="2"><span class="{{x.c}}"></span></sc-for></span>
-            <span class="wd">{{s.wd}}</span>
+            <span class="{{s.wdCls}}">{{s.wd}}</span>
           </div>
           <span class="cap">{{s.cap}}</span>
         </div>
@@ -182,7 +195,7 @@ td b{color:var(--cc-text);font-weight:600}
     <div>
       <p class="kicker">Strip styles (admin setting)</p>
       <h2 class="h">Dots, ring or pulse: one data set, three readings</h2>
-      <p class="p">Same week, same request; the admin picks one. Dots is the default. Ring trades the dot row for segments around the day and needs about a third more width per day, so it shows 15 days where dots show 21. Pulse is the status-page reading, for a narrow region.</p>
+      <p class="p">Same week, same request; the admin picks one. Dots is the default. Ring trades the dot row for segments around the day and needs about a third more width per day, so it shows 15 days where dots show 21. Pulse is the status-page reading, for a narrow region; a day with late work still open draws its bar in the danger colour.</p>
     </div>
     <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px">
       <div style="display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--cc-line); border-radius: 14px; padding: 18px">
@@ -232,14 +245,44 @@ td b{color:var(--cc-text);font-weight:600}
       </div>
     </div>
   </section>
+
+  <section class="panel" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div>
+        <p class="kicker">Built after this mockup (ADR-014 amendments 9 and 10)</p>
+        <h2 class="h">What the implementation added</h2>
+      </div>
+      <ul class="notes">
+        <li><b>"Up to N".</b> The strip only bounds graded, graded-due-soon and to-do counts, so a day's sentence says "up to 2 graded" until its items have arrived; a day opened on the page reads exact numbers, and a truncated day stays bounded.</li>
+        <li><b>Dates from the language file.</b> Month and weekday names and the date and time templates (<code>cal_month_*</code>, <code>cal_weekday*</code>, <code>cal_format_*</code>); 12-hour clock in English ("2:30 PM"), 24-hour in Brazilian Portuguese. The browser computes only numbers.</li>
+        <li><b>Core's glyphs.</b> <code>i/previous</code> and <code>i/next</code> on the arrows, <code>i/course</code> (the mortarboard) for Studying, <code>i/grades</code> for Teaching, <code>i/calendar</code> on "Open the calendar".</li>
+        <li><b>Days off.</b> Weekend hatch and holiday or recess cross-hatch, with the chip on the card and the legend entries (the table above).</li>
+        <li><b>Pulse: the danger bar</b> (<code>cc-barover</code>) for a day with late work.</li>
+        <li><b>"Starred course"</b> on an open item of a starred course, only while the star is shown.</li>
+        <li><b>Dark-aware ink.</b> Marks (dots, rings, the needle, a checked switch, an outline button) mix the theme's primary 35% into the body colour in dark mode: 5.99:1 for a navy brand, 8.03:1 for Boost's blue. The third heat step is mixed at 80% there.</li>
+      </ul>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div>
+        <p class="kicker">Out of scope</p>
+        <h2 class="h">Drawn here, not built</h2>
+      </div>
+      <ul class="notes oos">
+        <li><b>The card's source indicator</b> (<code>cc-src</code>: "Loaded in 41 ms", "From memory"). It demonstrated the cache model and tells a learner nothing to act on; it is gone from the Main artboard.</li>
+        <li><b>The Feedback tracker link</b> (<code>cc-ftlink</code>) on a class deadline. It waits for the grading seam of amendment 9 to read <code>block_feedback_tracker_sub</code>; gone from the Main artboard.</li>
+        <li><b>The custom pill switch.</b> The relevance switch is Bootstrap's <code>form-switch</code>, as core draws every switch.</li>
+        <li><b>A sub-day optional event</b> of the institution's calendar is not shown: the strip has no notion of part of a day.</li>
+      </ul>
+    </div>
+  </section>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1240}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1640}}'>
 class Component extends DCLogic {
   renderVals() {
     const C = 2 * Math.PI * 27;
     const COLOR = { urgent: 'var(--cc-accent)', graded: 'var(--cc-accent)', due: 'color-mix(in oklab, var(--cc-accent) 45%, var(--cc-surface))', late: 'color-mix(in oklab, var(--cc-danger) 55%, var(--cc-surface))', event: 'var(--cc-text-2)', done: 'var(--cc-line-2)' };
-    const mk = (n, wd, cls, kinds) => {
+    const mk = (n, wd, cls, kinds, wdmark) => {
       const segN = Math.min(kinds.length, 6);
       const gap = segN > 1 ? 4 : 0;
       const seg = (i) => (i >= segN ? { color: 'transparent', dash: '0 ' + C.toFixed(2), off: '0' } : {
@@ -249,11 +292,11 @@ class Component extends DCLogic {
       });
       const lvl = (cls.match(/h(\d)/) || [0, '0'])[1];
       return {
-        n: n, wd: wd, cls: 'day ' + cls,
+        n: n, wd: wd, cls: 'day ' + cls, wdCls: 'wd' + (wdmark ? ' ' + wdmark : ''),
         dots: kinds.slice(0, 4).map((k) => ({ c: 'dot ' + k })),
         hasMore: kinds.length > 4, more: '+' + (kinds.length - 4),
         g0: seg(0), g1: seg(1), g2: seg(2), g3: seg(3), g4: seg(4), g5: seg(5),
-        barCls: 'bar h' + lvl,
+        barCls: 'bar h' + lvl + (kinds.indexOf('late') >= 0 ? ' over' : ''),
         barH: (kinds.length ? 10 + Math.min(kinds.length, 5) * 8 : 4) + 'px',
         pulseCls: 'day' + (cls.indexOf('today') >= 0 ? ' today' : '')
       };
@@ -276,10 +319,13 @@ class Component extends DCLogic {
       { n: 13, wd: 'Tue', cls: 'day today' }, { n: 14, wd: 'Wed', cls: 'day h1' }, { n: 15, wd: 'Thu', cls: 'day h4' },
       { n: 16, wd: 'Fri', cls: 'day h2' }, { n: 17, wd: 'Sat', cls: 'day off' }, { n: 18, wd: 'Sun', cls: 'day h1' }, { n: 19, wd: 'Mon', cls: 'day h1' }
     ];
-    const st = (n, wd, cls, kinds, cap) => Object.assign(mk(n, wd, cls, kinds), { cap: cap });
+    const st = (n, wd, cls, kinds, cap, wdmark) => Object.assign(mk(n, wd, cls, kinds, wdmark), { cap: cap });
     const states = [
       st(7, 'Wed', 'h0', [], 'Empty weekday'),
       st(10, 'Sat', 'off', [], 'Empty weekend'),
+      st(11, 'Sun', 'h1', ['event'], 'Weekend with items: the hatch moves under the label', 'wdoff'),
+      st(12, 'Mon', 'hol', [], 'Holiday, empty: cross-hatched'),
+      st(26, 'Mon', 'h1', ['due'], 'Recess with items: cross-hatch under the label', 'wdhol'),
       st(6, 'Tue', 'past', ['done'], 'Past, all done'),
       st(8, 'Thu', 'past h1', ['late', 'event'], 'Past, late but still open'),
       st(19, 'Mon', 'h1', ['due'], 'Light'),

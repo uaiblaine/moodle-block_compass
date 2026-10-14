@@ -25,67 +25,73 @@ body{margin:0}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px}
 </style>
 </helmet>
-<div class="st" style="width: 880px; min-height: 900px; padding: 36px 44px">
+<div class="st" style="width: 880px; min-height: 1000px; padding: 36px 44px">
   <div style="font-size: 13px; color: var(--muted)">Site administration / Plugins / Blocks / Compass</div>
   <h1 style="margin: 8px 0 4px; font-size: 26px; font-weight: 600">Compass</h1>
   <h2 style="margin: 22px 0 0; font-size: 18px; font-weight: 600">Calendar strip</h2>
-  <p style="margin: 6px 0 4px; font-size: 13.5px; color: var(--text-2)">A row of days above the attention tier. The strip costs one request when the block loads; a day's details load only when someone points at it.</p>
+  <p style="margin: 6px 0 4px; font-size: 13.5px; color: var(--text-2)">A row of days above the first tier, from a few days ago to the end of next month, weighed by what each day holds. Pointing at a day lists its items with the actions the Timeline offers.</p>
 
   <div class="row">
     <div><div class="lab"><label for="s-en">Show the calendar strip</label></div><div class="key">block_compass | calendar_enabled</div></div>
     <div>
-      <label class="chk"><input id="s-en" type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Show it</label>
-      <div class="desc">Off by default. Turned off, the block makes no calendar request at all.</div>
-      <div class="def">Default: No</div>
+      <label class="chk"><input id="s-en" type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Default: No</label>
+      <div class="desc">When off, the strip costs nothing: no request, no query.</div>
     </div>
   </div>
 
   <div class="row">
-    <div><div class="lab"><label for="s-where">Where it shows</label></div><div class="key">block_compass | calendar_where</div></div>
+    <div><div class="lab"><label for="s-where">Where the strip shows</label></div><div class="key">block_compass | calendar_where</div></div>
     <div>
-      <select id="s-where" class="sel"><option selected="{{yes}}">Dashboard and the block's page</option><option>Dashboard only</option><option>The block's page only</option></select>
-      <div class="desc">The strip runs from the days before today that fill the row to the end of next month. A wider range is the calendar's job, linked from the strip.</div>
-      <div class="def">Default: Dashboard and the block's page</div>
+      <select id="s-where" class="sel"><option selected="{{yes}}">Dashboard and the Compass page</option><option>Dashboard only</option><option>Compass page only</option></select>
+      <div class="def">Default: Dashboard and the Compass page</div>
+      <div class="desc">The surfaces that show the calendar strip.</div>
     </div>
   </div>
 
   <div class="row">
-    <div><div class="lab">What the strip counts</div><div class="key">block_compass | calendar_sources</div></div>
+    <div><div class="lab">Calendar sources</div><div class="key">block_compass | calendar_sources</div></div>
     <div>
-      <div class="grid2">
-        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Activity deadlines</label>
-        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Course events</label>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Deadlines and grading work</label>
+        <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Course events, and the events of its activities</label>
         <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Group events</label>
         <label class="chk"><input type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Site events</label>
         <label class="chk"><input type="checkbox" readOnly="{{yes}}">Personal events</label>
         <label class="chk"><input type="checkbox" readOnly="{{yes}}">Category events</label>
       </div>
-      <div class="desc">Activity deadlines are the ones the Timeline block shows, with the same action buttons.</div>
+      <div class="def">Default: Deadlines and grading work, Course events, and the events of its activities, Group events, Site events</div>
+      <div class="desc">What the strip counts and a day lists. Deadlines are the activities with something to do, and for a teacher the submissions waiting to be graded.</div>
     </div>
   </div>
 
   <div class="row">
     <div><div class="lab"><label for="s-style">Strip style</label></div><div class="key">block_compass | calendar_style</div></div>
     <div>
-      <select id="s-style" class="sel"><option selected="{{yes}}">Dots</option><option>Ring</option><option>Pulse</option></select>
-      <div class="desc">Dots under each day, segments around it, or bars above it. Ring shows 15 days where dots show 21; pulse suits a narrow region.</div>
+      <select id="s-style" class="sel"><option selected="{{yes}}">Dots</option><option>Ring</option><option>Pulse bars</option></select>
       <div class="def">Default: Dots</div>
+      <div class="desc">How each day is drawn. The ring needs more room per day, so it shows fewer days at once.</div>
     </div>
   </div>
 
-  <div class="row" style="border-bottom: 0">
-    <div><div class="lab"><label for="s-rel">Weigh by relevance</label></div><div class="key">block_compass | calendar_relevance</div></div>
+  <div class="row">
+    <div><div class="lab"><label for="s-rel">Weigh days by relevance</label></div><div class="key">block_compass | calendar_relevance</div></div>
     <div>
-      <label class="chk"><input id="s-rel" type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Colour days by relevance</label>
-      <div class="desc">Graded activities weigh more, most of all when due today or tomorrow; so do starred and recently opened courses and completion criteria. Late work still open weighs little. Learners can switch to a plain count, and the strip remembers their choice.</div>
-      <div class="def">Default: Yes</div>
+      <label class="chk"><input id="s-rel" type="checkbox" checked="{{yes}}" readOnly="{{yes}}">Default: Yes</label>
+      <div class="desc">The starting value of each user's own switch. On, graded work, starred courses and work due today or tomorrow weigh more; off, a day's colour follows only how many items it holds.</div>
+    </div>
+  </div>
+
+  <div class="row" style="border-bottom: 0; background: #f6f7f9; border-radius: 10px; padding: 14px 16px; margin-top: 14px">
+    <div><div class="lab">Weekends, holidays and recesses</div><div class="key">no setting of its own (ADR-014 amendment 10)</div></div>
+    <div>
+      <div class="desc" style="margin-top: 0">Without block_feedback_tracker, the weekend is core's <b>calendar_weekend</b> (Site administration / Appearance / Calendar), Saturday and Sunday when never saved. With block_feedback_tracker installed, its academic calendar is the truth: its weekend mask and its holidays, recesses and closed days, read in one statement when the strip is built. Never both.</div>
     </div>
   </div>
 
   <button type="button" style="margin-top: 18px; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; font: inherit; font-size: 14px; font-weight: 600">Save changes</button>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":900}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":880,"height":1000}}'>
 class Component extends DCLogic {
   renderVals() {
     return { yes: true };
