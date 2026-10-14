@@ -29,7 +29,11 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
 }
 .cc-root.cc-dark{
   --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#99a1a9;
-  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-accent:#6cb2f2;--cc-on-accent:#0b1a29;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;
+  /* Dark-aware ink (ADR-014 amendment 10): Bootstrap keeps the primary in dark mode, so marks and accent
+     text take color-mix(primary 35%, body colour), 5.99:1 for a navy brand and 8.03:1 for Boost's blue. */
+  --cc-accent:color-mix(in oklab,#0f6cbf 35%,#eceef0);--cc-on-accent:#0b1a29;
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 80%,var(--cc-surface));
   --cc-ink:#f3f4f6;--cc-on-ink:#111417;--cc-hatch:#353b40;
   --cc-shadow:0 28px 64px -18px rgba(0,0,0,.7),0 3px 10px rgba(0,0,0,.4);
 }
@@ -112,8 +116,16 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
 .cc-h4{background:var(--cc-h4)}.cc-h4:hover{background:var(--cc-h4)}
 .cc-dark .cc-h3,.cc-dark .cc-h4{color:#1d2125}
 .cc-day.cc-off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+/* The institution's holiday or recess (block_feedback_tracker's calendar): cross-hatched, so it differs from a weekend by shape. */
+.cc-day.cc-hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 6px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.cc-wd--off,.cc-wd--hol{position:relative}
+.cc-wd--off::after,.cc-wd--hol::after{content:"";position:absolute;left:-4px;right:-4px;bottom:-6px;height:5px;border-radius:2px;background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.cc-wd--hol::after{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 4px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.cc-swatch{width:12px;height:12px;border-radius:50%;border:1px solid var(--cc-line-2);flex:none}
+.cc-swatch--off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 3px)}
+.cc-swatch--hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 3px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 3px)}
 .cc-day.cc-past{color:var(--cc-muted)}
-.cc-day.cc-past.cc-h0:not(.cc-off){background:color-mix(in oklab,var(--cc-surface-2) 70%,transparent)}
+.cc-day.cc-past.cc-h0:not(.cc-off):not(.cc-hol){background:color-mix(in oklab,var(--cc-surface-2) 70%,transparent)}
 
 .cc-day.cc-today{background:var(--cc-ink);color:var(--cc-on-ink);box-shadow:0 12px 24px -10px rgba(0,0,0,.55)}
 .cc-day.cc-today.cc-h2{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h2),0 12px 24px -10px rgba(0,0,0,.55)}
@@ -136,8 +148,6 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
 .cc-dot--class{border:1.5px solid var(--cc-text-2);border-radius:1.5px;width:7px;height:7px;opacity:.8}
 .cc-mode .cc-segbtn{display:inline-flex;align-items:center;gap:6px}
 .cc-mode svg{flex:none}
-.cc-ftlink{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;text-decoration:none;color:var(--cc-accent);margin-top:5px}
-.cc-ftlink:hover{text-decoration:underline}
 .cc-dot--done{background:var(--cc-muted);opacity:.4;width:5px;height:5px}
 .cc-more{font-size:10px;font-weight:600;color:var(--cc-muted);margin-left:1px;line-height:8px}
 .cc-wd{font-size:12.5px;color:var(--cc-muted)}
@@ -193,10 +203,7 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
 .cc-psub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--cc-muted)}
 .cc-rel{padding:1px 8px;border-radius:20px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2);font-weight:600}
 .cc-rel--today{background:var(--cc-ink);border-color:var(--cc-ink);color:var(--cc-on-ink)}
-.cc-src{display:inline-flex;align-items:center;gap:5px}
-.cc-src::before{content:"";width:6px;height:6px;border-radius:50%;background:#3aa76d}
-.cc-src--wait::before{background:var(--cc-warn);animation:cc-blink 900ms infinite}
-@keyframes cc-blink{50%{opacity:.25}}
+.cc-offchip{padding:1px 8px;border-radius:20px;border:1px dashed var(--cc-line-2);color:var(--cc-text-2)}
 .cc-x{width:32px;height:32px;border-radius:9px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--cc-muted)}
 .cc-x:hover{background:var(--cc-surface-2);color:var(--cc-text)}
 .cc-sumbar{display:flex;gap:3px;height:6px;margin:2px 18px 0}
@@ -351,24 +358,24 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
         <div class="cc-strip" onMouseEnter="{{enterWrap}}" onMouseLeave="{{leaveWrap}}" onKeyDown="{{keyWrap}}" onBlur="{{blurWrap}}">
           <div class="cc-shead">
             <div class="cc-monthnav">
-              <button type="button" class="cc-iconbtn" aria-label="Earlier days" disabled="{{atStart}}" onClick="{{prevWeek}}">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+              <button type="button" class="cc-iconbtn" aria-label="Earlier days" data-core-icon="i/previous" disabled="{{atStart}}" onClick="{{prevWeek}}">
+                <svg width="16" height="16" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M41.4 233.4a32 32 0 0 0 0 45.3l160 160a32 32 0 0 0 45.3-45.3L109.3 256l137.4-137.4a32 32 0 0 0-45.3-45.3l-160 160z"></path></svg>
               </button>
               <h3 class="cc-month" aria-live="polite">{{monthLabel}}</h3>
-              <button type="button" class="cc-iconbtn" aria-label="Later days" disabled="{{atEnd}}" onClick="{{nextWeek}}">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+              <button type="button" class="cc-iconbtn" aria-label="Later days" data-core-icon="i/next" disabled="{{atEnd}}" onClick="{{nextWeek}}">
+                <svg width="16" height="16" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M278.6 233.4a32 32 0 0 1 0 45.3l-160 160a32 32 0 0 1-45.3-45.3L210.7 256 73.4 118.6a32 32 0 0 1 45.3-45.3l160 160z"></path></svg>
               </button>
               <button type="button" class="cc-todaybtn" disabled="{{atStart}}" onClick="{{goToday}}">Today</button>
             </div>
             <div class="cc-controls">
               <sc-if value="{{hasBoth}}" hint-placeholder-val="{{true}}">
                 <div class="cc-segctl cc-mode" role="group" aria-label="Show the strip for">
-                  <button type="button" class="cc-segbtn" aria-pressed="{{mStudy}}" onClick="{{setStudy}}">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-5 9 5-9 5z"></path><path d="M7 11.5V16c0 1.5 2.5 3 5 3s5-1.5 5-3v-4.5"></path></svg>
+                  <button type="button" class="cc-segbtn" aria-pressed="{{mStudy}}" data-core-icon="i/course" onClick="{{setStudy}}">
+                    <svg width="16" height="16" viewBox="0 0 640 512" fill="currentColor" aria-hidden="true"><path d="M320 32c-8.1 0-16.1 1.4-23.7 4.1L15.8 137.4C6.3 140.9 0 149.9 0 160s6.3 19.1 15.8 22.6l57.9 20.9C57.3 229.3 48 259.8 48 291.9v28.1c0 28.4-10.8 57.7-22.3 80.8-6.5 13-13.9 25.8-22.5 37.6-3.2 4.3-4.1 9.9-2.3 15s6 8.9 11.2 10.2l64 16c4.2 1.1 8.7.3 12.4-2s6.3-6.1 7.1-10.4c8.6-42.8 4.3-81.2-2.1-108.7-3.2-14.2-7.5-28.7-13.5-42v-24.6c0-30.2 10.2-58.7 27.9-81.5 12.9-15.5 29.6-28 49.2-35.7l157-61.7c8.2-3.2 17.5.8 20.7 9s-.8 17.5-9 20.7l-157 61.7c-12.4 4.9-23.3 12.4-32.2 21.6l159.6 57.6c7.6 2.7 15.6 4.1 23.7 4.1s16.1-1.4 23.7-4.1l280.6-101c9.5-3.4 15.8-12.5 15.8-22.6s-6.3-19.1-15.8-22.6L343.7 36.1C336.1 33.4 328.1 32 320 32zM128 408c0 35.3 86 72 192 72s192-36.7 192-72l-15.3-145.4L354.5 314c-11.1 4-22.8 6-34.5 6s-23.5-2-34.5-6l-142.2-51.4z"></path></svg>
                     Studying
                   </button>
-                  <button type="button" class="cc-segbtn" aria-pressed="{{mTeach}}" onClick="{{setTeach}}">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M8 20h8M12 16v4"></path></svg>
+                  <button type="button" class="cc-segbtn" aria-pressed="{{mTeach}}" data-core-icon="i/grades" onClick="{{setTeach}}">
+                    <svg width="13" height="16" viewBox="0 0 384 512" fill="currentColor" aria-hidden="true"><path d="M192 0c-41.8 0-77.4 26.7-90.5 64H64C28.7 64 0 92.7 0 128v320c0 35.3 28.7 64 64 64h256c35.3 0 64-28.7 64-64V128c0-35.3-28.7-64-64-64h-37.5C269.4 26.7 233.8 0 192 0zm0 64a32 32 0 1 1 0 64 32 32 0 1 1 0-64zm113 177L177 369c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47 111-111c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"></path></svg>
                     Teaching
                   </button>
                 </div>
@@ -389,7 +396,7 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
               <sc-for list="{{days}}" as="d" hint-placeholder-count="21">
                 <div class="{{d.colCls}}" role="listitem">
                   <sc-if value="{{d.needle}}" hint-placeholder-val="{{false}}">
-                    <span class="cc-needle" title="The most relevant day ahead" aria-hidden="true"></span>
+                    <span class="cc-needle" title="{{needleTitle}}" aria-hidden="true"></span>
                   </sc-if>
                   <span class="cc-barbox" aria-hidden="true"><span class="{{d.barCls}}" style="height: {{d.barH}}"></span></span>
                   <button type="button" class="{{d.cls}}" aria-label="{{d.label}}" aria-expanded="{{d.showPop}}" aria-haspopup="dialog" onMouseEnter="{{d.enter}}" onFocus="{{d.focus}}" onClick="{{d.click}}">
@@ -407,7 +414,7 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
                     <sc-for list="{{d.dots}}" as="dot" hint-placeholder-count="2"><span class="{{dot.cls}}"></span></sc-for>
                     <sc-if value="{{d.hasMore}}" hint-placeholder-val="{{false}}"><span class="cc-more">{{d.more}}</span></sc-if>
                   </span>
-                  <span class="cc-wd" aria-hidden="true">{{d.wd}}</span>
+                  <span class="{{d.wdCls}}" aria-hidden="true">{{d.wd}}</span>
 
                   <sc-if value="{{d.showPop}}" hint-placeholder-val="{{false}}">
                     <div class="{{d.pop.cls}}" role="dialog" aria-label="{{d.pop.title}}">
@@ -418,7 +425,7 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
                           <div class="cc-psub">
                             <span class="{{d.pop.relCls}}">{{d.pop.rel}}</span>
                             <span>{{d.pop.countText}}</span>
-                            <span class="{{d.pop.srcCls}}">{{d.pop.src}}</span>
+                            <sc-if value="{{d.pop.hasOff}}" hint-placeholder-val="{{false}}"><span class="cc-offchip">{{d.pop.offText}}</span></sc-if>
                           </div>
                         </div>
                         <sc-if value="{{d.pop.pinned}}" hint-placeholder-val="{{false}}">
@@ -488,11 +495,6 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
                                   <sc-if value="{{it.isDone}}" hint-placeholder-val="{{false}}"><span class="cc-badge">Done</span></sc-if>
                                   <sc-if value="{{it.isEvent}}" hint-placeholder-val="{{false}}"><span class="cc-badge">{{it.eventText}}</span></sc-if>
                                 </div>
-                                <sc-if value="{{it.hasFt}}" hint-placeholder-val="{{false}}">
-                                  <a class="cc-ftlink" href="#">Submission progress in Feedback tracker
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg>
-                                  </a>
-                                </sc-if>
                               </div>
                               <a class="{{it.actCls}}" href="#">{{it.action}}</a>
                             </li>
@@ -525,6 +527,8 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
                 <span><span class="cc-dot cc-dot--event"></span>Event</span>
                 <span><span class="cc-dot cc-dot--done"></span>Done</span>
                 <span><span class="cc-needle" style="position: static; margin: 0"></span>Most relevant day ahead</span>
+                <span><span class="cc-swatch cc-swatch--off"></span>Weekend</span>
+                <sc-if value="{{holInView}}" hint-placeholder-val="{{true}}"><span><span class="cc-swatch cc-swatch--hol"></span>Holiday or recess</span></sc-if>
               </div>
             </sc-if>
             <sc-if value="{{mTeach}}" hint-placeholder-val="{{false}}">
@@ -533,6 +537,8 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
                 <span><span class="cc-dot cc-dot--class"></span>Class deadline</span>
                 <span><span class="cc-dot cc-dot--event"></span>Event</span>
                 <span><span class="cc-needle" style="position: static; margin: 0"></span>Heaviest grading day ahead</span>
+                <span><span class="cc-swatch cc-swatch--off"></span>Weekend</span>
+                <sc-if value="{{holInView}}" hint-placeholder-val="{{true}}"><span><span class="cc-swatch cc-swatch--hol"></span>Holiday or recess</span></sc-if>
               </div>
             </sc-if>
             <div class="cc-sfoot-actions">
@@ -541,8 +547,8 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
                   <span class="cc-switch-track" aria-hidden="true"></span>
                   Weigh by relevance
                 </label>
-                <a class="cc-calink" href="#">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
+                <a class="cc-calink" href="#" data-core-icon="i/calendar">
+                  <svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg>
                   Open the calendar
                 </a>
             </div>
@@ -634,7 +640,7 @@ a{color:#0f6cbf}a:hover{color:#0a4f8c}
   </main>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"stripStyle":{"editor":"enum","options":["dots","ring","pulse"],"default":"dots","section":"Strip"},"dark":{"editor":"boolean","default":false,"section":"Theme"},"showNetwork":{"editor":"boolean","default":true,"section":"Instrument"},"latency":{"editor":"range","min":0,"max":1500,"step":50,"unit":"ms","default":450,"section":"Instrument"},"feedbackTracker":{"editor":"boolean","default":true,"section":"Integration"},"$preview":{"width":1440,"height":1240}}'>
+<script type="text/x-dc" data-dc-script data-props='{"stripStyle":{"editor":"enum","options":["dots","ring","pulse"],"default":"dots","section":"Strip"},"dark":{"editor":"boolean","default":false,"section":"Theme"},"showNetwork":{"editor":"boolean","default":true,"section":"Instrument"},"latency":{"editor":"range","min":0,"max":1500,"step":50,"unit":"ms","default":450,"section":"Instrument"},"$preview":{"width":1440,"height":1240}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -680,7 +686,7 @@ class Component extends DCLogic {
       '2026-10-06': [{ c: 'oc', m: 'lesson', t: 'Lab safety lesson', time: '23:59', done: true }],
       '2026-10-08': [{ c: 'oc', m: 'assign', t: 'Lab report 3', time: '23:59', late: true, until: '20 October', g: true, comp: true }, { c: 'ds', m: 'session', t: 'Office hours', time: '14:00', ev: true }],
       '2026-10-09': [{ c: 'ee', m: 'workshop', t: 'Peer review: first case study', time: '20:00', done: true, g: true }],
-      '2026-10-12': [{ c: 'la', m: 'quiz', t: 'Weekly check 5', time: '23:59', done: true, g: true }],
+      '2026-10-11': [{ c: 'la', m: 'quiz', t: 'Weekly check 5', time: '23:59', done: true, g: true }],
       '2026-10-13': [{ c: 'ds', m: 'quiz', t: 'Quiz 4: trees and heaps', time: '23:59', g: true, comp: true }, { c: 'ee', m: 'forum', t: 'Week 6 discussion', time: '18:00' }, { c: 'ds', m: 'session', t: 'Live session: balanced trees', time: '14:00', ev: true }],
       '2026-10-14': [{ c: 'tw', m: 'assign', t: 'Reading checkpoint', time: '12:00', g: true }],
       '2026-10-15': [{ c: 'ds', m: 'assign', t: 'Project milestone 2', time: '23:59', g: true, comp: true }, { c: 'oc', m: 'quiz', t: 'Pre-lab quiz 4', time: '08:00', g: true }, { c: 'ee', m: 'workshop', t: 'Submit the case study', time: '20:00', g: true, comp: true }, { c: 'la', m: 'session', t: 'Tutorial, group B', time: '10:00', ev: true }],
@@ -705,6 +711,12 @@ class Component extends DCLogic {
       '2026-11-24': [{ c: 'ds', m: 'assign', t: 'Final project', time: '23:59', g: true, comp: true }, { c: 'la', m: 'assign', t: 'Problem set 9', time: '23:59', g: true }],
       '2026-11-26': [{ c: 'site', m: 'site', t: 'Teaching term ends', time: 'All day', ev: true }],
       '2026-11-30': [{ c: 'ee', m: 'assign', t: 'Final essay', time: '23:59', g: true, comp: true }]
+    };
+    // The institution's days off, from block_feedback_tracker's calendar when it is installed (ADR-014
+    // amendment 10); without it only core's weekend is marked.
+    const DAYSOFF = {
+      '2026-10-12': { type: 'Holiday', note: 'Founders\u2019 Day' },
+      '2026-10-19': { type: 'Recess', note: 'Mid-term break' }
     };
     const pad = (n) => (n < 10 ? '0' + n : '' + n);
     const days = [];
@@ -750,7 +762,7 @@ class Component extends DCLogic {
         }
         return Object.assign({}, r, { kind: kind, w: w, course: c.name, hue: c.hue, fav: false });
       });
-      days.push({ i: i, key: key, wdn: dt.getUTCDay(), num: dt.getUTCDate(), month: dt.getUTCMonth(), year: dt.getUTCFullYear(), items: items, titems: titems });
+      days.push({ i: i, key: key, wdn: dt.getUTCDay(), num: dt.getUTCDate(), month: dt.getUTCMonth(), year: dt.getUTCFullYear(), items: items, titems: titems, dayoff: DAYSOFF[key] || null });
     }
     const CARDS = [
       { c: 'ds', title: 'Data Structures', cat: 'Computer Science · Semester 2', pct: 62, badge: 'Graded, due today', badgeCls: 'cc-cbadge cc-cbadge--accent', next: 'Quiz 4: trees and heaps · today, 23:59', day: 10, fav: true, bg: '#dbe6f2', fg: '#3b6ea8', x1: 250, x2: 70, tri: 'M120 118 L170 40 L220 118 Z' },
@@ -974,7 +986,14 @@ class Component extends DCLogic {
       const isToday = i === TODAY;
       const past = i < TODAY;
       const weekend = d.wdn === 0 || d.wdn === 6;
-      const offday = weekend && d.items.length === 0;
+      // An empty weekend or day off is hatched on the disc; one holding items keeps its heat there and
+      // carries the hatch under its weekday label (ADR-014 amendment 10).
+      const holds = (teach ? d.titems : d.items).length > 0;
+      const offday = weekend && !d.dayoff && !holds;
+      const holday = !!d.dayoff && !holds;
+      const wdCls = 'cc-wd' + (holds && d.dayoff ? ' cc-wd--hol' : (holds && weekend ? ' cc-wd--off' : ''));
+      // Graded and to-do counts are an upper bound until the day's items have arrived (amendment 9).
+      const upto = st.loaded[i] ? '' : 'up to ';
       let match = '';
       if (st.hc) {
         match = items.some((it) => it.c === st.hc && OPEN[it.kind]) ? ' cc-match' : ' cc-dim';
@@ -992,10 +1011,10 @@ class Component extends DCLogic {
       const align = vi <= 3 ? 'start' : (vi >= WIN - 4 ? 'end' : 'center');
       const parts = [];
       if (cnt.urgent + cnt.graded) {
-        parts.push((cnt.urgent + cnt.graded) + ' graded');
+        parts.push(upto + (cnt.urgent + cnt.graded) + ' graded');
       }
       if (cnt.due) {
-        parts.push(cnt.due + ' to do');
+        parts.push(upto + cnt.due + ' to do');
       }
       if (cnt.late) {
         parts.push(cnt.late + ' late, still open');
@@ -1012,14 +1031,17 @@ class Component extends DCLogic {
       if (!parts.length) {
         parts.push('nothing open');
       }
-      const label = WDL[d.wdn] + ' ' + d.num + ' ' + MON[d.month] + ': ' + parts.join(', ') + (i === needle ? '. The most relevant day ahead' : '');
+      const dayname = WDL[d.wdn] + ', ' + d.num + ' ' + MON[d.month];
+      const named = d.dayoff ? dayname + ', ' + d.dayoff.type + ' (' + d.dayoff.note + ')' : (weekend ? dayname + ', weekend' : dayname);
+      const label = named + ': ' + parts.join(', ') + (i === needle ? '. ' + (teach ? 'Heaviest grading day ahead' : 'Most relevant day ahead') : '');
       const showPop = active === i;
       const soon = (cnt.urgent + cnt.gradesoon) > 0 && !isToday;
-      const cls = ['cc-day', 'cc-h' + lvl, isToday ? 'cc-today' : '', past ? 'cc-past' : '', offday ? 'cc-off' : '', soon ? 'cc-soon' : '', showPop ? 'cc-open' : '', st.pinned === i ? 'cc-pinned' : ''].filter(Boolean).join(' ');
+      const cls = ['cc-day', 'cc-h' + lvl, isToday ? 'cc-today' : '', past ? 'cc-past' : '', offday ? 'cc-off' : '', holday ? 'cc-hol' : '', soon ? 'cc-soon' : '', showPop ? 'cc-open' : '', st.pinned === i ? 'cc-pinned' : ''].filter(Boolean).join(' ');
       const day = {
         key: d.key,
         num: d.num,
         wd: WD[d.wdn],
+        wdCls: wdCls,
         cls: cls,
         colCls: 'cc-col' + (isToday ? ' cc-col--today' : '') + match + (Math.abs(vi - centre) > 3 ? ' cc-far' : ''),
         label: label,
@@ -1028,7 +1050,8 @@ class Component extends DCLogic {
         hasMore: items.length > 4,
         more: '+' + (items.length - 4),
         s0: seg(0), s1: seg(1), s2: seg(2), s3: seg(3), s4: seg(4), s5: seg(5),
-        barCls: 'cc-bar cc-h' + lvl,
+        // The pulse style's danger bar for a day with late work (cc-barover).
+        barCls: 'cc-bar cc-h' + lvl + (cnt.late ? ' cc-barover' : ''),
         barH: (items.length ? 10 + Math.min(items.length, 5) * 8 : 4) + 'px',
         showPop: showPop,
         enter: () => this.enterDay(i),
@@ -1038,19 +1061,6 @@ class Component extends DCLogic {
       };
       if (showPop) {
         const loaded = !!st.loaded[i];
-        const meta = st.meta[i];
-        let src = 'Loading…';
-        let srcCls = 'cc-src cc-src--wait';
-        if (loaded && meta) {
-          srcCls = 'cc-src';
-          if (meta.hits > 0) {
-            src = 'From memory, no request';
-          } else if (meta.by === 'prefetch' || meta.by === 'idle') {
-            src = 'Prefetched, no wait';
-          } else {
-            src = 'Loaded in ' + meta.ms + ' ms';
-          }
-        }
         const chips = [];
         if (cnt.urgent + cnt.graded) {
           chips.push({ dot: 'cc-dot cc-dot--graded', text: (cnt.urgent + cnt.graded) + ' graded' });
@@ -1089,14 +1099,13 @@ class Component extends DCLogic {
           isFav: it.fav && OPEN[it.kind] === true && it.kind !== 'late',
           isDone: it.kind === 'done',
           isEvent: it.kind === 'event',
-          eventText: it.m === 'site' ? 'Site event' : 'Course event',
+          eventText: 'Event',
           isGrade: it.kind === 'grade' || it.kind === 'gradesoon',
           isGradeSoon: it.kind === 'gradesoon',
           gradeSoonText: i === TODAY ? 'Grading due today' : 'Grading due tomorrow',
           waitingText: (it.waiting || 0) + (it.waiting === 1 ? ' submission waiting' : ' submissions waiting'),
           isClass: it.kind === 'class',
-          classText: 'Class deadline · ' + (it.learners || 0) + ' learners',
-          hasFt: it.kind === 'class' && (this.props.feedbackTracker ?? true),
+          classText: 'Class deadline',
           action: it.kind === 'done' ? 'View' : (it.kind === 'grade' || it.kind === 'gradesoon' ? 'Grade'
             : (it.kind === 'class' ? 'View' : (it.action || ACT[it.m]))),
           actCls: 'cc-act ' + (['urgent', 'graded', 'due', 'grade', 'gradesoon'].indexOf(it.kind) >= 0 ? 'cc-act--primary' : 'cc-act--ghost')
@@ -1108,8 +1117,8 @@ class Component extends DCLogic {
           rel: this.rel(i, TODAY),
           relCls: 'cc-rel' + (isToday ? ' cc-rel--today' : ''),
           countText: items.length + (items.length === 1 ? ' item' : ' items'),
-          src: src,
-          srcCls: srcCls,
+          hasOff: !!d.dayoff,
+          offText: d.dayoff ? d.dayoff.type + ' · ' + d.dayoff.note : '',
           pinned: pinned,
           close: () => this.closeAll(),
           nOver: cnt.late, nDue: cnt.due + cnt.urgent + cnt.graded + cnt.grade + cnt.gradesoon, nEv: cnt.event + cnt.class, nDone: cnt.done,
@@ -1120,7 +1129,7 @@ class Component extends DCLogic {
           emptyText: filter === 'events' ? 'No events on this day.' : (teach ? 'Nothing to grade, no class deadline.' : 'Nothing open. A free day.'),
           hasItems: loaded && items.length > 0,
           items: list,
-          hint: pinned ? 'Pinned. Esc or the close button lets it go.' : 'Click the day to pin this card.'
+          hint: pinned ? 'Pinned. Escape or the close button lets it go.' : 'Click the day to pin this card.'
         };
       }
       days.push(day);
@@ -1175,6 +1184,8 @@ class Component extends DCLogic {
       showNet: this.props.showNetwork ?? true,
       daysCls: 'cc-days cc-days--' + WIN,
       daysLabel: 'Days, ' + WIN + ' shown',
+      needleTitle: teach ? 'Heaviest grading day ahead' : 'Most relevant day ahead',
+      holInView: D.days.slice(off, off + WIN).some((x) => !!x.dayoff),
       monthLabel: monthLabel,
       hasBoth: true,
       mStudy: !teach,

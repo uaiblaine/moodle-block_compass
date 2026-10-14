@@ -1,620 +1,340 @@
-moodle-block_compass
-====================
+Compass (block_compass)
+=======================
 
-[![Moodle Plugin CI](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3Amain)
+[![Moodle Plugin CI: main (Moodle 5.2)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3Amain)
+[![Moodle Plugin CI: MOODLE_503_STABLE (Moodle 5.3)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=MOODLE_503_STABLE)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3AMOODLE_503_STABLE)
 
-![The Compass block on a Dashboard: two strips of course cards and the ghost card counting the rest](docs/screenshots/dashboard.png)
+My courses by relevance, in three tiers, with a calendar strip above them. Built for very
+large sites.
 
-My courses by relevance, in three tiers, built for very large sites.
+![The Compass block on a Dashboard: strips of course cards and the ghost card counting the remaining courses](docs/screenshots/dashboard.png)
 
-The standard "Course overview" block organises courses by time: start and end
-dates. On sites where most courses have no end date and no completion rule that
-classification degenerates into one long "in progress" list, expensive to build
-and hard to scan. Compass organises the same enrolments by **relevance** instead:
-what I was doing, what just arrived, what I marked as mine.
+The standard Course overview block sorts courses by time: start and end dates. On sites where
+most courses have no end date and no completion rule, that turns into one long "in progress"
+list, expensive to build and hard to scan. Compass sorts the same enrolments by **relevance**:
+what I was doing, what just arrived, what I marked as mine, and what is due.
 
-- **Tier 1 — attention.** Full cards (image, progress, button) for the courses
-  the learner most likely wants right now: *Continue* (most recently accessed),
-  *New enrolments* (enrolled in the last N days, never opened) and *Favourites*
-  (the same star as the Course overview block, every favourite listed — a course
-  may sit in Continue and in Favourites at once). A few cards per strip, loaded
-  in one request on first paint; what did not fit a strip is a link in its
-  heading, "+4 new".
-- **Tier 2 — frontier.** One ghost card carrying only a count, closing tier 1:
-  "+87 other courses". Counting is cheap; rendering is not.
-- **Tier 3 — exploration.** A light list grouped by category, with a side index,
-  a filter panel — status chips, and one chip group per course custom field the
-  administrator chose — a search box, and rows that fetch their own details as
-  they come into view, fetched only when the learner asks for it. Dormant courses
-  are collapsed, archiving them hides them in the Course overview block as well,
-  the enrolments that start later are listed with an *Access from {date}* pill and
-  a *Scheduled* chip, and, with the *Enrolment on application* plugin, the
-  learner's applications still awaiting approval or on the waiting list are
-  listed with a pill and a chip of their own.
+- **Calendar strip** (optional). A row of days, from ten days ago to the end of next month,
+  each coloured by what it holds and weighted by relevance. Pointing at a day opens its items
+  with the actions the Timeline block offers.
+- **Tier 1, attention.** Full cards (image, progress, button) in four strips: *Continue where
+  you left off*, *New enrolments*, *Starts soon* and *My favourites*. A strip that overflows
+  says so in its heading ("+4 new").
+- **Tier 2, frontier.** One ghost card that only counts: "+87 other courses". Counting is
+  cheap; rendering is not.
+- **Tier 3, exploration.** *All courses*, grouped by category, with a side index, a search
+  box, a filter panel and a list or cards view. Rows fetch their progress and image only once
+  they are on screen. Courses gone quiet gather in a *Dormant* group, and archived ones in an
+  *Archived* group shared with the Course overview block.
 
-Design philosophy: **no tables of its own** (favourites through core, caches
-through MUC, per-user state through user preferences), **the server ships a
-shell and the browser renders**, and **scale is a requirement**: every endpoint
-has a query budget enforced by an automated test. The plan is in `PLAN.md` and
-the architecture decisions in `docs/adr/`.
+Compass owns no database tables: favourites are core's course star, archiving is the Course
+overview block's "Removed from view", caches go through MUC and per-user state through user
+preferences. The server ships a shell and the browser renders it (React). Every web service has
+a query budget enforced by an automated test.
 
-**Status: feature complete for the first release.** All three tiers are built,
-in both the full and the paged mode; the optional nightly pre-warming task is
-built (ADR-003); tier 3 rows fetch their progress and course image only once
-somebody can see them, and render as a compact list or as cards, remembered per
-viewer (ADR-005); courses that have gone quiet gather in a Dormant group and
-archived ones in an Archived group, with the archive shared with the Course
-overview block (ADR-007); the accessibility audit is an executable gate
-rather than a document (ADR-008); and the favourites strip is complete, the
-filter panel offers course custom fields as chips, and enrolment applications
-awaiting approval have a row and a notice of their own (ADR-009). The one planned
-piece not built is Phase 6 — calendar action events on the cards — which the plan
-itself marks optional. The current version is 2026090702. The first release, `v5.2-r1`, will declare
-`MATURITY_BETA`, "feature complete, ready for preview and testing": the release
-commit sets it, and the version in the repository still declares
-`MATURITY_ALPHA`.
+
+The calendar strip
+------------------
+
+![The calendar strip above the first tier: days coloured by load, today marked, dots counting each day's items by kind](docs/screenshots/calendar-strip.png)
+
+The strip is off by default (`calendar_enabled`). When on, it sits above the first tier on the
+Dashboard, on the Compass page, or on both (`calendar_where`), and loads after the first tier so
+the cards always paint first.
+
+- **Relevance.** Graded work, starred courses and work due today or tomorrow weigh more than a
+  plain event; work that is late weighs little and closed work is not shown. Each user can
+  switch the weighting off and see days by count alone; `calendar_relevance` sets the starting
+  value.
+- **A day card.** Hovering a day, focusing it or clicking it opens a card listing the day's
+  items, with the buttons core's Timeline offers, such as "Add submission". A click
+  pins the card as a dialog; Escape closes it. On a narrow block it opens as a bottom sheet.
+
+  ![A day card open over the course cards: the day's items with core's action buttons](docs/screenshots/calendar-day-card.png)
+
+- **Studying and Teaching.** A user who learns in some courses and teaches in others gets a
+  switch between the two views; which courses are learning ones follows the site's graded roles
+  (`gradebookroles`). The teaching view counts the submissions waiting to be graded, in the same
+  group core's grading page shows that teacher first, beside the class's deadlines. An
+  *Everything* / *To do* / *Events* filter narrows either view. Both choices are remembered per
+  user.
+
+  ![The Teaching view of the strip: days carrying grading work, and a day card listing the submissions waiting to be graded](docs/screenshots/calendar-teaching.png)
+
+- **Three styles** (`calendar_style`): dots, a ring per day (fewer days at once), or pulse bars.
+
+  ![The same days drawn in the ring and pulse styles, side by side](docs/screenshots/calendar-styles.png)
+
+  The pulse style draws each day's load as a bar, red where late work is still open:
+
+  ![The pulse style: a bar per day sized by its load, red bars on days with late work still open, weekends and a recess hatched](docs/screenshots/calendar-pulse.png)
+
+  ![The pulse style with a day card pinned: two graded quizzes due tomorrow, a submission to do and two events](docs/screenshots/calendar-pulse-card.png)
+
+- **Weekends and days off.** Empty weekend days are hatched. With
+  [`block_feedback_tracker`](https://github.com/uaiblaine/moodle-block_feedback_tracker)
+  installed, its academic calendar decides instead: its weekends, holidays and recesses, each
+  named in the day's card.
+- **Honest numbers.** A count of future work that may still shrink (an item already submitted,
+  an activity that will close) is announced as "up to N" until the day is opened. Only
+  activities the user can see are counted, and hidden and completed courses are left out.
+- **Linked to the cards.** Pointing at a first-tier card lights the days that hold its course;
+  opening a day outlines the cards of its courses.
+- **Readable everywhere.** Month, weekday and time names come from the language pack, and every
+  mark keeps its contrast in dark mode.
+
+  ![The calendar strip and the course cards in dark mode](docs/screenshots/calendar-dark.png)
+
+
+All courses and the Compass page
+--------------------------------
+
+![All courses open, grouped by category, with the toolbar, the filter panel and the category index](docs/screenshots/explore.png)
+
+*All courses* opens from the ghost card or from a strip's "+N" link. A toolbar holds the sort
+(category, name, last opened), the list/cards toggle, the search box and a **Filter** button
+opening chip groups: *Status* (All, New, Favourites, Awaiting approval, Scheduled), then up to
+three course custom fields chosen by the administrator. An enrolment that starts later is a row
+with an *Access from {date}* pill; an application through *Enrolment on application*
+(`enrol_apply`) is a row with an *Application under review* or *On the waiting list* pill.
+Every row and card carries the star and an archive control; *Dormant* has an **Archive all**
+control. The toolbar is remembered per user.
+
+A learner with more courses than `inventory_max` (default 250) gets the same list in **paged
+mode**: groups start closed with their counts, open 100 courses at a time, and the search runs
+on the server. Nothing is configured per learner.
+
+![The Compass page: the block's content alone under the theme's navigation bar](docs/screenshots/page.png)
+
+With `enable_page` on, `/blocks/compass/index.php` shows the block's content alone, on the
+theme's page without block regions. While it is on, "Compass" is offered under *Site
+administration > Appearance > Navigation > Start page for users* and in each user's home page
+preference. Off, the page redirects to the Dashboard. Guests are sent to the front page.
+
+![Compass on a phone: a short calendar strip above the course cards in a single column](docs/screenshots/mobile.png)
+
+The cards count their columns from the block's own width (three, two or one), so the block works
+in the block drawer and on a phone as well as on a wide Dashboard.
 
 
 Requirements
 ------------
 
-- **Moodle 5.2 only.** `version.php` declares `$plugin->supported = [502, 502]`
-  and `$plugin->requires = 2026042000`; the plugin has been developed and tested
-  on 5.2 and on nothing else, and its whole client is React under `js/esm`, which
-  core builds and serves from 5.2 on.
-- PHP 8.3.0 or later, which is what Moodle 5.2 itself requires
-  (`admin/environment.xml:5124`), with the `intl` extension Moodle 5.2 also
-  requires (`:5197`) — the server-side search of paged mode uses its
-  `Normalizer` so that it matches names exactly as the browser does.
-- **[`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)
-  2026042003 or later**, a hard dependency (`$plugin->dependencies`, ADR-013): it
-  decides what each of the learner's enrolment rows means — enrolled, starting
-  later, awaiting approval, on the waiting list, suspended, ended — and Compass
-  asks it rather than keeping a rule of its own. Install it first, to
-  `/local/unlistedcourses`.
-- A shared in-memory cache store (Redis) is strongly recommended — see below.
+| Branch | Moodle | PHP | Maturity | Version | Release |
+|---|---|---|---|---|---|
+| `main` (= `MOODLE_502_STABLE`) | 5.2 | 8.3 or later | Alpha | 2026042000 | v5.2-r1 |
+| `MOODLE_503_STABLE` | 5.3 | 8.3 or later | Alpha | 2026100500 | v5.3-r1 |
+
+Each branch supports exactly one Moodle version (`$plugin->supported`). Moodle 4.5 and 5.1 are
+not supported: the client is React, which core builds and serves from 5.2 on.
+
+- **Required: [`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)**
+  from the branch matching your Moodle version (`main` for 5.2, version 2026042003 or later;
+  `MOODLE_503_STABLE` for 5.3). It decides what each enrolment means (enrolled, starting later,
+  awaiting approval, on the waiting list), and Compass asks it rather than keeping a rule of its
+  own. Install it first.
+- PHP's `intl` extension, which Moodle itself requires.
+- Recommended: a shared in-memory cache store, Redis by preference (see *Cache stores*).
+- Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
+  `block_feedback_tracker` for the academic calendar of the strip; the Boost Union FUNDASEG
+  theme for the institutional crests on cards.
 
 
 Installation
 ------------
 
-Install the plugin like any other plugin to folder `/blocks/compass`.
+**From a release.** Download the zip attached to the
+[GitHub release](https://github.com/uaiblaine/moodle-block_compass/releases) for your Moodle
+version (`v5.2-rN` for 5.2, `v5.3-rN` for 5.3) and install it through *Site administration >
+Plugins > Install plugins*, or unpack it so that the plugin sits in `blocks/compass` (the zip
+holds a `compass/` folder).
 
-See http://docs.moodle.org/en/Installing_plugins for details on installing
-Moodle plugins.
+**From Git.** Clone the branch for your Moodle version into `blocks/compass` under Moodle's
+public directory (`public/` in a 5.2 or 5.3 checkout):
 
-After installation the block works without configuration. Learners add it to
-their Dashboard through *Edit mode > Add a block*, or an administrator adds it to
-the default Dashboard under *Site administration > Appearance > Default Dashboard
-page*.
+```sh
+# Moodle 5.2
+git clone -b main https://github.com/uaiblaine/moodle-local_unlistedcourses.git public/local/unlistedcourses
+git clone -b main https://github.com/uaiblaine/moodle-block_compass.git public/blocks/compass
 
+# Moodle 5.3
+git clone -b MOODLE_503_STABLE https://github.com/uaiblaine/moodle-local_unlistedcourses.git public/local/unlistedcourses
+git clone -b MOODLE_503_STABLE https://github.com/uaiblaine/moodle-block_compass.git public/blocks/compass
+```
 
-Cache stores (read this before a large rollout)
------------------------------------------------
+Then run the upgrade (`php admin/cli/upgrade.php`, or visit *Site administration >
+Notifications*). See [Installing plugins](https://docs.moodle.org/en/Installing_plugins).
 
-Compass keeps six MUC application caches, declared in `db/caches.php`:
-
-| Definition     | Key            | Content                                            |
-|----------------|----------------|----------------------------------------------------|
-| `coursemeta`   | course id      | raw name, category id, visibility, completion flag, context columns (no image: core caches it) |
-| `categorymeta` | category id    | raw category name, path, depth, context columns (core's own category cache lasts one request) |
-| `coursefields` | course id      | the course's values for the filterable custom fields (a sibling of `coursemeta` on purpose: tier 1 writes that layer from rows that carry no field columns) |
-| `filterfields` | one entry      | the course custom fields that can be offered as filters, with their options; core's own read of them is two recordsets plus one query per shared category |
-| `inventory`    | user id        | one row per enrolment plus the validity stamp, without course data |
-| `details`      | user + course  | progress percentage                                |
-
-Map all six to a **shared in-memory store, Redis by preference**. A plugin
-cannot choose a store for you; it can only tell you what it needs.
-
-**Setting one up.** Go to *Site administration > Plugins > Caching >
-Configuration*, which opens the *Cache administration* page.
-
-1. Under *Configured store instances*, find the **Redis** row and follow
-   *Add instance*.
-2. Fill the store form: *Store name* (any name you will recognise in the
-   mappings), *Server(s)* (host, `host:port`, or a Unix socket path), *Key
-   prefix* (up to five characters, so several Moodle instances can share one
-   Redis server) and *Use serializer*. The serializer defaults to *Default PHP
-   serializer*; *Igbinary serializer* is offered only when phpredis was built
-   with igbinary support, and it roughly halves what the caches occupy — see
-   *Sizing* below.
-3. Map the definitions to it. Either use *Edit mappings* on each of the four
-   Compass definitions under *Known cache definitions* — `coursemeta`,
-   `categorymeta`, `inventory` and `details` — or, if the store is to serve the
-   whole site, set it as the application store under *Stores used when no
-   mapping is present*, which covers these four along with everything else.
-
-**Without a shared in-memory store the block still works, but performance can be
-severely degraded.** Every Dashboard visit then falls back to the file store of
-each web node, the per-user caches are rebuilt on every node separately, the
-nightly pre-warming task warms nothing any web node will read, and on a site with
-hundreds of thousands of users the first-paint budget cannot be met. The
-plugin's settings page repeats this notice.
+The block works without configuration. Learners add it through *Edit mode > Add a block* on
+their Dashboard, or an administrator adds it to the default Dashboard under *Site
+administration > Appearance > Default Dashboard page*.
 
 
-Sizing
-------
+Configuration
+-------------
 
-Every figure below names where and when it was measured. None of them is a
-model: re-measure on your own hardware before planning against them.
+![The Compass settings page, with the calendar strip section](docs/screenshots/settings.png)
 
-**What one cached inventory occupies.** Measured 2026-09-04 inside the m502
-webserver container on PHP 8.4, over the ten-integer rows the inventory actually
-stores (`docs/perf/2026-09-04-bench-postgres17.md:63-67`):
-
-| Enrolments in the entry | Default store, PHP `serialize()` | With igbinary selected |
-|---|---|---|
-| 300   | 40.9 KB | 18.4 KB |
-| 2 000 | 272 KB  | 122 KB  |
-| 3 000 | 408 KB  | 183 KB  |
-
-The MUC Redis store serialises with PHP's `serialize()` by default
-(`cache/stores/redis/lib.php`), so the left column is what an ordinary
-installation pays; igbinary is a per-instance option on the store form and is
-available only when phpredis was built with it. One entry per user with a
-current inventory, expiring after 24 hours at the latest.
-
-PLAN.md §6.2 estimated a 2 000-enrolment entry at about 60 KB. The measurement
-above puts it at 272 KB on a default store — **4.5 times the estimate**. The
-number in this README is the measured one, and the estimate is recorded here
-only so that nobody plans a Redis instance from it.
-
-**Database time.** Measured 2026-09-04 against PostgreSQL 17.10 in a laptop
-container, on a seeded copy of the core tables — 1 075 000 enrolments over
-100 000 courses, 645 000 last-access rows
-(`docs/perf/2026-09-04-bench-postgres17.md:24-33,41-55`):
-
-- an ordinary user's whole first paint — Continue, New, Favourites and the
-  counts together — is **under 6 ms** of database time, with every statement
-  index-driven and no sequential scan;
-- the heaviest user measured, with 3 000 enrolments, costs **about 140 ms** of
-  database time for the same first paint, inside the 150 ms budget for
-  `get_attention`; the sequential scans behind that figure are an artefact of the
-  bench's small dimension tables, which a real site of this size would not have;
-- validating a cached inventory is one statement: 9.4 ms at 50 enrolments,
-  15.2 ms at 3 000. Rebuilding it is one more: 3.6 ms and 28.1 ms.
-
-**Per-request budgets, as shipped and as tested.** The *Reads* column is
-asserted by a PHPUnit test that fails when the endpoint exceeds it; the
-*Payload* column is a measured ceiling that no test enforces. Reads are counted
-with `$DB->perf_get_reads()` across a whole request, so core's own reads —
-config, strings, contexts, `require_login()` — are inside these numbers, not
-beside them (`CLAUDE.md` §6.6):
-
-| Endpoint | Reads per request | Payload |
-|---|---|---|
-| `get_attention` | ≤ 7 with the shared layers warm; 8 fully cold; one fewer of each with *Show favourites* off — plus 1 at the web-service layer (the user-context lookup); with the FUNDASEG theme's crests on, the theme's own reads on top | ≤ 20 KB |
-| `get_inventory` (500 enrolments) | ≤ 3 with the user's inventory cold and the shared layers warm, 3 on a valid hit; at most 6 fully cold — plus 1 at the web-service layer | ≤ 40 KB |
-| `get_inventory` (paged mode, headers) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 5 KB (a group is ~60 bytes) |
-| `get_inventory_rows` (100 rows) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 12 KB (≈ 115 bytes per row) |
-| `search_inventory` (50 hits) | ≤ 3 with the shared layers warm — plus 1 at the web-service layer | ≤ 7 KB (≈ 115 bytes per row plus ≈ 18 for the group id) |
-| `get_card_details` (24 ids) | 1 when every answer is cached or untracked; + 1 + completion for the courses that must be computed | ≤ 10 KB |
-| pre-warming task, per user | 1 with the shared layers warm, up to 4 cold — plus a fixed overhead per run: 1 count, 1 selection read per batch of 200, 1 per plugin-configuration write and up to 2 reloads of the plugin's configuration (7 for a sweep started and finished in one batch) | n/a |
-
-So paged mode costs, per learner interaction, one request of at most 3 reads and
-12 KB to open a group or to fetch its next 100 rows, and one of at most 3 reads
-and 7 KB per settled search. Neither issues SQL of its own: both are derived
-from the cached inventory and the two shared layers.
-
-**The scenario the plugin was designed against** is PLAN.md §6's: one million
-users, `{user_enrolments}` in the region of 20 GB, and thousands of concurrent
-Dashboard hits. That is the plan's scenario, not a measurement — what has been
-measured is everything above.
-
-
-Usage
------
-
-**Administrators** find the settings under *Site administration > Plugins >
-Blocks > Compass*, in this order:
+*Site administration > Plugins > Blocks > Compass*:
 
 | Setting | Default | What it does |
 |---|---|---|
-| Cards per strip (`attention_max`) | 3 | How many cards each tier 1 strip shows. Whatever does not fit is counted on a ghost card. |
-| Days an enrolment stays new (`new_days`) | 30 | A course enrolled in within this many days, and never opened, belongs to *New enrolments*. |
-| Show favourites (`enable_favourites`) | on | Show the *My favourites* strip and the star on each card. Turning it off hides the plugin's own star; core's favourites are untouched and the Course overview block keeps its own. |
-| Grouping depth (`group_depth`) | 1 | Category depth that forms the groups of the full list. 1 groups by top-level category, 2 by their subcategories. Courses in shallower categories group under their own. |
-| Maximum courses listed in full (`inventory_max`) | 250 | Above this many courses the full list switches to paged mode (next section). A value below 1 falls back to the default. |
-| Show the search box (`enable_search`) | on | Show the search box above the full list. |
-| Show the category index (`show_index`) | on | Show the side index of categories beside the full list on wide screens. |
-| Months before a course is dormant (`dormant_months`) | 12 | A course not opened for this many calendar months — or never opened and enrolled longer ago than that — is gathered into the Dormant group instead of padding its category. |
-| Default view for the full course list (`default_view`) | list | Which view the full list opens in for a viewer who has never chosen: the compact list, or cards with the course image. Each viewer's own choice overrides it. |
-| Hide the block title (`hide_block_title`) | off | Render the block without its title bar. Core then renders no block heading at all, so the plugin's own headings move one level up to keep the document's heading ladder unbroken (ADR-008). |
-| Show the category on cards (`show_category`) | on | Print the course's category above its name on every card, in both tiers. Off, the name is the first line (ADR-010). |
-| Show the theme's institutional badges on cards (`show_theme_badges`) | on for a new installation, off after an upgrade | Offered only while the *Boost Union FUNDASEG* theme is installed: the cards of the first tier and the cards and rows of the full list show up to three of the course's crests, the ones the theme's own course card shows, read through the theme's one public callback and filtered by its own rule of who may see them (ADR-013). |
-| Enable the Compass page (`enable_page`) | off | Serve the block's content on a page of its own, `/blocks/compass/index.php`, with only the theme's navigation bar and footer around it. While on, "Compass" is offered as a choice for *Start page for users* and, when that setting leaves the choice to users, in each user's own preferences. Off, the page redirects to the Dashboard (ADR-012). |
-| Hide the page title (`hide_page_title`) | off | Show the Compass page without the theme's page heading, so the content starts closer to the navigation bar. The title stays in the page as a visually hidden `<h1>` for assistive technology. Only the page is affected (ADR-012, amendment 4). |
-| Course custom fields offered as filters (`filter_fields`) | none | Each selected field becomes a chip group in the filter panel of the full list. Only fields of the *Dropdown menu* and *Checkbox* types that are visible to everyone are offered — a chip over a teachers-only field would reveal its value — and at most 3 are used, in this order. A site with no such field sees a note here and no chip groups (ADR-009). |
-| Show enrolment applications awaiting approval (`enable_pending`) | off | List the learner's own applications through the *Enrolment on application* plugin (`enrol_apply`) that still await a decision or sit on its waiting list: a row with an *Application under review* or *On the waiting list* pill in its category, an *Awaiting approval* chip in the filter panel, and a one-line notice under *New enrolments*. Never a card. Which rows are applications is `local_unlistedcourses`' answer. Does nothing without that plugin (ADR-009, ADR-013). |
-| Pre-warm active users (`enable_prewarm`) | off | Run the nightly sweep at all. Never set means off. |
-| Pre-warm users active in the last (`prewarm_days`) | 7 | Only users whose last access falls within this many days are warmed. |
-| Pre-warming time budget (`prewarm_budget_seconds`) | 10 minutes (600 s, minimum 60) | How long each run may work; it stops between users when the budget is reached and resumes from the same place the next night. |
+| `attention_max` | 3 | Cards per strip in the first tier. |
+| `new_days` | 30 | Days an unopened enrolment stays *New*. |
+| `enable_favourites` | on | The *My favourites* strip and the star. Off hides them; core's favourites are untouched. |
+| `group_depth` | 1 | Category depth that forms the groups of *All courses*. |
+| `inventory_max` | 250 | Above this many courses, *All courses* switches to paged mode. |
+| `enable_search` | on | The search box of *All courses*. |
+| `show_index` | on | The side index of categories, on wide blocks. |
+| `dormant_months` | 12 | Months without a visit before a course moves to *Dormant*. |
+| `default_view` | list | The view of *All courses* for a user who never chose (list or cards). |
+| `hide_block_title` | off | Render the block without its title; the headings move one level up. |
+| `show_category` | on | The category line above the course name on cards. |
+| `show_theme_badges` | on | Institutional crests on cards; offered only while the Boost Union FUNDASEG theme is installed. |
+| `enable_page` | off | The Compass page and its offer as a start page. |
+| `hide_page_title` | off | Hide the Compass page's heading from sight, keeping it for screen readers. |
+| `filter_fields` | none | Course custom fields offered as filter chips: *Dropdown menu* and *Checkbox* fields visible to everyone, at most 3. |
+| `enable_pending` | off | List the learner's applications through `enrol_apply`. Does nothing without that plugin. |
 
-The settings page closes with the cache-store notice, which is the one thing on
-it that is not a setting.
+**Calendar strip**
 
-**Learners** see the block on their Dashboard. *Continue where you left off*
-lists the most recently opened courses (completed ones leave the strip), *New
-enrolments* the courses they were enrolled in recently and never opened, with
-the enrolment method and any deadline, and *My favourites* every starred course —
-a favourite that is also in Continue or New is listed twice, on purpose: the
-strip is where what the learner marked as theirs is visible (ADR-009). Each strip
-shows up to `attention_max` cards; what did not fit a strip is a link in its
-heading ("+4 new", "+2 favourites") opening *All courses* on the matching chip,
-and one ghost card closes the last strip, counting every course not represented
-above; pressing it opens *All courses* in place. A course name is at most two
-lines, ending in an ellipsis, with the whole name shown on hover. The cards have
-the size of the theme card (*Boost Union FUNDASEG*): a 150 px image, three to a
-row with a 16 px gap on a wide block, two and then one as the block narrows —
-the count follows the block's own width, not the window's — and the ghost card
-stretches to the height of its row (ADR-013).
+| Setting | Default | What it does |
+|---|---|---|
+| `calendar_enabled` | off | Show the strip. Off, it costs no request and no query. |
+| `calendar_where` | Dashboard and the Compass page | Where the strip shows: both, the Dashboard only, or the Compass page only. |
+| `calendar_sources` | deadlines, course, group and site events | What the strip counts: deadlines and grading work, course events, group events, site events, personal events, category events. |
+| `calendar_style` | dots | How each day is drawn: dots, ring or pulse bars. |
+| `calendar_relevance` | on | The starting value of each user's relevance switch. |
 
-![All courses open, grouped by category, with the search box, the toolbars and the category index](docs/screenshots/explore.png)
+**`block_feedback_tracker` integration.** Nothing to configure. When that plugin is installed,
+the strip reads its academic calendar for weekends, holidays, recesses and school days on a
+weekend; without it, weekends are core's *Weekend days* calendar setting.
 
-*All courses* lists every course grouped by category (at the depth the
-administrator chose), with a side index on wide screens; a toolbar with the
-sort — by category, name or last opened — and the list/cards toggle; a search
-box; and a **Filter** button opening a panel of chip groups: *Status* (All, New,
-Favourites, Awaiting approval when enabled, and Scheduled), then one group per
-course custom field the administrator chose. One chip per group, groups combine,
-and in full mode every chip carries the number of courses it would keep. An
-enrolment that starts later is a row in its category with an *Access from
-{date}* pill — no star, no archive control, no progress, and a link to the
-course's enrolment page rather than into the course — and a line under *New
-enrolments* says how many there are and opens this list on the Scheduled chip;
-it is never a card of the first tier. When `enable_pending` is on and the learner
-has applied for a course through `enrol_apply`, the application is such a row
-too, with an *Application under review* or *On the waiting list* pill, and a
-line under *New enrolments* says how many are waiting. Two of its groups are not categories and
-come after the ones that are, both closed:
+**Pre-warming (optional)**
 
-- **Dormant** gathers the courses that have gone quiet — not opened for
-  `dormant_months`, or never opened and enrolled longer ago than that — so they
-  stop padding their categories. It carries an **Archive all** control, which
-  asks for confirmation and then archives every course in the group at once.
-- **Archived** holds the courses the learner has removed from view. Its rows
-  arrive when the group is first opened, so an archive nobody looks at costs
-  nothing on the way in.
+| Setting | Default | What it does |
+|---|---|---|
+| `enable_prewarm` | off | Run the nightly task *Pre-warm the course inventory of recently active users* (04:00 site time). |
+| `prewarm_days` | 7 | Warm only users active within this many days. |
+| `prewarm_budget_seconds` | 10 minutes (minimum 1 minute) | Time budget per run; an unfinished sweep resumes the next night. |
 
-Every row and every card carries an archive control, and unarchiving works the
-same way from the Archived group. **The archive is the Course overview block's
-own**: a course archived in Compass is the one the Course overview block lists
-under its *Removed from view* filter, and a course removed from view there
-appears under Archived here. Compass stores nothing of its own for it.
+Pre-warming moves the cost of building a learner's course list from their first visit of the
+day into the night. It helps only very large sites, and only with a shared cache store: on a
+multi-node site without one, the cron node warms a file cache no web node reads.
 
-The full list renders either as a compact list or as cards with the course
-image, chosen from the toolbar. The choice is remembered in the user preference
-`block_compass_view` and switching costs no request: the rows and their details
-are already in the browser, and only the rendering changes. `default_view` is the
-site default for a viewer who has never chosen. The rest of the toolbar is
-remembered too — the sort, the pressed chip, the field selection and whether the
-filter panel is open — in a second preference, `block_compass_explore`, written
-half a second after a change settles and read back on the next visit; a
-remembered chip or field the site no longer offers is dropped rather than shown
-(ADR-010). The cards are a grid whose column count follows what is beside it:
-three columns with the category index hidden, two with it shown, one on a narrow
-block. Cards and rows take the theme's look (ADR-013): a card has the theme card's
-150 px image with the course's crests in its bottom-right corner when the theme is
-installed, and a list row is a framed line with the image as a 56 px square and the
-crests at 24 px. On every card the star sits in the top-right corner of the image and the
-*New* badge in the top-left; in the list the star sits beside the archive control.
-A chip that would keep no course is not drawn, in full mode, so the panel lists
-only what is there.
+### Cache stores
 
-When something fails on the way, the block says so and offers a way back. A read
-that fails in transit — the network dropped, not the server answering with an
-error — is retried twice on its own, after one and three seconds, with the
-attempt announced; a read that still fails, and any server error, becomes an
-amber notice with **Try again** and **Reload page**, in tier 1, in the full list,
-in a group whose page failed and under a search that failed. A reload control at
-the top-right of the block's content fetches everything again, and a browser that
-comes back online retries whatever was waiting.
-
-A course removed from view in the Course overview block is not in the strips or
-in the category groups here either: it is one of the courses the Archived group
-holds, and bringing it back there brings it back in both blocks.
-
-
-Large enrolments: paged mode
-----------------------------
-
-A learner with more active courses than `inventory_max` (default 250) does not
-receive the whole list in one response. For them *All courses* opens in **paged
-mode** — the same groups, index, search box, sorting and chips, with three
-differences:
-
-- every group starts closed and shows its count; opening one loads its first
-  100 courses, and a *Show more* button under the group loads the next 100 while
-  there are more;
-- the search box searches on the server — after a 300 ms pause in typing and
-  from two characters on — over all the learner's courses, by course name, with
-  the same rule as the instant search: case- and accent-insensitive, every word
-  of the query anywhere in the name, in any order. It shows up to 50 matches and
-  says so when there are more;
-- chips and sorting apply to the rows of each opened group as they arrive; the
-  count in a group header stays the group's total.
-
-Nothing is configured per learner. The mode is decided on each request from the
-learner's own count of active, visible, non-archived courses, so someone
-hovering around the threshold may see the list switch between visits — with the
-same groups and the same courses either way. The threshold is `inventory_max`
-under *Site administration > Plugins > Blocks > Compass*; a value below 1 falls
-back to the default. Paged mode adds no database queries of its own: headers,
-pages and search are all derived from the learner's cached inventory, which is
-why its per-request cost is the full list's. The reasoning and the measurements
-are in `docs/adr/004-paged-mode.md`.
-
-
-Pre-warming (optional)
-----------------------
-
-By default the caches fill lazily: a learner's first Dashboard visit of the day
-builds their inventory, and every later visit reads it. On a very large site the
-scheduled task **Pre-warm the course inventory of recently active users**
-(`\block_compass\task\warm_active_users`) can move that first cost into the
-night. The task is always listed under *Site administration > Server >
-Scheduled tasks* — daily at 04:00 site time, at a random minute — and does
-nothing until `enable_prewarm` is switched on; turning the setting on needs no
-second visit to the task list.
-
-| Setting                  | Default            | Meaning                                                                                                     |
-|--------------------------|--------------------|-------------------------------------------------------------------------------------------------------------|
-| `enable_prewarm`         | off                | Run the nightly sweep at all. Never set means off.                                                          |
-| `prewarm_days`           | 7                  | Only users whose last access falls within this many days are warmed.                                        |
-| `prewarm_budget_seconds` | 600 (minimum 60)   | Time budget per run; the task stops between users when it is reached and resumes from the same place the next night. |
-
-Each run selects the active users in batches of 200 by ascending id and, for
-each one, rebuilds their `inventory` entry and fills whatever their courses and
-categories are missing from `coursemeta` and `categorymeta`. Progress
-(`details`) is never pre-computed. The sweep's position lives in plugin config
-(`prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep`), so a sweep that does
-not fit in one run continues the next night, and a new sweep — with a fresh
-window — starts once the previous one has completed. The cron output shows the
-number of users left at the start, one line per batch, and a closing line:
-either "sweep complete" or "budget reached ... resuming at id ...".
-
-What it buys is the cost of building the inventory on the first request of each
-active user's day — noticeable for learners with thousands of enrolments,
-negligible for ordinary ones — and nothing more: a pre-warmed entry is still
-validated on its first use, users outside the window pay the fill as before, and
-sites below a few hundred thousand users will not measure a difference. That is
-why it is off by default.
-
-**Multi-node sites without a shared cache store.** The task writes to whatever
-cache store the cron node uses. Without Redis (or another shared in-memory
-store) mapped to the six definitions, that is the cron node's own file store,
-which the web nodes never read — pre-warming then warms nothing for anyone. Map
-the stores first (see *Cache stores* above).
-
-
-A page of its own
------------------
-
-With `enable_page` on, `/blocks/compass/index.php` shows the block's content and nothing else:
-the theme's navigation bar, the page heading "Compass", the three tiers, the footer. The page uses
-the theme's `base` layout, which declares no block regions, so there is no block drawer, no
-site-wide block and no "Add a block" control in editing mode; a guest is refused as the block
-refuses one; and the sections sit one rung under the theme's own `<h1>`. It renders the same
-bundle the Dashboard block does and costs what any Moodle page costs plus the block — the
-Dashboard's own machinery, its other blocks and its drawer are not paid.
-
-While the page is on, "Compass" appears among the choices of *Site administration › Appearance ›
-Navigation › Start page for users*, through Moodle's own `extend_default_homepage` hook, and in
-each user's *Preferences › Home page* when the site leaves the choice to users. Chosen, the site
-root, a login and the navigation bar's Home node all land on the page, and `/my/` stays reachable
-through the Dashboard node — hiding that node is the theme's business (Boost Union's "Hide nodes
-in primary navigation", which its child themes inherit), not the plugin's. Off, a start page
-stored earlier lands on the Dashboard: the page redirects there rather than failing.
-
-With `hide_page_title` on as well, the theme's header holds no heading and the page renders
-"Compass" itself as a visually hidden `<h1>` at the top of its content: out of sight, in the
-accessibility tree, the ladder under it unchanged. The reload control moves to the page's top-right
-corner, off its own row, and the first card starts 68 px higher; the theme's own panel margins are
-left alone. No WCAG 2.2 Level A or AA criterion asks for a level-one heading and Moodle's
-accessibility step runs no heading rule; the one axe best practice that does,
-`page-has-heading-one`, reads the DOM, where the heading still is (ADR-012, amendment 4).
-
-Client delivery
----------------
-
-The client is one file. `js/esm/bundle.json` opts the plugin into the fleet's generic bundle step,
-which builds `js/esm/build/bundle.js` over `Block.tsx` beside core's per-file outputs and writes a
-manifest of source hashes that a PHPUnit test recomputes, so a source edited without a rebundle
-fails the suite and `mdl ci` fails on a bundle that differs from a fresh build. The mount point is
-`@moodle/lms/block_compass/bundle`. On the Dashboard with the block, and on the block's own page,
-a hook at the top of the body — after the import map, which a preload in the head would
-disable — adds seven `modulepreload` hints — React, its DOM client and JSX runtime, core's
-React auto-init, mount and profiler modules, and the bundle — with the import map's own URLs, so
-the browser fetches all of them while it parses those lines instead of discovering each after
-the previous one arrived. Nothing is preloaded on any other page.
-
-Accessibility
--------------
-
-The bar is **WCAG 2.2 AA**, which is what the tooling measures and which
-contains the 2.1 AA the plan asked for. It is enforced rather than described.
-
-- **Core's own axe step runs inside every Behat scenario**, scoped to the block
-  and with the `best-practice` extra tests, at the point in each scenario where
-  the most is on screen. Moodle turns axe on by default in the Behat run
-  configuration, and neither moodle-plugin-ci nor the runners used here pass
-  anything that turns it off, so the check runs on every run and on every CI leg
-  with nothing to configure and nothing to remember. It was proved
-  non-vacuous before any fix was made: with the archive control stripped of its
-  accessible name, the run reddened with three `button-name` violations, and went
-  green again when the name was restored.
-- **`tests/local/accessibility_rules_test.php` reads what axe cannot**, scanning
-  the client sources and the stylesheet for twenty-four rules, once it has checked
-  that the scan found its sources at all and that its tag reader reads a tag to its
-  own end: that every image states an `alt` attribute, that no positive
-  `tabindex` exists anywhere, that the stylesheet never removes an outline
-  without replacing it, that every icon-only button names itself (the archive
-  control, the star, the list/cards toggle and the Filter button), that every
-  `role="group"` carries a name (the platters included), that the heading ladder
-  follows the block title, that brand-coloured text goes through the paired
-  token and its dark-mode override is scoped to `html` or `body`, that the archive
-  control declares a minimum target box, that a list
-  row wraps instead of overflowing, that every course name is clamped to
-  two lines with the whole name in a `title` attribute, that nothing is written
-  in capitals, that the cards grid counts its columns in the stylesheet and the
-  client alike, that the card's star sits on a contrast disc in one corner and
-  the badge in the other, that a control which disables itself while busy stays
-  focusable (the reload control, *Try again*, the star, *Clear filters* and
-  *Archive all*), that an archive puts the keyboard back even when its group has
-  left the page, that opening the full course list takes the keyboard once per
-  press, that a star set in the strips reaches the full list, that notifications
-  go through the one module that cannot fail unhandled, that a string's every
-  placeholder is filled, that every class the stylesheet styles is rendered, that
-  icon-only glyphs carry no margin, that the accordion's
-  chevron flows inline, and that the page's hidden title is hidden from sight
-  only — core's `visually-hidden` on the `<h1>`, and no `display: none` in the
-  no-title rules. Each rule carries a guard asserting it had something to
-  check.
-- **Headings sit under core's block title.** Core renders the block title as an
-  `<h3>`, so the plugin's section titles are `<h4>` and its card titles `<h5>`;
-  when `hide_block_title` is on core renders no heading at all and each moves one
-  rung up, chosen at render time rather than written into a component.
-- **Brand-coloured text uses a token dark mode overrides to the body text
-  colour**, which is the one colour dark mode guarantees readable. A brand's own
-  dark tint is not: measured 2026-09-07 in a browser against a `#070093` navy
-  brand, Bootstrap's dark emphasis tint of it reached **3.28:1** and the brand
-  itself **1.10:1**, both under the 4.5:1 floor for text. Outlines, borders and
-  backgrounds keep the plain brand token, whose floor is the 3:1 of non-text
-  contrast.
-- **The archive control declares a box of at least 1.5 rem** — 24 px at the
-  default root size, the 2.5.8 Target Size minimum, which `btn-link btn-sm p-0`
-  alone computes one pixel under — and **every row wraps** when its parts no
-  longer fit on one line, so nothing overflows the block at narrow widths
-  (1.4.10 Reflow; a list row overflowed by 19 px at 375 px before the fix).
-
-**What is not covered.** A real screen reader — announcement order, verbosity,
-and how NVDA, JAWS or VoiceOver handle the native `details` disclosure and the
-live regions — has not been tested, only the accessibility tree read through
-browser tooling. Neither has `forced-colors` mode / Windows High Contrast, which
-the development platform does not provide. Both are stated rather than implied.
-The findings, the measurements behind them and the limits are in
-`docs/adr/008-accessibility-docs-and-release.md`.
+Compass keeps seven MUC application caches (`coursemeta`, `categorymeta`, `coursefields`,
+`filterfields`, `inventory`, `details`, `calendarstrip`). Map all seven to a **shared in-memory
+store, Redis by preference**, under *Site administration > Plugins > Caching > Configuration*:
+add a Redis store instance, then use *Edit mappings* on each Compass definition, or set the
+store as the default application store. The block works without it, but every web node then
+rebuilds each user's caches in its own file store, and performance on a large site degrades
+severely. The settings page repeats this notice.
 
 
 Capabilities
 ------------
 
-- `block/compass:myaddinstance` — add the block to one's own Dashboard (and,
-  for administrators, to the default Dashboard). Default: authenticated user.
-  The block lives on the Dashboard only, so there is no `addinstance`
-  capability: core never evaluates it for a Dashboard-only block.
+- `block/compass:myaddinstance`: add the block to one's own Dashboard (and, for administrators,
+  to the default Dashboard). Default: authenticated user. The block lives on the Dashboard only,
+  so there is no `addinstance` capability.
 
 
 Web services
 ------------
 
-Five read-only functions, all answering for the current user (none accepts a
-user id), callable over AJAX after login and never by the guest account:
+Seven read-only functions, callable over AJAX after login, never by the guest account. Each
+answers for the current user (none accepts a user id) and runs without the session lock on a
+site that enables read-only sessions:
 
-| Function                             | Purpose                                                                                                                  |
-|--------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
-| `block_compass_get_attention`        | Tier 1: the three strips, the ghost and heading-link counts, and the numbers of enrolment applications awaiting approval and of enrolments that start later. |
-| `block_compass_get_inventory`        | Tier 3: every listed course grouped by category (`mode: full`), or the group headers with counts alone (`mode: paged`), plus the custom-field chip groups (`fields`); dormant courses gather in a group of their own (id `-1`) and archived ones travel as a header alone (id `-2`). |
-| `block_compass_get_inventory_rows`   | Paged mode: one page of up to 100 courses of one group, by cursor, under a chip (`all`, `new`, `favourites`, `pending`, `scheduled`), a sort (`name`, `recent`) and the custom-field `filters`. |
-| `block_compass_search_inventory`     | Paged mode: up to 50 courses whose name contains every word of the query, under the same `filters`, each with its group. |
-| `block_compass_get_card_details`     | Progress and the course image for a batch of up to 24 courses on screen.                                                |
+| Function | Purpose |
+|---|---|
+| `block_compass_get_attention` | The first tier: strips, ghost counts and notices. |
+| `block_compass_get_inventory` | *All courses*: every course grouped by category, or the group headers in paged mode. |
+| `block_compass_get_inventory_rows` | Paged mode: one page of up to 100 courses of one group. |
+| `block_compass_search_inventory` | Paged mode: up to 50 courses matching a search. |
+| `block_compass_get_card_details` | Progress and image for up to 24 courses on screen. |
+| `block_compass_get_strip` | The calendar strip: per-day counts for the window. |
+| `block_compass_get_day` | One day of the strip: its items with core's actions. |
 
-A tier 3 row is the same six fields in all three of the functions that return
-one — `id`, `name`, `opened` (the last access timestamp, or null), `new`, `fav`
-and `dorm` (whether the course has gone quiet) — plus two that are present only
-when they apply: `pend`, on an enrolment application awaiting approval, and
-`cf`, the row's custom-field values as a flat list of pairs (the field's index in
-`fields`, then the value key) — with `search_inventory` adding
-`groupid`, since its hits arrive outside their groups.
-
-Writes go to core's own services — the star through
-`core_course_set_favourite_courses`; the list/cards view and archiving through
-`core_user/repository`, which posts to core's preferences endpoint (the router, not the
-legacy `core_user_update_user_preferences`) — so Compass ships no write function.
+Writes go to core's own services: the star through `core_course_set_favourite_courses`, the
+view, the toolbar, the strip's choices and archiving through core's user preferences.
 
 
 Privacy
 -------
 
-The plugin stores **two** things of its own, both user preferences:
-`block_compass_view`, the viewer's choice between the list and the cards view of
-the full course list, and `block_compass_explore`, the toolbar of that list as
-the viewer left it — the sort, the pressed chip, the field selection and whether
-the filter panel is open, as one JSON value. Both are declared in `lib.php` and
-exported by `classes/privacy/provider.php`, which implements the metadata
-provider and `user_preference_provider`.
+Compass stores three user preferences of its own: `block_compass_view` (list or cards),
+`block_compass_explore` (the toolbar of *All courses* as the user left it) and
+`block_compass_calendar` (the strip's view, filter and relevance switch). The privacy provider
+declares and exports all three.
 
-Everything else it shows belongs to core and stays core's to export and to
-delete. Courses, enrolments and progress are read, never copied: what the plugin
-keeps of them are derived, expiring copies in MUC caches. When an account is
-deleted, the plugin drops that user's cached course list and progress at once,
-from an observer of core's `user_deleted` event; anything the observer cannot reach
-expires with the cache (within an hour for progress, a day for the course list). Two rows a learner's
-actions do create are core's own and are written through core's own services:
-the favourite star (the `core_favourites` subsystem, component `core_course`,
-itemtype `courses`, the same star the Course overview block sets) and the
-archive (that block's `block_myoverview_hidden_course_*` preferences). Core
-exports and deletes both, and Compass keeps no copy of either. The pre-warming
-task writes the same cache entries a Dashboard visit writes and keeps its
-position in three plugin configuration rows (`prewarm_cursor`, `prewarm_since`,
-`prewarm_lastsweep`), which are site state, not personal data.
+Everything else it shows belongs to core and stays core's to export and delete: courses,
+enrolments, progress and calendar events are read, never copied, except into expiring MUC
+caches. Deleting an account drops that user's cached entries at once. The favourite star and the
+archive are core's own records (`core_favourites` and the Course overview block's preferences).
+The pre-warming task keeps its position in plugin configuration, which is site state.
 
 
-Testing
--------
+Accessibility
+-------------
 
-- **PHPUnit: 265 tests across 25 files**, 1 815 assertions (measured 2026-09-07
-  on Moodle 5.2.2+, PHP 8.4, PostgreSQL 17). Every external function has two
-  tests beside it, one for behaviour and one for its budget; a budget test
-  asserts the read count this README's *Sizing* table states, not whatever the
-  code currently costs.
-- **Behat: five smoke scenarios**, deliberately thin — the block appears with a
-  recently opened course leading (and the page carries the seven module preload
-  hints), the courses that do not fit are counted, the ghost card opens the full
-  list and the search filters it in place, archiving in Compass moves the course
-  into the Course overview block's *Removed from view*, and the block's own page
-  shows the block alone and serves as the start page. Each of the five carries
-  core's axe step; the second runs with the block title hidden, so that
-  configuration is measured too. Logic lives in PHPUnit.
-- **More than 130 mutation gates.** `mutations/gates.conf` names one guard per line together
-  with the test that must redden when it is broken; `mdl mutate` breaks each in
-  turn and runs the suite. A guard that reddens nothing is the finding.
-- **The matrix**: `MOODLE_502_STABLE` on PHP 8.3 and 8.4, against PostgreSQL and
-  MariaDB, with the static gates (phplint, phpcs and phpdoc at zero warnings, the
-  Mustache lint, the development-leftover checker, `validate`, `savepoints`,
-  grunt's eslint and stylelint) plus PHPUnit and Behat on each runtime leg.
+The bar is WCAG 2.2 AA. Core's axe check runs inside every Behat scenario, scoped to the block,
+and a static test reads what axe cannot (headings, names of icon-only controls, focus, target
+sizes, contrast tokens for dark mode). A real screen reader and Windows forced-colours mode have
+not been tested. Details: [ADR-008](docs/adr/008-accessibility-docs-and-release.md).
+
+
+Performance
+-----------
+
+Every web service has a database-read budget asserted by a PHPUnit test: the first tier costs at
+most 7 reads with the shared caches warm and a page of *All courses* or a search at most 3, each
+plus one read of the web-service layer, and a calendar strip already cached costs 2. On
+PostgreSQL with over a million enrolments, an ordinary user's first paint took under 6 ms of
+database time. One cached course list of 2 000 enrolments occupies about 272 KB in a default
+Redis store (122 KB with igbinary). Methods, numbers and their dates are in
+[`docs/perf/`](docs/perf/); the reasoning in [`docs/adr/`](docs/adr/README.md).
 
 
 Troubleshooting
 ---------------
 
-- **The block is not shown.** It renders only for logged-in, non-guest users;
-  Moodle hides a block whose content is empty.
-- **The block shows "JavaScript is required".** The browser renders the block;
-  JavaScript is not optional.
-- **Slow Dashboard on a large site.** Check the four cache definitions are
-  mapped to a shared in-memory store (see above), not to the default file store.
-- **All courses opens with every group closed and a *Show more* button.** The
-  learner is above `inventory_max`: that is paged mode, not a fault. Raise the
-  threshold if you would rather ship the whole list to them.
-- **A course vanished from All courses.** Check the Dormant and the Archived
-  groups at the end of the list before anything else; both are closed by default.
-  A course removed from view in the Course overview block arrives under Archived.
-- **The pre-warming task logs "pre-warming is off".** That is the task's normal
-  output while `enable_prewarm` is unset. Switch the setting on; the schedule
-  needs no change.
-- **Pre-warming runs but the morning Dashboards are no faster.** On a multi-node
-  site check the six definitions are mapped to a shared store; the cron node's
-  file store is invisible to the web nodes. On a small site there may simply be
-  nothing to gain — see *Pre-warming*.
+- **The block is not shown.** It renders only for logged-in, non-guest users.
+- **"JavaScript is required".** The browser renders the block; JavaScript is not optional.
+- **Slow Dashboard on a large site.** Check that the seven cache definitions are mapped to a
+  shared in-memory store, not the default file store.
+- **All courses opens with every group closed.** The learner has more than `inventory_max`
+  courses: that is paged mode.
+- **A course vanished from All courses.** Look in the *Dormant* and *Archived* groups at the
+  end of the list; a course removed from view in the Course overview block is under *Archived*.
+- **No calendar strip.** Check `calendar_enabled` and `calendar_where`; the strip shows only
+  where it is configured, and only after the first tier has loaded.
+
+
+Development
+-----------
+
+- Development happens on `main` (Moodle 5.2); fixes are carried to `MOODLE_503_STABLE`, whose
+  `version.php` and CI workflow differ on purpose.
+- Tests: PHPUnit (a behaviour test and a budget test beside every web service), Behat smoke
+  scenarios with core's axe step, and mutation gates (`mutations/gates.conf`, one guard per
+  line with the test that must fail when the guard is removed).
+- CI runs [moodle-plugin-ci](https://github.com/moodle-an-hochschulen/moodle-workflows) for each
+  branch's Moodle version, on PHP 8.3 and 8.4 against PostgreSQL and MariaDB, with the static
+  gates at zero warnings.
+- The client is TypeScript and React under `js/esm/src`, built into `js/esm/build` (tracked,
+  including the bundle and its manifest).
+- Design decisions: [`docs/adr/`](docs/adr/README.md). Measurements: [`docs/perf/`](docs/perf/).
+  Changes: [`CHANGELOG.md`](CHANGELOG.md).
 
 
 Credits
 -------
 
-Architecture (server shell, client-side rendering, core favourites) follows the
-sibling plugin `block_dimensions`; the three-tier reading of "my courses" was
-designed for Fundaseg.
+The shape of a shell block rendered in the browser follows the sibling plugin
+`block_dimensions`; the three-tier reading of "my courses" was designed for Fundaseg.
 
 
 License

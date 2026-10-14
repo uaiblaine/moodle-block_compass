@@ -709,8 +709,9 @@ final class accessibility_rules_test extends basic_testcase {
         $body = null;
         foreach ($this->rules() as $rule) {
             [$selector, $rulebody] = $rule;
-            // The base rule only: not the last-child variant, not -link, -meta or -progress.
-            if (!preg_match('/\.compass-row(?![\w-])/', $selector) || str_contains($selector, ':')) {
+            // The base rule only: the selector ends at .compass-row (not a descendant such as
+            // .compass-row .compass-row-meta, not -link, -meta or -progress, not a :last-child variant).
+            if (!preg_match('/\.compass-row$/', trim($selector))) {
                 continue;
             }
             $body = $rulebody;

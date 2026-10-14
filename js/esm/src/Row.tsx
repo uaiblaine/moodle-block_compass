@@ -123,7 +123,7 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
             </a>
             <StatePill row={row} labels={labels} />
             <Crests badges={detail?.badges} label={labels.crests} inline />
-            {meta !== null && <span className="compass-row-meta small text-muted text-nowrap">{meta}</span>}
+            {meta !== null && <span className="compass-row-meta small text-muted">{meta}</span>}
             {/* The progress slot, held from the first render when comp says a bar may come: a
                 skeleton while the batch is out, then the rule of Card.tsx completion() - a bar
                 when there is one, else the empty slot, which is also what a failed batch leaves.

@@ -87,7 +87,7 @@ final class day_test extends advanced_testcase {
         $learn = $gen->create_course();
         $gen->enrol_user($teacher->id, $teach->id, 'editingteacher');
         $gen->enrol_user($teacher->id, $learn->id, 'student');
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $grading = $gen->create_module('assign', ['course' => $teach->id, 'gradingduedate' => $at]);
         $class = $gen->create_module('assign', ['course' => $teach->id, 'duedate' => $at + HOURSECS]);
         // A submission plugin enabled, or core's action is not actionable and the learner's day drops it.
@@ -149,7 +149,7 @@ final class day_test extends advanced_testcase {
         $teacher = $gen->create_user();
         $course = $gen->create_course();
         $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $gen->create_module('assign', ['course' => $course->id, 'name' => 'Openwork', 'duedate' => $at]);
         $blocked = $gen->create_module('assign', ['course' => $course->id, 'name' => 'Sealedwork', 'duedate' => $at + HOURSECS]);
 
@@ -315,7 +315,7 @@ final class day_test extends advanced_testcase {
         $learn = $gen->create_course();
         $gen->enrol_user($teacher->id, $teach->id, 'editingteacher');
         $gen->enrol_user($teacher->id, $learn->id, 'student');
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $grading = $gen->create_module('assign', ['course' => $teach->id, 'gradingduedate' => $at]);
         $gen->create_module('assign', ['course' => $teach->id, 'duedate' => $at + HOURSECS]);
         $gen->create_module('assign', [
@@ -359,6 +359,36 @@ final class day_test extends advanced_testcase {
     }
 
     /**
+     * A learning day's course event carries core's course-event icon, as an activity's carries its own.
+     *
+     * Core's event icon exporter leaves the URL empty for every event that is not an activity's (its
+     * templates render the key through pix), so the day resolves the key itself; without it the card
+     * draws an empty icon box.
+     *
+     * @return void
+     */
+    public function test_a_course_event_carries_cores_course_event_icon(): void {
+        global $PAGE, $USER;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $learner = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($learner->id, $course->id, 'student');
+        $at = $this->noon_in_three_days();
+        $this->setUser($learner);
+        $event = $this->course_event((int) $course->id, $at);
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $tz = \core_date::get_user_timezone_object();
+
+        $day = day::get((int) $USER->id, strip::local_day($at, $tz), 'learning', $now, 1700000000, $tz, $output);
+
+        $this->assertSame([$event], array_column($day['items'], 'id'));
+        $this->assertSame($output->image_url('i/courseevent', 'core')->out(false), $day['items'][0]['iconurl']);
+    }
+
+    /**
      * A user unenrolled inside the strip's cache entry is not shown the course events of the course.
      *
      * The strip is opened (the entry is built with the course in its sets) and a day of the course's
@@ -377,7 +407,7 @@ final class day_test extends advanced_testcase {
         $learner = $gen->create_user();
         $course = $gen->create_course();
         $gen->enrol_user($learner->id, $course->id, 'student');
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $this->setUser($learner);
         $first = $this->course_event((int) $course->id, $at);
         $second = $this->course_event((int) $course->id, $at + DAYSECS);
@@ -420,7 +450,7 @@ final class day_test extends advanced_testcase {
         $gen->enrol_user($learner->id, $course->id, 'student');
         $group = $gen->create_group(['courseid' => $course->id]);
         $gen->create_group_member(['groupid' => $group->id, 'userid' => $learner->id]);
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $this->setUser($learner);
         $firstgroup = $this->course_event((int) $course->id, $at, (int) $group->id);
         $secondgroup = $this->course_event((int) $course->id, $at + DAYSECS, (int) $group->id);
@@ -464,7 +494,7 @@ final class day_test extends advanced_testcase {
         $gen->enrol_user($teacher->id, $course->id, 'teacher');
         $group = $gen->create_group(['courseid' => $course->id]);
         $gen->create_group_member(['groupid' => $group->id, 'userid' => $teacher->id]);
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $this->setUser($teacher);
         $firstgroup = $this->course_event((int) $course->id, $at, (int) $group->id);
         $secondgroup = $this->course_event((int) $course->id, $at + DAYSECS, (int) $group->id);
@@ -510,7 +540,7 @@ final class day_test extends advanced_testcase {
         $a = $gen->create_group(['courseid' => $course->id]);
         $b = $gen->create_group(['courseid' => $course->id]);
         $gen->create_group_member(['groupid' => $a->id, 'userid' => $teacher->id]);
-        $at = $now + 3 * DAYSECS;
+        $at = $this->noon_in_three_days();
         $first = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $at]);
         $second = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $at + DAYSECS]);
         foreach ([$a, $b, $b] as $group) {
@@ -542,6 +572,19 @@ final class day_test extends advanced_testcase {
         $grade = array_values(array_filter($after['items'], fn(array $item): bool => $item['kind'] === 'grade'));
         $this->assertCount(1, $grade);
         $this->assertSame(2, $grade[0]['action']['itemcount']);
+    }
+
+    /**
+     * Noon, three days ahead, in the user's timezone: the fixtures' items an hour or two apart stay on
+     * one day whatever hour the suite runs (PHPUnit's timezone is Australia/Perth, so an anchor of
+     * now + 3 days crossed midnight for any run after 14:00 UTC).
+     *
+     * @return int
+     */
+    private function noon_in_three_days(): int {
+        $tz = \core_date::get_user_timezone_object();
+
+        return (new \DateTimeImmutable('@' . time()))->setTimezone($tz)->setTime(12, 0)->modify('+3 days')->getTimestamp();
     }
 
     /**

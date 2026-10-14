@@ -1,4 +1,4 @@
-var s=o=>new Promise((n,r)=>{let e=window.require;if(!e){r(new Error(`block_compass: RequireJS is not on this page, cannot load ${o}`));return}e([o],i=>n(i),r)});export{s as amd};
+var s=o=>new Promise((n,e)=>{let r=window.require;if(!r){e(new Error(`block_compass: RequireJS is not on this page, cannot load ${o}`));return}r([o],i=>n(i),e)});export{s as amd};
 /**
  * The one place that knows a React component cannot import an AMD module.
  *

@@ -55,6 +55,7 @@ import {
 import type {DayCounts, DayOff} from './calendar';
 import {notify} from './notify';
 import {getDay, getStrip, setCalendarPreference} from './repository';
+import {hold} from './pending';
 import {fill, fillCount, fillObject} from './str';
 import type {BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, StripPayload} from './types';
 
@@ -70,8 +71,18 @@ const MOVE_DELAY_MS = 40;
 /** The card closes this long after the pointer has left the strip and the card. */
 const CLOSE_DELAY_MS = 200;
 
-/** The arrows move the row this many days. */
+/** The arrows move the row this many days, or the row's length when it shows fewer. */
 const STEP_DAYS = 7;
+
+/**
+ * The room one ring day needs, in CSS px: the disc, its arcs and a gap that keeps neighbours apart.
+ * The ring style shows as many days as the row can hold at this pitch (see rowLength()).
+ */
+const RING_PITCH_PX = 56;
+
+/** The ring style never shows fewer days than this, however narrow the block, nor more than RING_MAX. */
+const RING_MIN = 5;
+const RING_MAX = 15;
 
 /** A day draws at most this many dots, then +N. */
 const DOTS_MAX = 4;
@@ -97,16 +108,27 @@ type CalendarStripProps = {
 /**
  * How many days the row shows.
  *
+ * The dots and pulse styles show a week when narrow and three weeks otherwise. The ring style
+ * needs room around every disc, so it shows as many days as fit at RING_PITCH_PX, always an odd
+ * count so that today keeps its centre, between RING_MIN and RING_MAX.
+ *
+ * @param {number} width The block's width in CSS px, 0 while unmeasured.
  * @param {boolean} narrow Whether the block is under NARROW_PX.
  * @param {string} style dots, ring or pulse.
- * @returns {number} 7, 15 or 21.
+ * @returns {number} 5 to 15 for the ring style, else 7 or 21.
  */
-const rowLength = (narrow: boolean, style: string): number => {
-    if (narrow) {
-        return 7;
+const rowLength = (width: number, narrow: boolean, style: string): number => {
+    if (style === 'ring') {
+        if (width <= 0) {
+            return RING_MAX;
+        }
+        const fits = Math.floor(width / RING_PITCH_PX);
+        const odd = fits % 2 === 0 ? fits - 1 : fits;
+
+        return Math.min(RING_MAX, Math.max(RING_MIN, odd));
     }
 
-    return style === 'ring' ? 15 : 21;
+    return narrow ? 7 : 21;
 };
 
 /**
@@ -398,9 +420,22 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     // The pointer that last pressed a day: touch never prefetches (decision 9).
     const pointer = useRef('');
     const cardid = `${useId()}-day`;
+    // Pending JavaScript from the first render until the strip has an answer, so nothing reads the
+    // page as ready in the render between tier 1 settling and the strip's request (see pending.ts).
+    const release = useRef<(() => void) | null>(null);
+    if (release.current === null && payload === null && !failed) {
+        release.current = hold(`block_compass/calendar-${cardid}`);
+    }
+    useEffect(() => {
+        if (payload !== null || failed) {
+            release.current?.();
+        }
+    }, [payload, failed]);
+    useEffect(() => () => release.current?.(), []);
 
     const narrow = width > 0 && width < NARROW_PX;
-    const shown = rowLength(narrow, calendar.style);
+    const shown = rowLength(width, narrow, calendar.style);
+    const stepdays = Math.min(STEP_DAYS, shown);
     const drawn = drawnView(payload, view);
     const hasboth = !!payload && payload.haslearning && payload.hasteaching;
 
@@ -756,7 +791,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
 
             return;
         }
-        const moved = target < 0 ? first - STEP_DAYS : first + STEP_DAYS;
+        const moved = target < 0 ? first - stepdays : first + stepdays;
         if ((target < 0 && first <= home) || (target >= visible.length && first >= last)) {
             return;
         }
@@ -992,7 +1027,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         aria-disabled={atstart || undefined}
                         onClick={() => {
                             if (!atstart) {
-                                shift(first - STEP_DAYS);
+                                shift(first - stepdays);
                             }
                         }}
                     >
@@ -1017,7 +1052,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         aria-disabled={atend || undefined}
                         onClick={() => {
                             if (!atend) {
-                                shift(first + STEP_DAYS);
+                                shift(first + stepdays);
                             }
                         }}
                     >

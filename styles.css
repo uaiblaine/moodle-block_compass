@@ -597,10 +597,14 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     object-fit: cover;
 }
 
-/* The clamped name is a block, so the link lays its name and its badges out as a row. */
+/* The clamped name is a block, so the link lays its name and its badges out as a row. The link's
+   basis is a small fixed width, not its content: with the content as the basis a long name
+   claimed the whole line and pushed the progress and the controls under the image, whereas now
+   the name gives way (it clamps) and the row wraps only when even that minimum does not fit. */
 .block_compass .compass-row .compass-row-link {
     display: flex;
     align-items: center;
+    flex: 1 1 8rem;
     flex-wrap: wrap;
     gap: 0.25rem;
     min-width: 0;
@@ -671,6 +675,12 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     background: var(--block_compass-surface);
 }
 
+.block_compass .compass-row .compass-row-meta {
+    flex: 0 1 5.5rem;
+    min-width: 0;
+    text-align: end;
+}
+
 .block_compass .compass-row-nocompletion {
     white-space: nowrap;
 }
@@ -678,7 +688,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 /* The list keeps the bar alone, at the width its skeleton stands in for; the card has
    room for the bar and its text. */
 .block_compass .compass-row-progress {
-    width: 6rem;
+    width: 4.5rem;
     flex: 0 0 auto;
 }
 
@@ -1239,6 +1249,23 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     grid-template-columns: repeat(15, minmax(0, 1fr));
 }
 
+/* The ring style counts the days its row can hold (CalendarStrip.tsx rowLength()). */
+.block_compass .compass-cal-days-13 {
+    grid-template-columns: repeat(13, minmax(0, 1fr));
+}
+
+.block_compass .compass-cal-days-11 {
+    grid-template-columns: repeat(11, minmax(0, 1fr));
+}
+
+.block_compass .compass-cal-days-9 {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+}
+
+.block_compass .compass-cal-days-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .block_compass .compass-cal-days-7 {
     grid-template-columns: repeat(7, minmax(0, 1fr));
 }
@@ -1487,11 +1514,16 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-cal-col-weekend .compass-cal-wd,
 .block_compass .compass-cal-col-holiday .compass-cal-wd {
     padding: 0 0.3rem 0.3rem;
-    background: var(--block_compass-cal-hatch-weekend) center bottom / 100% 0.25rem no-repeat;
+    background-image: var(--block_compass-cal-hatch-weekend);
+    background-position: center bottom;
+    background-size: 100% 0.25rem;
+    background-repeat: no-repeat;
 }
 
+/* The holiday hatch is two crossed layers: the longhands above apply to every layer, which a
+   shorthand with one position would not. */
 .block_compass .compass-cal-col-holiday .compass-cal-wd {
-    background: var(--block_compass-cal-hatch-holiday) center bottom / 100% 0.25rem no-repeat;
+    background-image: var(--block_compass-cal-hatch-holiday);
 }
 
 /* The ring style: one arc per item around the disc; the dots keep their row's height, unseen. */
@@ -1540,6 +1572,16 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-style-ring .compass-cal-dots {
     visibility: hidden;
+}
+
+/* The arcs sit 6 px outside the disc, so the disc leaves those 12 px of its column to them and a
+   ring never reaches its neighbour's; the gap between columns is the visible spacing. */
+.block_compass .compass-cal-style-ring .compass-cal-days {
+    column-gap: 8px;
+}
+
+.block_compass .compass-cal-style-ring .compass-cal-day {
+    width: calc(100% - 12px);
 }
 
 /* The pulse style: a bar per day, its height the count and its colour the heat. */

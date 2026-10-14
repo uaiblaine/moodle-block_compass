@@ -464,7 +464,7 @@ final class day {
                 ) : '',
                 'modulename' => $event->get_course_module() ? (string) $event->get_course_module()->get('modname') : '',
                 'purpose' => (string) $exported->purpose,
-                'iconurl' => (string) ($exported->icon->iconurl ?? ''),
+                'iconurl' => self::icon_url($exported->icon, $output),
                 'timestart' => (int) $exported->timestart,
                 'formattedtime' => (string) $exported->formattedtime,
                 'viewurl' => (string) $exported->viewurl,
@@ -695,6 +695,23 @@ final class day {
             'criterion' => $row->criterionid !== null,
             'lateuntil' => 0,
         ];
+    }
+
+    /**
+     * An item's icon from core's event icon exporter: the activity's icon, or for any other event
+     * the image its key and component name (i/courseevent and the like), which core leaves
+     * without a URL because its own templates render it through pix.
+     *
+     * @param \stdClass $icon The exported event's icon (event_icon_exporter).
+     * @param renderer_base $output Core's renderer.
+     * @return string The icon's URL.
+     */
+    private static function icon_url(\stdClass $icon, renderer_base $output): string {
+        if ((string) ($icon->iconurl ?? '') !== '') {
+            return (string) $icon->iconurl;
+        }
+
+        return $output->image_url((string) $icon->key, (string) $icon->component)->out(false);
     }
 
     /**
