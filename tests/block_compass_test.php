@@ -498,6 +498,56 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
+     * The strip's dates are written from the language file: twelve months, seven weekdays in two
+     * lengths, and templates that use exactly the placeholders the client fills, in both languages.
+     *
+     * The time templates differ between the languages only in which one the client picks:
+     * cal_format_clock is 12 in English, as core's own strftimetime ('%I:%M %p', lang/en/langconfig.php),
+     * and 24 in Brazilian Portuguese ("14:30"). A placeholder the client does not fill would print
+     * literally, and one it fills but the template lacks would lose the number.
+     *
+     * @return void
+     */
+    public function test_the_calendar_date_strings_cover_every_name_in_both_languages(): void {
+        $root = dirname(__DIR__);
+        $vocabulary = [
+            'cal_format_daymonth' => ['day', 'month'],
+            'cal_format_dayname' => ['day', 'month', 'weekday'],
+            'cal_format_monthyear' => ['month', 'year'],
+            'cal_format_time12' => ['ampm', 'hour', 'minute'],
+            'cal_format_time24' => ['hour', 'minute'],
+        ];
+        $clock = ['en' => '12', 'pt_br' => '24'];
+        $lists = ['cal_month_%02d' => range(1, 12), 'cal_weekday_%d' => range(0, 6), 'cal_weekdayshort_%d' => range(0, 6)];
+        foreach (['en', 'pt_br'] as $lang) {
+            $string = [];
+            include($root . '/lang/' . $lang . '/block_compass.php');
+            $names = [];
+            foreach ($lists as $pattern => $numbers) {
+                $set = [];
+                foreach ($numbers as $number) {
+                    $key = sprintf($pattern, $number);
+                    $this->assertArrayHasKey($key, $string, "{$lang}: {$key}");
+                    $this->assertNotSame('', trim($string[$key]), "{$lang}: {$key}");
+                    $this->assertContains($key, shell::CALENDAR_STRINGS, $key);
+                    $set[] = $string[$key];
+                }
+                $this->assertCount(count($numbers), array_unique($set), "{$lang}: {$pattern} names are distinct");
+                $names = array_merge($names, $set);
+            }
+            $this->assertCount(26, $names, $lang);
+            foreach ($vocabulary as $key => $placeholders) {
+                preg_match_all('/\{\$a->(\w+)\}/', $string[$key], $found);
+                $used = array_values(array_unique($found[1]));
+                sort($used);
+                $this->assertSame($placeholders, $used, "{$lang}: {$key}");
+            }
+            $this->assertSame($clock[$lang], $string['cal_format_clock'], $lang);
+            $this->assertStringContainsString('{$a}', $string['cal_upto'], $lang);
+        }
+    }
+
+    /**
      * With the strip on, rendering the shell still reads nothing from the database once core is warm.
      *
      * The protocol of test_the_shell_costs_no_database_reads_when_core_is_warm(); the preference and

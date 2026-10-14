@@ -212,8 +212,9 @@ export type CalendarState = {
  * The calendar strip's part of the shell's props (classes/output/block.php, calendar()).
  *
  * Its strings travel here rather than among the block's labels, so a site with the strip off
- * ships none of them. The timezone is the user's Moodle one, which the client formats times in:
- * the browser's own zone may differ.
+ * ships none of them; they include the month and weekday names and the date and time templates
+ * every date is written with, in the site language. The timezone is the user's Moodle one, in which
+ * the client reads an instant's numbers: the browser's own zone may differ.
  */
 export type CalendarConfig = {
     style: 'dots' | 'ring' | 'pulse',

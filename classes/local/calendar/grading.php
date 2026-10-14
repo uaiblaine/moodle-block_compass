@@ -40,37 +40,51 @@ namespace block_compass\local\calendar;
  *   enabled instance, started before now and not ended, on an account not deleted, with now
  *   rounded to the hundred seconds as core rounds it ({@see get_enrolled_join()},
  *   lib/enrollib.php);
- * - a group filter, when the caller passes one, keeps the members of those groups.
+ * - a group filter, when the caller passes one, keeps the members of that group, as
+ *   get_enrolled_sql() does for the one active group core passes.
  * One more rule comes from the callback, not the counter: the action is not actionable before
  * the assignment accepts submissions, and its item count is then 0, so an assignment whose
  * allowsubmissionsfromdate is still ahead counts nothing here.
  *
- * Which groups to pass, and why that differs from core's session-held active group, is
- * {@see strip::grading_groups()}'s to say.
+ * Which group to pass, core's default active group, is {@see strip::grading_groups()}'s to say.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-final class grading {
-    /** @var int Assignments one statement counts at most; the strip flags truncated beyond it. */
-    public const LIMIT = 500;
+final class grading implements grading_source {
+    /**
+     * The source the strip counts grading work from: the one selection point.
+     *
+     * Today it is always this class, core's counter mirrored. block_feedback_tracker keeps a ledger
+     * built for this question, block_feedback_tracker_sub (courseid, groupid, cmid, iteminstance,
+     * userid, islatest, iscurrent, timeclosed, timedismissed; index idx_course_group_submitted), and
+     * when the maintainer moves the count to it, this method returns a grading_source reading that
+     * table, chosen only when the plugin is installed: presence asked of core's component list,
+     * core_component::get_component_directory('block_feedback_tracker'), before any read, as
+     * {@see \block_compass\local\theme_badges} asks before calling the theme. Without the plugin
+     * the answer stays this class. Nothing reads that table yet.
+     *
+     * @return grading_source
+     */
+    public static function source(): grading_source {
+        return new self();
+    }
 
     /**
-     * Submissions waiting to be graded, per assignment.
+     * Submissions waiting to be graded, per assignment, in one statement.
      *
      * Index: assign primary key; assign_submission latestattempt (assignment, userid, groupid,
      * latest); assign_grades uniqueattemptgrade (assignment, userid, attemptnumber);
      * user_enrolments (userid) and enrol primary key; user primary key; groups_members unique
-     * (userid, groupid) and groups primary key. Bound: an aggregate per assignment over at most
-     * LIMIT assignment ids.
+     * (userid, groupid). Bound: an aggregate per assignment over at most LIMIT assignment ids.
      *
-     * @param array $assignments Assignment instance id => int[] group ids to limit the count to,
-     *     or null to count every participant; at most LIMIT entries are counted.
+     * @param array $assignments Assignment instance id => group id (int) to limit the count to, or
+     *     null to count every participant; at most LIMIT entries are counted.
      * @param int $now Unix time to treat as now.
      * @return array Assignment instance id => submissions waiting, only for those with at least one.
      */
-    public static function waiting(array $assignments, int $now): array {
+    public function waiting(array $assignments, int $now): array {
         global $CFG, $DB;
 
         if (!$assignments) {
@@ -80,22 +94,30 @@ final class grading {
 
         $assignments = array_slice($assignments, 0, self::LIMIT, true);
         $everyone = [];
-        $groupids = [];
-        foreach ($assignments as $assignid => $groups) {
-            if ($groups === null) {
+        $bygroup = [];
+        foreach ($assignments as $assignid => $groupid) {
+            if ($groupid === null) {
                 $everyone[] = (int) $assignid;
-                continue;
-            }
-            foreach ($groups as $groupid) {
-                $groupids[(int) $groupid] = (int) $groupid;
+            } else {
+                $bygroup[(int) $groupid][] = (int) $assignid;
             }
         }
         [$insql, $params] = $DB->get_in_or_equal(array_map('intval', array_keys($assignments)), SQL_PARAMS_NAMED, 'gwa');
         [$everyonesql, $everyoneparams] = $DB->get_in_or_equal($everyone, SQL_PARAMS_NAMED, 'gwe', true, -1);
-        [$groupsql, $groupparams] = $DB->get_in_or_equal(array_values($groupids), SQL_PARAMS_NAMED, 'gwg', true, -1);
+        $params += $everyoneparams;
+        // Each assignment is limited to its own group: two assignments of one course may have different
+        // active groups (another grouping, another group mode), so the groups are paired with their
+        // assignments rather than pooled.
+        $pairs = [];
+        foreach (array_keys($bygroup) as $at => $groupid) {
+            [$pairin, $pairparams] = $DB->get_in_or_equal($bygroup[$groupid], SQL_PARAMS_NAMED, 'gwp');
+            $params += $pairparams + ['gwgroup' . $at => $groupid];
+            $pairs[] = "(gm.groupid = :gwgroup{$at} AND a.id {$pairin})";
+        }
+        $groupsql = $pairs ? implode(' OR ', $pairs) : '1 = 0';
         // Core rounds now to the hundred seconds in the enrolment window "to help caching in DB".
         $enrolnow = (int) round($now, -2);
-        $params += $everyoneparams + $groupparams + [
+        $params += [
             'gwsubmitted' => ASSIGN_SUBMISSION_STATUS_SUBMITTED,
             'gwnotset' => ASSIGN_GRADE_NOT_SET,
             'gwopened' => $now,
@@ -132,8 +154,7 @@ final class grading {
                 AND (a.id {$everyonesql} OR EXISTS (
                     SELECT 1
                       FROM {groups_members} gm
-                      JOIN {groups} gg ON gg.id = gm.groupid
-                     WHERE gm.userid = s.userid AND gm.groupid {$groupsql} AND gg.courseid = a.course
+                     WHERE gm.userid = s.userid AND ({$groupsql})
                 ))
            GROUP BY s.assignment",
             $params

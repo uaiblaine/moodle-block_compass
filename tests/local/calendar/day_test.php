@@ -405,7 +405,7 @@ final class day_test extends advanced_testcase {
      * The same protocol as the unenrolment, with the enrolment untouched (the inventory stamp is the
      * same). Core's raw strategy re-reads the user's groups itself (calendar_set_filters() in
      * raw_event_retrieval_strategy.php), so this behaviour holds even from a stale entry; the
-     * entry's group comparison is held by the teaching test below. The course event of the second
+     * entry's group comparison is held by the teaching group-event test below. The course event of the second
      * day is the control that the course is still in the sets.
      *
      * @return void
@@ -444,14 +444,58 @@ final class day_test extends advanced_testcase {
     }
 
     /**
+     * A teacher removed from a group inside the strip's cache entry is not shown the group's events.
+     *
+     * The teaching day reads group events through the strip's own statement with the entry's group
+     * set, which core does not re-filter. The protocol of the learning test above, in a course
+     * where the user is not graded: only the comparison of the entry's group set with the user's
+     * groups can rebuild the entry. The course event of the second day is the control that the
+     * course is still in the sets.
+     *
+     * @return void
+     */
+    public function test_a_teaching_day_opened_after_leaving_a_group_does_not_list_the_groups_events(): void {
+        global $PAGE;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'teacher');
+        $group = $gen->create_group(['courseid' => $course->id]);
+        $gen->create_group_member(['groupid' => $group->id, 'userid' => $teacher->id]);
+        $at = $now + 3 * DAYSECS;
+        $this->setUser($teacher);
+        $firstgroup = $this->course_event((int) $course->id, $at, (int) $group->id);
+        $secondgroup = $this->course_event((int) $course->id, $at + DAYSECS, (int) $group->id);
+        $secondcourse = $this->course_event((int) $course->id, $at + DAYSECS + HOURSECS);
+        $PAGE->set_context(\core\context\system::instance());
+        $output = $PAGE->get_renderer('core');
+        $tz = \core_date::get_user_timezone_object();
+        $userid = (int) $teacher->id;
+        $signin = 1700000000;
+        strip::get($userid, $now, $signin, $tz);
+
+        $before = day::get($userid, strip::local_day($at, $tz), 'teaching', $now, $signin, $tz, $output);
+        $this->assertSame([$firstgroup], array_column($before['items'], 'id'), 'Control: a member sees the group event.');
+
+        groups_remove_member($group->id, $userid);
+        $this->new_request();
+        $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'teaching', $now, $signin, $tz, $output);
+        $ids = array_column($after['items'], 'id');
+        $this->assertNotContains($secondgroup, $ids);
+        $this->assertSame([$secondcourse], $ids, 'Control: the course event of the same day is still listed.');
+    }
+
+    /**
      * A grader moved to another group inside the strip's cache entry counts the new group's work.
      *
      * Separate groups, a non-editing teacher (no moodle/site:accessallgroups) in group A, one
      * submission waiting in A and two in B on each of two assignments graded on consecutive days.
      * The first day, opened while the teacher is in A, counts one: the control. The teacher is
-     * then moved to B, which leaves the enrolment and so the inventory stamp untouched: only the
-     * comparison of the entry's group set with the user's groups can rebuild the entry, and the
-     * second day, never opened, counts B's two.
+     * then moved to B, which leaves the enrolment and so the inventory stamp untouched, and the
+     * second day, never opened, counts B's two. The grading count reads the grader's groups in
+     * its own statement (strip::course_groups()), so this holds even from a stale entry.
      *
      * @return void
      */

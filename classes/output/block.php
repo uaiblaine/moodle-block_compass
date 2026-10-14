@@ -55,27 +55,37 @@ class block implements renderable, templatable {
      * The calendar strip's strings, every one the client shows (ADR-014).
      *
      * They travel under the calendar key, never among the block's labels, so a site with the
-     * strip off ships none of them. The _one keys are the singular twins fillCount() picks.
+     * strip off ships none of them. The _one keys are the singular twins fillCount() picks. The
+     * month and weekday names and the cal_format_* templates are how the client writes a date in
+     * the site language (js/esm/src/calendar.ts): the browser computes only the numbers. Months are
+     * cal_month_01 to cal_month_12; weekdays are numbered 0 (Sunday) to 6, as getUTCDay() and PHP's
+     * date('w') number them.
      *
      * @var string[]
      */
     public const CALENDAR_STRINGS = [
-        'cal_bounded', 'cal_close', 'cal_count_class', 'cal_count_class_one', 'cal_count_done', 'cal_count_done_one',
-        'cal_count_event', 'cal_count_event_one', 'cal_count_grade', 'cal_count_graded', 'cal_count_graded_one',
-        'cal_count_gradedsoon_today', 'cal_count_gradedsoon_today_one', 'cal_count_gradedsoon_tomorrow',
-        'cal_count_gradedsoon_tomorrow_one', 'cal_count_gradesoon_today', 'cal_count_gradesoon_tomorrow',
-        'cal_count_late', 'cal_count_late_one', 'cal_count_todo', 'cal_dayerror', 'cal_daylabel', 'cal_days',
-        'cal_empty_events', 'cal_empty_learning', 'cal_empty_teaching', 'cal_filter_all', 'cal_filter_events',
-        'cal_filter_todo', 'cal_filters', 'cal_hint_hover', 'cal_hint_pinned', 'cal_items', 'cal_items_one',
-        'cal_legend_class', 'cal_legend_done', 'cal_legend_event', 'cal_legend_grade', 'cal_legend_graded',
-        'cal_legend_late', 'cal_legend_needle_learning', 'cal_legend_needle_teaching', 'cal_legend_todo',
-        'cal_loaderror', 'cal_loading', 'cal_loadingday', 'cal_monthspan', 'cal_next', 'cal_nothing', 'cal_open',
-        'cal_openday', 'cal_pill_class', 'cal_pill_criterion', 'cal_pill_done', 'cal_pill_event', 'cal_pill_graded',
-        'cal_pill_gradedtoday', 'cal_pill_gradedtomorrow', 'cal_pill_gradetoday', 'cal_pill_gradetomorrow',
-        'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_waiting', 'cal_pill_waiting_one', 'cal_prefererror',
-        'cal_prev', 'cal_region', 'cal_rel_future', 'cal_rel_past', 'cal_rel_today', 'cal_rel_tomorrow',
-        'cal_rel_yesterday', 'cal_relevance', 'cal_today', 'cal_truncated', 'cal_truncatedday', 'cal_view',
-        'cal_view_learning', 'cal_view_teaching', 'cal_views', 'cal_waiting',
+        'cal_am', 'cal_bounded', 'cal_close', 'cal_count_class', 'cal_count_class_one', 'cal_count_done',
+        'cal_count_done_one', 'cal_count_event', 'cal_count_event_one', 'cal_count_grade', 'cal_count_graded',
+        'cal_count_graded_one', 'cal_count_gradedsoon_today', 'cal_count_gradedsoon_today_one',
+        'cal_count_gradedsoon_tomorrow', 'cal_count_gradedsoon_tomorrow_one', 'cal_count_gradesoon_today',
+        'cal_count_gradesoon_tomorrow', 'cal_count_late', 'cal_count_late_one', 'cal_count_todo', 'cal_dayerror',
+        'cal_daylabel', 'cal_days', 'cal_empty_events', 'cal_empty_learning', 'cal_empty_teaching', 'cal_filter_all',
+        'cal_filter_events', 'cal_filter_todo', 'cal_filters', 'cal_format_clock', 'cal_format_daymonth',
+        'cal_format_dayname', 'cal_format_monthyear', 'cal_format_time12', 'cal_format_time24', 'cal_hint_hover',
+        'cal_hint_pinned', 'cal_items', 'cal_items_one', 'cal_legend_class', 'cal_legend_done', 'cal_legend_event',
+        'cal_legend_grade', 'cal_legend_graded', 'cal_legend_late', 'cal_legend_needle_learning',
+        'cal_legend_needle_teaching', 'cal_legend_todo', 'cal_loaderror', 'cal_loading', 'cal_loadingday',
+        'cal_month_01', 'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06', 'cal_month_07',
+        'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12', 'cal_monthspan', 'cal_next',
+        'cal_nothing', 'cal_open', 'cal_openday', 'cal_pill_class', 'cal_pill_criterion', 'cal_pill_done',
+        'cal_pill_event', 'cal_pill_graded', 'cal_pill_gradedtoday', 'cal_pill_gradedtomorrow', 'cal_pill_gradetoday',
+        'cal_pill_gradetomorrow', 'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_waiting', 'cal_pill_waiting_one',
+        'cal_pm', 'cal_prefererror', 'cal_prev', 'cal_region', 'cal_rel_future', 'cal_rel_past', 'cal_rel_today',
+        'cal_rel_tomorrow', 'cal_rel_yesterday', 'cal_relevance', 'cal_today', 'cal_truncated', 'cal_truncatedday',
+        'cal_upto', 'cal_view', 'cal_view_learning', 'cal_view_teaching', 'cal_views', 'cal_waiting', 'cal_weekday_0',
+        'cal_weekday_1', 'cal_weekday_2', 'cal_weekday_3', 'cal_weekday_4', 'cal_weekday_5', 'cal_weekday_6',
+        'cal_weekdayshort_0', 'cal_weekdayshort_1', 'cal_weekdayshort_2', 'cal_weekdayshort_3', 'cal_weekdayshort_4',
+        'cal_weekdayshort_5', 'cal_weekdayshort_6',
     ];
 
     /**

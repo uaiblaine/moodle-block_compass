@@ -634,8 +634,8 @@ with. The decision text above is kept as the maintainer reviewed it.
      `filters::preload()` for every context a day formats (`day.php:404-411`, `:544-554`); the
      course short name in the course context (`:430-433`), never `$PAGE`'s, which
      `validate_context()` leaves on the user context.
-   - **The client formats the time itself** from `timestart`, with `Intl` in the user's Moodle
-     timezone (`js/esm/src/CalendarCard.tsx:104`, `:286`). The service still returns core's
+   - **The client formats the time itself** from `timestart`, in the user's Moodle timezone
+     (with `Intl` until amendment 9, which moved the words to the language file). The service still returns core's
      `formattedtime` (`get_day.php:126`, `PARAM_RAW`), but that HTML never reaches the page
      (`CalendarCard.tsx:25-27`, `js/esm/src/types.ts:279`).
 4. **Decision 8, what the entry holds, and its residual.** Besides the payload, the marker, the
@@ -644,17 +644,18 @@ with. The decision text above is kept as the maintainer reviewed it.
    days reuse them without a read (`classes/local/calendar_cache.php:28-41`). The TTL is 30 minutes
    (`calendar_cache.php:52`, `:90-98`).
    **Re-validation before a new day (MDL Shield, PR #26, LOW):** a day built from cached sets
-   could list the course events of a course the user had just left, and count a group's grading
-   work for a grader who had just left that group. Before
+   could list the course events of a course the user had just left, and, on the teaching day,
+   the events of a group the teacher had just left. Before
    building a day that is not cached, `day::get()` now calls `strip::revalidated()`, which:
    - compares the entry's stored inventory stamp (ADR-002, the recorded fact of enrolment
      changes) with the current one;
    - compares the entry's group set with a fresh read of the user's groups;
    - rebuilds the entry, through the same path a miss takes, when either differs.
 
-   The group comparison matters for the teaching day: a grader moved between groups would
-   otherwise count the old group's submissions. A learner's group events are safe without it,
-   because core's raw strategy re-reads the user's groups (`calendar_set_filters()`).
+   The group comparison matters for the teaching day, whose group events come from the strip's
+   own statement with the entry's group set. A learner's group events are safe without it, because
+   core's raw strategy re-reads the user's groups (`calendar_set_filters()`), and the grading
+   count reads the grader's groups in its own statement (amendment 9).
 
    This costs 2 reads, only on a day miss. A strip hit and a reopened day keep their 2-read floor.
    **Residual, stated plainly:** the strip's own counts (numbers and course ids, never names), a
@@ -681,12 +682,11 @@ with. The decision text above is kept as the maintainer reviewed it.
      (`lib/db/services.php:279`).
 6. **Decision 11, the grading count and who teaches.**
    - **The grading statement mirrors `count_submissions_need_grading_with_groups()`**
-     (`classes/local/calendar/grading.php:30-31`), with three documented differences in groups
-     (`strip.php:955-967`): the grader's participation groups are summed where core counts its
-     single active group; the activity's grouping is not applied; and in `VISIBLEGROUPS` everyone
-     is counted where core defaults to the grader's first group, an open question below.
+     (`classes/local/calendar/grading.php:30-31`) for one group per assignment, core's default
+     active group (amendment 9; it superseded three differences this item first recorded: summed
+     groups, no grouping, everyone in `VISIBLEGROUPS`).
    - **A `SEPARATEGROUPS` grader with no group counts everyone**, as core's active group 0 does
-     (`strip.php:973-990`).
+     (amendment 9).
    - **`gradingdue` belongs to the teaching view in any course where the user can grade**
      (`strip.php:807-815`), so a dual-role user's grading work never lands among their own
      deadlines.
@@ -702,12 +702,57 @@ with. The decision text above is kept as the maintainer reviewed it.
      (`js/esm/src/Block.tsx:203`, `:213`; `js/esm/src/CalendarStrip.tsx:341`).
    - The Studying / Teaching switch shows only to someone with both views (`CalendarStrip.tsx:336`,
      `:926`).
-   - Weekday, month and time names come from `Intl` in the page language
-     (`js/esm/src/calendar.ts:339-342`), never from lang strings.
+   - Weekday, month and time names came from `Intl` in the page language; amendment 9 moved them
+     to the language file.
    - Card and strip light each other from data in memory: pointing at a tier 1 card lights the
      days holding its course and dims the others (`CalendarStrip.tsx:976-981`); opening a day
      outlines its courses' cards (`:377-384`, `js/esm/src/Card.tsx:96`), lifted into two pieces of
      state in `Block.tsx` (`:145-149`). Neither costs a request.
+
+9. **The maintainer's answers to three open questions (2026-10-13), version 2026101305.**
+   - **The grading count mirrors core's default active group, with a seam for
+     `block_feedback_tracker`.** Core counts the grader's active group, which lives in the session
+     and which the strip cannot read, so the strip mirrors the default that
+     `_group_verify_activegroup()` (`lib/grouplib.php:1487`) sets on first use, one group or
+     everyone per assignment (`strip::grading_groups()`, `classes/local/calendar/strip.php:1044`;
+     `active_group()`, `:1088`):
+     - no group mode (the course's forced mode wins) or `moodle/site:accessallgroups` at the module
+       context: everyone (core's `aag` mode starts at 0);
+     - `SEPARATEGROUPS`: the first of the grader's groups, else everyone (core's 0);
+     - `VISIBLEGROUPS`: the grader's first group, else the course's first group, else everyone.
+
+     "Groups" are what `groups_get_all_groups()` lists with `$participationonly`: participation
+     groups inside the activity's grouping (`cm.groupingid`, one column added to the counted
+     statement, `:629`), filtered by group visibility unless the grader holds
+     `moodle/course:viewhiddengroups` at the course context (visibility `ALL`, or `MEMBERS`/`OWN`
+     where the grader is a member; only `ALL` and `MEMBERS` groups can be participation groups,
+     `group/lib.php:279-282`). "First" is core's `ORDER BY g.name`; same-name groups, which core
+     leaves to the database, are ordered by id. The facts come from **one statement**
+     (`course_groups()`, `:1126`) over the courses that need them, read only when some grading
+     work lies in a group-mode activity of a grader without `accessallgroups`; the grader's
+     memberships are read there, not from `groups()`, which leaves out `NONE` groups a
+     `viewhiddengroups` grader sees. `grading::waiting()` pairs each assignment with its own group
+     (two assignments of one course can have different active groups). The count now passes
+     through one selection point, `grading::source()` (`classes/local/calendar/grading.php:70`),
+     behind `grading_source`: it returns core's mirror today; its docblock names
+     `block_feedback_tracker_sub` as the future source and presence checked through
+     `core_component::get_component_directory('block_feedback_tracker')` first. Nothing reads that
+     table yet. Budgets: no budget fixture has a group mode, so the pinned ceilings stand; a grader
+     in that case pays one read more on a strip rebuild and on a teaching day miss.
+   - **"Up to N" on a screen reader.** A day's sentence words the counts of the kinds the strip
+     only bounds (graded due soon, graded, to do: `BOUND_KINDS`, `js/esm/src/calendar.ts:355`) as
+     "up to N" (`cal_upto`) until the day's items have arrived and settled the counts; a day opened
+     on the page reads its exact numbers, and a truncated day stays bounded
+     (`js/esm/src/CalendarStrip.tsx:794-798`).
+   - **Dates from the language file.** Month names (`cal_month_01` to `cal_month_12`), weekday
+     names long and short (`cal_weekday_0` to `_6`, `cal_weekdayshort_0` to `_6`, 0 being Sunday as
+     `getUTCDay()` and `date('w')` count) and templates (`cal_format_monthyear`, `_dayname`,
+     `_daymonth`, `_time12`, `_time24`, with `cal_am`/`cal_pm`) travel with the strip's strings.
+     `cal_format_clock` picks the clock: 12 in English, as core's `strftimetime` (`%I:%M %p`),
+     giving "2:30 PM"; 24 in Brazilian Portuguese, "14:30". The browser computes only numbers:
+     a date's from its Y-m-d, an instant's in the user's timezone through `Intl.DateTimeFormat`'s
+     `formatToParts()` with Latin digits and a 24-hour cycle, read as numbers and never shown
+     (`calendar.ts:399`, `:425`); a zone `Intl` does not know falls back to the browser's.
 
 ## Consequences
 
@@ -827,18 +872,15 @@ events included. Nothing here observes them, under ADR-001's user-layer rule.
 
 **Phase 11 gates (2026-10-13).** Isolated 5.2 leg: PHPUnit 469 tests / 4763 assertions /
 6 skipped (the measurement tests, run with `BLOCK_COMPASS_MEASURE`); Behat 6 scenarios / 165
-steps incl. the calendar scenario with axe; mutation sweep: `mdl mutate --fast` over the 42 calendar gates (the stage 11d gates, the three visibility gates of the security read, the three re-validation gates of the MDL Shield fix, and the repaired `page_guest_gate` and `heading_rung`) on PostgreSQL and on MariaDB: every gate reddened every test its `#   ->` line names, 42 of 42 on both families. The budgets
+steps incl. the calendar scenario with axe; mutation sweep: `mdl mutate --fast` over the 52 calendar gates (the stage 11d gates, the three visibility gates of the security read, the three re-validation gates of the MDL Shield fix, the ten gates of amendment 9, and the repaired `page_guest_gate` and `heading_rung`) on PostgreSQL and on MariaDB: every gate reddened every test its `#   ->` line names, 52 of 52 on both families. The budgets
 these runs pin are in amendment 5.
 
 ## Questions for the maintainer
 
-Still open when this record was accepted; an answer that changes a decision supersedes it with a
-new record.
+Still open; an answer that changes a decision supersedes it with a new record. The
+`VISIBLEGROUPS` grading count, the screen-reader wording of future counts and the source of date
+names were answered on 2026-10-13 (amendment 9).
 
-- **`VISIBLEGROUPS` grading count (amendment 6):** the strip counts every participant where
-  core defaults to the grader's first group. Keep it, or mirror core's default?
-- **Future counts on a screen reader:** a future count is an upper bound (decision 5), but the
-  day's label reads it as a plain number ("2 graded"). Should it say "up to 2"?
 - **E3:** the production run of `docs/perf/e3-production-kit.sql`, when production has calendar
   use. It decides the TTL (30 minutes until then) and the stamp (decision 8, amendment 4).
 - **Paint order (decision 2):** tier 1's first paint and the strip's, sequenced and in parallel,

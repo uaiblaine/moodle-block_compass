@@ -49,7 +49,8 @@ import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
 import RetryNotice from './RetryNotice';
 import {
-    addDays, daysBetween, dayTime, formatter, fromPayload, homeOffset, kindsOf, marks, score, settle, shownKinds, step, windowDays,
+    BOUND_KINDS, addDays, dateParts, daysBetween, fromPayload, homeOffset, kindsOf, longDay, marks, monthName, monthYear,
+    score, settle, shortWeekday, shownKinds, step, windowDays,
 } from './calendar';
 import type {DayCounts} from './calendar';
 import {notify} from './notify';
@@ -186,24 +187,22 @@ const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
 };
 
 /**
- * The header's month: "October 2026", or "October – November 2026" when the row spans two.
+ * The header's month: "October 2026", or "October – November 2026" when the row spans two, in the
+ * site language's words (cal_format_monthyear, cal_monthspan).
  *
  * @param {string[]} visible The row's days, Y-m-d.
  * @param {object} strings The strip's strings.
  * @returns {string} The label.
  */
 const monthLabel = (visible: string[], strings: Record<string, string>): string => {
-    const monthyear = formatter({month: 'long', year: 'numeric', timeZone: 'UTC'});
-    const start = new Date(dayTime(visible[0]));
-    const end = new Date(dayTime(visible[visible.length - 1]));
-    if (start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()) {
-        return monthyear.format(start);
+    const start = dateParts(visible[0]);
+    const end = dateParts(visible[visible.length - 1]);
+    if (start.month === end.month && start.year === end.year) {
+        return monthYear(strings, start.month, start.year);
     }
-    const from = start.getUTCFullYear() === end.getUTCFullYear()
-        ? formatter({month: 'long', timeZone: 'UTC'}).format(start)
-        : monthyear.format(start);
+    const from = start.year === end.year ? monthName(strings, start.month) : monthYear(strings, start.month, start.year);
 
-    return fillObject(strings.cal_monthspan, {from, to: monthyear.format(end)});
+    return fillObject(strings.cal_monthspan, {from, to: monthYear(strings, end.month, end.year)});
 };
 
 /**
@@ -459,8 +458,6 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
 
     const needle = needleOf(days.slice(todayindex), (date) => score(countsOf(date), drawn, filter, relevance));
     const monthlabel = monthLabel(visible, strings);
-    const weekday = formatter({weekday: 'short', timeZone: 'UTC'});
-    const longday = formatter({weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'});
     const tabstop = tabstopOf(visible, focusdate, payload.today);
     const open = openday;
     const bydate = new Map(payload.views[drawn].days.map((entry) => [entry.date, entry]));
@@ -769,7 +766,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     };
 
     /**
-     * The sentence a day's button is named by: "Wednesday 14 October: 1 graded, due tomorrow".
+     * The sentence a day's button is named by: "Wednesday, 14 October: 1 graded, due tomorrow".
+     *
+     * A count the strip payload gives as an upper bound (BOUND_KINDS: the future's open items,
+     * which only the day's callbacks settle) reads "up to 2" until the day's items have arrived; a
+     * day opened on this page is settled and reads its exact numbers. A truncated day stays bounded.
      *
      * @param {string} date Y-m-d.
      * @param {object} day The day's counters.
@@ -783,18 +784,31 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
          * @returns {number} The count.
          */
         const n = (kind: CalendarKind): number => (kinds.includes(kind) ? day.counts[kind] ?? 0 : 0);
+        /**
+         * A kind's count in its string, worded as a bound while the count is one.
+         *
+         * @param {string} key The count string's key.
+         * @param {string} kind The kind counted.
+         * @returns {string} The phrase.
+         */
+        const phrase = (key: string, kind: CalendarKind): string => {
+            const count = n(kind);
+            const bound = !day.settled && BOUND_KINDS.includes(kind);
+
+            return fillCount(strings, key, count, bound ? fill(strings.cal_upto, String(count)) : String(count));
+        };
         const istoday = date === payload.today;
         const parts: string[] = [];
         if (n('gradedsoon') > 0 && istoday) {
-            parts.push(fillCount(strings, 'cal_count_gradedsoon_today', n('gradedsoon')));
+            parts.push(phrase('cal_count_gradedsoon_today', 'gradedsoon'));
         } else if (n('gradedsoon') > 0) {
-            parts.push(fillCount(strings, 'cal_count_gradedsoon_tomorrow', n('gradedsoon')));
+            parts.push(phrase('cal_count_gradedsoon_tomorrow', 'gradedsoon'));
         }
         if (n('graded') > 0) {
-            parts.push(fillCount(strings, 'cal_count_graded', n('graded')));
+            parts.push(phrase('cal_count_graded', 'graded'));
         }
         if (n('todo') > 0) {
-            parts.push(fill(strings.cal_count_todo, String(n('todo'))));
+            parts.push(phrase('cal_count_todo', 'todo'));
         }
         if (n('late') > 0) {
             parts.push(fillCount(strings, 'cal_count_late', n('late')));
@@ -816,7 +830,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             parts.push(fillCount(strings, 'cal_count_done', n('done')));
         }
         const label = fillObject(strings.cal_daylabel, {
-            day: longday.format(new Date(dayTime(date))),
+            day: longDay(strings, dateParts(date)),
             counts: parts.length ? parts.join(', ') : strings.cal_nothing,
         });
         if (date !== needle) {
@@ -968,8 +982,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         const day = countsOf(date);
                         const list = marks(day, kinds);
                         const level = step(score(day, drawn, filter, relevance), relevance);
-                        const moment = new Date(dayTime(date));
-                        const weekend = moment.getUTCDay() === 0 || moment.getUTCDay() === 6;
+                        const ymd = dateParts(date);
+                        const weekend = ymd.weekday === 0 || ymd.weekday === 6;
                         const nothing = kindsOf(drawn).every((kind) => (day.counts[kind] ?? 0) === 0);
                         const istoday = date === payload.today;
                         const isopen = open === date;
@@ -1032,7 +1046,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                             {segments(list)}
                                         </svg>
                                     )}
-                                    <span className="compass-cal-num">{moment.getUTCDate()}</span>
+                                    <span className="compass-cal-num">{ymd.day}</span>
                                 </button>
                                 <span className="compass-cal-dots" aria-hidden="true">
                                     {list.slice(0, DOTS_MAX).map((kind, index) => (
@@ -1042,7 +1056,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                         <span className="compass-cal-more">{`+${list.length - DOTS_MAX}`}</span>
                                     )}
                                 </span>
-                                <span className="compass-cal-wd" aria-hidden="true">{weekday.format(moment)}</span>
+                                <span className="compass-cal-wd" aria-hidden="true">{shortWeekday(strings, ymd)}</span>
                                 {isopen && (
                                     <CalendarCard
                                         id={cardid}

@@ -31,7 +31,7 @@ use core_cache\cache;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * Parity of grading::waiting() with {@see \assign::count_submissions_need_grading()}.
+ * Parity of {@see grading::waiting()} with {@see \assign::count_submissions_need_grading()}.
  *
  * Each case builds the same submissions for both and asks both: core as the grader would, the
  * block in one statement. The submissions and grades are written as mod_assign stores them, with
@@ -99,7 +99,7 @@ final class grading_test extends advanced_testcase {
         $this->submission($id, $ended, 'submitted', $now - 5 * HOURSECS);
 
         $this->assertSame(3, $this->core_count($assign->cmid, $this->teacher((int) $course->id, 'editingteacher')));
-        $this->assertSame([$id => 3], grading::waiting([$id => null], $now));
+        $this->assertSame([$id => 3], (new grading())->waiting([$id => null], $now));
     }
 
     /**
@@ -138,7 +138,7 @@ final class grading_test extends advanced_testcase {
         $this->assertSame(0, $this->core_count($numeric->cmid, $teacher));
         $this->assertSame(
             [(int) $scaled->id => 1],
-            grading::waiting([(int) $scaled->id => null, (int) $numeric->id => null], $now)
+            (new grading())->waiting([(int) $scaled->id => null, (int) $numeric->id => null], $now)
         );
     }
 
@@ -163,7 +163,10 @@ final class grading_test extends advanced_testcase {
         $teacher = $this->teacher((int) $course->id, 'editingteacher');
         $this->assertSame(0, $this->core_count($team->cmid, $teacher));
         $this->assertSame(1, $this->core_count($solo->cmid, $teacher));
-        $this->assertSame([(int) $solo->id => 1], grading::waiting([(int) $team->id => null, (int) $solo->id => null], $now));
+        $this->assertSame(
+            [(int) $solo->id => 1],
+            (new grading())->waiting([(int) $team->id => null, (int) $solo->id => null], $now)
+        );
     }
 
     /**
@@ -185,7 +188,7 @@ final class grading_test extends advanced_testcase {
         $this->submission((int) $later->id, $student, 'submitted', $now - HOURSECS);
 
         $this->assertSame(1, $this->core_count($later->cmid, $this->teacher((int) $course->id, 'editingteacher')));
-        $this->assertSame([], grading::waiting([(int) $later->id => null], $now));
+        $this->assertSame([], (new grading())->waiting([(int) $later->id => null], $now));
     }
 
     /**
@@ -272,6 +275,172 @@ final class grading_test extends advanced_testcase {
     }
 
     /**
+     * In SEPARATEGROUPS a grader in two groups counts the first of them by name, core's default active group.
+     *
+     * Beta is created before Alpha, so an order by id would pick Beta; Alpha has one submission
+     * waiting and Beta two, so counting both (the strip's former sum) reads 3, Beta alone 2, and
+     * core's default, Alpha, 1.
+     *
+     * @return void
+     */
+    public function test_separate_groups_count_the_first_of_the_graders_groups_by_name(): void {
+        $this->resetAfterTest();
+        $now = time();
+        [$course, $assign] = $this->grouped_assignment(SEPARATEGROUPS, $now);
+        $beta = $this->group_with_submissions($course, $assign, 'Beta', 2, $now);
+        $alpha = $this->group_with_submissions($course, $assign, 'Alpha', 1, $now);
+        $grader = $this->teacher($course, 'teacher');
+        $this->join($grader, [$beta, $alpha]);
+
+        $this->assert_counts($assign, $grader, 1, $now);
+    }
+
+    /**
+     * The activity's grouping limits the groups core chooses from.
+     *
+     * The grader is in Alpha, outside the activity's grouping, and in Beta, inside it: core's
+     * active group is Beta (two waiting), where Alpha first by name (one waiting) is what the
+     * course without the grouping would give.
+     *
+     * @return void
+     */
+    public function test_the_activitys_grouping_limits_the_graders_groups(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $courseid = (int) $gen->create_course()->id;
+        $grouping = $gen->create_grouping(['courseid' => $courseid]);
+        $assign = $gen->create_module('assign', [
+            'course' => $courseid,
+            'gradingduedate' => $now + 3 * DAYSECS,
+            'groupmode' => SEPARATEGROUPS,
+            'groupingid' => $grouping->id,
+        ]);
+        $alpha = $this->group_with_submissions($courseid, $assign, 'Alpha', 1, $now);
+        $beta = $this->group_with_submissions($courseid, $assign, 'Beta', 2, $now);
+        $gen->create_grouping_group(['groupingid' => $grouping->id, 'groupid' => $beta]);
+        $grader = $this->teacher($courseid, 'teacher');
+        $this->join($grader, [$alpha, $beta]);
+
+        $this->assert_counts($assign, $grader, 2, $now);
+    }
+
+    /**
+     * In VISIBLEGROUPS a grader in a group counts that group, not every participant.
+     *
+     * Alpha comes first by name and has one waiting; the grader's group, Beta, has two; everyone
+     * is three. Core's default is the grader's own first group, Beta.
+     *
+     * @return void
+     */
+    public function test_visible_groups_count_the_graders_own_group(): void {
+        $this->resetAfterTest();
+        $now = time();
+        [$course, $assign] = $this->grouped_assignment(VISIBLEGROUPS, $now);
+        $this->group_with_submissions($course, $assign, 'Alpha', 1, $now);
+        $beta = $this->group_with_submissions($course, $assign, 'Beta', 2, $now);
+        $grader = $this->teacher($course, 'teacher');
+        $this->join($grader, [$beta]);
+
+        $this->assert_counts($assign, $grader, 2, $now);
+    }
+
+    /**
+     * In VISIBLEGROUPS a grader in no group counts the course's first group by name.
+     *
+     * Beta is created first and has two waiting, Alpha one: core's default is Alpha, 1, where an
+     * order by id would give 2 and every participant 3.
+     *
+     * @return void
+     */
+    public function test_visible_groups_without_a_group_count_the_first_group_by_name(): void {
+        $this->resetAfterTest();
+        $now = time();
+        [$course, $assign] = $this->grouped_assignment(VISIBLEGROUPS, $now);
+        $this->group_with_submissions($course, $assign, 'Beta', 2, $now);
+        $this->group_with_submissions($course, $assign, 'Alpha', 1, $now);
+        $grader = $this->teacher($course, 'teacher');
+
+        $this->assert_counts($assign, $grader, 1, $now);
+    }
+
+    /**
+     * The VISIBLEGROUPS fallback list follows group visibility, unless the grader can view hidden groups.
+     *
+     * Alpha is visible to its members only and the grader is not one; Beta is visible to all. With
+     * moodle/course:viewhiddengroups (the non-editing teacher's default) core lists both and picks
+     * Alpha, 1 waiting: the control. With it prohibited, core lists Beta alone and counts its 2.
+     *
+     * @return void
+     */
+    public function test_visible_groups_skip_a_group_the_grader_cannot_see(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $now = time();
+        [$course, $assign] = $this->grouped_assignment(VISIBLEGROUPS, $now);
+        $this->group_with_submissions($course, $assign, 'Alpha', 1, $now, GROUPS_VISIBILITY_MEMBERS);
+        $this->group_with_submissions($course, $assign, 'Beta', 2, $now);
+        $grader = $this->teacher($course, 'teacher');
+
+        $this->assert_counts($assign, $grader, 1, $now);
+
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'teacher'], MUST_EXIST);
+        assign_capability('moodle/course:viewhiddengroups', CAP_PROHIBIT, $roleid, \core\context\course::instance($course)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->assert_counts($assign, $grader, 2, $now);
+    }
+
+    /**
+     * A grader with moodle/site:accessallgroups counts every participant even from inside a group.
+     *
+     * The editing teacher is in Alpha (one waiting); core's 'aag' mode starts at all groups, three.
+     *
+     * @return void
+     */
+    public function test_access_all_groups_counts_everyone_from_inside_a_group(): void {
+        $this->resetAfterTest();
+        $now = time();
+        [$course, $assign] = $this->grouped_assignment(SEPARATEGROUPS, $now);
+        $alpha = $this->group_with_submissions($course, $assign, 'Alpha', 1, $now);
+        $this->group_with_submissions($course, $assign, 'Beta', 2, $now);
+        $grader = $this->teacher($course, 'editingteacher');
+        $this->join($grader, [$alpha]);
+
+        $this->assert_counts($assign, $grader, 3, $now);
+    }
+
+    /**
+     * Each assignment is counted for its own group, even beside another of the same course.
+     *
+     * Two assignments of one course, each with one submission from Alpha and two from Beta: limited
+     * to Alpha the first counts 1, limited to Beta the second counts 2. Pooling the two groups would
+     * count 3 for both.
+     *
+     * @return void
+     */
+    public function test_each_assignment_is_counted_for_its_own_group(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $courseid = (int) $gen->create_course()->id;
+        $first = $gen->create_module('assign', ['course' => $courseid]);
+        $second = $gen->create_module('assign', ['course' => $courseid]);
+        $alpha = $this->group_with_submissions($courseid, $first, 'Alpha', 1, $now);
+        $beta = $this->group_with_submissions($courseid, $first, 'Beta', 2, $now);
+        foreach ([$alpha, $beta] as $groupid) {
+            foreach (groups_get_members($groupid, 'u.id') as $member) {
+                $this->submission((int) $second->id, (int) $member->id, 'submitted', $now - HOURSECS);
+            }
+        }
+
+        $this->assertSame(
+            [(int) $first->id => 1, (int) $second->id => 2],
+            (new grading())->waiting([(int) $first->id => $alpha, (int) $second->id => $beta], $now)
+        );
+    }
+
+    /**
      * Only the latest attempt of a student waits: an older attempt row is history.
      *
      * Three students. One has a submitted first attempt and a new, empty second one (nothing
@@ -300,7 +469,7 @@ final class grading_test extends advanced_testcase {
         $this->submission($id, $again, 'submitted', $now - 4 * HOURSECS, 1, 1);
 
         $this->assertSame(2, $this->core_count($assign->cmid, $this->teacher((int) $course->id, 'editingteacher')));
-        $this->assertSame([$id => 2], grading::waiting([$id => null], $now));
+        $this->assertSame([$id => 2], (new grading())->waiting([$id => null], $now));
     }
 
     /**
@@ -322,7 +491,7 @@ final class grading_test extends advanced_testcase {
         }
 
         $meter = budget::start();
-        $waiting = grading::waiting($ids, $now);
+        $waiting = (new grading())->waiting($ids, $now);
         $this->assertSame(1, $meter->reads());
         $this->assertSame(array_fill_keys(array_keys($ids), 1), $waiting);
     }
@@ -335,11 +504,96 @@ final class grading_test extends advanced_testcase {
      * @return int
      */
     private function core_count(int $cmid, int $graderid): int {
+        global $SESSION;
+
         $this->setUser($graderid);
+        // Core's default active group, as a fresh session would choose it: the strip mirrors the
+        // default, never a group the grader switched to, and a previous grader's choice is not theirs.
+        unset($SESSION->activegroup);
         [$course, $cm] = get_course_and_cm_from_cmid($cmid, 'assign');
         $assign = new \assign(\core\context\module::instance($cm->id), $cm, $course);
 
         return (int) $assign->count_submissions_need_grading();
+    }
+
+    /**
+     * Core and the strip agree on what waits for the grader, and both give the expected count.
+     *
+     * @param \stdClass $assign The assignment, as create_module() returns it, graded three days ahead.
+     * @param int $graderid The grader.
+     * @param int $expected The count.
+     * @param int $now Unix time to treat as now.
+     * @return void
+     */
+    private function assert_counts(\stdClass $assign, int $graderid, int $expected, int $now): void {
+        $this->assertSame($expected, $this->core_count((int) $assign->cmid, $graderid), 'core');
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($graderid);
+        $tz = \core_date::get_user_timezone_object();
+        $days = strip::build($graderid, $now, $tz)['views']['teaching']['days'];
+        $this->assertSame($expected, $days[strip::local_day($now + 3 * DAYSECS, $tz)]['waiting'] ?? 0, 'block');
+    }
+
+    /**
+     * A course and an assignment in a group mode, graded three days ahead.
+     *
+     * @param int $mode SEPARATEGROUPS or VISIBLEGROUPS.
+     * @param int $now Unix time to treat as now.
+     * @return array [course id, the assignment as create_module() returns it].
+     */
+    private function grouped_assignment(int $mode, int $now): array {
+        $gen = $this->getDataGenerator();
+        $courseid = (int) $gen->create_course()->id;
+        $assign = $gen->create_module('assign', [
+            'course' => $courseid,
+            'gradingduedate' => $now + 3 * DAYSECS,
+            'groupmode' => $mode,
+        ]);
+
+        return [$courseid, $assign];
+    }
+
+    /**
+     * A named group with some students, each with a submission waiting.
+     *
+     * @param int $courseid The course.
+     * @param \stdClass $assign The assignment.
+     * @param string $name The group's name, which core orders by.
+     * @param int $students How many students submit.
+     * @param int $now Unix time to treat as now.
+     * @param int $visibility The group's visibility.
+     * @return int The group id.
+     */
+    private function group_with_submissions(
+        int $courseid,
+        \stdClass $assign,
+        string $name,
+        int $students,
+        int $now,
+        int $visibility = GROUPS_VISIBILITY_ALL
+    ): int {
+        $gen = $this->getDataGenerator();
+        $groupid = (int) $gen->create_group(['courseid' => $courseid, 'name' => $name, 'visibility' => $visibility])->id;
+        for ($i = 0; $i < $students; $i++) {
+            $student = $this->student($courseid);
+            $gen->create_group_member(['groupid' => $groupid, 'userid' => $student]);
+            $this->submission((int) $assign->id, $student, 'submitted', $now - HOURSECS);
+        }
+
+        return $groupid;
+    }
+
+    /**
+     * Add a user to groups.
+     *
+     * @param int $userid The user.
+     * @param int[] $groupids The groups.
+     * @return void
+     */
+    private function join(int $userid, array $groupids): void {
+        foreach ($groupids as $groupid) {
+            $this->getDataGenerator()->create_group_member(['groupid' => $groupid, 'userid' => $userid]);
+        }
     }
 
     /**

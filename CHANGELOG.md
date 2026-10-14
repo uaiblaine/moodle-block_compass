@@ -64,11 +64,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - **A new day re-validates the strip's sets** (MDL Shield, LOW): `day::get()` on a day miss
     compares the entry's inventory stamp and group set with the current ones (two reads) and
     rebuilds the entry when either differs, so a user unenrolled inside the 30 minutes is not shown
-    the course-level events of what they left, and a grader moved between groups counts the new
-    group's work (a learner's group events are re-filtered by core itself). The strip's own
+    the course-level events of what they left, nor a teacher removed from a group its events on the
+    teaching day (a learner's group events are re-filtered by core itself). The strip's own
     hit stays at two reads. Residual: the strip's counts (numbers and course ids, never names) and
     days already opened can lag an enrolment, group, hidden-course or role change until the TTL or
     the next day opening.
+  - **The maintainer's three answers** (ADR-014 amendment 9), version 2026101305.
+    - The grading count mirrors core's **default active group** exactly: one group or every
+      participant per assignment, as `groups_get_activity_group()` first chooses it. No group mode
+      or `moodle/site:accessallgroups` counts everyone; `SEPARATEGROUPS` counts the first of the
+      grader's groups by name, or everyone when the grader has none; `VISIBLEGROUPS` counts the
+      grader's first group, else the course's first group, else everyone. Groups are participation
+      groups inside the activity's grouping, filtered by group visibility unless the grader holds
+      `moodle/course:viewhiddengroups`. Formerly the grader's groups were summed, the grouping was
+      ignored and `VISIBLEGROUPS` counted everyone. This costs one more read, only when grading work
+      lies in a group-mode activity of a grader without `accessallgroups`. The count now goes through
+      one selection point, `grading::source()`, behind a `grading_source` interface, ready for
+      `block_feedback_tracker`'s ledger; today it returns core's counter.
+    - A day's screen-reader sentence says **"up to N"** for a count that is an upper bound (graded
+      and to-do items of the future, before their callbacks run), and the exact number once the day
+      has been opened on the page.
+    - **Month, weekday and time names come from the language file** (`cal_month_01` to
+      `cal_month_12`, `cal_weekday_0` to `_6` and their short forms, the `cal_format_*` templates,
+      `cal_am`/`cal_pm`), not from the browser's `Intl`: "October 2026" and "2:30 PM" in English
+      (12-hour, as core's `strftimetime`), "outubro de 2026" and "14:30" in Brazilian Portuguese.
+      `Intl` is kept only to read an instant's numbers in the user's timezone.
 
 ### Changed
 

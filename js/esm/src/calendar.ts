@@ -21,11 +21,16 @@
  * days (classes/local/calendar/strip.php), so the client only counts calendar days, and a UTC
  * day is always 24 hours long. The browser's own clock and zone are never asked what today is.
  *
+ * Dates and times are written in the site language from the strings the shell ships (month and
+ * weekday names, the cal_format_* templates), never by Intl's own names; Intl is asked only for the
+ * numbers of an instant in the user's timezone (timeParts()).
+ *
  * @module     block_compass/calendar
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {fillObject} from './str';
 import type {CalendarFilter, CalendarKind, CalendarView, DayItem, StripDay} from './types';
 
 /** One calendar day in milliseconds; exact for UTC dates. */
@@ -329,20 +334,179 @@ export const sortItems = (items: DayItem[], view: CalendarView): DayItem[] => {
     return [...items].sort((a, b) => (order.indexOf(a.kind) - order.indexOf(b.kind)) || (a.timestart - b.timestart));
 };
 
+/** The month names' string keys, January first (block::CALENDAR_STRINGS ships them). */
+const MONTH_KEYS = [
+    'cal_month_01', 'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06',
+    'cal_month_07', 'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12',
+];
+
+/** The weekday names' string keys, Sunday first: the index is getUTCDay()'s, 0 to 6. */
+const WEEKDAY_KEYS = [
+    'cal_weekday_0', 'cal_weekday_1', 'cal_weekday_2', 'cal_weekday_3', 'cal_weekday_4', 'cal_weekday_5', 'cal_weekday_6',
+];
+
+/** The short weekday names' string keys, Sunday first, as WEEKDAY_KEYS. */
+const WEEKDAY_SHORT_KEYS = [
+    'cal_weekdayshort_0', 'cal_weekdayshort_1', 'cal_weekdayshort_2', 'cal_weekdayshort_3', 'cal_weekdayshort_4',
+    'cal_weekdayshort_5', 'cal_weekdayshort_6',
+];
+
+/** The kinds whose count in the strip payload is an upper bound until the day's items arrive (decision 5). */
+export const BOUND_KINDS: CalendarKind[] = ['gradedsoon', 'graded', 'todo'];
+
+/** A calendar date's numbers: the month 1 to 12, the weekday 0 (Sunday) to 6. */
+export type DateParts = {year: number, month: number, day: number, weekday: number};
+
+/** An instant's numbers in a timezone: its date's, and the hour 0 to 23 and the minute. */
+export type TimeParts = DateParts & {hour: number, minute: number};
+
 /**
- * A date formatter in the page's language, falling back to the browser's when the language or
- * the zone is one Intl does not know.
+ * The weekday of a date, 0 (Sunday) to 6.
  *
- * @param {object} options Intl.DateTimeFormat options.
+ * @param {number} year The year.
+ * @param {number} month The month, 1 to 12.
+ * @param {number} day The day of the month.
+ * @returns {number} The weekday.
+ */
+const weekdayOf = (year: number, month: number, day: number): number => new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+
+/**
+ * The numbers of a Y-m-d date, which is already in the user's timezone.
+ *
+ * @param {string} date Y-m-d.
+ * @returns {object} Its year, month, day and weekday.
+ */
+export const dateParts = (date: string): DateParts => {
+    const [year, month, day] = date.split('-').map(Number);
+
+    return {year, month, day, weekday: weekdayOf(year, month, day)};
+};
+
+/** One numeric extractor per timezone: building an Intl formatter costs more than using one. */
+const extractors = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * A formatter used only for its numbers: Latin digits, a 24-hour clock, no names.
+ *
+ * Intl is asked for numbers alone, the year, month, day, hour and minute of an instant in a zone,
+ * which needs the zone database only the browser has; every word is the site language's, from the
+ * strings. A zone Intl does not know (a legacy Moodle name) falls back to the browser's own zone,
+ * the nearest truth.
+ *
+ * @param {string} timezone The user's Moodle timezone.
  * @returns {object} The formatter.
  */
-export const formatter = (options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat => {
-    const lang = document.documentElement.lang || undefined;
-    try {
-        return new Intl.DateTimeFormat(lang, options);
-    } catch (e) {
-        const {timeZone, ...rest} = options;
-
-        return new Intl.DateTimeFormat(undefined, timeZone === 'UTC' ? options : rest);
+const extractor = (timezone: string): Intl.DateTimeFormat => {
+    const known = extractors.get(timezone);
+    if (known) {
+        return known;
     }
+    const options: Intl.DateTimeFormatOptions = {
+        year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
+    };
+    let made: Intl.DateTimeFormat;
+    try {
+        made = new Intl.DateTimeFormat('en-US-u-nu-latn', {...options, timeZone: timezone});
+    } catch (e) {
+        made = new Intl.DateTimeFormat('en-US-u-nu-latn', options);
+    }
+    extractors.set(timezone, made);
+
+    return made;
+};
+
+/**
+ * The numbers of an instant in the user's timezone.
+ *
+ * @param {number} time Unix time, in seconds.
+ * @param {string} timezone The user's Moodle timezone.
+ * @returns {object} Its year, month, day, weekday, hour and minute.
+ */
+export const timeParts = (time: number, timezone: string): TimeParts => {
+    const numbers: Record<string, number> = {};
+    extractor(timezone).formatToParts(new Date(time * 1000)).forEach((part) => {
+        if (part.type !== 'literal') {
+            numbers[part.type] = Number(part.value);
+        }
+    });
+    const {year, month, day} = numbers;
+
+    // Midnight is 0: an engine that still writes 24 for it under h23 is brought back.
+    return {year, month, day, weekday: weekdayOf(year, month, day), hour: numbers.hour % 24, minute: numbers.minute};
+};
+
+/**
+ * A month's name in the site language.
+ *
+ * @param {object} strings The strip's strings.
+ * @param {number} month 1 to 12.
+ * @returns {string} The name.
+ */
+export const monthName = (strings: Record<string, string>, month: number): string => strings[MONTH_KEYS[month - 1]] ?? '';
+
+/**
+ * A month and its year: "October 2026", "outubro de 2026".
+ *
+ * @param {object} strings The strip's strings.
+ * @param {number} month 1 to 12.
+ * @param {number} year The year.
+ * @returns {string} The label.
+ */
+export const monthYear = (strings: Record<string, string>, month: number, year: number): string =>
+    fillObject(strings.cal_format_monthyear, {month: monthName(strings, month), year: String(year)});
+
+/**
+ * A day named in full: "Wednesday, 14 October", "quarta-feira, 14 de outubro".
+ *
+ * @param {object} strings The strip's strings.
+ * @param {object} parts The date's numbers.
+ * @returns {string} The name.
+ */
+export const longDay = (strings: Record<string, string>, parts: DateParts): string =>
+    fillObject(strings.cal_format_dayname, {
+        weekday: strings[WEEKDAY_KEYS[parts.weekday]] ?? '',
+        day: String(parts.day),
+        month: monthName(strings, parts.month),
+    });
+
+/**
+ * A weekday's short name, for the line under the discs.
+ *
+ * @param {object} strings The strip's strings.
+ * @param {object} parts The date's numbers.
+ * @returns {string} The short name.
+ */
+export const shortWeekday = (strings: Record<string, string>, parts: DateParts): string =>
+    strings[WEEKDAY_SHORT_KEYS[parts.weekday]] ?? '';
+
+/**
+ * A day and its month, without the weekday: "14 October", "14 de outubro".
+ *
+ * @param {object} strings The strip's strings.
+ * @param {object} parts The date's numbers.
+ * @returns {string} The date.
+ */
+export const dayMonth = (strings: Record<string, string>, parts: DateParts): string =>
+    fillObject(strings.cal_format_daymonth, {day: String(parts.day), month: monthName(strings, parts.month)});
+
+/**
+ * A time of day on the site language's clock: cal_format_clock says 12 or 24.
+ *
+ * The 12-hour template gets the hour 1 to 12 unpadded and cal_am or cal_pm; the 24-hour one the
+ * hour padded to two digits. The minute is always two digits.
+ *
+ * @param {object} strings The strip's strings.
+ * @param {object} parts The instant's numbers.
+ * @returns {string} The time: "2:30 PM", "14:30".
+ */
+export const clockTime = (strings: Record<string, string>, parts: TimeParts): string => {
+    if (strings.cal_format_clock === '12') {
+        return fillObject(strings.cal_format_time12, {
+            hour: String(parts.hour % 12 || 12),
+            minute: pad(parts.minute),
+            ampm: parts.hour < 12 ? strings.cal_am : strings.cal_pm,
+        });
+    }
+
+    return fillObject(strings.cal_format_time24, {hour: pad(parts.hour), minute: pad(parts.minute)});
 };

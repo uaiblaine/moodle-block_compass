@@ -154,8 +154,9 @@ classes/local/             THE ONLY place $DB is allowed: budget, config (reads 
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
                            inventory, explore, matcher, prewarm, dormancy, relationship, filter_fields,
                            course_fields, explore_preference, calendar_cache, calendar_preference
-classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path), day,
-                           grading (mirrors count_submissions_need_grading_with_groups())
+classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
+                           default active group), day, grading (mirrors count_submissions_need_grading_with_groups();
+                           grading::source() is the one selection point behind grading_source)
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
@@ -215,7 +216,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   One `cachedef_<name>` per definition (a missing one is fatal on 5.x); `{$a}` parity between
   lang files.
 - **Client**: a component cannot import an AMD module (only `amd.ts` knows RequireJS); strings
-  are props; `.eslintrc` under `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
+  are props; the strip writes dates from lang strings (`cal_month_*`, `cal_weekday*`,
+  `cal_format_*`), `Intl` only reads an instant's numbers (`calendar.ts`); `.eslintrc` under
+  `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
   `tsc --noEmit` is a gate; a badge names its classes in a string literal; a heading tag is
   never written literally (`heading.ts` picks from `headinglevel` 4/3/2); brand text is painted
   with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two

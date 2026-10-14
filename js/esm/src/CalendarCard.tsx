@@ -22,11 +22,12 @@
  * nothing below it, and below 640 px of block width the stylesheet makes it a bottom sheet. It is
  * a dialog with a close button once pinned; hovering shows the same card without the button.
  *
- * The time of an item is formatted here from timestart, in the user's Moodle timezone, and core's
- * formattedtime is not injected. formattedtime is core's own rendered humantimeperiod, so the
- * repository's rule would admit it, but it is PARAM_RAW markup carrying links into the calendar
- * that would sit inside a card already linking to the same day, and a time needs no markup: text
- * from a number is the path with nothing to trust.
+ * The time of an item is formatted here from timestart, in the user's Moodle timezone and the
+ * site language's words and clock (calendar.ts, clockTime()), and core's formattedtime is not
+ * injected. formattedtime is core's own rendered humantimeperiod, so the repository's rule would
+ * admit it, but it is PARAM_RAW markup carrying links into the calendar that would sit inside a
+ * card already linking to the same day, and a time needs no markup: text from a number is the path
+ * with nothing to trust.
  *
  * A day shows nothing of a learner's progress (decision 11): no "N of M submitted".
  *
@@ -37,7 +38,9 @@
 
 import type {ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
-import {OPEN_KINDS, daysBetween, dayTime, formatter, marks, shownKinds, sortItems} from './calendar';
+import {
+    OPEN_KINDS, clockTime, dateParts, dayMonth, daysBetween, longDay, marks, shownKinds, sortItems, timeParts,
+} from './calendar';
 import type {DayCounts} from './calendar';
 import {fill, fillCount} from './str';
 import type {BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarView, DayItem} from './types';
@@ -88,31 +91,6 @@ const relative = (strings: Record<string, string>, date: string, today: string):
     return away > 0 ? fill(strings.cal_rel_future, String(away)) : fill(strings.cal_rel_past, String(-away));
 };
 
-/** The two formatters a card's items need: the time of day, and the date a late item is accepted until. */
-type ItemFormatters = {time: Intl.DateTimeFormat, until: Intl.DateTimeFormat};
-
-/**
- * The item formatters, in the page's language and the user's Moodle timezone.
- *
- * @param {string} timezone The user's timezone, from the shell.
- * @returns {object} The time and until formatters.
- */
-const itemFormatters = (timezone: string): ItemFormatters => {
-    const lang = document.documentElement.lang || undefined;
-    try {
-        return {
-            time: new Intl.DateTimeFormat(lang, {hour: '2-digit', minute: '2-digit', timeZone: timezone}),
-            until: new Intl.DateTimeFormat(lang, {day: 'numeric', month: 'long', timeZone: timezone}),
-        };
-    } catch (e) {
-        // A zone Intl does not know (a legacy Moodle name): the browser's own is the nearest truth.
-        return {
-            time: formatter({hour: '2-digit', minute: '2-digit'}),
-            until: formatter({day: 'numeric', month: 'long'}),
-        };
-    }
-};
-
 /**
  * The pills of one item: its kind first, then what weighs on it.
  *
@@ -122,10 +100,10 @@ const itemFormatters = (timezone: string): ItemFormatters => {
  * @param {object} item The item.
  * @param {object} strings The strip's strings.
  * @param {boolean} istoday Whether the card's day is today, for "due today" against "due tomorrow".
- * @param {object} until The formatter of a late item's cut-off date.
+ * @param {string} timezone The user's Moodle timezone, in which a late item's cut-off date is written.
  * @returns {object[]} The pills.
  */
-const pillsOf = (item: DayItem, strings: Record<string, string>, istoday: boolean, until: Intl.DateTimeFormat): ReactNode[] => {
+const pillsOf = (item: DayItem, strings: Record<string, string>, istoday: boolean, timezone: string): ReactNode[] => {
     const list: ReactNode[] = [];
     if (item.kind === 'gradedsoon') {
         list.push(
@@ -137,7 +115,7 @@ const pillsOf = (item: DayItem, strings: Record<string, string>, istoday: boolea
         list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-soft">{strings.cal_pill_graded}</span>);
     } else if (item.kind === 'late') {
         const text = item.lateuntil > 0
-            ? fill(strings.cal_pill_lateuntil, until.format(new Date(item.lateuntil * 1000)))
+            ? fill(strings.cal_pill_lateuntil, dayMonth(strings, timeParts(item.lateuntil, timezone)))
             : strings.cal_pill_late;
         list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-late">{text}</span>);
     } else if (item.kind === 'gradesoon') {
@@ -235,7 +213,7 @@ type CardBodyProps = {
     items: DayItem[],
     count: number,
     strings: Record<string, string>,
-    formatters: ItemFormatters,
+    timezone: string,
     istoday: boolean,
     empty: string,
     config: BlockConfig,
@@ -249,7 +227,7 @@ type CardBodyProps = {
  * @param {object} props What the card holds of the day and how to draw it; see CardBodyProps.
  * @returns {object} The rendered body.
  */
-const CardBody = ({entry, items, count, strings, formatters, istoday, empty, config, onRetry}: CardBodyProps) => {
+const CardBody = ({entry, items, count, strings, timezone, istoday, empty, config, onRetry}: CardBodyProps) => {
     if (!entry || entry.status === 'loading') {
         return (
             <div className="compass-cal-cardload" aria-busy="true">
@@ -283,11 +261,11 @@ const CardBody = ({entry, items, count, strings, formatters, istoday, empty, con
                     </span>
                     <div className="compass-cal-itembody">
                         <div className="compass-cal-itemmeta">
-                            <span>{formatters.time.format(new Date(item.timestart * 1000))}</span>
+                            <span>{clockTime(strings, timeParts(item.timestart, timezone))}</span>
                             {item.courseshortname && <span className="compass-cal-course">{item.courseshortname}</span>}
                         </div>
                         <a className="compass-cal-itemtitle" href={item.viewurl}>{item.name}</a>
-                        <div className="compass-cal-pills">{pillsOf(item, strings, istoday, formatters.until)}</div>
+                        <div className="compass-cal-pills">{pillsOf(item, strings, istoday, timezone)}</div>
                     </div>
                     {actionOf(item, strings)}
                 </li>
@@ -310,7 +288,7 @@ const CalendarCard = ({
     const {strings} = calendar;
     const kinds = shownKinds(view, filter);
     const istoday = date === today;
-    const title = formatter({weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC'}).format(new Date(dayTime(date)));
+    const title = longDay(strings, dateParts(date));
     const ready = entry && entry.status === 'ready' ? entry : null;
     const items = ready ? sortItems(ready.items.filter((item) => kinds.includes(item.kind)), view) : [];
     const count = ready ? items.length : marks(counts, kinds).length;
@@ -375,7 +353,7 @@ const CalendarCard = ({
                 items={items}
                 count={count}
                 strings={strings}
-                formatters={itemFormatters(calendar.timezone)}
+                timezone={calendar.timezone}
                 istoday={istoday}
                 empty={emptyText(strings, view, filter)}
                 config={config}

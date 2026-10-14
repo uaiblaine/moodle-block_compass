@@ -245,8 +245,9 @@ final class strip {
      * Reads, in the order a request pays them: the inventory (one on a valid hit) and the
      * user's preferences (the archived courses, loaded once per request), the course filter, the
      * graded roles, the groups, the counted statement, the modinfo of courses with restricted
-     * rows (decision 6), the grading statement when grading work is in the window, and the past
-     * through core's vault (decision 5), learning courses only.
+     * rows (decision 6), the course groups when grading work lies in a group-mode activity of a
+     * grader without accessallgroups (grading_groups()), the grading statement when grading work is
+     * in the window, and the past through core's vault (decision 5), learning courses only.
      *
      * @param int $userid The current user.
      * @param int $now Unix time to treat as now.
@@ -625,7 +626,7 @@ final class strip {
                        e.{$sortcolumn} AS sorttime, cm.id AS cmid, cm.visible AS cmvisible,
                        CASE WHEN cm.availability IS NULL AND cs.availability IS NULL THEN 0 ELSE 1 END AS restricted,
                        {$facts},
-                       CASE WHEN c.groupmodeforce = 1 THEN c.groupmode ELSE cm.groupmode END AS groupmode,
+                       CASE WHEN c.groupmodeforce = 1 THEN c.groupmode ELSE cm.groupmode END AS groupmode, cm.groupingid,
                        " . context_helper::get_preload_record_columns_sql('ctx') . "
                   FROM {event} e
              LEFT JOIN {modules} mo ON mo.name = e.modulename
@@ -818,7 +819,8 @@ final class strip {
      *   {@see mod_assign_core_calendar_is_event_visible()} decides, with the module context
      *   preloaded from the row so the check costs no read; dropped when the user's own completion
      *   of it is recorded, as mod_assign_core_calendar_provide_event_action() returns null then;
-     *   counted by {@see grading::waiting()} and dropped with nothing waiting
+     *   counted by {@see grading::source()} for core's default active group ({@see grading_groups()})
+     *   and dropped with nothing waiting
      *   (calendar/classes/local/event/container.php hides an action whose item count is 0);
      * - other action rows before $now are dropped (the past is the vault's, or history);
      * - in a learning course an action row is the learner's: done when completion recorded it
@@ -915,19 +917,20 @@ final class strip {
         }
         $hidden = self::restricted($userid, $ask);
 
-        // Grading work: one statement for every assignment that is left.
-        $assignments = [];
+        // Grading work: each assignment's active group, then one count for every assignment that is left.
+        $grading = [];
         foreach ($candidates as $i => $candidate) {
             if (isset($hidden[(int) $candidate['row']->cmid])) {
                 unset($candidates[$i]);
                 continue;
             }
             if ($candidate['role'] === 'grade') {
-                $assignments[(int) $candidate['row']->instance] = self::grading_groups($candidate, $sets['groups'], $userid);
+                $grading[] = $candidate;
             }
         }
+        $assignments = self::grading_groups($grading, $userid);
         $cut = count($assignments) > grading::LIMIT;
-        $waiting = grading::waiting(array_slice($assignments, 0, grading::LIMIT, true), $now);
+        $waiting = grading::source()->waiting(array_slice($assignments, 0, grading::LIMIT, true), $now);
 
         $items = [];
         foreach ($candidates as $candidate) {
@@ -1011,39 +1014,168 @@ final class strip {
     }
 
     /**
-     * The groups whose submissions a grader's count is limited to, or null for every participant.
+     * Each assignment's group for the grader's count: core's DEFAULT active group, or null for all.
      *
-     * Core counts the grader's active group (count_submissions_need_grading(),
-     * groups_get_activity_group()), which lives in the session and which the grader may have
-     * switched; the strip cannot read it and mirrors its default instead: in SEPARATEGROUPS
-     * without moodle/site:accessallgroups, the grader's participation groups in the course, and
-     * every participant when the grader has none (core's active group is then 0, all, so a teacher
-     * with no participation group counts everyone). Three
-     * differences remain, all documented and none an exposure: several groups are counted
-     * together where core counts the first; the activity's grouping is not applied; and in
-     * VISIBLEGROUPS every participant is counted where core defaults to the grader's first group.
+     * Core counts the grader's active group (count_submissions_need_grading() asks
+     * groups_get_activity_group(), lib/grouplib.php), which lives in the session and which the
+     * grader may have switched; the strip cannot read that and mirrors the default
+     * _group_verify_activegroup() sets on first use, rule by rule:
+     * - no group mode (the course's forced mode wins, as groups_get_activity_groupmode() decides):
+     *   null, every participant;
+     * - moodle/site:accessallgroups at the module context: null (core's 'aag' mode starts at 0, all);
+     * - SEPARATEGROUPS: the first of the grader's own groups, else null (core's 0 when the grader
+     *   has none: they count everyone);
+     * - VISIBLEGROUPS: the first of the grader's own groups, else the first group of the course,
+     *   else null.
+     * "Groups" are those groups_get_all_groups() lists with $participationonly: participation groups
+     * of the course, inside the activity's grouping when it has one, filtered by group visibility
+     * unless the grader holds moodle/course:viewhiddengroups at the course context (visibility ALL,
+     * or MEMBERS and OWN where the grader is a member; \core_group\visibility::can_view_all_groups()).
+     * "First" is core's ORDER BY g.name; groups of the same name, which core leaves to the database,
+     * are ordered by id here.
      *
-     * @param array $candidate A gradingdue candidate from collect().
-     * @param array $groups The user's groups, from groups().
+     * Reads: none when no assignment needs groups (no group mode, or accessallgroups); otherwise one,
+     * {@see course_groups()}, for every course that does.
+     *
+     * @param array $candidates The gradingdue candidates of collect(), each with its row and module context.
      * @param int $userid The current user.
-     * @return int[]|null
+     * @return array Assignment instance id => group id, or null for every participant.
      */
-    private static function grading_groups(array $candidate, array $groups, int $userid): ?array {
-        $row = $candidate['row'];
-        if ($row->groupmode === null || (int) $row->groupmode !== SEPARATEGROUPS) {
-            return null;
+    private static function grading_groups(array $candidates, int $userid): array {
+        $groups = [];
+        $asked = [];
+        foreach ($candidates as $candidate) {
+            $row = $candidate['row'];
+            $mode = (int) $row->groupmode;
+            $instance = (int) $row->instance;
+            $groups[$instance] = null;
+            if ($mode !== SEPARATEGROUPS && $mode !== VISIBLEGROUPS) {
+                continue;
+            }
+            if (has_capability('moodle/site:accessallgroups', $candidate['context'], $userid)) {
+                continue;
+            }
+            $asked[$instance] = $row;
         }
-        if (has_capability('moodle/site:accessallgroups', $candidate['context'], $userid)) {
-            return null;
+        if (!$asked) {
+            return $groups;
         }
-        $mine = [];
-        foreach ($groups as $groupid => $group) {
-            if ($group['courseid'] === (int) $row->courseid && $group['participation']) {
-                $mine[] = (int) $groupid;
+
+        $courses = self::course_groups(
+            $userid,
+            array_map(fn(\stdClass $row): int => (int) $row->courseid, $asked),
+            array_map(fn(\stdClass $row): int => (int) $row->groupingid, $asked)
+        );
+        foreach ($asked as $instance => $row) {
+            $groups[$instance] = self::active_group(
+                (int) $row->groupmode,
+                (int) $row->groupingid,
+                $courses[(int) $row->courseid] ?? ['groups' => [], 'viewhidden' => false]
+            );
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Core's default active group of one activity, from its course's groups ({@see grading_groups()}).
+     *
+     * @param int $mode SEPARATEGROUPS or VISIBLEGROUPS.
+     * @param int $groupingid The activity's grouping, 0 for none.
+     * @param array $course From course_groups(): groups (ordered) and viewhidden.
+     * @return int|null The group id, or null for every participant.
+     */
+    private static function active_group(int $mode, int $groupingid, array $course): ?int {
+        $first = null;
+        foreach ($course['groups'] as $groupid => $group) {
+            if ($groupingid !== 0 && !isset($group['groupings'][$groupingid])) {
+                continue;
+            }
+            $visible = $course['viewhidden'] || $group['visibility'] === GROUPS_VISIBILITY_ALL
+                || ($group['member'] && in_array($group['visibility'], [GROUPS_VISIBILITY_MEMBERS, GROUPS_VISIBILITY_OWN], true));
+            if (!$visible) {
+                continue;
+            }
+            if ($group['member']) {
+                return (int) $groupid;
+            }
+            $first ??= (int) $groupid;
+        }
+
+        return $mode === VISIBLEGROUPS ? $first : null;
+    }
+
+    /**
+     * The participation groups of some courses, in core's order, with what the active group needs.
+     *
+     * One statement: each participation group of the courses, its visibility, whether the user is a
+     * member, the asked groupings it belongs to, and its course context's preload columns (the
+     * viewhiddengroups check then costs no read). A group in several asked groupings comes once per
+     * grouping, so the row key is the groupings_groups id, or the negated group id for a group in none
+     * of them. The user's memberships are read here rather than taken from groups(), which leaves out
+     * GROUPS_VISIBILITY_NONE groups that a grader holding viewhiddengroups sees in core.
+     * Index: groups (courseid); context (contextlevel, instanceid); groupings_groups (groupid);
+     * groups_members unique (userid, groupid). Bound: GROUPS_LIMIT.
+     *
+     * @param int $userid The current user.
+     * @param int[] $courseids The courses.
+     * @param int[] $groupingids The activities' groupings, 0 for none.
+     * @return array Course id => ['groups' => group id => [visibility, member, groupings (id => true)],
+     *     ordered by name then id, 'viewhidden' => bool].
+     */
+    private static function course_groups(int $userid, array $courseids, array $groupingids): array {
+        global $DB;
+
+        [$coursein, $params] = $DB->get_in_or_equal(array_values(array_unique($courseids)), SQL_PARAMS_NAMED, 'agc');
+        [$groupingin, $groupingparams] = $DB->get_in_or_equal(
+            array_values(array_diff(array_unique($groupingids), [0])),
+            SQL_PARAMS_NAMED,
+            'agg',
+            true,
+            -1
+        );
+        $params += $groupingparams + ['aguser' => $userid, 'agctxlevel' => CONTEXT_COURSE];
+        $rows = $DB->get_records_sql(
+            "SELECT COALESCE(gg.id, -g.id) AS rowkey, g.id AS groupid, g.courseid, g.visibility, gg.groupingid,
+                    CASE WHEN gm.id IS NULL THEN 0 ELSE 1 END AS ismember,
+                    " . context_helper::get_preload_record_columns_sql('ctx') . "
+               FROM {groups} g
+               JOIN {context} ctx ON ctx.contextlevel = :agctxlevel AND ctx.instanceid = g.courseid
+          LEFT JOIN {groupings_groups} gg ON gg.groupid = g.id AND gg.groupingid {$groupingin}
+          LEFT JOIN {groups_members} gm ON gm.groupid = g.id AND gm.userid = :aguser
+              WHERE g.courseid {$coursein} AND g.participation = 1
+           ORDER BY g.courseid, g.name, g.id, gg.groupingid",
+            $params,
+            0,
+            self::GROUPS_LIMIT
+        );
+
+        $courses = [];
+        foreach ($rows as $row) {
+            $courseid = (int) $row->courseid;
+            if (!isset($courses[$courseid])) {
+                context_helper::preload_from_record($row);
+                $courses[$courseid] = [
+                    'groups' => [],
+                    'viewhidden' => has_capability(
+                        'moodle/course:viewhiddengroups',
+                        \core\context\course::instance($courseid),
+                        $userid
+                    ),
+                ];
+            }
+            $groupid = (int) $row->groupid;
+            $courses[$courseid]['groups'][$groupid] ??= [
+                'visibility' => (int) $row->visibility,
+                'member' => (int) $row->ismember === 1,
+                'groupings' => [],
+            ];
+            if ($row->groupingid !== null) {
+                $courses[$courseid]['groups'][$groupid]['groupings'][(int) $row->groupingid] = true;
             }
         }
 
-        return $mine ?: null;
+        return $courses;
     }
 
     /**

@@ -1,1 +1,1 @@
-s/gm\.groupid \{\$groupsql\}/(gm.groupid {\$groupsql} OR 1 = 1)/;
+s/AND \(\{\$groupsql\}\)/AND ({\$groupsql} OR 1 = 1)/;
