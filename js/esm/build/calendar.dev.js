@@ -1,0 +1,260 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+/**
+ * The calendar strip's arithmetic: days, the window, what a day shows and how much it weighs.
+ *
+ * Every date here is a Y-m-d string in the user's Moodle timezone, as the strip payload sends
+ * them, and is handled as a UTC midnight: the server already bucketed the instants into local
+ * days (classes/local/calendar/strip.php), so the client only counts calendar days, and a UTC
+ * day is always 24 hours long. The browser's own clock and zone are never asked what today is.
+ *
+ * Dates and times are written in the site language from the strings the shell ships (month and
+ * weekday names, the cal_format_* templates), never by Intl's own names; Intl is asked only for the
+ * numbers of an instant in the user's timezone (timeParts()).
+ *
+ * @module     block_compass/calendar
+ * @copyright  2026 Anderson Blaine
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+import { fillObject } from "./str";
+const DAY_MS = 864e5;
+const LEARNING_KINDS = ["gradedsoon", "graded", "todo", "late", "event", "done"];
+const TEACHING_KINDS = ["gradesoon", "grade", "class", "event"];
+const OPEN_KINDS = ["gradedsoon", "graded", "todo", "late", "gradesoon", "grade"];
+const MIN_WEIGHT = {
+  gradedsoon: 4.5,
+  graded: 1.5,
+  todo: 1,
+  late: 1,
+  event: 0.5,
+  done: 0,
+  gradesoon: 3.5,
+  grade: 1.5,
+  "class": 0.5
+};
+const pad = /* @__PURE__ */ __name((value) => value < 10 ? `0${value}` : String(value), "pad");
+const dayTime = /* @__PURE__ */ __name((date) => {
+  const [year, month, day] = date.split("-").map(Number);
+  return Date.UTC(year, month - 1, day);
+}, "dayTime");
+const dayString = /* @__PURE__ */ __name((time) => {
+  const moment = new Date(time);
+  return `${moment.getUTCFullYear()}-${pad(moment.getUTCMonth() + 1)}-${pad(moment.getUTCDate())}`;
+}, "dayString");
+const addDays = /* @__PURE__ */ __name((date, days) => dayString(dayTime(date) + days * DAY_MS), "addDays");
+const daysBetween = /* @__PURE__ */ __name((from, to) => Math.round((dayTime(to) - dayTime(from)) / DAY_MS), "daysBetween");
+const windowDays = /* @__PURE__ */ __name((firstday, today) => {
+  const [year, month] = today.split("-").map(Number);
+  const last = Date.UTC(year, month + 1, 1) - DAY_MS;
+  const days = [];
+  for (let time = dayTime(firstday); time <= last; time += DAY_MS) {
+    days.push(dayString(time));
+  }
+  return days;
+}, "windowDays");
+const homeOffset = /* @__PURE__ */ __name((todayindex, shown) => Math.max(0, todayindex - Math.floor(shown / 2)), "homeOffset");
+const kindsOf = /* @__PURE__ */ __name((view) => view === "teaching" ? TEACHING_KINDS : LEARNING_KINDS, "kindsOf");
+const shownKinds = /* @__PURE__ */ __name((view, filter) => {
+  const kinds = kindsOf(view);
+  if (filter === "events") {
+    return ["event"];
+  }
+  if (filter === "todo") {
+    return kinds.filter((kind) => kind !== "event" && kind !== "class");
+  }
+  return kinds;
+}, "shownKinds");
+const fromPayload = /* @__PURE__ */ __name((day, view) => {
+  const counts = {};
+  kindsOf(view).forEach((kind) => {
+    counts[kind] = day ? day[kind] ?? 0 : 0;
+  });
+  return { counts, weight: day ? day.weight : 0, settled: false };
+}, "fromPayload");
+const settle = /* @__PURE__ */ __name((before, items, view) => {
+  const counts = {};
+  kindsOf(view).forEach((kind) => {
+    counts[kind] = 0;
+  });
+  items.forEach((item) => {
+    counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+  });
+  const open = /* @__PURE__ */ __name((of) => kindsOf(view).filter((kind) => kind !== "event" && kind !== "class").reduce((sum, kind) => sum + (of[kind] ?? 0) * MIN_WEIGHT[kind], 0), "open");
+  const informative = /* @__PURE__ */ __name((of) => ((of.event ?? 0) + (of.class ?? 0)) * MIN_WEIGHT.event, "informative");
+  const openbefore = Math.max(0, before.weight - informative(before.counts));
+  const minbefore = open(before.counts);
+  const minafter = open(counts);
+  const openafter = minbefore > 0 ? openbefore * (minafter / minbefore) : minafter;
+  return { counts, weight: openafter + informative(counts), settled: true };
+}, "settle");
+const score = /* @__PURE__ */ __name((day, view, filter, relevance) => {
+  const shown = shownKinds(view, filter);
+  if (!relevance) {
+    return shown.filter((kind) => kind !== "done").reduce((sum, kind) => sum + (day.counts[kind] ?? 0), 0);
+  }
+  const events = (day.counts.event ?? 0) * MIN_WEIGHT.event;
+  const classes = (day.counts.class ?? 0) * MIN_WEIGHT.class;
+  if (filter === "events") {
+    return events;
+  }
+  if (filter === "todo") {
+    return Math.max(0, day.weight - events - classes);
+  }
+  return day.weight;
+}, "score");
+const step = /* @__PURE__ */ __name((value, relevance) => {
+  if (value <= 0) {
+    return 0;
+  }
+  if (!relevance) {
+    return Math.min(4, value);
+  }
+  if (value < 2) {
+    return 1;
+  }
+  if (value < 4) {
+    return 2;
+  }
+  return value < 8 ? 3 : 4;
+}, "step");
+const marks = /* @__PURE__ */ __name((day, kinds) => {
+  const list = [];
+  kinds.forEach((kind) => {
+    for (let at = 0; at < (day.counts[kind] ?? 0); at++) {
+      list.push(kind);
+    }
+  });
+  return list;
+}, "marks");
+const sortItems = /* @__PURE__ */ __name((items, view) => {
+  const order = kindsOf(view);
+  return [...items].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.timestart - b.timestart);
+}, "sortItems");
+const MONTH_KEYS = [
+  "cal_month_01",
+  "cal_month_02",
+  "cal_month_03",
+  "cal_month_04",
+  "cal_month_05",
+  "cal_month_06",
+  "cal_month_07",
+  "cal_month_08",
+  "cal_month_09",
+  "cal_month_10",
+  "cal_month_11",
+  "cal_month_12"
+];
+const WEEKDAY_KEYS = [
+  "cal_weekday_0",
+  "cal_weekday_1",
+  "cal_weekday_2",
+  "cal_weekday_3",
+  "cal_weekday_4",
+  "cal_weekday_5",
+  "cal_weekday_6"
+];
+const WEEKDAY_SHORT_KEYS = [
+  "cal_weekdayshort_0",
+  "cal_weekdayshort_1",
+  "cal_weekdayshort_2",
+  "cal_weekdayshort_3",
+  "cal_weekdayshort_4",
+  "cal_weekdayshort_5",
+  "cal_weekdayshort_6"
+];
+const BOUND_KINDS = ["gradedsoon", "graded", "todo"];
+const weekdayOf = /* @__PURE__ */ __name((year, month, day) => new Date(Date.UTC(year, month - 1, day)).getUTCDay(), "weekdayOf");
+const dateParts = /* @__PURE__ */ __name((date) => {
+  const [year, month, day] = date.split("-").map(Number);
+  return { year, month, day, weekday: weekdayOf(year, month, day) };
+}, "dateParts");
+const inWeekend = /* @__PURE__ */ __name((mask, weekday) => Math.floor(mask / 2 ** weekday) % 2 === 1, "inWeekend");
+const dayOff = /* @__PURE__ */ __name((date, mask, special) => {
+  if (special) {
+    return { mark: special.type === "schoolday" ? "" : "holiday", special };
+  }
+  return { mark: inWeekend(mask, dateParts(date).weekday) ? "weekend" : "", special: null };
+}, "dayOff");
+const extractors = /* @__PURE__ */ new Map();
+const extractor = /* @__PURE__ */ __name((timezone) => {
+  const known = extractors.get(timezone);
+  if (known) {
+    return known;
+  }
+  const options = {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    hourCycle: "h23"
+  };
+  let made;
+  try {
+    made = new Intl.DateTimeFormat("en-US-u-nu-latn", { ...options, timeZone: timezone });
+  } catch (e) {
+    made = new Intl.DateTimeFormat("en-US-u-nu-latn", options);
+  }
+  extractors.set(timezone, made);
+  return made;
+}, "extractor");
+const timeParts = /* @__PURE__ */ __name((time, timezone) => {
+  const numbers = {};
+  extractor(timezone).formatToParts(new Date(time * 1e3)).forEach((part) => {
+    if (part.type !== "literal") {
+      numbers[part.type] = Number(part.value);
+    }
+  });
+  const { year, month, day } = numbers;
+  return { year, month, day, weekday: weekdayOf(year, month, day), hour: numbers.hour % 24, minute: numbers.minute };
+}, "timeParts");
+const monthName = /* @__PURE__ */ __name((strings, month) => strings[MONTH_KEYS[month - 1]] ?? "", "monthName");
+const monthYear = /* @__PURE__ */ __name((strings, month, year) => fillObject(strings.cal_format_monthyear, { month: monthName(strings, month), year: String(year) }), "monthYear");
+const longDay = /* @__PURE__ */ __name((strings, parts) => fillObject(strings.cal_format_dayname, {
+  weekday: strings[WEEKDAY_KEYS[parts.weekday]] ?? "",
+  day: String(parts.day),
+  month: monthName(strings, parts.month)
+}), "longDay");
+const shortWeekday = /* @__PURE__ */ __name((strings, parts) => strings[WEEKDAY_SHORT_KEYS[parts.weekday]] ?? "", "shortWeekday");
+const dayMonth = /* @__PURE__ */ __name((strings, parts) => fillObject(strings.cal_format_daymonth, { day: String(parts.day), month: monthName(strings, parts.month) }), "dayMonth");
+const clockTime = /* @__PURE__ */ __name((strings, parts) => {
+  if (strings.cal_format_clock === "12") {
+    return fillObject(strings.cal_format_time12, {
+      hour: String(parts.hour % 12 || 12),
+      minute: pad(parts.minute),
+      ampm: parts.hour < 12 ? strings.cal_am : strings.cal_pm
+    });
+  }
+  return fillObject(strings.cal_format_time24, { hour: pad(parts.hour), minute: pad(parts.minute) });
+}, "clockTime");
+export {
+  BOUND_KINDS,
+  LEARNING_KINDS,
+  OPEN_KINDS,
+  TEACHING_KINDS,
+  addDays,
+  clockTime,
+  dateParts,
+  dayMonth,
+  dayOff,
+  dayString,
+  dayTime,
+  daysBetween,
+  fromPayload,
+  homeOffset,
+  inWeekend,
+  kindsOf,
+  longDay,
+  marks,
+  monthName,
+  monthYear,
+  score,
+  settle,
+  shortWeekday,
+  shownKinds,
+  sortItems,
+  step,
+  timeParts,
+  windowDays
+};
+//# sourceMappingURL=calendar.dev.js.map

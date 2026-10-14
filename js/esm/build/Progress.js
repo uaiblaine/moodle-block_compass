@@ -1,5 +1,4 @@
-import{fill as l}from"./str";import{Fragment as c,jsx as e,jsxs as i}from"react/jsx-runtime";var p=({progress:s,labels:r,compact:t=!1})=>{let a=s>=100,o=l(r.progresspercent,String(s));return i(c,{children:[e("div",{className:"progress compass-progress-bar",role:"progressbar","aria-valuenow":s,"aria-valuemin":0,"aria-valuemax":100,"aria-label":o,children:e("div",{className:`progress-bar${a?" bg-success":""}`,style:{width:`${s}%`}})}),!t&&e("span",{className:"compass-progress-text small text-muted",children:a?r.completed:o})]})},n=p;export{n as default};
-/**
+import{fill as l}from"./str";import{Fragment as c,jsx as e,jsxs as i}from"react/jsx-runtime";/**
  * The progress bar of a card.
  *
  * Callers draw it only for a known percentage: a null progress is never drawn as 0%,
@@ -10,5 +9,4 @@ import{fill as l}from"./str";import{Fragment as c,jsx as e,jsxs as i}from"react/
  * @module     block_compass/Progress
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=Progress.js.map
+ */const p=({progress:s,labels:r,compact:t=!1})=>{const a=s>=100,o=l(r.progresspercent,String(s));return i(c,{children:[e("div",{className:"progress compass-progress-bar",role:"progressbar","aria-valuenow":s,"aria-valuemin":0,"aria-valuemax":100,"aria-label":o,children:e("div",{className:`progress-bar${a?" bg-success":""}`,style:{width:`${s}%`}})}),!t&&e("span",{className:"compass-progress-text small text-muted",children:a?r.completed:o})]})};var n=p;export{n as default};

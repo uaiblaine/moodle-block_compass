@@ -824,6 +824,45 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
+     * A course queued for asynchronous deletion leaves tier 1 for a viewer of hidden courses too.
+     *
+     * Moodle 5.3 marks the course (deletioninprogress 1) and hides it, and deletes it on the cron;
+     * require_login() refuses it meanwhile. The viewer holds moodle/course:viewhiddencourses, so
+     * only the deletion clause keeps the course out of Continue and the count; the precondition
+     * shows it listed before, and the second course is the control.
+     *
+     * @return void
+     */
+    public function test_a_course_queued_for_deletion_leaves_tier_1_for_a_hidden_course_viewer(): void {
+        global $DB;
+
+        $doomed = $this->course('Doomed course');
+        $kept = $this->course('Kept course');
+        foreach ([$doomed, $kept] as $at => $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 200 * DAYSECS);
+            $this->plugingen->access_at($this->userid, (int) $course->id, self::NOW - ($at + 1) * HOURSECS);
+        }
+        $syscontext = context_system::instance();
+        $roleid = create_role('Compass hidden course viewer', 'compasshiddenviewer', 'Sees hidden courses');
+        assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $roleid, $syscontext->id, true);
+        role_assign($roleid, $this->userid, $syscontext->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->assertSame([(int) $doomed->id, (int) $kept->id], $this->ids($this->build(5)['continue']));
+
+        set_config('enablecourseasyncdeletion', 1, 'moodlecourse');
+        delete_course($doomed, false);
+        $this->assertSame(
+            1,
+            (int) $DB->get_field('course', 'deletioninprogress', ['id' => $doomed->id]),
+            'Precondition: the deletion is queued, not done.'
+        );
+
+        $tier = $this->build(5);
+        $this->assertSame([(int) $kept->id], $this->ids($tier['continue']));
+        $this->assertSame(1, $tier['counts']['total']);
+    }
+
+    /**
      * The front page never appears, although core treats everybody as enrolled there.
      *
      * The fixture gives the site course everything a strip needs — an active

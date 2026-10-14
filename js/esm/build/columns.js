@@ -1,4 +1,3 @@
-var t=264,C=16,o=3,r=A=>{if(A<=0)return 3;let _=Math.floor((A+16)/280);return Math.max(1,Math.min(3,_))};export{o as CARD_COLUMNS_MAX,C as CARD_GAP_PX,t as CARD_TRACK_PX,r as cardColumns};
 /**
  * How many tracks tier 1's card grid gets, from the width the block has.
  *
@@ -13,5 +12,4 @@ var t=264,C=16,o=3,r=A=>{if(A<=0)return 3;let _=Math.floor((A+16)/280);return Ma
  * @module     block_compass/columns
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=columns.js.map
+ */const t=264,C=16,o=3,r=A=>{if(A<=0)return 3;const _=Math.floor((A+16)/280);return Math.max(1,Math.min(3,_))};export{o as CARD_COLUMNS_MAX,C as CARD_GAP_PX,t as CARD_TRACK_PX,r as cardColumns};

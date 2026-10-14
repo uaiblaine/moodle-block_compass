@@ -256,7 +256,7 @@ final class cards {
      *
      * The line core itself draws - completion_info::is_tracked_user() is is_enrolled() with
      * moodle/course:isincompletionreports, whose only archetype is student
-     * (lib/completionlib.php:1402-1404, lib/db/access.php:1152-1158). Every teacher, editing or
+     * (lib/completionlib.php:1407-1409, lib/db/access.php:1152-1158). Every teacher, editing or
      * not, and every manager fails it; the administrator's blanket allow is ignored so that one
      * without a role in the course is a teacher here too. No read once the request is up: the
      * access data is already loaded and role definitions come from a per-request array and then

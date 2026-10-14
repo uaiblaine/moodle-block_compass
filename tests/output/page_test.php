@@ -279,7 +279,7 @@ final class page_test extends advanced_testcase {
             page::require_access();
             $this->fail('the page let a viewer in while it was off');
         } catch (\moodle_exception $e) {
-            // Under CLI redirect() throws rather than sending a header (lib/weblib.php:2110-2112);
+            // Under CLI redirect() throws rather than sending a header (lib/weblib.php:2158-2161);
             // the exception is the redirect.
             $this->assertSame('redirecterrordetected', $e->errorcode);
         }

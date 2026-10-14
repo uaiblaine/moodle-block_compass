@@ -1,4 +1,3 @@
-var h=t=>t===2?2:t===3?3:4,n=t=>h(t)===2?"h2":h(t)===3?"h3":"h4",o=t=>h(t)===2?"h3":h(t)===3?"h4":"h5";export{n as sectionTag,o as titleTag};
 /**
  * Which heading tag a component writes, given where the block is.
  *
@@ -12,5 +11,4 @@ var h=t=>t===2?2:t===3?3:4,n=t=>h(t)===2?"h2":h(t)===3?"h3":"h4",o=t=>h(t)===2?"
  * @module     block_compass/heading
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=heading.js.map
+ */const h=t=>t===2?2:t===3?3:4,n=t=>h(t)===2?"h2":h(t)===3?"h3":"h4",o=t=>h(t)===2?"h3":h(t)===3?"h4":"h5";export{n as sectionTag,o as titleTag};

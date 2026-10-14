@@ -34,7 +34,7 @@ use core_cache\cache;
  * (customfield/field/select/classes/data_controller.php:42-44,
  * customfield/field/checkbox/classes/data_controller.php:45-47). A course with no row is an
  * empty array, which is a cached value and not a miss. Shared by every user, invalidated per
- * key by the course_updated and course_deleted observers — course/lib.php:2017-2026 commits
+ * key by the course_updated and course_deleted observers — course/lib.php:2023-2032 commits
  * the field values before the event fires — and purged whole by the four core_customfield
  * observers, since a field created or made eligible is one no existing entry knows about.
  *

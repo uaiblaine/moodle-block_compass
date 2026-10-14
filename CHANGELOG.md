@@ -18,7 +18,24 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 ### Changed
 
-- Moodle 5.3 port: see MOODLE_503_STABLE.
+- The modulepreload hints follow Moodle 5.3's import map. Each URL is the one the page's map
+  resolves the module to: on 5.3 core modules and the bundle are served through the current
+  theme (`@moodle/lms/theme-<theme>/...`), so the 5.2 URLs pointed at files the loader never
+  requested. Modules core already preloads from the head (React) are no longer repeated, and
+  `core/pending`, which 5.3's `react_autoinit` imports, is announced too: seven hints.
+- A course queued for asynchronous deletion (5.3, *enablecourseasyncdeletion*) leaves every
+  list at once, including for users who may see hidden courses, instead of staying in *All
+  courses* until the cron deletes it. Core marks such a course without an event, so the block
+  listens to the `before_course_deleted` hook, which drops the course's cache entry now and at the
+  end of the request (an aborted deletion leaves the course live), and the entry records `deletioninprogress`.
+- Cards and rows are painted with the colour behind the block: the block card on the Dashboard
+  and the page background on the block's own page. Boost 5.3's page is light grey while its
+  cards stay white, and the 5.2 surface would have turned the cards grey inside a white block.
+- In dark mode the brand ink is mixed at 30 % instead of 35 %, so it keeps 4.5:1 on Boost
+  5.3's raised card surface, which is lighter than the page.
+- The build is Moodle 5.3's: each module has a minified file and a `.dev.js` twin with its map
+  (the 5.2 `.js.map` files are gone), and `js/esm/src/swizzle.json` closes every component to
+  theme overrides, because the page loads the bundle, which contains them all.
 
 ## v5.2-r1 (2026042000) - unreleased
 

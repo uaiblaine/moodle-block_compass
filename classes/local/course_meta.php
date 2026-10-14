@@ -33,10 +33,11 @@ use stdClass;
  * Wrapper of the block_compass/coursemeta definition.
  *
  * Key: course id. Value: raw fullname and shortname, category id, visible,
- * enablecompletion, and the six context columns needed to rebuild the course
- * context without a query. Nothing formatted, nothing language-dependent, no
- * image (core's course_image cache owns that). Callers never touch the cache
- * directly; this is the only class that calls cache::make() for it.
+ * enablecompletion, deletioninprogress (Moodle 5.3, nullable in the table, 0 here when
+ * null), and the six context columns needed to rebuild the course context without a
+ * query. Nothing formatted, nothing language-dependent, no image (core's course_image
+ * cache owns that). Callers never touch the cache directly; this is the only class that
+ * calls cache::make() for it.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -44,7 +45,15 @@ use stdClass;
  */
 final class course_meta {
     /** @var string[] Course columns copied into an entry, in the order the SQL selects them. */
-    private const COURSE_FIELDS = ['id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion'];
+    private const COURSE_FIELDS = [
+        'id',
+        'fullname',
+        'shortname',
+        'category',
+        'visible',
+        'enablecompletion',
+        'deletioninprogress',
+    ];
 
     /**
      * The cache instance. cache::make() returns the factory's own memoised object, so
@@ -173,6 +182,43 @@ final class course_meta {
         context_helper::preload_from_record((object) $entry['ctx']);
 
         return context\course::instance($entry['id']);
+    }
+
+    /**
+     * Whether an entry is a course core is deleting: the reader leaves it out for everyone.
+     *
+     * Core hides such a course (visible 0) when it marks it, so the visibility rule already drops
+     * it for a viewer without moodle/course:viewhiddencourses; this is the rule for everyone else,
+     * since require_login() refuses the course while its deletion is pending (lib/moodlelib.php,
+     * deletingcourseasynchronously_exception) and a listed course would lead to that error.
+     *
+     * @param array $entry An entry from get_many() or set_from_rows().
+     * @return bool
+     */
+    public static function is_being_deleted(array $entry): bool {
+        return !empty($entry['deletioninprogress']);
+    }
+
+    /**
+     * Drop the entry now and again at the end of the request, for a course core is about to delete.
+     *
+     * Called from the before_course_deleted hook, which core dispatches before it sets the
+     * course's visible to 0 and deletioninprogress to 1 without an event
+     * ({@see \block_compass\hook_callbacks::before_course_deleted()}). The entry is not rewritten
+     * with what core is about to record: the hook only announces an intent, and a later listener
+     * of another plugin can throw and abort delete_course() with the course still live, which a
+     * rewritten entry (no TTL) would hide from everyone until a purge. The state is decided from
+     * the recorded fact instead. The delete now drops the warm entry; the shutdown delete drops
+     * whatever a request in between refilled before the database held its final state for this
+     * request. A refill afterwards reads deletioninprogress = 1 if the deletion went ahead, or
+     * the live course if it was aborted.
+     *
+     * @param int $courseid The course.
+     * @return void
+     */
+    public static function forget_until_marked(int $courseid): void {
+        self::delete($courseid);
+        \core_shutdown_manager::register_function([self::class, 'delete'], [$courseid]);
     }
 
     /**

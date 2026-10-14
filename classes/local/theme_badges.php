@@ -32,7 +32,7 @@ namespace block_compass\local;
  * Compass reaches it through component_callback(), which answers its default when the function is
  * absent, so nothing here names the theme's classes, checks for them, or declares the theme as a
  * dependency (ADR-013 decision 9). It does not when the theme itself is absent: then it throws
- * (component_callback_exists(), lib/moodlelib.php:7630-7634 on 5.2), which is why core's component
+ * (component_callback_exists(), lib/moodlelib.php:7475-7479 on 5.3), which is why core's component
  * list is asked first. The callback applies the theme's own viewer rule - a
  * course the reader may not discover gets no crest - and names each image with a content-hashed
  * URL and the theme's alternative text, so Compass builds no URL itself and only bounds and

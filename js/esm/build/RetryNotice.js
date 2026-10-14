@@ -1,5 +1,4 @@
-import{useLayoutEffect as m,useRef as u}from"react";import{jsx as n,jsxs as a}from"react/jsx-runtime";var p=({message:r,retrying:t,config:l,onRetry:c})=>{let{labels:o}=l,i=t?"btn btn-sm btn-outline-secondary disabled":"btn btn-sm btn-outline-secondary",s=u(null);return m(()=>()=>{let e=s.current;if(!e||document.activeElement!==e)return;(e.closest(".compass-group")?.querySelector("summary")??e.closest(".block_compass")?.querySelector(".compass-reload")??null)?.focus()},[]),a("div",{className:"alert alert-warning compass-error compass-retry",role:"alert",children:[n("span",{children:r}),a("span",{className:"compass-retry-actions",children:[n("button",{type:"button",ref:s,className:i,"aria-disabled":t||void 0,onClick:()=>{t||c()},children:t?o.reloading:o.retry}),n("button",{type:"button",className:"btn btn-link btn-sm compass-linkbtn",onClick:()=>window.location.reload(),children:o.reloadpage})]})]})},y=p;export{y as default};
-/**
+import{useLayoutEffect as m,useRef as u}from"react";import{jsx as n,jsxs as a}from"react/jsx-runtime";/**
  * The way back from every failure.
  *
  * Amber rather than error red, because the failure is recoverable; role="alert", so it is
@@ -11,5 +10,4 @@ import{useLayoutEffect as m,useRef as u}from"react";import{jsx as n,jsxs as a}fr
  * @module     block_compass/RetryNotice
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=RetryNotice.js.map
+ */const p=({message:r,retrying:t,config:l,onRetry:c})=>{const{labels:o}=l,i=t?"btn btn-sm btn-outline-secondary disabled":"btn btn-sm btn-outline-secondary",s=u(null);return m(()=>()=>{const e=s.current;if(!e||document.activeElement!==e)return;(e.closest(".compass-group")?.querySelector("summary")??e.closest(".block_compass")?.querySelector(".compass-reload")??null)?.focus()},[]),a("div",{className:"alert alert-warning compass-error compass-retry",role:"alert",children:[n("span",{children:r}),a("span",{className:"compass-retry-actions",children:[n("button",{type:"button",ref:s,className:i,"aria-disabled":t||void 0,onClick:()=>{t||c()},children:t?o.reloading:o.retry}),n("button",{type:"button",className:"btn btn-link btn-sm compass-linkbtn",onClick:()=>window.location.reload(),children:o.reloadpage})]})]})};var y=p;export{y as default};

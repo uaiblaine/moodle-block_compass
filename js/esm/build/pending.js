@@ -1,4 +1,3 @@
-var l=t=>{let e=window.M?.util;e?.js_pending(t);let i=!0;return()=>{i&&(i=!1,e?.js_complete(t))}};export{l as hold};
 /**
  * A synchronous hold on Moodle's pending-JavaScript counter, the one Behat waits on.
  *
@@ -11,5 +10,4 @@ var l=t=>{let e=window.M?.util;e?.js_pending(t);let i=!0;return()=>{i&&(i=!1,e?.
  * @module     block_compass/pending
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=pending.js.map
+ */const l=t=>{const e=window.M?.util;e?.js_pending(t);let i=!0;return()=>{i&&(i=!1,e?.js_complete(t))}};export{l as hold};

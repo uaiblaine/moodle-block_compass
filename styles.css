@@ -17,11 +17,18 @@
     --block_compass-brand-onink: var(--bs-white, #fff);
     --block_compass-line: var(--bs-border-color, #dee2e6);
     /* A control's border, the one the Reload button draws (Boost's outline-secondary, gray-600):
-       4.8:1 on Boost's white, 3.4:1 on its dark body, both over the 3:1 a control's edge needs. The
+       4.8:1 on Boost's white card, 4.6:1 on its gray-100 page, and in Boost 5.3's dark mode, which
+       maps gray-600 to gray-400, 7.7:1 on the raised card and 10.8:1 on the page: all over the 3:1
+       a control's edge needs. The
        hairline --block_compass-line (1.3:1) is left to separators. */
     --block_compass-control-line: var(--bs-gray-600, #6a737b);
     --block_compass-muted: var(--bs-secondary-color, #6a737b);
-    --block_compass-surface: var(--bs-body-bg, #fff);
+    /* The colour behind the block, which cards, rings and the strip's edge fades are painted
+       with. On the Dashboard the block's section is Bootstrap's .card and its --bs-card-bg is
+       declared on this very element: white on Boost 5.3 ($card-bg: var(--bs-white)), its raised
+       grey in dark mode. On the block's own page there is no card around it and the page's
+       --bs-body-bg is behind it, which on Boost 5.3 is gray-100 ($body-bg), no longer white. */
+    --block_compass-surface: var(--bs-card-bg, var(--bs-body-bg, #fff));
     /* The state pills' two families, the theme card's (theme_boost_union_fundaseg): a later start
        in the primary's subtle pair, an application in the warning's. The fallbacks are the
        theme's own measured pairs, 14.53:1 and 7.82:1; Boost 5.2 serves 10.85:1 and 7.82:1. */
@@ -35,9 +42,10 @@
    the 4.5:1 floor, and Bootstrap's dark emphasis tint of a brand is not safe either - a navy
    brand tints to 3.28:1. Body text is the one colour dark mode guarantees readable.
 
-   Moodle 5.2 has one dark mechanism, the data-bs-theme attribute (no .theme-dark class), and
-   a theme may set it on html or on body. On 5.2 theme_boost sets it nowhere; theme_moove sets
-   it on body. On 5.3-dev theme_boost sets it on html, behind theme_boost/enablecolourmodes.
+   Moodle 5.x has one dark mechanism, the data-bs-theme attribute (no .theme-dark class), and
+   a theme may set it on html or on body. On 5.3 theme_boost sets it on html, behind
+   theme_boost/enablecolourmodes (theme/boost/classes/hook_listener.php); theme_moove sets it on
+   body.
 
    Html or body, and nothing deeper: theme_boost_union sets the same attribute on its navbar
    alone, and a bare [data-bs-theme="dark"] .block_compass would match through any ancestor.
@@ -46,11 +54,13 @@ body[data-bs-theme="dark"] .block_compass,
 [data-bs-theme="dark"] body .block_compass {
     --block_compass-brand-text: var(--bs-body-color, #dee2e6);
     /* Marks and rings in the brand stay brand-tinted, pulled towards the body colour until they read
-       on the dark body: 35 % of the primary is 5.99:1 for the theme's navy (#070093) and 8.03:1 for
-       Boost's blue on #1d2125, and 4.92:1 and 6.60:1 on the tertiary background a hovered row takes,
-       so the ink clears 4.5:1 as text and 3:1 as a mark. The primary itself is 1.1:1 (navy) and
-       3.02:1 (Boost). A mix of the theme's own tokens, so no palette is written here. */
-    --block_compass-brand-ink: color-mix(in oklab, var(--bs-primary, #0f6cbf) 35%, var(--bs-body-color, #dee2e6));
+       on the darkest surface they sit on. On Boost 5.3 that is the Dashboard block's raised card,
+       #343a40, lighter than the page: 30 % of the primary is 4.77:1 there for the theme's navy
+       (#070093) and 6.09:1 for Boost's blue, 5.75:1 and 7.36:1 on the recessed background a hovered
+       row takes, 6.71:1 and 8.58:1 on the page (#1d2125, the block's own page), so the ink clears
+       4.5:1 as text and 3:1 as a mark. The primary itself is 1.28:1 (navy) and 2.15:1 (Boost) on
+       the card. A mix of the theme's own tokens, so no palette is written here. */
+    --block_compass-brand-ink: color-mix(in oklab, var(--bs-primary, #0f6cbf) 30%, var(--bs-body-color, #dee2e6));
     --block_compass-brand: var(--block_compass-brand-ink);
     /* Text on the ink (an accent pill, a hovered outline button) is the dark body colour, as text on
        a light fill must be. */

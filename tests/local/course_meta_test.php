@@ -99,7 +99,7 @@ final class course_meta_test extends advanced_testcase {
 
         $entry = course_meta::get_many([$courseid])[$courseid];
 
-        $expectedkeys = ['id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion', 'ctx'];
+        $expectedkeys = ['id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion', 'deletioninprogress', 'ctx'];
         $this->assertSame($expectedkeys, array_keys($entry));
         $this->assertSame($courseid, $entry['id']);
         $this->assertSame($course->fullname, $entry['fullname']);
@@ -107,6 +107,8 @@ final class course_meta_test extends advanced_testcase {
         $this->assertSame((int) $course->category, $entry['category']);
         $this->assertSame(1, $entry['visible']);
         $this->assertSame(1, $entry['enablecompletion']);
+        // The column is nullable and a new course leaves it null: an int either way.
+        $this->assertSame(0, $entry['deletioninprogress']);
 
         $expectedctx = ['ctxid', 'ctxpath', 'ctxdepth', 'ctxlevel', 'ctxinstance', 'ctxlocked'];
         $this->assertSame($expectedctx, array_keys($entry['ctx']));

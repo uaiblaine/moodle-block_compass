@@ -35,10 +35,11 @@ class behat_block_compass extends behat_base {
     /**
      * Put the page in Bootstrap's dark colour mode, as a theme does.
      *
-     * Moodle 5.2 has one dark mechanism, Bootstrap 5.3's data-bs-theme attribute, and core's
-     * theme_boost writes it nowhere on 5.2 (5.3 writes it on the html element behind a setting), so
-     * the scenario sets it on the html element itself, where the stylesheet's dark override reads it
-     * ([data-bs-theme="dark"] body .block_compass). The page is not reloaded: the attribute lasts
+     * Moodle 5.x has one dark mechanism, Bootstrap 5.3's data-bs-theme attribute. On 5.3 core's
+     * theme_boost writes it on the html element only when theme_boost/enablecolourmodes is on and
+     * the user chose dark (theme/boost/classes/hook_listener.php), so the scenario sets it on the
+     * html element itself, as Boost would, where both Boost's dark palette and the stylesheet's dark
+     * override read it ([data-bs-theme="dark"] body .block_compass). The page is not reloaded: the attribute lasts
      * until the next page load, long enough for the axe step that follows it.
      *
      * The step returns once the colours have settled: the block's colour transitions would

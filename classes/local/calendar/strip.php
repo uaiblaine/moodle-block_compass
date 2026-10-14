@@ -375,7 +375,9 @@ final class strip {
         if ($courses) {
             // Hidden courses and courses the user has completed do not count (the maintainer,
             // 2026-10-13). Unlike tier 1 there is no moodle/course:viewhiddencourses exception:
-            // {@see \block_compass\local\attention::visible_sql()} is tier 1's rule.
+            // {@see \block_compass\local\attention::visible_sql()} is tier 1's rule. A course
+            // core is deleting is hidden by core when it is marked (visible 0, Moodle 5.3), so
+            // c.visible = 1 leaves it out too.
             // Index: course primary key; context (contextlevel, instanceid) unique; course_categories
             // primary key; course_completions unique (userid, course). Bound: the inventory's own
             // course set.

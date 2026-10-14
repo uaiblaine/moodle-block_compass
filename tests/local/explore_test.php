@@ -521,6 +521,75 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
+     * A course queued for asynchronous deletion leaves tier 3 at once, with the course layer warm.
+     *
+     * Moodle 5.3 with enablecourseasyncdeletion: the request hides the course and marks it
+     * (deletioninprogress 1) with set_field(), raising no event, and leaves its enrolments to the
+     * cron, so neither the stamp nor any observer notices. The entry the first build cached says
+     * the course is visible; the before_course_deleted hook is what rewrites it. The kept course
+     * is the control, and the precondition proves the doomed course was listed from a warm entry.
+     *
+     * @return void
+     */
+    public function test_a_course_queued_for_deletion_leaves_tier_3_at_once(): void {
+        global $DB;
+
+        $tree = $this->tree();
+        $kept = $this->course_in((int) $tree['alpha']->id, 'Kept course');
+        $doomed = $this->course_in((int) $tree['alpha']->id, 'Doomed course');
+        foreach ([$kept, $doomed] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+        }
+        $before = $this->build(1);
+        $this->assertSame(['Doomed course', 'Kept course'], $this->course_names($before['groups'][0]));
+        $this->assertSame(1, cache::make('block_compass', 'coursemeta')->get((int) $doomed->id)['visible']);
+
+        set_config('enablecourseasyncdeletion', 1, 'moodlecourse');
+        delete_course($doomed, false);
+        $this->assertSame(
+            1,
+            (int) $DB->get_field('course', 'deletioninprogress', ['id' => $doomed->id]),
+            'Precondition: the deletion is queued, not done.'
+        );
+
+        $after = $this->build(1);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame(['Kept course'], $this->course_names($after['groups'][0]));
+    }
+
+    /**
+     * A course queued for deletion is left out for a viewer who may see hidden courses too.
+     *
+     * Core hides the course when it marks it, so the visibility rule alone drops it for a learner;
+     * a holder of moodle/course:viewhiddencourses would still be offered a course whose page
+     * require_login() refuses while the deletion is pending. The visible course is the control.
+     *
+     * @return void
+     */
+    public function test_a_course_queued_for_deletion_is_left_out_for_a_hidden_course_viewer(): void {
+        $tree = $this->tree();
+        $kept = $this->course_in((int) $tree['alpha']->id, 'Kept course');
+        $doomed = $this->course_in((int) $tree['alpha']->id, 'Doomed course');
+        foreach ([$kept, $doomed] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+        }
+        $syscontext = context_system::instance();
+        $roleid = create_role('Compass hidden course viewer', 'compasshiddenviewer', 'Sees hidden courses');
+        assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $roleid, $syscontext->id, true);
+        role_assign($roleid, $this->userid, $syscontext->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $syscontext, $this->userid));
+        $this->assertSame(2, $this->build(1)['total']);
+
+        set_config('enablecourseasyncdeletion', 1, 'moodlecourse');
+        delete_course($doomed, false);
+
+        $after = $this->build(1);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame(['Kept course'], $this->course_names($after['groups'][0]));
+    }
+
+    /**
      * A course whose category row is gone still appears, in an "Uncategorised" group that keeps the stale id.
      *
      * Core's UI never leaves a course pointing at a missing category; a bad restore can, and

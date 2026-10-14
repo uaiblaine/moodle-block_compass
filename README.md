@@ -130,7 +130,7 @@ not supported: the client is React, which core builds and serves from 5.2 on.
 
 - **Required: [`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)**
   from the branch matching your Moodle version (`main` for 5.2, version 2026042003 or later;
-  `MOODLE_503_STABLE` for 5.3). It decides what each enrolment means (enrolled, starting later,
+  `MOODLE_503_STABLE` for 5.3, version 2026100505 or later). It decides what each enrolment means (enrolled, starting later,
   awaiting approval, on the waiting list), and Compass asks it rather than keeping a rule of its
   own. Install it first.
 - PHP's `intl` extension, which Moodle itself requires.
@@ -325,7 +325,9 @@ Development
   branch's Moodle version, on PHP 8.3 and 8.4 against PostgreSQL and MariaDB, with the static
   gates at zero warnings.
 - The client is TypeScript and React under `js/esm/src`, built into `js/esm/build` (tracked,
-  including the bundle and its manifest).
+  including the bundle and its manifest). On Moodle 5.3 the build also writes a `.dev.js` twin
+  of each module and `js/esm/src/swizzle.json`, which declares every component closed to theme
+  overrides: the page loads the bundle, so an override of a single module would never apply.
 - Design decisions: [`docs/adr/`](docs/adr/README.md). Measurements: [`docs/perf/`](docs/perf/).
   Changes: [`CHANGELOG.md`](CHANGELOG.md).
 

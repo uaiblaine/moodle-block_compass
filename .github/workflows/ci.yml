@@ -30,11 +30,11 @@ jobs:
   # run on every runtime leg.
   #
   # local_unlistedcourses is a hard dependency (version.php $plugin->dependencies,
-  # ADR-013): its main branch is the 5.2 one.
-  ci-502:
-    name: Moodle 5.02
+  # ADR-013): this branch depends on its MOODLE_503_STABLE branch.
+  ci-503:
+    name: Moodle 5.03
     uses: moodle-an-hochschulen/moodle-workflows/.github/workflows/moodle-plugin-ci.yml@main
     with:
-      moodle-core-branch: MOODLE_502_STABLE
+      moodle-core-branch: MOODLE_503_STABLE
       plugin-dependencies: |
-        uaiblaine/moodle-local_unlistedcourses,main
+        uaiblaine/moodle-local_unlistedcourses,MOODLE_503_STABLE

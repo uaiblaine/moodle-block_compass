@@ -1,5 +1,4 @@
-import{jsx as n}from"react/jsx-runtime";var d=({busy:o,config:l,onReload:s})=>{let{labels:a,icons:t}=l,e=o?a.reloading:a.reload;return n("button",{type:"button",className:o?"compass-reload btn btn-outline-secondary btn-sm disabled":"compass-reload btn btn-outline-secondary btn-sm","aria-label":e,title:e,"aria-disabled":o||void 0,onClick:()=>{o||s()},children:n("span",{className:o?"compass-reload-glyph compass-reload-spin icon-no-margin":"compass-reload-glyph icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:{__html:t.reload}})})},r=d;export{r as default};
-/**
+import{jsx as n}from"react/jsx-runtime";/**
  * The reload control at the content's top-right.
  *
  * An icon-only button in a file of its own, because accessibility_rules_test reads the
@@ -11,5 +10,4 @@ import{jsx as n}from"react/jsx-runtime";var d=({busy:o,config:l,onReload:s})=>{l
  * @module     block_compass/Reload
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=Reload.js.map
+ */const d=({busy:o,config:l,onReload:s})=>{const{labels:a,icons:t}=l,e=o?a.reloading:a.reload;return n("button",{type:"button",className:o?"compass-reload btn btn-outline-secondary btn-sm disabled":"compass-reload btn btn-outline-secondary btn-sm","aria-label":e,title:e,"aria-disabled":o||void 0,onClick:()=>{o||s()},children:n("span",{className:o?"compass-reload-glyph compass-reload-spin icon-no-margin":"compass-reload-glyph icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:{__html:t.reload}})})};var r=d;export{r as default};

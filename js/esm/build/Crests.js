@@ -1,5 +1,4 @@
-import{jsx as s}from"react/jsx-runtime";var i=({badges:l,label:r,inline:a=!1})=>{if(!l||!l.length)return null;let t=l.map((e,o)=>s("li",{children:s("img",{src:e.url,alt:e.alt,loading:"lazy"})},`${o}-${e.url}`));return a?s("ul",{className:"compass-crests compass-crests-inline",role:"list","aria-label":r,children:t}):s("ul",{className:"compass-crests compass-crests-cover",role:"list","aria-label":r,children:t})},n=i;export{n as default};
-/**
+import{jsx as s}from"react/jsx-runtime";/**
  * A course's institutional crests, as theme_boost_union_fundaseg's own course card draws them.
  *
  * A named list of images with the theme's alternative text, at most three, in two sizes: on a
@@ -10,5 +9,4 @@ import{jsx as s}from"react/jsx-runtime";var i=({badges:l,label:r,inline:a=!1})=>
  * @module     block_compass/Crests
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=Crests.js.map
+ */const i=({badges:l,label:r,inline:a=!1})=>{if(!l||!l.length)return null;const t=l.map((e,o)=>s("li",{children:s("img",{src:e.url,alt:e.alt,loading:"lazy"})},`${o}-${e.url}`));return a?s("ul",{className:"compass-crests compass-crests-inline",role:"list","aria-label":r,children:t}):s("ul",{className:"compass-crests compass-crests-cover",role:"list","aria-label":r,children:t})};var n=i;export{n as default};

@@ -563,6 +563,10 @@ final class explore {
             if (!$seehidden && !$entrymeta['visible']) {
                 unset($allmeta[$courseid]);
             }
+            // A course core is deleting is left out for every viewer, the capability's holder too.
+            if (course_meta::is_being_deleted($entrymeta)) {
+                unset($allmeta[$courseid]);
+            }
         }
         $meta = array_intersect_key($allmeta, $courses);
         $archivedmeta = array_intersect_key($allmeta, $archived);

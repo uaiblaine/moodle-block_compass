@@ -464,3 +464,62 @@ arriving later.
    thirteen seconds of waterfall to three and a half of parallel fetches, and on a warm browser
    the client is done before the service answers. The page of ADR-012 measured the same shape:
    30 requests cold, 27 warm, the seven modules done by 4.5 s cold and by 0.9 s warm.
+
+## Amendment 7 (2026-10-14, `MOODLE_503_STABLE` only): the hints and the build on Moodle 5.3
+
+**Status: Accepted** (2026-10-14; the maintainer confirmed the closed swizzle manifest), written with
+the 5.3 port. The 5.2 branch is unchanged.
+
+### Context
+
+Read on the 5.3 release checkout (`~/dev/moodle-503`, `42622298fe0`, "Moodle release 5.3"):
+
+1. **`@moodle/lms/` is themable.** `import_map::jsonSerialize()`
+   (`public/lib/classes/output/requirements/import_map.php:96-110`) maps the key `@moodle/lms/` to
+   the loader followed by `@moodle/lms/theme-<current theme>/`, and adds one key per installed
+   theme. The browser therefore requests `…/@moodle/lms/theme-boost/core/mount`, while amendment
+   4's hrefs (the loader plus the specifier) named `…/@moodle/lms/core/mount`: four of the seven
+   hints fetched a URL nothing then imported, a second download of the same file.
+2. **Core preloads from the head.** `page_requirements_manager::get_import_map()` writes the map
+   and then a `modulepreload` for each entry flagged `preload: true` (`:1081`, `:1106-1120`):
+   `react`, `react-dom`, `@moodlehq/design-system`, `tabbable`, `bootstrap` (MDL-89726).
+   `react-dom/client`, which `mount` imports, is a different URL from `react-dom` and is not among them.
+3. **`react_autoinit` imports `core/pending`** as well as `profiler` and `mount`
+   (`public/lib/js/esm/src/react_autoinit.ts:37-39`).
+4. **The build.** `grunt esm` deletes each component's `js/esm/build` before rebuilding
+   (`.esbuild/plugin/plugincomponents.mjs:285-309`), writes `X.js` (minified, no map) and
+   `X.dev.js` with `X.dev.js.map`, and then writes `js/esm/src/swizzle.json`, defaulting every
+   component it finds to `risky`/`risky` (MDL-88509; `scripts/lib/swizzle/generate-manifest.mjs`).
+   The fleet bundler runs after it (`mdl grunt`, `mdl ci`'s `esm_tree_check`), so the bundle,
+   its map and manifest are rebuilt with the rest; no `bundle.dev.js` is needed, as the loader
+   falls back to `bundle.js` when no twin exists.
+5. **No loader for the bundle.** Registering the bundle with an explicit `loader` through
+   `before_import_map_config` would make `get_path_for_script()` throw for it
+   (`import_map.php:341-355`), so the bundle stays where core's component resolution finds it.
+
+### Decision
+
+- The hook keeps one constant, `hook_callbacks::MODULES`, of the eight modules the client needs:
+  `react_autoinit`, `mount`, `profiler`, `pending`, `react`, `react-dom/client`,
+  `react/jsx-runtime` and the bundle. At run time it skips the ones core's import map flags for
+  preload (`import_map::get_preload_specifiers()`, today `react`), and resolves each remaining
+  specifier through a copy of the page's own map configured as `get_import_map()` configures it
+  (loader with the page's revision, current theme, installed themes), the way the browser
+  resolves: an exact key, else the longest key ending in `/`. Seven hints on Boost 5.3.
+- The hints stay at the top of the body (amendment 5). `react_autoinit` stays in the list: the
+  preload scanner reaches the hint while the parser waits on the classic scripts above core's
+  inline module script.
+- `js/esm/src/swizzle.json` declares every component `prohibited` for both eject and wrap. A
+  theme override is served for the specifier it names, and nothing on the page imports a
+  per-file Compass module: the page loads the bundle, which inlines them, so an override would
+  silently do nothing. `bundle_test::test_no_component_is_offered_to_a_themes_swizzle` pins it.
+- The 5.2 per-file `.js.map` files are removed from this branch; the tree is exactly what
+  `mdl grunt m503 blocks/compass` writes.
+
+### Evidence
+
+`hook_callbacks_test` compares every href with an independent longest-prefix resolution of the
+map core writes for the same page, asserts none repeats a head preload of core's, and resolves
+each through `import_map::get_path_for_script()` to a file on disk (the last one
+`blocks/compass/js/esm/build/bundle.js`). Gates: `preload_core_skip`, `preload_current_theme`,
+`preload_longest_prefix`, and `preload_revision` rewritten for the new call.
