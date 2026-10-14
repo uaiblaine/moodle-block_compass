@@ -69,23 +69,25 @@ class block implements renderable, templatable {
         'cal_count_graded_one', 'cal_count_gradedsoon_today', 'cal_count_gradedsoon_today_one',
         'cal_count_gradedsoon_tomorrow', 'cal_count_gradedsoon_tomorrow_one', 'cal_count_gradesoon_today',
         'cal_count_gradesoon_tomorrow', 'cal_count_late', 'cal_count_late_one', 'cal_count_todo', 'cal_dayerror',
-        'cal_daylabel', 'cal_days', 'cal_empty_events', 'cal_empty_learning', 'cal_empty_teaching', 'cal_filter_all',
-        'cal_filter_events', 'cal_filter_todo', 'cal_filters', 'cal_format_clock', 'cal_format_daymonth',
-        'cal_format_dayname', 'cal_format_monthyear', 'cal_format_time12', 'cal_format_time24', 'cal_hint_hover',
-        'cal_hint_pinned', 'cal_items', 'cal_items_one', 'cal_legend_class', 'cal_legend_done', 'cal_legend_event',
-        'cal_legend_grade', 'cal_legend_graded', 'cal_legend_late', 'cal_legend_needle_learning',
-        'cal_legend_needle_teaching', 'cal_legend_todo', 'cal_loaderror', 'cal_loading', 'cal_loadingday',
-        'cal_month_01', 'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06', 'cal_month_07',
-        'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12', 'cal_monthspan', 'cal_next',
-        'cal_nothing', 'cal_open', 'cal_openday', 'cal_pill_class', 'cal_pill_criterion', 'cal_pill_done',
-        'cal_pill_event', 'cal_pill_graded', 'cal_pill_gradedtoday', 'cal_pill_gradedtomorrow', 'cal_pill_gradetoday',
-        'cal_pill_gradetomorrow', 'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_waiting', 'cal_pill_waiting_one',
-        'cal_pm', 'cal_prefererror', 'cal_prev', 'cal_region', 'cal_rel_future', 'cal_rel_past', 'cal_rel_today',
-        'cal_rel_tomorrow', 'cal_rel_yesterday', 'cal_relevance', 'cal_today', 'cal_truncated', 'cal_truncatedday',
-        'cal_upto', 'cal_view', 'cal_view_learning', 'cal_view_teaching', 'cal_views', 'cal_waiting', 'cal_weekday_0',
-        'cal_weekday_1', 'cal_weekday_2', 'cal_weekday_3', 'cal_weekday_4', 'cal_weekday_5', 'cal_weekday_6',
-        'cal_weekdayshort_0', 'cal_weekdayshort_1', 'cal_weekdayshort_2', 'cal_weekdayshort_3', 'cal_weekdayshort_4',
-        'cal_weekdayshort_5', 'cal_weekdayshort_6',
+        'cal_daylabel', 'cal_days', 'cal_daytype', 'cal_daytype_note', 'cal_empty_events', 'cal_empty_learning',
+        'cal_empty_teaching', 'cal_filter_all', 'cal_filter_events', 'cal_filter_todo', 'cal_filters',
+        'cal_format_clock', 'cal_format_daymonth', 'cal_format_dayname', 'cal_format_monthyear', 'cal_format_time12',
+        'cal_format_time24', 'cal_hint_hover', 'cal_hint_pinned', 'cal_items', 'cal_items_one', 'cal_legend_class',
+        'cal_legend_done', 'cal_legend_event', 'cal_legend_grade', 'cal_legend_graded', 'cal_legend_holiday',
+        'cal_legend_late', 'cal_legend_needle_learning', 'cal_legend_needle_teaching', 'cal_legend_todo',
+        'cal_legend_weekend', 'cal_loaderror', 'cal_loading', 'cal_loadingday', 'cal_month_01', 'cal_month_02',
+        'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06', 'cal_month_07', 'cal_month_08',
+        'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12', 'cal_monthspan', 'cal_next', 'cal_nothing',
+        'cal_open', 'cal_openday', 'cal_pill_class', 'cal_pill_criterion', 'cal_pill_done', 'cal_pill_event',
+        'cal_pill_graded', 'cal_pill_gradedtoday', 'cal_pill_gradedtomorrow', 'cal_pill_gradetoday',
+        'cal_pill_gradetomorrow', 'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_starred', 'cal_pill_waiting',
+        'cal_pill_waiting_one', 'cal_pm', 'cal_prefererror', 'cal_prev', 'cal_region', 'cal_rel_future',
+        'cal_rel_past', 'cal_rel_today', 'cal_rel_tomorrow', 'cal_rel_yesterday', 'cal_relevance', 'cal_today',
+        'cal_truncated', 'cal_truncatedday', 'cal_upto', 'cal_view', 'cal_view_learning', 'cal_view_teaching',
+        'cal_views', 'cal_waiting', 'cal_weekday_0', 'cal_weekday_1', 'cal_weekday_2', 'cal_weekday_3',
+        'cal_weekday_4', 'cal_weekday_5', 'cal_weekday_6', 'cal_weekdayshort_0', 'cal_weekdayshort_1',
+        'cal_weekdayshort_2', 'cal_weekdayshort_3', 'cal_weekdayshort_4', 'cal_weekdayshort_5', 'cal_weekdayshort_6',
+        'cal_weekend',
     ];
 
     /**
@@ -204,7 +206,7 @@ class block implements renderable, templatable {
         // The calendar strip's props exist only where the strip renders: off, or on a surface
         // calendar_where leaves out, the key is absent and the client mounts nothing (ADR-014
         // decision 1).
-        $calendar = $this->calendar();
+        $calendar = $this->calendar($output);
         if ($calendar !== null) {
             $props['calendar'] = $calendar;
         }
@@ -222,11 +224,19 @@ class block implements renderable, templatable {
      * $CFG. The strip's data is fetched by the client (block_compass_get_strip) once tier 1 has
      * settled (decision 2).
      *
+     * The icons are core's own glyphs, rendered here as the block's other icons are, because an ES
+     * module has no pix helper: the arrows are the chevrons core's previous and next links draw, the
+     * calendar link carries core's calendar glyph, and the view switch carries the course glyph (a
+     * mortarboard) for studying and the grades glyph (a clipboard checked) for teaching, core's
+     * nearest to the mockup's monitor. Every one is rendered with an empty alt, so core marks it
+     * aria-hidden.
+     *
+     * @param renderer_base $output The renderer.
      * @return array|null style, relevance (the site default), state (view, filter, relevance as the
      *     viewer left them), url and dayurl (core's month and day views), timezone (the user's, for
-     *     the times the client formats), bound (inventory_max), daylimit and strings.
+     *     the times the client formats), bound (inventory_max), daylimit, icons and strings.
      */
-    private function calendar(): ?array {
+    private function calendar(renderer_base $output): ?array {
         if (!config::calendar_enabled()) {
             return null;
         }
@@ -248,6 +258,13 @@ class block implements renderable, templatable {
             'timezone' => \core_date::get_user_timezone(),
             'bound' => config::inventory_max(),
             'daylimit' => day::LIMIT,
+            'icons' => [
+                'prev' => $output->render(new pix_icon('i/previous', '')),
+                'next' => $output->render(new pix_icon('i/next', '')),
+                'calendar' => $output->render(new pix_icon('i/calendar', '')),
+                'learning' => $output->render(new pix_icon('i/course', '')),
+                'teaching' => $output->render(new pix_icon('i/grades', '')),
+            ],
             'strings' => $strings,
         ];
     }

@@ -1341,4 +1341,118 @@ final class accessibility_rules_test extends basic_testcase {
         );
         $this->assertCount(1, $inline, 'the list row does not render its crests inline');
     }
+
+    /**
+     * The brand's marks go through the ink token, which dark mode lightens until it reads.
+     *
+     * The a11y sweep of 2026-10-14 measured, in dark mode on the theme's navy brand, a card's outline
+     * button, the calendar's dots, its needle and its checked switch at 1.1:1 against the dark body:
+     * each was painted with the theme's primary, which Bootstrap does not move in dark mode. The
+     * cure is one token, --block_compass-brand-ink: the primary in light mode, a mix of the primary
+     * into the body colour in dark mode (the ratios are in styles.css). The rule pins the pairing,
+     * not the ratio, as the brand text rule does: nothing paints with the theme's primary directly
+     * outside a token declaration, the calendar's accent and the plain brand token resolve to the
+     * ink, the dark rule redefines the ink with a colour-mix() of theme tokens and points the plain
+     * brand at it, the checked switch and the dark outline button take the ink, and an accent pill's
+     * text follows its fill.
+     *
+     * Changes that must make it fail: a dot or a ring back on var(--bs-primary); the dark ink
+     * dropped or written as a literal; the switch or the outline button rule deleted.
+     *
+     * @return void
+     */
+    public function test_marks_go_through_the_dark_aware_ink(): void {
+        $direct = [];
+        $declarations = 0;
+        foreach ($this->rules() as [$selector, $body]) {
+            foreach (explode(';', $body) as $declaration) {
+                $declaration = trim($declaration);
+                if ($declaration === '' || str_starts_with($declaration, '--')) {
+                    continue;
+                }
+                $declarations++;
+                if (str_contains($declaration, 'var(--bs-primary')) {
+                    $direct[] = "{$selector} { {$declaration} }";
+                }
+            }
+        }
+        $this->assertGreaterThanOrEqual(100, $declarations, 'fewer than 100 declarations read: has the stylesheet moved?');
+        $this->assertSame([], $direct, 'painted with the theme\'s primary, 1.1:1 on the dark body: ' . implode('; ', $direct));
+
+        $light = '';
+        $dark = '';
+        foreach ($this->rules() as [$selector, $body]) {
+            if (trim($selector) === '.block_compass') {
+                $light .= $body;
+            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-brand-text:')) {
+                $dark .= $body;
+            }
+        }
+        $this->assertMatchesRegularExpression(
+            '/--block_compass-brand-ink:\s*var\(--bs-primary\b/',
+            $light,
+            'the ink\'s light value is the theme\'s primary'
+        );
+        $this->assertMatchesRegularExpression(
+            '/--block_compass-cal-accent:\s*var\(--block_compass-brand-ink\)/',
+            $light,
+            'the calendar\'s dots, rings and needle are painted with --block_compass-cal-accent, which must be the ink'
+        );
+        $this->assertMatchesRegularExpression(
+            '/--block_compass-brand-ink:\s*color-mix\(in oklab,\s*var\(--bs-primary\b[^;]*var\(--bs-body-color\b/',
+            $dark,
+            'the dark rule must mix the primary into the body colour for the ink'
+        );
+        $this->assertMatchesRegularExpression(
+            '/--block_compass-brand:\s*var\(--block_compass-brand-ink\)/',
+            $dark,
+            'the dark rule must point the plain brand (rings, outlines, borders) at the ink'
+        );
+        $this->assertMatchesRegularExpression('/--block_compass-brand-onink:/', $dark, 'the text on the ink in dark mode');
+
+        $switch = 0;
+        $outline = 0;
+        foreach ($this->rules() as [$selector, $body]) {
+            if (str_contains($selector, '.form-check-input:checked') && str_contains($selector, '.block_compass')) {
+                $switch += preg_match('/background-color:\s*var\(--block_compass-brand-ink\)/', $body);
+            }
+            if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($selector, '.btn-outline-primary:not(:hover)')) {
+                $outline += preg_match('/(?<![-\w])color:\s*var\(--block_compass-brand-ink\)/', $body);
+            }
+        }
+        $this->assertSame(1, $switch, 'the checked relevance switch is not painted with the ink');
+        $this->assertSame(1, $outline, 'the dark outline button is not painted with the ink');
+    }
+
+    /**
+     * Without the page title the reload control is stacked above the first row and padded away from it.
+     *
+     * With hide_page_title on, the control leaves its row for the page's top-right corner. The
+     * calendar strip, positioned and later in the page, painted its header over it, and the control
+     * took no click (measured on m502 at 588 px: elementFromPoint at its centre was the strip's
+     * header). The Behat scenario clicks it; this reads the two rules that make the click land: a
+     * z-index on the cornered control, and the strip's header among the rows padded away from it.
+     *
+     * Changes that must make it fail: the z-index dropped; the calendar header left out of the padded rows.
+     *
+     * @return void
+     */
+    public function test_the_reload_control_stays_above_the_first_row_without_the_title(): void {
+        $cornered = 0;
+        $padded = 0;
+        foreach ($this->rules() as [$selector, $body]) {
+            if (!str_contains($selector, '.block_compass-notitle')) {
+                continue;
+            }
+            if (str_contains($selector, '.compass-content-head') && str_contains($body, 'position: absolute')) {
+                $cornered++;
+                $this->assertMatchesRegularExpression('/(?<![-\w])z-index:\s*[1-9]/', $body, 'the cornered control has no z-index');
+            }
+            if (preg_match('/\.compass-cal-head(?![\w-])/', $selector) && str_contains($body, 'padding-inline-end')) {
+                $padded++;
+            }
+        }
+        $this->assertSame(1, $cornered, 'the no-title rule that corners the reload control was not found');
+        $this->assertSame(1, $padded, 'the calendar strip\'s header is not padded away from the reload control');
+    }
 }

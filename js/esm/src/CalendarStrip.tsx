@@ -49,10 +49,10 @@ import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
 import RetryNotice from './RetryNotice';
 import {
-    BOUND_KINDS, addDays, dateParts, daysBetween, fromPayload, homeOffset, kindsOf, longDay, marks, monthName, monthYear,
-    score, settle, shortWeekday, shownKinds, step, windowDays,
+    BOUND_KINDS, addDays, dateParts, dayOff, daysBetween, fromPayload, homeOffset, kindsOf, longDay, marks, monthName,
+    monthYear, score, settle, shortWeekday, shownKinds, step, windowDays,
 } from './calendar';
-import type {DayCounts} from './calendar';
+import type {DayCounts, DayOff} from './calendar';
 import {notify} from './notify';
 import {getDay, getStrip, setCalendarPreference} from './repository';
 import {fill, fillCount, fillObject} from './str';
@@ -178,6 +178,8 @@ const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
                         </div>
                     ))}
                 </div>
+                {/* The track's line, so the row below does not move when the strip fills in. */}
+                {!narrow && <div className="compass-cal-track" />}
             </div>
             <div className="compass-cal-foot">
                 <p className="compass-cal-note small">{calendar.strings.cal_waiting}</p>
@@ -265,7 +267,10 @@ type DayLook = {
     level: number,
     today: boolean,
     past: boolean,
+    // An empty weekend or day off: the disc is hatched (the mockup's cc-off).
     off: boolean,
+    // A day off the institution marked: its hatch is crossed, so it differs from a weekend by shape.
+    holiday: boolean,
     soon: boolean,
     open: boolean,
     pinned: boolean,
@@ -283,10 +288,75 @@ const dayClass = (look: DayLook): string => [
     look.today ? 'compass-cal-today' : '',
     look.past ? 'compass-cal-past' : '',
     look.off ? 'compass-cal-off' : '',
+    look.holiday ? 'compass-cal-holiday' : '',
     look.soon ? 'compass-cal-soon' : '',
     look.open ? 'compass-cal-open' : '',
     look.pinned ? 'compass-cal-pinned' : '',
 ].filter(Boolean).join(' ');
+
+/**
+ * A day's name for its sentence: "Saturday, 18 October", followed by what the day is when it is not
+ * a working day: "Saturday, 18 October, weekend", or the institution's type and its note, in the
+ * words block_feedback_tracker gives them.
+ *
+ * @param {object} strings The strip's strings.
+ * @param {string} date Y-m-d.
+ * @param {object} off What the day is; see DayOff.
+ * @returns {string} The name.
+ */
+const dayName = (strings: Record<string, string>, date: string, off: DayOff): string => {
+    const day = longDay(strings, dateParts(date));
+    if (off.special && off.special.label !== '') {
+        const {label, note} = off.special;
+
+        return note !== ''
+            ? fillObject(strings.cal_daytype_note, {day, type: label, note})
+            : fillObject(strings.cal_daytype, {day, type: label});
+    }
+    if (off.mark === 'holiday') {
+        return fillObject(strings.cal_daytype, {day, type: strings.cal_legend_holiday});
+    }
+    if (off.mark === 'weekend') {
+        return fillObject(strings.cal_daytype, {day, type: strings.cal_weekend});
+    }
+
+    return day;
+};
+
+/**
+ * A day's column classes: today's, the weekend's or the day off's, and the lighting from a pointed
+ * card. The caller passes the mark only when the disc cannot show it (it carries heat, or it is
+ * today's ink disc), so the weekday label carries it instead; an empty day's hatched disc is enough.
+ *
+ * @param {boolean} today Whether the day is today.
+ * @param {string} mark The day's DayOff mark.
+ * @param {string} lighting compass-cal-col-match, compass-cal-col-dim or empty.
+ * @returns {string} The class list.
+ */
+const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): string => [
+    'compass-cal-col',
+    today ? 'compass-cal-col-today' : '',
+    mark === 'weekend' ? 'compass-cal-col-weekend' : '',
+    mark === 'holiday' ? 'compass-cal-col-holiday' : '',
+    lighting,
+].filter(Boolean).join(' ');
+
+/**
+ * Where today's mark sits on the track under the row, as percentages of the row's width; null when
+ * today is not in the row (the mockup's cc-track-mark, which shows only then).
+ *
+ * @param {string[]} visible The row's days.
+ * @param {string} today Y-m-d.
+ * @returns {object|null} start (from the row's inline start) and width, CSS percentages.
+ */
+const trackOf = (visible: string[], today: string): {start: string, width: string} | null => {
+    const at = visible.indexOf(today);
+    if (at < 0) {
+        return null;
+    }
+
+    return {start: `${((at / visible.length) * 100).toFixed(3)}%`, width: `${(100 / visible.length).toFixed(3)}%`};
+};
 
 /**
  * The strip.
@@ -415,6 +485,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
 
         return map;
     }, [payload, days, entries, drawn]);
+    // The institution's marked days by date (block_feedback_tracker), empty without it.
+    const specials = useMemo(() => new Map((payload ? payload.specialdays : []).map((day) => [day.date, day])), [payload]);
 
     if (!payload && !failed) {
         return skeleton(calendar, shown, narrow);
@@ -457,6 +529,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const lastday = days[days.length - 1];
 
     const needle = needleOf(days.slice(todayindex), (date) => score(countsOf(date), drawn, filter, relevance));
+    // The needle's name: its tooltip, and the end of its day's sentence.
+    const needletitle = drawn === 'teaching' ? strings.cal_legend_needle_teaching : strings.cal_legend_needle_learning;
     const monthlabel = monthLabel(visible, strings);
     const tabstop = tabstopOf(visible, focusdate, payload.today);
     const open = openday;
@@ -774,9 +848,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      *
      * @param {string} date Y-m-d.
      * @param {object} day The day's counters.
+     * @param {object} off What the day is, named after its date; see DayOff.
      * @returns {string} The label.
      */
-    const dayLabel = (date: string, day: DayCounts): string => {
+    const dayLabel = (date: string, day: DayCounts, off: DayOff): string => {
         /**
          * How many of a kind the day shows under the filter.
          *
@@ -830,14 +905,14 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             parts.push(fillCount(strings, 'cal_count_done', n('done')));
         }
         const label = fillObject(strings.cal_daylabel, {
-            day: longDay(strings, dateParts(date)),
+            day: dayName(strings, date, off),
             counts: parts.length ? parts.join(', ') : strings.cal_nothing,
         });
         if (date !== needle) {
             return label;
         }
 
-        return `${label}. ${drawn === 'teaching' ? strings.cal_legend_needle_teaching : strings.cal_legend_needle_learning}`;
+        return `${label}. ${needletitle}`;
     };
 
     /**
@@ -873,6 +948,20 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     ];
     const atstart = first <= home;
     const atend = first >= last;
+    const track = trackOf(visible, payload.today);
+    // The legend names a day off only while one is in the row; the weekend whenever the site has one.
+    const holidayshown = visible.some((date) => dayOff(date, payload.weekend, specials.get(date)).mark === 'holiday');
+    // The legend's keys for the days off, the same in both views.
+    const daysoffkeys = (
+        <>
+            {payload.weekend > 0 && (
+                <li><span className="compass-cal-swatch compass-cal-swatch-weekend" />{strings.cal_legend_weekend}</li>
+            )}
+            {holidayshown && (
+                <li><span className="compass-cal-swatch compass-cal-swatch-holiday" />{strings.cal_legend_holiday}</li>
+            )}
+        </>
+    );
     const athome = offset === null || first === home;
     const rootclass = narrow
         ? `compass-cal compass-cal-style-${calendar.style} compass-cal-narrow`
@@ -907,7 +996,18 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                             }
                         }}
                     >
-                        <span aria-hidden="true">‹</span>
+                        {/* Core's chevrons, the ltr one or the rtl one shown by core's own direction
+                            classes, as a course section's chevron is (Group.tsx). */}
+                        <span
+                            className="compass-cal-chevron icon-no-margin dir-rtl-hide"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                        />
+                        <span
+                            className="compass-cal-chevron icon-no-margin dir-ltr-hide"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                        />
                     </button>
                     <p className="compass-cal-month" aria-live="polite">{monthlabel}</p>
                     <button
@@ -921,7 +1021,16 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                             }
                         }}
                     >
-                        <span aria-hidden="true">›</span>
+                        <span
+                            className="compass-cal-chevron icon-no-margin dir-rtl-hide"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                        />
+                        <span
+                            className="compass-cal-chevron icon-no-margin dir-ltr-hide"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                        />
                     </button>
                     <button
                         type="button"
@@ -945,6 +1054,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                 aria-pressed={drawn === 'learning'}
                                 onClick={() => chooseView('learning')}
                             >
+                                <span
+                                    className="compass-cal-glyph"
+                                    aria-hidden="true"
+                                    dangerouslySetInnerHTML={{__html: calendar.icons.learning}}
+                                />
                                 {strings.cal_view_learning}
                             </button>
                             <button
@@ -953,6 +1067,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                 aria-pressed={drawn === 'teaching'}
                                 onClick={() => chooseView('teaching')}
                             >
+                                <span
+                                    className="compass-cal-glyph"
+                                    aria-hidden="true"
+                                    dangerouslySetInnerHTML={{__html: calendar.icons.teaching}}
+                                />
                                 {strings.cal_view_teaching}
                             </button>
                         </div>
@@ -973,6 +1092,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                 </div>
             </div>
             <div className="compass-cal-daysbox">
+                {/* The row's edges fade where more days lie beyond them: the arrows can still move
+                    that way. The fades take no pointer, and a focused or open day rises above them. */}
+                {!narrow && !atstart && <span className="compass-cal-fade compass-cal-fade-start" aria-hidden="true" />}
+                {!narrow && !atend && <span className="compass-cal-fade compass-cal-fade-end" aria-hidden="true" />}
                 <div
                     className={`compass-cal-days compass-cal-days-${shown}`}
                     role="list"
@@ -983,7 +1106,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         const list = marks(day, kinds);
                         const level = step(score(day, drawn, filter, relevance), relevance);
                         const ymd = dateParts(date);
-                        const weekend = ymd.weekday === 0 || ymd.weekday === 6;
+                        const off = dayOff(date, payload.weekend, specials.get(date));
                         const nothing = kindsOf(drawn).every((kind) => (day.counts[kind] ?? 0) === 0);
                         const istoday = date === payload.today;
                         const isopen = open === date;
@@ -991,29 +1114,32 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         const holds = pointedCourse !== null && !!bydate.get(date)?.courseids.includes(pointedCourse);
                         let lighting = '';
                         if (pointedCourse !== null) {
-                            lighting = holds ? ' compass-cal-col-match' : ' compass-cal-col-dim';
+                            lighting = holds ? 'compass-cal-col-match' : 'compass-cal-col-dim';
                         }
                         const dayclass = dayClass({
                             level,
                             today: istoday,
                             past: date < payload.today,
-                            off: weekend && nothing,
+                            off: off.mark !== '' && nothing,
+                            holiday: off.mark === 'holiday',
                             soon: !istoday && list.some((kind) => kind === 'gradedsoon' || kind === 'gradesoon'),
                             open: isopen,
                             pinned: pinned === date,
                         });
+                        // The weekday label carries the mark only when the disc cannot show it.
+                        const labelmark = nothing && !istoday ? '' : off.mark;
 
                         return (
-                            <div
-                                key={date}
-                                role="listitem"
-                                className={`${istoday ? 'compass-cal-col compass-cal-col-today' : 'compass-cal-col'}${lighting}`}
-                            >
-                                {date === needle && <span className="compass-cal-needle" aria-hidden="true" />}
+                            <div key={date} role="listitem" className={columnClass(istoday, labelmark, lighting)}>
+                                {date === needle && <span className="compass-cal-needle" aria-hidden="true" title={needletitle} />}
                                 {calendar.style === 'pulse' && (
                                     <span className="compass-cal-barbox" aria-hidden="true">
+                                        {/* Late work, still open, turns its day's bar to the danger colour (the
+                                            mockup's cc-barover), over the heat's colour. */}
                                         <span
-                                            className={`compass-cal-bar compass-cal-heat-${level}`}
+                                            className={list.includes('late')
+                                                ? `compass-cal-bar compass-cal-barover compass-cal-heat-${level}`
+                                                : `compass-cal-bar compass-cal-heat-${level}`}
                                             style={{height: `${list.length ? 10 + Math.min(list.length, 5) * 8 : 4}px`}}
                                         />
                                     </span>
@@ -1029,7 +1155,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                     }}
                                     className={dayclass}
                                     tabIndex={date === tabstop ? 0 : -1}
-                                    aria-label={dayLabel(date, day)}
+                                    aria-label={dayLabel(date, day, off)}
                                     aria-haspopup="dialog"
                                     aria-expanded={isopen}
                                     aria-controls={isopen ? cardid : undefined}
@@ -1065,6 +1191,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                         view={drawn}
                                         filter={filter}
                                         counts={day}
+                                        off={off}
                                         entry={entries[`${drawn}:${date}`]}
                                         align={alignOf(at, visible.length)}
                                         pinned={pinned === date || narrow}
@@ -1082,6 +1209,15 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         );
                     })}
                 </div>
+                {/* Where today sits in the row, under it (the mockup's track); hidden on a narrow block,
+                    as the mockup hides it on a phone. */}
+                {!narrow && (
+                    <div className="compass-cal-track" aria-hidden="true">
+                        {track && (
+                            <span className="compass-cal-trackmark" style={{insetInlineStart: track.start, width: track.width}} />
+                        )}
+                    </div>
+                )}
             </div>
             <div className="compass-cal-foot">
                 {drawn === 'teaching' ? (
@@ -1090,6 +1226,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         <li><span className="compass-cal-dot compass-cal-dot-class" />{strings.cal_legend_class}</li>
                         <li><span className="compass-cal-dot compass-cal-dot-event" />{strings.cal_legend_event}</li>
                         <li><span className="compass-cal-needle compass-cal-needle-key" />{strings.cal_legend_needle_teaching}</li>
+                        {daysoffkeys}
                     </ul>
                 ) : (
                     <ul className="compass-cal-legend" aria-hidden="true">
@@ -1099,6 +1236,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         <li><span className="compass-cal-dot compass-cal-dot-event" />{strings.cal_legend_event}</li>
                         <li><span className="compass-cal-dot compass-cal-dot-done" />{strings.cal_legend_done}</li>
                         <li><span className="compass-cal-needle compass-cal-needle-key" />{strings.cal_legend_needle_learning}</li>
+                        {daysoffkeys}
                     </ul>
                 )}
                 <div className="compass-cal-actions">
@@ -1113,7 +1251,14 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         />
                         <label className="form-check-label" htmlFor={`${cardid}-relevance`}>{strings.cal_relevance}</label>
                     </div>
-                    <a className="compass-cal-link" href={calendar.url}>{strings.cal_open}</a>
+                    <a className="compass-cal-link" href={calendar.url}>
+                        <span
+                            className="compass-cal-glyph"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.calendar}}
+                        />
+                        {strings.cal_open}
+                    </a>
                 </div>
                 {payload.bounded && <p className="compass-cal-note small">{fill(strings.cal_bounded, String(calendar.bound))}</p>}
                 {payload.truncated && <p className="compass-cal-note small">{strings.cal_truncated}</p>}

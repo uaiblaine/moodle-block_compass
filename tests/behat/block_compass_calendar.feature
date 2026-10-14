@@ -18,7 +18,7 @@ Feature: The calendar strip above the Compass cards shows what falls due, day by
       | activity | course | name      | idnumber | duedate           | assignsubmission_onlinetext_enabled |
       | assign   | C1     | Essay due | essay1   | ##tomorrow noon## | 1                                   |
 
-  Scenario: A day of the strip opens a card with the assignment and core's action, and Escape closes it
+  Scenario: A day of the strip opens a card with core's action, Escape closes it, and the strip stays readable and clickable
     Given the following config values are set as admin:
       | calendar_enabled | 1 | block_compass |
     And I am on the "C1" "Course" page logged in as "student1"
@@ -35,3 +35,17 @@ Feature: The calendar strip above the Compass cards shows what falls due, day by
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
     When I press the escape key
     Then "//div[@role='dialog'][contains(@class, 'compass-cal-card')]" "xpath_element" should not exist
+    # Dark mode, Bootstrap's colour-mode attribute (Moodle 5.2's one mechanism): the cards' outline
+    # button and the strip's marks take the block's dark-aware ink, and axe passes over the block.
+    When the page is shown in the dark colour mode
+    Then the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
+    # Without the page title the reload control sits in the page's top-right corner, where the
+    # strip's header lies: it must take the click, and WebDriver refuses a click another element
+    # would receive.
+    And the following config values are set as admin:
+      | enable_page     | 1 | block_compass |
+      | hide_page_title | 1 | block_compass |
+    And I visit "/blocks/compass/index.php"
+    And "//section[contains(@class, 'compass-cal')]//button[contains(@aria-label, 'tomorrow')]" "xpath_element" should exist
+    When I click on "Reload courses" "button" in the ".compass-page" "css_element"
+    Then I should see "Course 1" in the ".compass-page" "css_element"

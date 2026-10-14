@@ -112,7 +112,8 @@ Breaking one is a design change: stop and raise it with the maintainer.
 - **Budgets** (§6.6): `get_attention` ≤ 7 warm / 8 cold; `get_inventory` ≤ 3 / 6;
   rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses;
   `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer.
-  `get_strip` 2 on a hit, ≤ 61 cold or warm; `get_day` 2 reopened, 11 teaching (PostgreSQL),
+  `get_strip` 2 on a hit, ≤ 61 cold or warm (62 with `block_feedback_tracker` installed: its
+  calendar's one statement, ADR-014 amendment 10); `get_day` 2 reopened, 11 teaching (PostgreSQL),
   ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
   preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
@@ -156,7 +157,8 @@ classes/local/             THE ONLY place $DB is allowed: budget, config (reads 
                            course_fields, explore_preference, calendar_cache, calendar_preference
 classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
                            default active group), day, grading (mirrors count_submissions_need_grading_with_groups();
-                           grading::source() is the one selection point behind grading_source)
+                           grading::source() is the one selection point behind grading_source), days_off
+                           (weekends from core, or block_feedback_tracker's calendar in one statement)
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
@@ -222,7 +224,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `tsc --noEmit` is a gate; a badge names its classes in a string literal; a heading tag is
   never written literally (`heading.ts` picks from `headinglevel` 4/3/2); brand text is painted
   with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two
-  selectors, never `:root` alone and never `.theme-dark`; there is no React eslint plugin, so
+  selectors, never `:root` alone and never `.theme-dark`; brand marks (dots, rings, the needle, a checked
+  switch, an outline button) use `--block_compass-brand-ink`, which that override lightens; there is no React eslint plugin, so
   write code that needs no hook rule; server-rendered markup reaches React only as core's own
   output. Tier 3: two modes in one component, sequence numbers not cancellation, debounce 150
   full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed

@@ -41,7 +41,7 @@ import RetryNotice from './RetryNotice';
 import {
     OPEN_KINDS, clockTime, dateParts, dayMonth, daysBetween, longDay, marks, shownKinds, sortItems, timeParts,
 } from './calendar';
-import type {DayCounts} from './calendar';
+import type {DayCounts, DayOff} from './calendar';
 import {fill, fillCount} from './str';
 import type {BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarView, DayItem} from './types';
 
@@ -58,6 +58,7 @@ type CalendarCardProps = {
     view: CalendarView,
     filter: CalendarFilter,
     counts: DayCounts,
+    off: DayOff,
     entry: DayEntry | undefined,
     align: 'start' | 'center' | 'end',
     pinned: boolean,
@@ -101,9 +102,17 @@ const relative = (strings: Record<string, string>, date: string, today: string):
  * @param {object} strings The strip's strings.
  * @param {boolean} istoday Whether the card's day is today, for "due today" against "due tomorrow".
  * @param {string} timezone The user's Moodle timezone, in which a late item's cut-off date is written.
+ * @param {boolean} stars Whether the site shows the course star (enable_favourites): the "Starred
+ *     course" pill follows the star's own visibility.
  * @returns {object[]} The pills.
  */
-const pillsOf = (item: DayItem, strings: Record<string, string>, istoday: boolean, timezone: string): ReactNode[] => {
+const pillsOf = (
+    item: DayItem,
+    strings: Record<string, string>,
+    istoday: boolean,
+    timezone: string,
+    stars: boolean
+): ReactNode[] => {
     const list: ReactNode[] = [];
     if (item.kind === 'gradedsoon') {
         list.push(
@@ -141,6 +150,11 @@ const pillsOf = (item: DayItem, strings: Record<string, string>, istoday: boolea
     }
     if (item.criterion && OPEN_KINDS.includes(item.kind)) {
         list.push(<span key="criterion" className="compass-cal-pill">{strings.cal_pill_criterion}</span>);
+    }
+    // A starred course weighs the item (decision 4), so an open item says why; late work already
+    // says the loudest thing it can, as the mockup leaves it.
+    if (stars && item.starred && OPEN_KINDS.includes(item.kind) && item.kind !== 'late') {
+        list.push(<span key="starred" className="compass-cal-pill">{strings.cal_pill_starred}</span>);
     }
 
     return list;
@@ -208,6 +222,33 @@ const emptyText = (strings: Record<string, string>, view: CalendarView, filter: 
     return view === 'teaching' ? strings.cal_empty_teaching : strings.cal_empty_learning;
 };
 
+/**
+ * What the day is when it is not a working day, as a quiet chip in the card's header: the weekend,
+ * or the institution's type in block_feedback_tracker's words and its note. A school day the
+ * institution set on a weekend names itself the same way. Nothing on a plain working day.
+ *
+ * @param {object} props The day's DayOff and the strip's strings.
+ * @returns {object|null} The chip.
+ */
+const DayType = ({off, strings}: {off: DayOff, strings: Record<string, string>}) => {
+    if (off.special && off.special.label !== '') {
+        return (
+            <span className={off.mark === 'holiday' ? 'compass-cal-daytype compass-cal-daytype-holiday' : 'compass-cal-daytype'}>
+                {off.special.label}
+                {off.special.note !== '' && <span className="compass-cal-daytype-note">{off.special.note}</span>}
+            </span>
+        );
+    }
+    if (off.mark === 'holiday') {
+        return <span className="compass-cal-daytype compass-cal-daytype-holiday">{strings.cal_legend_holiday}</span>;
+    }
+    if (off.mark === 'weekend') {
+        return <span className="compass-cal-daytype compass-cal-daytype-weekend">{strings.cal_legend_weekend}</span>;
+    }
+
+    return null;
+};
+
 type CardBodyProps = {
     entry: DayEntry | undefined,
     items: DayItem[],
@@ -265,7 +306,9 @@ const CardBody = ({entry, items, count, strings, timezone, istoday, empty, confi
                             {item.courseshortname && <span className="compass-cal-course">{item.courseshortname}</span>}
                         </div>
                         <a className="compass-cal-itemtitle" href={item.viewurl}>{item.name}</a>
-                        <div className="compass-cal-pills">{pillsOf(item, strings, istoday, timezone)}</div>
+                        <div className="compass-cal-pills">
+                            {pillsOf(item, strings, istoday, timezone, config.favouritesenabled)}
+                        </div>
                     </div>
                     {actionOf(item, strings)}
                 </li>
@@ -283,7 +326,7 @@ const CardBody = ({entry, items, count, strings, timezone, istoday, empty, confi
  * @returns {object} The rendered card.
  */
 const CalendarCard = ({
-    id, date, today, view, filter, counts, entry, align, pinned, dayurl, config, calendar, onClose, onRetry,
+    id, date, today, view, filter, counts, off, entry, align, pinned, dayurl, config, calendar, onClose, onRetry,
 }: CalendarCardProps) => {
     const {strings} = calendar;
     const kinds = shownKinds(view, filter);
@@ -322,6 +365,7 @@ const CalendarCard = ({
                             {relative(strings, date, today)}
                         </span>
                         <span>{fillCount(strings, 'cal_items', count)}</span>
+                        <DayType off={off} strings={strings} />
                     </div>
                 </div>
                 {pinned && (
