@@ -24,6 +24,8 @@
 
 namespace block_compass\output;
 
+use block_compass\local\calendar\day;
+use block_compass\local\calendar_preference;
 use block_compass\local\config;
 use block_compass\local\explore_preference;
 use core\output\pix_icon;
@@ -43,16 +45,63 @@ use core\output\templatable;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block implements renderable, templatable {
+    /** @var string The Dashboard block's surface, in calendar_where's vocabulary. */
+    public const SURFACE_DASHBOARD = 'dashboard';
+
+    /** @var string The block's own page (ADR-012), in calendar_where's vocabulary. */
+    public const SURFACE_PAGE = 'page';
+
     /**
-     * The shell, for the Dashboard block unless a level is given.
+     * The calendar strip's strings, every one the client shows (ADR-014).
+     *
+     * They travel under the calendar key, never among the block's labels, so a site with the
+     * strip off ships none of them. The _one keys are the singular twins fillCount() picks. The
+     * month and weekday names and the cal_format_* templates are how the client writes a date in
+     * the site language (js/esm/src/calendar.ts): the browser computes only the numbers. Months are
+     * cal_month_01 to cal_month_12; weekdays are numbered 0 (Sunday) to 6, as getUTCDay() and PHP's
+     * date('w') number them.
+     *
+     * @var string[]
+     */
+    public const CALENDAR_STRINGS = [
+        'cal_am', 'cal_bounded', 'cal_close', 'cal_count_class', 'cal_count_class_one', 'cal_count_done',
+        'cal_count_done_one', 'cal_count_event', 'cal_count_event_one', 'cal_count_grade', 'cal_count_graded',
+        'cal_count_graded_one', 'cal_count_gradedsoon_today', 'cal_count_gradedsoon_today_one',
+        'cal_count_gradedsoon_tomorrow', 'cal_count_gradedsoon_tomorrow_one', 'cal_count_gradesoon_today',
+        'cal_count_gradesoon_tomorrow', 'cal_count_late', 'cal_count_late_one', 'cal_count_todo', 'cal_dayerror',
+        'cal_daylabel', 'cal_days', 'cal_empty_events', 'cal_empty_learning', 'cal_empty_teaching', 'cal_filter_all',
+        'cal_filter_events', 'cal_filter_todo', 'cal_filters', 'cal_format_clock', 'cal_format_daymonth',
+        'cal_format_dayname', 'cal_format_monthyear', 'cal_format_time12', 'cal_format_time24', 'cal_hint_hover',
+        'cal_hint_pinned', 'cal_items', 'cal_items_one', 'cal_legend_class', 'cal_legend_done', 'cal_legend_event',
+        'cal_legend_grade', 'cal_legend_graded', 'cal_legend_late', 'cal_legend_needle_learning',
+        'cal_legend_needle_teaching', 'cal_legend_todo', 'cal_loaderror', 'cal_loading', 'cal_loadingday',
+        'cal_month_01', 'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06', 'cal_month_07',
+        'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12', 'cal_monthspan', 'cal_next',
+        'cal_nothing', 'cal_open', 'cal_openday', 'cal_pill_class', 'cal_pill_criterion', 'cal_pill_done',
+        'cal_pill_event', 'cal_pill_graded', 'cal_pill_gradedtoday', 'cal_pill_gradedtomorrow', 'cal_pill_gradetoday',
+        'cal_pill_gradetomorrow', 'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_waiting', 'cal_pill_waiting_one',
+        'cal_pm', 'cal_prefererror', 'cal_prev', 'cal_region', 'cal_rel_future', 'cal_rel_past', 'cal_rel_today',
+        'cal_rel_tomorrow', 'cal_rel_yesterday', 'cal_relevance', 'cal_today', 'cal_truncated', 'cal_truncatedday',
+        'cal_upto', 'cal_view', 'cal_view_learning', 'cal_view_teaching', 'cal_views', 'cal_waiting', 'cal_weekday_0',
+        'cal_weekday_1', 'cal_weekday_2', 'cal_weekday_3', 'cal_weekday_4', 'cal_weekday_5', 'cal_weekday_6',
+        'cal_weekdayshort_0', 'cal_weekdayshort_1', 'cal_weekdayshort_2', 'cal_weekdayshort_3', 'cal_weekdayshort_4',
+        'cal_weekdayshort_5', 'cal_weekdayshort_6',
+    ];
+
+    /**
+     * The shell, for the Dashboard block unless a level and a surface are given.
      *
      * @param int|null $headinglevel The level of the client's section headings: 2 on the block's
      *     own page under the theme's h1; null for the Dashboard, where the hide_block_title
      *     setting decides between 4, under core's block title, and 3, with the title hidden.
+     * @param string $surface Where the shell renders, SURFACE_DASHBOARD or SURFACE_PAGE: what
+     *     calendar_where is compared with.
      */
     public function __construct(
         /** @var int|null The level asked for, or null for the Dashboard's. */
         private readonly ?int $headinglevel = null,
+        /** @var string The surface the shell renders on. */
+        private readonly string $surface = self::SURFACE_DASHBOARD,
     ) {
     }
 
@@ -152,9 +201,54 @@ class block implements renderable, templatable {
             // The client normalises the shape where it reads it (Explore.tsx).
             'explore' => explore_preference::read($pendingenabled),
         ];
+        // The calendar strip's props exist only where the strip renders: off, or on a surface
+        // calendar_where leaves out, the key is absent and the client mounts nothing (ADR-014
+        // decision 1).
+        $calendar = $this->calendar();
+        if ($calendar !== null) {
+            $props['calendar'] = $calendar;
+        }
 
         return [
             'props' => json_encode($props),
+        ];
+    }
+
+    /**
+     * The calendar strip's props, or null when the strip does not render on this surface.
+     *
+     * No read of the database or a cache: the settings come from get_config(), the preference
+     * from the bundle get_user_preferences() loads once per request, the timezone from $USER and
+     * $CFG. The strip's data is fetched by the client (block_compass_get_strip) once tier 1 has
+     * settled (decision 2).
+     *
+     * @return array|null style, relevance (the site default), state (view, filter, relevance as the
+     *     viewer left them), url and dayurl (core's month and day views), timezone (the user's, for
+     *     the times the client formats), bound (inventory_max), daylimit and strings.
+     */
+    private function calendar(): ?array {
+        if (!config::calendar_enabled()) {
+            return null;
+        }
+        $where = config::calendar_where();
+        if ($where !== 'both' && $where !== $this->surface) {
+            return null;
+        }
+        $strings = [];
+        foreach (self::CALENDAR_STRINGS as $key) {
+            $strings[$key] = get_string($key, 'block_compass');
+        }
+
+        return [
+            'style' => config::calendar_style(),
+            'relevance' => config::calendar_relevance(),
+            'state' => calendar_preference::read(),
+            'url' => (new \core\url('/calendar/view.php', ['view' => 'month']))->out(false),
+            'dayurl' => (new \core\url('/calendar/view.php', ['view' => 'day']))->out(false),
+            'timezone' => \core_date::get_user_timezone(),
+            'bound' => config::inventory_max(),
+            'daylimit' => day::LIMIT,
+            'strings' => $strings,
         ];
     }
 

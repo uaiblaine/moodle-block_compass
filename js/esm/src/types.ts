@@ -190,6 +190,121 @@ export type BlockConfig = {
     headinglevel: number,
     view: string,
     explore: ExploreState,
+    // Present only where the calendar strip renders (ADR-014 decision 1): absent when the setting
+    // is off or calendar_where leaves this surface out, and then nothing is mounted.
+    calendar?: CalendarConfig,
+};
+
+/** The two views of the strip (decision 11): the courses the viewer is graded in, and the rest. */
+export type CalendarView = 'learning' | 'teaching';
+
+/** What the strip and a day's card list: everything, only what is to do, or only events. */
+export type CalendarFilter = 'all' | 'todo' | 'events';
+
+/** The strip as the viewer left it, validated by classes/local/calendar_preference.php. */
+export type CalendarState = {
+    view: CalendarView,
+    filter: CalendarFilter,
+    relevance: boolean,
+};
+
+/**
+ * The calendar strip's part of the shell's props (classes/output/block.php, calendar()).
+ *
+ * Its strings travel here rather than among the block's labels, so a site with the strip off
+ * ships none of them; they include the month and weekday names and the date and time templates
+ * every date is written with, in the site language. The timezone is the user's Moodle one, in which
+ * the client reads an instant's numbers: the browser's own zone may differ.
+ */
+export type CalendarConfig = {
+    style: 'dots' | 'ring' | 'pulse',
+    relevance: boolean,
+    state: CalendarState,
+    url: string,
+    dayurl: string,
+    timezone: string,
+    bound: number,
+    daylimit: number,
+    strings: Record<string, string>,
+};
+
+/** Every kind a day counts, in either view (strip::KINDS and strip::TEACHING_KINDS). */
+export type CalendarKind = 'gradedsoon' | 'graded' | 'todo' | 'late' | 'event' | 'done' | 'gradesoon' | 'grade' | 'class';
+
+/**
+ * One day of one view, as block_compass_get_strip lists it: only days with an item travel.
+ *
+ * The kind counters are the view's (the learning kinds or the teaching ones); waiting is the
+ * teaching view's alone.
+ */
+export type StripDay = Partial<Record<CalendarKind, number>> & {
+    date: string,
+    waiting?: number,
+    weight: number,
+    step: number,
+    countstep: number,
+    courseids: number[],
+};
+
+/** One view of the strip payload. */
+export type StripView = {
+    days: StripDay[],
+    needle: string | null,
+};
+
+/** The whole block_compass_get_strip answer. */
+export type StripPayload = {
+    enabled: boolean,
+    firstday: string,
+    today: string,
+    from: number,
+    to: number,
+    truncated: boolean,
+    bounded: boolean,
+    haslearning: boolean,
+    hasteaching: boolean,
+    views: {learning: StripView, teaching: StripView},
+};
+
+/** Core's action for an event, as the Timeline shows it. */
+export type DayAction = {
+    name: string,
+    url: string,
+    itemcount: number,
+    actionable: boolean,
+};
+
+/**
+ * One item of a day, as block_compass_get_day returns it (day::ALLOWLIST).
+ *
+ * formattedtime is core's rendered humantimeperiod, and the client does not inject it: the
+ * time is formatted from timestart instead (CalendarCard.tsx says why).
+ */
+export type DayItem = {
+    id: number,
+    name: string,
+    courseid: number,
+    courseshortname: string,
+    modulename: string,
+    purpose: string,
+    iconurl: string,
+    timestart: number,
+    formattedtime: string,
+    viewurl: string,
+    action: DayAction | null,
+    kind: CalendarKind,
+    graded: boolean,
+    gradedsoon: boolean,
+    criterion: boolean,
+    lateuntil: number,
+};
+
+/** The whole block_compass_get_day answer. */
+export type DayAnswer = {
+    date: string,
+    view: CalendarView,
+    items: DayItem[],
+    truncated: boolean,
 };
 
 /**

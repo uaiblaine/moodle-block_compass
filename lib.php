@@ -36,7 +36,9 @@
  * PARAM_RAW with no choices - the route refuses any value cleaning would change, and PARAM_RAW
  * leaves a JSON string alone - and the validation belongs to the reader,
  * {@see \block_compass\local\explore_preference::read()}, which keeps only what the current
- * configuration can draw.
+ * configuration can draw. The third, the calendar strip as the viewer left it (view, filter,
+ * relevance), is declared the same way for the same reason and read by
+ * {@see \block_compass\local\calendar_preference::read()}.
  *
  * @return array The definitions, keyed by preference name.
  */
@@ -50,6 +52,12 @@ function block_compass_user_preferences(): array {
             'permissioncallback' => [\core_user::class, 'is_current_user'],
         ],
         \block_compass\local\explore_preference::NAME => [
+            'null' => NULL_ALLOWED,
+            'default' => null,
+            'type' => PARAM_RAW,
+            'permissioncallback' => [\core_user::class, 'is_current_user'],
+        ],
+        \block_compass\local\calendar_preference::NAME => [
             'null' => NULL_ALLOWED,
             'default' => null,
             'type' => PARAM_RAW,

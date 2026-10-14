@@ -56,6 +56,7 @@ final class config_test extends advanced_testcase {
             'enable_favourites', 'enable_search', 'show_index', 'hide_block_title',
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
             'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category', 'enable_page',
+            'calendar_enabled', 'calendar_where', 'calendar_sources', 'calendar_style', 'calendar_relevance',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -90,6 +91,11 @@ final class config_test extends advanced_testcase {
         $this->assertSame(600, config::prewarm_budget_seconds());
         $this->assertSame([], config::filter_fields());
         $this->assertFalse(config::pending_enabled(true));
+        $this->assertFalse(config::calendar_enabled());
+        $this->assertSame('both', config::calendar_where());
+        $this->assertSame(['deadlines', 'course', 'group', 'site'], config::calendar_sources());
+        $this->assertSame('dots', config::calendar_style());
+        $this->assertTrue(config::calendar_relevance());
     }
 
     /**
@@ -579,5 +585,64 @@ final class config_test extends advanced_testcase {
 
         set_config('dormant_months', -4, 'block_compass');
         $this->assertSame(12, config::dormant_months());
+    }
+
+    /**
+     * The calendar strip is on only when an explicit 1 is stored; relevance is off only for an explicit 0.
+     *
+     * Each pair is the setting's two values, so a getter that ignored the store fails one of them.
+     *
+     * @return void
+     */
+    public function test_the_calendar_checkboxes_read_their_explicit_values(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        set_config('calendar_enabled', 1, 'block_compass');
+        $this->assertTrue(config::calendar_enabled());
+        set_config('calendar_enabled', 0, 'block_compass');
+        $this->assertFalse(config::calendar_enabled());
+
+        set_config('calendar_relevance', 0, 'block_compass');
+        $this->assertFalse(config::calendar_relevance());
+        set_config('calendar_relevance', 1, 'block_compass');
+        $this->assertTrue(config::calendar_relevance());
+    }
+
+    /**
+     * The calendar selects keep a stored value of their vocabulary and fall back for anything else.
+     *
+     * @return void
+     */
+    public function test_the_calendar_selects_keep_only_their_vocabulary(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        set_config('calendar_where', 'page', 'block_compass');
+        $this->assertSame('page', config::calendar_where());
+        set_config('calendar_where', 'sidebar', 'block_compass');
+        $this->assertSame('both', config::calendar_where());
+
+        set_config('calendar_style', 'ring', 'block_compass');
+        $this->assertSame('ring', config::calendar_style());
+        set_config('calendar_style', 'Ring', 'block_compass');
+        $this->assertSame('dots', config::calendar_style());
+    }
+
+    /**
+     * Sources: never set means the four defaults, an empty store means none, unknown keys are dropped,
+     * and the order is the vocabulary's whatever the stored order.
+     *
+     * @return void
+     */
+    public function test_the_calendar_sources_are_read_in_the_vocabularys_order(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertSame(config::DEFAULT_CALENDAR_SOURCES, config::calendar_sources());
+        set_config('calendar_sources', '', 'block_compass');
+        $this->assertSame([], config::calendar_sources());
+        set_config('calendar_sources', 'category,user,holidays,deadlines', 'block_compass');
+        $this->assertSame(['deadlines', 'user', 'category'], config::calendar_sources());
     }
 }

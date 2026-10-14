@@ -115,7 +115,9 @@ final class client_policy_test extends advanced_testcase {
         $exporter = file_get_contents($root . '/classes/output/block.php');
         $ones = array_filter(array_keys($strings['en']), static fn($key) => str_ends_with($key, '_one'));
 
-        $this->assertCount(10, $ones);
+        // Ten for the block's labels, nine for the calendar strip's strings, which the shell ships
+        // under the calendar key (block::CALENDAR_STRINGS).
+        $this->assertCount(19, $ones);
         foreach ($ones as $key) {
             $this->assertArrayHasKey($key, $strings['pt_br'], $key);
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
@@ -172,11 +174,90 @@ final class client_policy_test extends advanced_testcase {
                 'getInventory' => 'block_compass_get_inventory',
                 'getInventoryRows' => 'block_compass_get_inventory_rows',
                 'searchInventory' => 'block_compass_search_inventory',
+                'getStrip' => 'block_compass_get_strip',
+                'getDay' => 'block_compass_get_day',
             ] as $name => $service
         ) {
             $this->assertMatchesRegularExpression("/read<[^>]*>\\('{$service}'/", $source, "{$name} must go through read()");
         }
         $this->assertStringContainsString("call<unknown>('core_course_set_favourite_courses'", $source);
+        // The strip's preference is a write, through core's route like the other two, never read().
+        $this->assertStringContainsString("{name: 'block_compass_calendar', value: JSON.stringify(state), userid: 0}", $source);
         $this->assertDoesNotMatchRegularExpression('/read<[^>]*>\(\'core_/', $source);
+    }
+
+    /**
+     * The calendar writes every date and time in the site language, from the strings; Intl only counts.
+     *
+     * The month, weekday and time words come from the lang strings the shell ships (the maintainer,
+     * 2026-10-13: "site language, from lang strings"). Intl stays as the one way to read an
+     * instant's numbers in the user's timezone: a Latin-digit, 24-hour formatter whose parts are
+     * read as numbers, never formatted. Vacuity: the formatting helpers are called where dates show.
+     *
+     * @return void
+     */
+    public function test_calendar_dates_are_written_from_the_site_languages_strings(): void {
+        $calendar = $this->source('calendar.ts');
+        $strip = $this->source('CalendarStrip.tsx');
+        $card = $this->source('CalendarCard.tsx');
+
+        foreach (['CalendarStrip.tsx' => $strip, 'CalendarCard.tsx' => $card] as $name => $source) {
+            $this->assertStringNotContainsString('Intl.', $source, $name);
+            $this->assertStringNotContainsString('toLocale', $source, $name);
+        }
+        $this->assertStringNotContainsString('toLocale', $calendar);
+        $this->assertSame(2, substr_count($calendar, 'new Intl.DateTimeFormat('), 'the extractor and its fallback');
+        $latin = substr_count($calendar, "new Intl.DateTimeFormat('en-US-u-nu-latn'");
+        $this->assertSame(2, $latin, 'Latin digits, never the page language');
+        $this->assertStringContainsString(".formatToParts(", $calendar);
+        $this->assertStringNotContainsString('.format(', $calendar, 'Intl formats nothing a viewer reads');
+        $this->assertDoesNotMatchRegularExpression("/(weekday|month): '(long|short|narrow)'/", $calendar, 'no Intl names');
+
+        $months = [];
+        for ($month = 1; $month <= 12; $month++) {
+            $months[] = sprintf("'cal_month_%02d'", $month);
+        }
+        $this->assertMatchesRegularExpression('/' . implode(',\s*', $months) . '/', $calendar, 'months listed in order');
+        $weekdays = [];
+        $short = [];
+        for ($day = 0; $day <= 6; $day++) {
+            $weekdays[] = "'cal_weekday_{$day}'";
+            $short[] = "'cal_weekdayshort_{$day}'";
+        }
+        $this->assertMatchesRegularExpression('/' . implode(',\s*', $weekdays) . '/', $calendar, 'weekdays, Sunday first');
+        $this->assertMatchesRegularExpression('/' . implode(',\s*', $short) . '/', $calendar, 'short weekdays, Sunday first');
+
+        $this->assertStringContainsString('monthYear(strings, ', $strip);
+        $this->assertStringContainsString('longDay(strings, dateParts(date))', $strip);
+        $this->assertStringContainsString('shortWeekday(strings, ', $strip);
+        $this->assertStringContainsString('clockTime(strings, timeParts(item.timestart, timezone))', $card);
+        $this->assertStringContainsString('dayMonth(strings, timeParts(item.lateuntil, timezone))', $card);
+    }
+
+    /**
+     * A day's screen-reader sentence says "up to N" for an upper-bound count until the day is settled.
+     *
+     * The future's open items (graded due soon, graded, to do) are counted before any module
+     * callback runs, so the strip's number is at most the truth (ADR-014 decision 5); once the day's
+     * items have arrived the client settles the counts, and the sentence states them plainly.
+     *
+     * @return void
+     */
+    public function test_an_upper_bound_count_reads_up_to_until_the_day_is_settled(): void {
+        $this->assertStringContainsString(
+            "export const BOUND_KINDS: CalendarKind[] = ['gradedsoon', 'graded', 'todo'];",
+            $this->source('calendar.ts')
+        );
+        $label = $this->slice($this->source('CalendarStrip.tsx'), 'const dayLabel = ', "\n    };\n");
+        $this->assertStringContainsString('const bound = !day.settled && BOUND_KINDS.includes(kind);', $label);
+        $this->assertStringContainsString('bound ? fill(strings.cal_upto, String(count)) : String(count)', $label);
+        foreach (['gradedsoon_today', 'gradedsoon_tomorrow', 'graded', 'todo'] as $key) {
+            $this->assertMatchesRegularExpression("/phrase\('cal_count_{$key}', '[a-z]+'\)/", $label, $key);
+        }
+        $tick = chr(96);
+        $this->assertStringContainsString(
+            "fill(count === 1 && labels[{$tick}\${key}_one{$tick}] ? labels[{$tick}\${key}_one{$tick}] : labels[key], shown)",
+            $this->source('str.ts')
+        );
     }
 }

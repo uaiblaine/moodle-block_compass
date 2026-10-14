@@ -28,6 +28,9 @@ namespace block_compass;
 use advanced_testcase;
 use block_compass;
 use block_compass\local\budget;
+use block_compass\local\calendar\day;
+use block_compass\local\config;
+use block_compass\output\block as shell;
 use core\context\system as context_system;
 use core\context\user as context_user;
 use moodle_page;
@@ -346,5 +349,231 @@ final class block_compass_test extends advanced_testcase {
 
         $this->assertStringContainsString('data-region="block_compass"', $content->text);
         $this->assertSame(0, $meter->reads());
+    }
+
+    /**
+     * With the calendar off, the shell ships no calendar props and none of the strip's strings.
+     *
+     * The control is the same Dashboard with the setting on: the key appears, so its absence here
+     * is the setting's doing (ADR-014 decision 1).
+     *
+     * @return void
+     */
+    public function test_the_calendar_props_are_absent_while_the_strip_is_off(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $props = $this->props();
+        $this->assertArrayNotHasKey('calendar', $props, 'off by default: no props, so nothing mounts');
+        $this->assertSame([], preg_grep('/^cal_/', array_keys($props['labels'])), 'no strip string among the labels');
+
+        set_config('calendar_enabled', 1, 'block_compass');
+        $this->assertArrayHasKey('calendar', $this->props(), 'the control: on, the key appears');
+
+        set_config('calendar_enabled', 0, 'block_compass');
+        $this->assertArrayNotHasKey('calendar', $this->props(), 'an explicit 0 is off too');
+    }
+
+    /**
+     * The strip renders on the surfaces calendar_where names, and only there.
+     *
+     * The Dashboard block is one surface; the block's own page is the other (tests/output/page_test.php
+     * asserts the page's half).
+     *
+     * @return void
+     */
+    public function test_the_calendar_props_follow_where_the_strip_shows(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('calendar_enabled', 1, 'block_compass');
+
+        $expected = ['both' => true, 'dashboard' => true, 'page' => false];
+        foreach ($expected as $where => $shown) {
+            set_config('calendar_where', $where, 'block_compass');
+            $this->assertSame($shown, array_key_exists('calendar', $this->props()), "calendar_where = {$where}");
+        }
+        // An unknown value reads as both, the default.
+        set_config('calendar_where', 'nowhere', 'block_compass');
+        $this->assertArrayHasKey('calendar', $this->props());
+    }
+
+    /**
+     * The calendar props carry the settings, the viewer's remembered state, core's calendar URLs and
+     * every string, translated.
+     *
+     * @return void
+     */
+    public function test_the_calendar_props_carry_what_the_client_draws(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user(['timezone' => 'America/Sao_Paulo']);
+        $this->setUser($user);
+        set_config('calendar_enabled', 1, 'block_compass');
+        set_config('calendar_style', 'ring', 'block_compass');
+        set_config('calendar_relevance', 0, 'block_compass');
+        set_user_preference('block_compass_calendar', json_encode(['view' => 'teaching', 'filter' => 'todo']));
+
+        $calendar = $this->props()['calendar'];
+
+        $this->assertSame('ring', $calendar['style']);
+        $this->assertFalse($calendar['relevance'], 'the site default of the switch');
+        $this->assertSame(
+            ['view' => 'teaching', 'filter' => 'todo', 'relevance' => false],
+            $calendar['state'],
+            'the remembered members, and the site default for the one never stored'
+        );
+        $this->assertSame((new \core\url('/calendar/view.php', ['view' => 'month']))->out(false), $calendar['url']);
+        $this->assertSame((new \core\url('/calendar/view.php', ['view' => 'day']))->out(false), $calendar['dayurl']);
+        $this->assertSame('America/Sao_Paulo', $calendar['timezone']);
+        $this->assertSame(config::inventory_max(), $calendar['bound']);
+        $this->assertSame(day::LIMIT, $calendar['daylimit']);
+        $this->assertSame(shell::CALENDAR_STRINGS, array_keys($calendar['strings']));
+        foreach (shell::CALENDAR_STRINGS as $key) {
+            $this->assertSame(get_string($key, 'block_compass'), $calendar['strings'][$key], $key);
+        }
+    }
+
+    /**
+     * Every string the strip shows exists in both languages with the same placeholders, and every
+     * one the client reads is shipped.
+     *
+     * The client reads its strings as strings.<key> and through fillCount() with a quoted key,
+     * never as labels.<key>, so the block's own label check does not see them; this is theirs.
+     * Vacuity guards: the scan found the calendar sources and some of their reads.
+     *
+     * @return void
+     */
+    public function test_the_calendar_strings_are_shipped_and_in_both_languages(): void {
+        $root = dirname(__DIR__);
+        $strings = [];
+        foreach (['en', 'pt_br'] as $lang) {
+            $string = [];
+            include($root . '/lang/' . $lang . '/block_compass.php');
+            $strings[$lang] = $string;
+        }
+        foreach (shell::CALENDAR_STRINGS as $key) {
+            $this->assertArrayHasKey($key, $strings['en'], $key);
+            $this->assertArrayHasKey($key, $strings['pt_br'], $key);
+            preg_match_all('/\{\$a(?:->\w+)?\}/', $strings['en'][$key], $en);
+            preg_match_all('/\{\$a(?:->\w+)?\}/', $strings['pt_br'][$key], $pt);
+            sort($en[0]);
+            sort($pt[0]);
+            $this->assertSame($en[0], $pt[0], "{$key}: placeholder parity");
+        }
+        $calkeys = array_values(preg_grep('/^cal_/', array_keys($strings['en'])));
+        $shipped = shell::CALENDAR_STRINGS;
+        sort($calkeys);
+        sort($shipped);
+        $this->assertSame($calkeys, $shipped, 'the strip\'s strings are exactly the cal_ strings of the language file');
+
+        $files = glob($root . '/js/esm/src/Calendar*.tsx');
+        $this->assertCount(2, $files, 'CalendarStrip.tsx and CalendarCard.tsx');
+        $read = [];
+        foreach ($files as $file) {
+            $source = file_get_contents($file);
+            $this->assertDoesNotMatchRegularExpression(
+                '/\blabels\.cal_/',
+                $source,
+                basename($file) . ' reads a strip string as a label'
+            );
+            preg_match_all('/\bstrings\.([a-z_]+)\b/', $source, $matches);
+            $read = array_merge($read, $matches[1]);
+            // A key handed to fillCount(), as a literal argument or from a literal in a list, reads
+            // its singular twin too where the language file has one.
+            preg_match_all("/'(cal_[a-z_]+)'/", $source, $matches);
+            foreach ($matches[1] as $key) {
+                $read[] = $key;
+                if (isset($strings['en'][$key . '_one'])) {
+                    $read[] = $key . '_one';
+                }
+            }
+        }
+        $read = array_values(array_unique($read));
+        $this->assertContains('cal_daylabel', $read, 'vacuity: a plain read was found');
+        $this->assertContains('cal_items_one', $read, 'vacuity: a fillCount() read was found');
+        $this->assertSame(
+            [],
+            array_values(array_diff($read, shell::CALENDAR_STRINGS)),
+            'strings the client reads but the shell does not ship'
+        );
+    }
+
+    /**
+     * The strip's dates are written from the language file: twelve months, seven weekdays in two
+     * lengths, and templates that use exactly the placeholders the client fills, in both languages.
+     *
+     * The time templates differ between the languages only in which one the client picks:
+     * cal_format_clock is 12 in English, as core's own strftimetime ('%I:%M %p', lang/en/langconfig.php),
+     * and 24 in Brazilian Portuguese ("14:30"). A placeholder the client does not fill would print
+     * literally, and one it fills but the template lacks would lose the number.
+     *
+     * @return void
+     */
+    public function test_the_calendar_date_strings_cover_every_name_in_both_languages(): void {
+        $root = dirname(__DIR__);
+        $vocabulary = [
+            'cal_format_daymonth' => ['day', 'month'],
+            'cal_format_dayname' => ['day', 'month', 'weekday'],
+            'cal_format_monthyear' => ['month', 'year'],
+            'cal_format_time12' => ['ampm', 'hour', 'minute'],
+            'cal_format_time24' => ['hour', 'minute'],
+        ];
+        $clock = ['en' => '12', 'pt_br' => '24'];
+        $lists = ['cal_month_%02d' => range(1, 12), 'cal_weekday_%d' => range(0, 6), 'cal_weekdayshort_%d' => range(0, 6)];
+        foreach (['en', 'pt_br'] as $lang) {
+            $string = [];
+            include($root . '/lang/' . $lang . '/block_compass.php');
+            $names = [];
+            foreach ($lists as $pattern => $numbers) {
+                $set = [];
+                foreach ($numbers as $number) {
+                    $key = sprintf($pattern, $number);
+                    $this->assertArrayHasKey($key, $string, "{$lang}: {$key}");
+                    $this->assertNotSame('', trim($string[$key]), "{$lang}: {$key}");
+                    $this->assertContains($key, shell::CALENDAR_STRINGS, $key);
+                    $set[] = $string[$key];
+                }
+                $this->assertCount(count($numbers), array_unique($set), "{$lang}: {$pattern} names are distinct");
+                $names = array_merge($names, $set);
+            }
+            $this->assertCount(26, $names, $lang);
+            foreach ($vocabulary as $key => $placeholders) {
+                preg_match_all('/\{\$a->(\w+)\}/', $string[$key], $found);
+                $used = array_values(array_unique($found[1]));
+                sort($used);
+                $this->assertSame($placeholders, $used, "{$lang}: {$key}");
+            }
+            $this->assertSame($clock[$lang], $string['cal_format_clock'], $lang);
+            $this->assertStringContainsString('{$a}', $string['cal_upto'], $lang);
+        }
+    }
+
+    /**
+     * With the strip on, rendering the shell still reads nothing from the database once core is warm.
+     *
+     * The protocol of test_the_shell_costs_no_database_reads_when_core_is_warm(); the preference and
+     * the settings the calendar props read come from the request's preference bundle and the
+     * config cache, and the strip's data from the client's own request.
+     *
+     * @return void
+     */
+    public function test_the_shell_with_the_strip_costs_no_database_reads_when_core_is_warm(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('calendar_enabled', 1, 'block_compass');
+        set_user_preference('block_compass_calendar', json_encode(['view' => 'learning', 'filter' => 'all']));
+
+        $this->make_block()->get_content();
+
+        $block = $this->make_block();
+        $block->page->get_renderer('core');
+
+        $meter = budget::start();
+        $content = $block->get_content();
+        $reads = $meter->reads();
+
+        // The control: the strip's props were rendered, so the zero is about a shell that built them.
+        preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
+        $this->assertArrayHasKey('calendar', json_decode(html_entity_decode($matches[1]), true));
+        $this->assertSame(0, $reads);
     }
 }

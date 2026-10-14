@@ -13,8 +13,9 @@ card with a count) and exploration (a light inventory grouped by category, filte
 Sized for a million users, so **every endpoint has a query budget enforced by a test**.
 **Moodle 5.2 only** (`$plugin->supported = [502, 502]`); **one hard dependency,
 `local_unlistedcourses`** (ADR-013), which decides what every enrolment row means through
-`classes/local/relationship.php` and nowhere else. No own tables: MUC entries, two user
-preferences (`block_compass_view`, `block_compass_explore`) and three `prewarm_*` config rows.
+`classes/local/relationship.php` and nowhere else. No own tables: MUC entries, three user
+preferences (`block_compass_view`, `block_compass_explore`, `block_compass_calendar`) and three
+`prewarm_*` config rows.
 Favourites are core's course star; archiving writes the Course overview block's
 `block_myoverview_hidden_course_*` preferences. CI: one MAH job (`MOODLE_502_STABLE`, full
 matrix, `plugin-dependencies: local_unlistedcourses`). Development on m502, m502b for parallel
@@ -92,9 +93,12 @@ Breaking one is a design change: stop and raise it with the maintainer.
 - **Two-layer cache** (ADR-001): `coursemeta` and `categorymeta` (shared, per-key deletes from
   events, no TTL), `inventory` (per user, enrolment rows as integers, no course data, stamp
   validation, 24 h TTL, deleted with the account), `details` (per user+course, 1 h TTL),
-  `coursefields` and `filterfields` (ADR-009). **Never invalidate `inventory` or `details`
-  from course events.** Names are formatted at response time with the filters of every shown
-  context preloaded in one query (`filters.php`). Redis recommended for all six.
+  `coursefields` and `filterfields` (ADR-009), `calendarstrip` (per user, the strip and its sets
+  for the sign-in, first day and timezone, 30 min TTL; ADR-014). **Never invalidate `inventory`,
+  `details` or `calendarstrip` from course or calendar events.** Names are formatted at response
+  time with the filters of every shown context preloaded in one query (`filters.php`), in an
+  explicit context, never `$PAGE`'s (a service leaves it on the user context). Redis recommended
+  for all seven.
 - **Stamp validation** (ADR-002): one statement of seven `userid`-indexed aggregates decides
   whether a cached inventory is valid; on a miss the stamp comes from the fill's own rows.
 - **Pre-warming** (ADR-003): the task is always scheduled and gated by `enable_prewarm` (never
@@ -108,13 +112,16 @@ Breaking one is a design change: stop and raise it with the maintainer.
 - **Budgets** (§6.6): `get_attention` ≤ 7 warm / 8 cold; `get_inventory` ≤ 3 / 6;
   rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses;
   `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer.
+  `get_strip` 2 on a hit, ≤ 61 cold or warm; `get_day` 2 reopened, 11 teaching (PostgreSQL),
+  ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
+  preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
   reset per-request state, purge the user's layers, keep the shared ones warm, measure the second
   call) is stated in each test's docblock. **No recordsets** (three reads on PostgreSQL, one on
   MariaDB).
 - **What not to do**: `enrol_get_my_courses()`, the timeline service, `course_modinfo`
-  outside progress, PHP visibility loops, a session cache for the inventory, user-cache
-  invalidation from course events.
+  outside progress and the strip's restricted rows (ADR-014 decision 6), PHP visibility loops,
+  a session cache for the inventory, user-cache invalidation from course events.
 
 ## Definition of done (PLAN.md §11), every phase
 
@@ -133,25 +140,30 @@ mind supersedes; rejected and deferred ideas get a record too. ADR-000 holds the
 pre-Phase-0 decisions; ADR-001 cache, 002 stamp, 003 pre-warming, 004 paged mode, 005 lazy
 details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009 favourites and
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
-page, 013 enrolment state from `local_unlistedcourses` (table with dates in the long form).
+page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip (table with dates
+in the long form).
 
 ## Code layout
 
 ```
 block_compass.php, index.php (the block's page, ADR-012), settings.php, lib.php (preference declarations,
                            the two archive icons), version.php
-classes/external/          five READ functions in the USER context, none accepting a userid; writes go to
-                           core's own services from the browser
+classes/external/          seven READ functions in the USER context, all readonlysession, none accepting a
+                           userid; writes go to core's own services from the browser
 classes/local/             THE ONLY place $DB is allowed: budget, config (reads get_config() every call),
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
                            inventory, explore, matcher, prewarm, dormancy, relationship, filter_fields,
-                           course_fields, explore_preference
+                           course_fields, explore_preference, calendar_cache, calendar_preference
+classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
+                           default active group), day, grading (mirrors count_submissions_need_grading_with_groups();
+                           grading::source() is the one selection point behind grading_source)
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, Platter, RowList, Row,
-                           RowCard, Archive, Reload, RetryNotice, StatePill, rowdetails, repository, amd (the only
-                           file that knows RequireJS), notify, filter, heading, str, types; .eslintrc is load-bearing
+                           RowCard, Archive, Reload, RetryNotice, StatePill, CalendarStrip, CalendarCard, calendar,
+                           rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
+                           str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
 templates/ (block, page, preload), db/ (access, services, caches, events, tasks, hooks; NO install.xml)
 docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each external test; generator)
@@ -166,12 +178,14 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   group/page and `search_inventory` per settled query. Writes go to core: the star through
   `core_course_set_favourite_courses`, preferences and the archive through
   `core_user/repository` to the router endpoint (batches of 50 to archive, one at a time to
-  bring back; a `null` in the batch route is a 500). An archive reloads both tiers.
+  bring back; a `null` in the batch route is a 500). An archive reloads both tiers. The calendar
+  strip asks `get_strip` only once `get_attention` settles (tier 1 paints first, ADR-014), and
+  `get_day` per opened day.
 - **Favourites are the core star**; `enable_favourites` only hides the UI and skips the strip's
   query. **Archived courses are the Course overview block's rows: never delete them on
   uninstall.** The plugin's own preference families are declared in `lib.php` and exported by
   the privacy provider in the same commit.
-- **Caches are wrapped, never called raw**: six definitions, six wrappers in `classes/local/`,
+- **Caches are wrapped, never called raw**: seven definitions, seven wrappers in `classes/local/`,
   no `invalidate()`, keys without `:`. An empty result is a cached value, not a miss (identity
   check against `false`); every per-user key carries the user id explicitly; deleting an account
   drops the per-user layers (`observer::user_deleted()` reads the cached entry first); every
@@ -179,19 +193,32 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
 - **SQL in `classes/local/`**: named placeholders used once; index comment and bound on every
   statement; visibility in SQL with `viewhiddencourses` evaluated once per request; `SITEID`
   excluded explicitly; `get_records_sql()` keys on the first selected column; search in PHP.
+- **`SITEID` is a string** (`$SITE->id` as the database returned it, `lib/setup.php`): compare it
+  with an int as `(int) SITEID`, or the strict comparison is false (it dropped every site event).
+- **Never create core's renderer before a cache hit is ruled out**: `get_renderer()` initialises
+  the theme and core's global filters, a recordset of 3 reads on PostgreSQL; pass a closure
+  (`day::get()`), as a reopened day must cost the floor only.
+- **The strip's visibility is core's `uservisible`, per activity**: `mod/<name>:view` at the
+  module context, the activity's or its section's availability asked of modinfo, the teacher's
+  `viewhiddenactivities` and `ignoreavailabilityrestrictions`; reading `cm.availability` alone was
+  the convenient fact the security read caught (ADR-014 amendment 2).
 - **Core APIs** (verified on the 5.2 checkout; read the source before writing a call):
   `progress::get_course_progress_percentage()` returns null when completion is off (render as
   "no completion", never 0 %); `course_summary_exporter::get_course_image()`;
   `core_favourites\service_factory`; `course_category_updated` cannot tell a move from a rename
   (observer drops descendants); `user_deleted` fires after the enrolments are gone;
   `core_course_category::get_many()` is request-scoped, so the hot path reads `categorymeta`.
-- **Web services**: the fleet checklist; all five are reads; course names through
+- **Web services**: the fleet checklist; all seven are reads and declare `readonlysession`
+  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for the two calendar
+  services); course names through
   `format_string(..., ['escape' => false])` before a `PARAM_TEXT` return; vocabularies checked
   before any work; a request answerable without work returns before any check that could throw.
   One `cachedef_<name>` per definition (a missing one is fatal on 5.x); `{$a}` parity between
   lang files.
 - **Client**: a component cannot import an AMD module (only `amd.ts` knows RequireJS); strings
-  are props; `.eslintrc` under `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
+  are props; the strip writes dates from lang strings (`cal_month_*`, `cal_weekday*`,
+  `cal_format_*`), `Intl` only reads an instant's numbers (`calendar.ts`); `.eslintrc` under
+  `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
   `tsc --noEmit` is a gate; a badge names its classes in a string literal; a heading tag is
   never written literally (`heading.ts` picks from `headinglevel` 4/3/2); brand text is painted
   with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two
@@ -252,7 +279,7 @@ inherited Portuguese document.
 Manual only (`!mdlshield review` / `review full`, by the owner), 100 a month shared by every
 repo, 3,000 effective lines soft limit (`mdl mdlshield size`). Config and context read from
 `main` only; `moodle.versions: ["5.2"]`; `fail_on.severity: high`. Ask for a review early on any
-change to the five services, the relationship door or the hooks, after the
+change to the seven services, the relationship door or the hooks, after the
 `security-diff-read` skill. Rules and reasons: fleet file, "MDL Shield reviews".
 
 ## When in doubt

@@ -90,6 +90,39 @@ final class page_test extends advanced_testcase {
     }
 
     /**
+     * The block's page is the page surface of calendar_where, the Dashboard block the other.
+     *
+     * Rendered through the same renderer, the two shells differ only in where they say they are:
+     * the page's props carry the strip where calendar_where names the page, and the Dashboard's
+     * do not, and the reverse for the Dashboard.
+     *
+     * @return void
+     */
+    public function test_the_calendar_strip_follows_the_surface(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('calendar_enabled', 1, 'block_compass');
+
+        $expected = [
+            'both' => [true, true],
+            'page' => [true, false],
+            'dashboard' => [false, true],
+        ];
+        foreach ($expected as $where => [$onpage, $ondashboard]) {
+            set_config('calendar_where', $where, 'block_compass');
+            [, $props] = $this->render(new page());
+            $this->assertSame($onpage, array_key_exists('calendar', $props), "page, calendar_where = {$where}");
+            [, $props] = $this->render(new block());
+            $this->assertSame($ondashboard, array_key_exists('calendar', $props), "Dashboard, calendar_where = {$where}");
+        }
+
+        set_config('calendar_enabled', 0, 'block_compass');
+        set_config('calendar_where', 'page', 'block_compass');
+        [, $props] = $this->render(new page());
+        $this->assertArrayNotHasKey('calendar', $props, 'off is off on the page too');
+    }
+
+    /**
      * With the title shown the theme gets the name and the page adds nothing; hidden, the theme gets
      * an empty heading, the body gets the class, and the page renders the name as a hidden h1.
      *

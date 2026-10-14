@@ -946,3 +946,1014 @@ body[data-bs-theme="dark"] .block_compass,
         transition: none;
     }
 }
+
+/* The calendar strip (ADR-014): a row of days above tier 1, and a day's card on demand.
+
+   Its tokens read the theme's through the fallback chain and are declared on the block's root,
+   the only root the strip paints: the day card is a child of its day's column, never appended to
+   body, so the dark values of every --bs-* token reach it by inheritance. Heat is the theme's
+   warning mixed into the surface in four steps, the accent its primary, late work its danger; the
+   activity icons take core's --activity<purpose> properties. */
+.block_compass {
+    --block_compass-cal-warn: var(--bs-warning, #f0ad4e);
+    --block_compass-cal-accent: var(--bs-primary, #0f6cbf);
+    --block_compass-cal-danger: var(--bs-danger, #ca3120);
+    --block_compass-cal-ink: var(--bs-emphasis-color, #000);
+    --block_compass-cal-onink: var(--bs-body-bg, #fff);
+    --block_compass-cal-soft: var(--bs-tertiary-bg, #f8f9fa);
+    --block_compass-cal-text: var(--bs-body-color, #1d2125);
+    --block_compass-cal-heat-1: color-mix(in oklab, var(--block_compass-cal-warn) 17%, var(--block_compass-surface));
+    --block_compass-cal-heat-2: color-mix(in oklab, var(--block_compass-cal-warn) 36%, var(--block_compass-surface));
+    --block_compass-cal-heat-3: color-mix(in oklab, var(--block_compass-cal-warn) 62%, var(--block_compass-surface));
+    --block_compass-cal-heat-4: color-mix(in oklab, var(--block_compass-cal-warn) 92%, var(--block_compass-surface));
+    --block_compass-cal-ring: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-accent);
+    --block_compass-cal-shadow: 0 28px 64px -18px rgba(16, 24, 40, 0.32), 0 3px 10px rgba(16, 24, 40, 0.08);
+}
+
+.block_compass .compass-cal {
+    position: relative;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--block_compass-line);
+    font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-cal button:focus-visible,
+.block_compass .compass-cal a:focus-visible {
+    outline: 2px solid var(--block_compass-brand);
+    outline-offset: 2px;
+}
+
+/* The header: the month between the arrows and Today on the left; the view switch and the filter
+   on the right, wrapping under it when the block is narrow. */
+.block_compass .compass-cal-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.block_compass .compass-cal-nav,
+.block_compass .compass-cal-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.block_compass .compass-cal-month {
+    min-width: 12rem;
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.block_compass .compass-cal-iconbtn,
+.block_compass .compass-cal-todaybtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.375rem;
+    height: 2.375rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.6rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-cal-text);
+    font-size: 0.8125rem;
+    transition: background-color 120ms ease;
+}
+
+.block_compass .compass-cal-iconbtn {
+    padding: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.block_compass .compass-cal-iconbtn:hover,
+.block_compass .compass-cal-todaybtn:hover {
+    background: var(--block_compass-cal-soft);
+}
+
+.block_compass .compass-cal-iconbtn[aria-disabled="true"],
+.block_compass .compass-cal-todaybtn[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.block_compass .compass-cal-seg {
+    display: inline-flex;
+    padding: 3px;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.6rem;
+    background: var(--block_compass-cal-soft);
+}
+
+.block_compass .compass-cal-segbtn {
+    padding: 0.35rem 0.75rem;
+    border: 0;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.block_compass .compass-cal-segbtn[aria-pressed="true"] {
+    background: var(--block_compass-surface);
+    color: var(--block_compass-brand-text);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
+}
+
+/* The day grid: a fixed count of equal tracks, so the discs shrink with the block. */
+.block_compass .compass-cal-daysbox {
+    position: relative;
+    margin-top: 0.875rem;
+}
+
+.block_compass .compass-cal-days {
+    display: grid;
+    grid-template-columns: repeat(21, minmax(0, 1fr));
+    column-gap: 6px;
+    align-items: start;
+}
+
+.block_compass .compass-cal-days-15 {
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+}
+
+.block_compass .compass-cal-days-7 {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.block_compass .compass-cal-col {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    padding-top: 0.75rem;
+}
+
+/* The needle: the most relevant day ahead, a small accent wedge above the disc. */
+.block_compass .compass-cal-needle {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 10px;
+    height: 8px;
+    margin-left: -5px;
+    background: var(--block_compass-cal-accent);
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.block_compass .compass-cal-legend .compass-cal-needle-key {
+    position: static;
+    display: inline-block;
+    margin: 0;
+}
+
+.block_compass .compass-cal-day {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    max-width: 2.75rem;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--block_compass-cal-text);
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.block_compass .compass-cal-day.compass-cal-heat-0:hover {
+    background: var(--block_compass-cal-soft);
+}
+
+.block_compass .compass-cal-heat-1 {
+    background: var(--block_compass-cal-heat-1);
+}
+
+.block_compass .compass-cal-heat-2 {
+    background: var(--block_compass-cal-heat-2);
+}
+
+.block_compass .compass-cal-heat-3 {
+    background: var(--block_compass-cal-heat-3);
+}
+
+.block_compass .compass-cal-heat-4 {
+    background: var(--block_compass-cal-heat-4);
+}
+
+/* The two strongest steps are mostly the warning colour in either mode, so their numerals stay dark. */
+.block_compass .compass-cal-day.compass-cal-heat-3,
+.block_compass .compass-cal-day.compass-cal-heat-4 {
+    color: var(--bs-dark, #212529);
+}
+
+.block_compass .compass-cal-day.compass-cal-past {
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-cal-day.compass-cal-past.compass-cal-heat-0 {
+    background: color-mix(in oklab, var(--block_compass-cal-soft) 70%, transparent);
+}
+
+/* An empty weekend is hatched. */
+.block_compass .compass-cal-day.compass-cal-off {
+    background:
+        repeating-linear-gradient(
+            135deg,
+            var(--block_compass-line) 0,
+            var(--block_compass-line) 1px,
+            transparent 1px,
+            transparent 6px
+        );
+    color: var(--block_compass-muted);
+}
+
+/* Pulse bars carry the heat; the discs stay plain. Before the today rule, which wins over it. */
+.block_compass .compass-cal-style-pulse .compass-cal-day {
+    max-width: 2.25rem;
+    background: transparent;
+    font-size: 0.875rem;
+}
+
+.block_compass .compass-cal-day.compass-cal-today {
+    background: var(--block_compass-cal-ink);
+    color: var(--block_compass-cal-onink);
+    box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* Today's own heat is a halo around the ink disc. */
+.block_compass .compass-cal-day.compass-cal-today.compass-cal-heat-2 {
+    box-shadow:
+        0 0 0 1.5px var(--block_compass-surface),
+        0 0 0 3px var(--block_compass-cal-heat-2),
+        0 12px 24px -10px rgba(0, 0, 0, 0.55);
+}
+
+.block_compass .compass-cal-day.compass-cal-today.compass-cal-heat-3 {
+    box-shadow:
+        0 0 0 1.5px var(--block_compass-surface),
+        0 0 0 3px var(--block_compass-cal-heat-3),
+        0 12px 24px -10px rgba(0, 0, 0, 0.55);
+}
+
+.block_compass .compass-cal-day.compass-cal-today.compass-cal-heat-4 {
+    box-shadow:
+        0 0 0 1.5px var(--block_compass-surface),
+        0 0 0 3px var(--block_compass-cal-heat-4),
+        0 12px 24px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* Graded work due today or tomorrow rings its day with the accent. */
+.block_compass .compass-cal-day.compass-cal-soon {
+    box-shadow: var(--block_compass-cal-ring);
+}
+
+.block_compass .compass-cal-day.compass-cal-open {
+    transform: translateY(-3px);
+}
+
+.block_compass .compass-cal-day.compass-cal-pinned {
+    outline: 2px solid var(--block_compass-cal-accent);
+    outline-offset: 1px;
+}
+
+.block_compass .compass-cal-num {
+    position: relative;
+}
+
+/* The dots: one per item, the kind told by shape as well as colour. */
+.block_compass .compass-cal-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 8px;
+}
+
+.block_compass .compass-cal-dot {
+    display: inline-block;
+    flex: none;
+    box-sizing: border-box;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.block_compass .compass-cal-dot-todo {
+    background: var(--block_compass-cal-accent);
+}
+
+.block_compass .compass-cal-dot-graded,
+.block_compass .compass-cal-dot-gradedsoon {
+    width: 7px;
+    height: 7px;
+    border-radius: 1.5px;
+    background: var(--block_compass-cal-accent);
+}
+
+.block_compass .compass-cal-dot-gradedsoon,
+.block_compass .compass-cal-dot-gradesoon {
+    box-shadow: 0 0 0 2px var(--block_compass-surface), 0 0 0 3.5px var(--block_compass-cal-accent);
+}
+
+.block_compass .compass-cal-dot-late {
+    border: 1.5px solid var(--block_compass-cal-danger);
+    border-radius: 1px;
+    transform: rotate(45deg);
+}
+
+.block_compass .compass-cal-dot-event {
+    width: 7px;
+    height: 7px;
+    border: 1.5px solid var(--block_compass-muted);
+}
+
+.block_compass .compass-cal-dot-done {
+    width: 5px;
+    height: 5px;
+    background: var(--block_compass-muted);
+    opacity: 0.4;
+}
+
+.block_compass .compass-cal-dot-grade,
+.block_compass .compass-cal-dot-gradesoon {
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
+    background: var(--block_compass-cal-accent);
+    transform: rotate(45deg);
+}
+
+.block_compass .compass-cal-dot-class {
+    width: 7px;
+    height: 7px;
+    border: 1.5px solid var(--block_compass-muted);
+    border-radius: 1.5px;
+}
+
+.block_compass .compass-cal-more {
+    margin-left: 1px;
+    color: var(--block_compass-muted);
+    font-size: 0.625rem;
+    font-weight: 600;
+    line-height: 8px;
+}
+
+.block_compass .compass-cal-wd {
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+}
+
+.block_compass .compass-cal-col-today .compass-cal-wd {
+    color: var(--block_compass-cal-text);
+    font-weight: 600;
+}
+
+/* The ring style: one arc per item around the disc; the dots keep their row's height, unseen. */
+.block_compass .compass-cal-ring {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: calc(100% + 12px);
+    height: calc(100% + 12px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+}
+
+.block_compass .compass-cal-arc {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.block_compass .compass-cal-arc-todo,
+.block_compass .compass-cal-arc-graded,
+.block_compass .compass-cal-arc-gradedsoon,
+.block_compass .compass-cal-arc-grade,
+.block_compass .compass-cal-arc-gradesoon {
+    stroke: var(--block_compass-cal-accent);
+}
+
+.block_compass .compass-cal-arc-late {
+    stroke: var(--block_compass-cal-danger);
+    opacity: 0.55;
+}
+
+.block_compass .compass-cal-arc-event {
+    stroke: var(--block_compass-muted);
+}
+
+.block_compass .compass-cal-arc-class {
+    stroke: var(--block_compass-muted);
+    opacity: 0.5;
+}
+
+.block_compass .compass-cal-arc-done {
+    stroke: var(--block_compass-line);
+}
+
+.block_compass .compass-cal-style-ring .compass-cal-dots {
+    visibility: hidden;
+}
+
+/* The pulse style: a bar per day, its height the count and its colour the heat. */
+.block_compass .compass-cal-barbox {
+    display: flex;
+    align-items: flex-end;
+    height: 3.5rem;
+}
+
+.block_compass .compass-cal-bar {
+    width: 1.25rem;
+    border-radius: 7px;
+    background: var(--block_compass-line);
+    transition: height 200ms ease;
+}
+
+.block_compass .compass-cal-style-pulse .compass-cal-dots {
+    display: none;
+}
+
+/* The legend, the relevance switch and the calendar link, right-aligned on a wide block. */
+.block_compass .compass-cal-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.875rem;
+    color: var(--block_compass-muted);
+    font-size: 0.8rem;
+}
+
+.block_compass .compass-cal-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.block_compass .compass-cal-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.block_compass .compass-cal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: auto;
+}
+
+.block_compass .compass-cal-relevance {
+    margin: 0;
+}
+
+.block_compass .compass-cal-link {
+    display: inline-flex;
+    align-items: center;
+    height: 2.375rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.6rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-brand-text);
+    text-decoration: none;
+}
+
+.block_compass .compass-cal-link:hover {
+    background: var(--block_compass-cal-soft);
+}
+
+.block_compass .compass-cal-note {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--block_compass-muted);
+}
+
+/* The skeleton: the same rows at the same heights, shimmering unless motion is reduced. */
+.block_compass .compass-cal-sk {
+    display: block;
+    border-radius: 0.5rem;
+    background:
+        linear-gradient(
+            90deg,
+            var(--block_compass-cal-soft) 0,
+            var(--block_compass-line) 40%,
+            var(--block_compass-cal-soft) 80%
+        );
+    background-size: 300% 100%;
+    animation: block_compass-cal-shimmer 1100ms linear infinite;
+}
+
+.block_compass .compass-cal-sk-month {
+    width: 16rem;
+    height: 2.375rem;
+}
+
+.block_compass .compass-cal-sk-controls {
+    width: 18rem;
+    height: 2.375rem;
+}
+
+.block_compass .compass-cal-sk-disc {
+    width: 100%;
+    max-width: 2.75rem;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+}
+
+.block_compass .compass-cal-sk-wd {
+    width: 1.4rem;
+    height: 0.65rem;
+}
+
+.block_compass .compass-cal-sk-icon {
+    width: 2.375rem;
+    height: 2.375rem;
+    border-radius: 0.7rem;
+}
+
+.block_compass .compass-cal-sk-line {
+    width: 70%;
+    height: 0.75rem;
+}
+
+@keyframes block_compass-cal-shimmer {
+    from {
+        background-position: 100% 0;
+    }
+
+    to {
+        background-position: -100% 0;
+    }
+}
+
+/* The waiting foot keeps the height of the legend row it stands for. */
+.block_compass .compass-cal-waiting .compass-cal-foot {
+    min-height: 2.375rem;
+}
+
+/* The day's card: over the tier 1 cards, moving nothing; centred under its day, or aligned to the
+   row's start or end for the first and last four days. */
+.block_compass .compass-cal-card {
+    position: absolute;
+    top: calc(100% + 4px);
+    z-index: 40;
+    width: 25rem;
+    max-width: calc(100vw - 2rem);
+    border: 1px solid var(--block_compass-line);
+    border-radius: 1.1rem;
+    background: color-mix(in srgb, var(--block_compass-surface) 92%, transparent);
+    backdrop-filter: blur(22px) saturate(170%);
+    box-shadow: var(--block_compass-cal-shadow);
+    color: var(--block_compass-cal-text);
+    font-size: 0.875rem;
+    font-weight: 400;
+    text-align: left;
+    animation: block_compass-cal-in 170ms ease-out;
+}
+
+.block_compass .compass-cal-card-center {
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.block_compass .compass-cal-card-start {
+    left: 50%;
+    transform: translateX(-2.375rem);
+}
+
+.block_compass .compass-cal-card-end {
+    right: 50%;
+    transform: translateX(2.375rem);
+}
+
+.block_compass .compass-cal-card-pinned {
+    border-color: color-mix(in oklab, var(--block_compass-cal-accent) 45%, var(--block_compass-line));
+}
+
+@keyframes block_compass-cal-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.block_compass .compass-cal-arrow {
+    position: absolute;
+    top: -7px;
+    width: 13px;
+    height: 13px;
+    border-top: 1px solid var(--block_compass-line);
+    border-left: 1px solid var(--block_compass-line);
+    background: var(--block_compass-surface);
+    transform: rotate(45deg);
+}
+
+.block_compass .compass-cal-card-center .compass-cal-arrow {
+    left: calc(50% - 6.5px);
+}
+
+.block_compass .compass-cal-card-start .compass-cal-arrow {
+    left: calc(2.375rem - 6.5px);
+}
+
+.block_compass .compass-cal-card-end .compass-cal-arrow {
+    right: calc(2.375rem - 6.5px);
+}
+
+.block_compass .compass-cal-cardhead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 1rem 1.1rem 0.6rem;
+}
+
+.block_compass .compass-cal-cardtitle {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.block_compass .compass-cal-cardsub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+}
+
+.block_compass .compass-cal-rel {
+    padding: 1px 0.5rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 1rem;
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+    font-weight: 600;
+}
+
+.block_compass .compass-cal-rel-today {
+    border-color: var(--block_compass-cal-ink);
+    background: var(--block_compass-cal-ink);
+    color: var(--block_compass-cal-onink);
+}
+
+.block_compass .compass-cal-close {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 0.55rem;
+    background: transparent;
+    color: var(--block_compass-muted);
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.block_compass .compass-cal-close:hover {
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+}
+
+.block_compass .compass-cal-sumbar {
+    display: flex;
+    gap: 3px;
+    height: 6px;
+    margin: 0.15rem 1.1rem 0;
+}
+
+.block_compass .compass-cal-sumbar span {
+    min-width: 0;
+    border-radius: 6px;
+}
+
+.block_compass .compass-cal-sum-late {
+    background: var(--block_compass-cal-danger);
+    opacity: 0.55;
+}
+
+.block_compass .compass-cal-sum-open {
+    background: var(--block_compass-cal-accent);
+}
+
+.block_compass .compass-cal-sum-info {
+    background: var(--block_compass-muted);
+    opacity: 0.55;
+}
+
+.block_compass .compass-cal-sum-done {
+    background: var(--block_compass-line);
+}
+
+.block_compass .compass-cal-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.6rem 1.1rem 0.1rem;
+}
+
+.block_compass .compass-cal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 2px 0.55rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 1rem;
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+    font-size: 0.75rem;
+}
+
+.block_compass .compass-cal-cardload {
+    padding: 0.5rem;
+}
+
+.block_compass .compass-cal-skrow {
+    display: grid;
+    grid-template-columns: 2.375rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.6rem;
+}
+
+.block_compass .compass-cal-cardbody {
+    padding: 0.5rem 0.75rem;
+}
+
+.block_compass .compass-cal-empty {
+    margin: 0;
+    padding: 1rem 1.25rem 1.25rem;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-cal-items {
+    max-height: 23rem;
+    margin: 0;
+    padding: 0.5rem 0.5rem 0.25rem;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.block_compass .compass-cal-item {
+    display: grid;
+    grid-template-columns: 2.375rem minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.6rem;
+    border-radius: 0.75rem;
+    transition: background-color 120ms ease;
+}
+
+.block_compass .compass-cal-item:hover {
+    background: color-mix(in oklab, var(--block_compass-cal-soft) 85%, transparent);
+}
+
+.block_compass .compass-cal-item-done {
+    opacity: 0.62;
+}
+
+/* Core's activity icon, recoloured by core's own purpose class, on a tint of the same purpose. */
+.block_compass .compass-cal-icon.activityiconcontainer {
+    display: grid;
+    place-items: center;
+    width: 2.375rem;
+    height: 2.375rem;
+    max-width: none;
+    max-height: none;
+    border-radius: 0.7rem;
+    background: color-mix(in oklab, var(--block_compass-cal-purpose, var(--block_compass-muted)) 13%, var(--block_compass-surface));
+}
+
+.block_compass .compass-cal-icon .activityicon {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.block_compass .compass-cal-icon[data-purpose="administration"] {
+    --block_compass-cal-purpose: var(--activityadministration);
+}
+
+.block_compass .compass-cal-icon[data-purpose="assessment"] {
+    --block_compass-cal-purpose: var(--activityassessment);
+}
+
+.block_compass .compass-cal-icon[data-purpose="collaboration"] {
+    --block_compass-cal-purpose: var(--activitycollaboration);
+}
+
+.block_compass .compass-cal-icon[data-purpose="communication"] {
+    --block_compass-cal-purpose: var(--activitycommunication);
+}
+
+.block_compass .compass-cal-icon[data-purpose="content"] {
+    --block_compass-cal-purpose: var(--activitycontent);
+}
+
+.block_compass .compass-cal-icon[data-purpose="interactivecontent"] {
+    --block_compass-cal-purpose: var(--activityinteractivecontent);
+}
+
+.block_compass .compass-cal-itembody {
+    min-width: 0;
+}
+
+.block_compass .compass-cal-itemmeta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    color: var(--block_compass-muted);
+    font-size: 0.75rem;
+}
+
+.block_compass .compass-cal-course {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.block_compass .compass-cal-itemtitle {
+    display: block;
+    overflow: hidden;
+    color: var(--block_compass-cal-text);
+    font-weight: 600;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.block_compass .compass-cal-itemtitle:hover {
+    color: var(--block_compass-cal-text);
+    text-decoration: underline;
+}
+
+.block_compass .compass-cal-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+}
+
+.block_compass .compass-cal-pill {
+    padding: 1px 0.375rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.375rem;
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.block_compass .compass-cal-pill-accent {
+    border-color: var(--block_compass-cal-accent);
+    background: var(--block_compass-cal-accent);
+    color: var(--bs-white, #fff);
+}
+
+.block_compass .compass-cal-pill-soft {
+    border-color: color-mix(in oklab, var(--block_compass-cal-accent) 30%, var(--block_compass-surface));
+    background: color-mix(in oklab, var(--block_compass-cal-accent) 10%, var(--block_compass-surface));
+    color: var(--block_compass-brand-text);
+}
+
+.block_compass .compass-cal-pill-late {
+    border-color: color-mix(in oklab, var(--block_compass-cal-warn) 45%, var(--block_compass-surface));
+    background: color-mix(in oklab, var(--block_compass-cal-warn) 22%, var(--block_compass-surface));
+}
+
+.block_compass .compass-cal-action {
+    white-space: nowrap;
+}
+
+.block_compass .compass-cal-action-off {
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-cal-cardnote {
+    margin: 0.25rem 0;
+    padding: 0 1.1rem;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-cal-cardfoot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 1.1rem 0.9rem;
+    border-top: 1px solid var(--block_compass-line);
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+}
+
+.block_compass .compass-cal-cardfoot a {
+    color: var(--block_compass-brand-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+/* Below 640 px of the block's own width (the client's measure, never a viewport query): a week of
+   days, and the card as a sheet from the bottom of the screen. */
+.block_compass .compass-cal-narrow .compass-cal-month {
+    min-width: 0;
+    font-size: 1rem;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-day {
+    max-width: 2.6rem;
+    font-size: 0.95rem;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-actions {
+    margin-left: 0;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-card {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1050;
+    width: auto;
+    max-width: none;
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: 1.25rem 1.25rem 0 0;
+    transform: none;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-arrow {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-cal *,
+    .block_compass .compass-cal-card {
+        transition: none;
+        animation: none;
+    }
+}
+
+/*
+ * Card and strip light each other (ADR-014 decision 9). Pointing at a tier 1 card rings the days
+ * that hold its course and dims the rest; an open day outlines its courses' cards. The ring and
+ * the outline carry the meaning, the dim only supports it, so colour is never the sole signal.
+ */
+.block_compass .compass-cal-col.compass-cal-col-dim {
+    opacity: 0.26;
+    transition: opacity 180ms;
+}
+
+.block_compass .compass-cal-col.compass-cal-col-match .compass-cal-day {
+    transform: translateY(-3px);
+    box-shadow: var(--block_compass-cal-ring);
+    outline: 2px solid var(--block_compass-cal-accent);
+    outline-offset: 2px;
+}
+
+.block_compass .compass-card.compass-card-lit {
+    border-color: var(--block_compass-cal-accent);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--block_compass-cal-accent) 30%, transparent);
+    outline: 2px solid var(--block_compass-cal-accent);
+    outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-cal-col.compass-cal-col-dim {
+        transition: none;
+    }
+
+    .block_compass .compass-cal-col.compass-cal-col-match .compass-cal-day {
+        transform: none;
+    }
+}

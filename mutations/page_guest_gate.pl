@@ -1,1 +1,1 @@
-s/        if \(isguestuser\(\)\) \{\n            throw new \\moodle_exception\('noguest'\);\n        \}\n//;
+s/if \(self::guest_home_is_this_page\(\)\) \{/if (false) {/;

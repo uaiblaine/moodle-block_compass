@@ -185,6 +185,69 @@ if ($ADMIN->fulltree) {
         0
     ));
 
+    // The calendar strip above the first tier (ADR-014): off by default, and free while off.
+    $settings->add(new admin_setting_heading(
+        'block_compass/calendar',
+        get_string('calendar', 'block_compass'),
+        get_string('calendar_desc', 'block_compass')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/calendar_enabled',
+        get_string('calendar_enabled', 'block_compass'),
+        get_string('calendar_enabled_desc', 'block_compass'),
+        0
+    ));
+
+    // Selects, not text fields: each value is compared against a fixed vocabulary (config).
+    $settings->add(new admin_setting_configselect(
+        'block_compass/calendar_where',
+        get_string('calendar_where', 'block_compass'),
+        get_string('calendar_where_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_CALENDAR_WHERE,
+        [
+            'both' => get_string('calendar_where_both', 'block_compass'),
+            'dashboard' => get_string('calendar_where_dashboard', 'block_compass'),
+            'page' => get_string('calendar_where_page', 'block_compass'),
+        ]
+    ));
+
+    // One literal string per source: no identifier is built from a value.
+    $settings->add(new admin_setting_configmulticheckbox(
+        'block_compass/calendar_sources',
+        get_string('calendar_sources', 'block_compass'),
+        get_string('calendar_sources_desc', 'block_compass'),
+        array_fill_keys(\block_compass\local\config::DEFAULT_CALENDAR_SOURCES, 1),
+        [
+            'deadlines' => get_string('calendar_source_deadlines', 'block_compass'),
+            'course' => get_string('calendar_source_course', 'block_compass'),
+            'group' => get_string('calendar_source_group', 'block_compass'),
+            'site' => get_string('calendar_source_site', 'block_compass'),
+            'user' => get_string('calendar_source_user', 'block_compass'),
+            'category' => get_string('calendar_source_category', 'block_compass'),
+        ]
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'block_compass/calendar_style',
+        get_string('calendar_style', 'block_compass'),
+        get_string('calendar_style_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_CALENDAR_STYLE,
+        [
+            'dots' => get_string('calendar_style_dots', 'block_compass'),
+            'ring' => get_string('calendar_style_ring', 'block_compass'),
+            'pulse' => get_string('calendar_style_pulse', 'block_compass'),
+        ]
+    ));
+
+    // The default of each viewer's own relevance switch, which the viewer may change.
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/calendar_relevance',
+        get_string('calendar_relevance', 'block_compass'),
+        get_string('calendar_relevance_desc', 'block_compass'),
+        1
+    ));
+
     // Pre-warming: the scheduled task is always registered and gated by enable_prewarm below.
     $settings->add(new admin_setting_heading(
         'block_compass/prewarm',

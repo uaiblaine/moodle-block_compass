@@ -6,6 +6,90 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- **The calendar strip's server domain** (ADR-014, stage 11a of Phase 11), version 2026101301.
+  No service, client or Behat yet: those are stages 11b to 11d, so nothing reaches a user.
+  - `classes/local/calendar/strip.php` counts a user's calendar items per day, from ten days
+    ago to the end of next month, in two views: *learning* (courses where the user holds a
+    `gradebookroles` role) and *teaching* (every other course of the set). Past learning
+    deadlines go through core's event vault with one page (`limitnum` 0); the rest is one
+    counted statement (E1's P5): both branches join the course module, an override replaces
+    its base event (core's lowest-priority rule, checked for module events only), and the
+    admin's sources decide what is counted.
+  - The teaching view counts grading work (assignments whose *grading due* falls in the
+    window, where the user can grade, with submissions waiting) from one statement that
+    mirrors `assign::count_submissions_need_grading()`, pinned by a parity test, and shows
+    the class's deadlines as information, without module callbacks.
+  - `classes/local/calendar/day.php` returns one day's items (at most 50, with a flag) for
+    either view; a day opened once in a sign-in costs nothing the second time.
+  - A seventh cache definition, `calendarstrip` (wrapper `classes/local/calendar_cache.php`),
+    served only for the same sign-in, first day of the window and timezone, within 30 minutes;
+    dropped with the account.
+  - Five settings, off by default: `calendar_enabled`, `calendar_where`, `calendar_sources`,
+    `calendar_style`, `calendar_relevance`; a user preference, `block_compass_calendar` (view,
+    filter, relevance), read by `classes/local/calendar_preference.php` and exported by the
+    privacy provider.
+  - **Two read services for the strip** (stage 11b), version 2026101302: `block_compass_get_strip`
+    (per-day counters of both views as lists, no parameters, an empty result when
+    `calendar_enabled` is off) and `block_compass_get_day` (`date` inside the window and `view`;
+    an unknown view or a date outside the window is an invalid parameter). Both declare
+    `'readonlysession' => true`; budget tests pin the domain ceilings plus the one read of the
+    web service layer. Still no client.
+  - **The strip's client** (stage 11c), version 2026101303. Where `calendar_enabled` is on and
+    `calendar_where` names the surface (the Dashboard, the block's own page, or both), the shell
+    ships a `calendar` props object (style, the relevance default, the remembered preference,
+    core's month and day view URLs, the user's timezone and every string the strip shows, in
+    `lang/en` and `lang/pt_br`); off, it ships nothing and nothing mounts. `CalendarStrip.tsx`
+    mounts between the content head and tier 1, reserves its place with a skeleton of the same
+    shape, and asks for `get_strip` only once `get_attention` has settled. The row opens centred on
+    today (21 days, 15 for the ring style, 7 below 640 px of block width), moves a week at a time
+    within the window, and draws heat steps, today's ink disc with its halo, the accent ring for
+    graded work due today or tomorrow, the hatched empty weekend, the needle and the marks by kind
+    as dots, ring arcs or pulse bars. The Studying/Teaching switch (only for someone with both
+    kinds of course), the Everything/To do/Events filter and the relevance switch are remembered in
+    `block_compass_calendar`. `CalendarCard.tsx` opens a day on hover intent, focus or a click that
+    pins it (a dialog with a close button; Escape closes it; a bottom sheet on a narrow block) and
+    lists `get_day`'s items with core's action buttons; the days fetched are kept for the page, and
+    only the day after a pointed day is prefetched, when it holds something. Item times are
+    formatted in the browser from `timestart`, in the user's timezone; core's `formattedtime`
+    markup is not injected.
+  - **Card and strip light each other** (stage 11d), version 2026101304. Pointing at a tier 1 card
+    (hover or focus) lights the strip days whose payload `courseids` hold its course and dims the
+    others; opening a day (hover or pin) outlines the cards of the courses it holds, with an
+    outline as well as the dim so colour is never the only signal. Both come from data in memory,
+    through two pieces of state in `Block.tsx`, so neither costs a request. One Behat scenario
+    (`block_compass_calendar.feature`) opens a day by focus, reads the assignment and core's
+    "Add submission" action, runs axe with the card open, and closes it with Escape.
+  - **A new day re-validates the strip's sets** (MDL Shield, LOW): `day::get()` on a day miss
+    compares the entry's inventory stamp and group set with the current ones (two reads) and
+    rebuilds the entry when either differs, so a user unenrolled inside the 30 minutes is not shown
+    the course-level events of what they left, nor a teacher removed from a group its events on the
+    teaching day (a learner's group events are re-filtered by core itself). The strip's own
+    hit stays at two reads. Residual: the strip's counts (numbers and course ids, never names) and
+    days already opened can lag an enrolment, group, hidden-course or role change until the TTL or
+    the next day opening.
+  - **The maintainer's three answers** (ADR-014 amendment 9), version 2026101305.
+    - The grading count mirrors core's **default active group** exactly: one group or every
+      participant per assignment, as `groups_get_activity_group()` first chooses it. No group mode
+      or `moodle/site:accessallgroups` counts everyone; `SEPARATEGROUPS` counts the first of the
+      grader's groups by name, or everyone when the grader has none; `VISIBLEGROUPS` counts the
+      grader's first group, else the course's first group, else everyone. Groups are participation
+      groups inside the activity's grouping, filtered by group visibility unless the grader holds
+      `moodle/course:viewhiddengroups`. Formerly the grader's groups were summed, the grouping was
+      ignored and `VISIBLEGROUPS` counted everyone. This costs one more read, only when grading work
+      lies in a group-mode activity of a grader without `accessallgroups`. The count now goes through
+      one selection point, `grading::source()`, behind a `grading_source` interface, ready for
+      `block_feedback_tracker`'s ledger; today it returns core's counter.
+    - A day's screen-reader sentence says **"up to N"** for a count that is an upper bound (graded
+      and to-do items of the future, before their callbacks run), and the exact number once the day
+      has been opened on the page.
+    - **Month, weekday and time names come from the language file** (`cal_month_01` to
+      `cal_month_12`, `cal_weekday_0` to `_6` and their short forms, the `cal_format_*` templates,
+      `cal_am`/`cal_pm`), not from the browser's `Intl`: "October 2026" and "2:30 PM" in English
+      (12-hour, as core's `strftimetime`), "outubro de 2026" and "14:30" in Brazilian Portuguese.
+      `Intl` is kept only to read an instant's numbers in the user's timezone.
+
 ### Changed
 
 - **The five read services run without the session lock**, version 2026101300.

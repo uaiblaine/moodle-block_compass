@@ -1,4 +1,4 @@
-var e=(n,t)=>(n||"").split("{$a}").join(t),g=(n,t,i)=>e(i===1&&n[`${t}_one`]?n[`${t}_one`]:n[t],String(i)),o=(n,t)=>Object.entries(t).reduce((i,[r,s])=>i.split(`{$a->${r}}`).join(s),n||"");export{e as fill,g as fillCount,o as fillObject};
+var e=(n,t)=>(n||"").split("{$a}").join(t),g=(n,t,i,r=String(i))=>e(i===1&&n[`${t}_one`]?n[`${t}_one`]:n[t],r),o=(n,t)=>Object.entries(t).reduce((i,[r,s])=>i.split(`{$a->${r}}`).join(s),n||"");export{e as fill,g as fillCount,o as fillObject};
 /**
  * Substituting into a language string that carries a placeholder.
  *

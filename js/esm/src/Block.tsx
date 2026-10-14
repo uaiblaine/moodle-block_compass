@@ -25,12 +25,18 @@
  * line the repository's bounded retry reports through, and the amber notice with a way back
  * from a failed first paint.
  *
+ * Where the shell shipped the calendar props, the calendar strip sits between the content head
+ * and the status line (ADR-014 decision 2). It reserves its place from the first paint and asks
+ * for its days only once tier 1's request has settled, answered or failed: the turn handed down
+ * is 0 until then, and every reload bumps it once tier 1 has been asked again.
+ *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {Fragment, useCallback, useEffect, useRef, useState} from 'react';
+import CalendarStrip from './CalendarStrip';
 import Strip from './Strip';
 import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
@@ -134,6 +140,13 @@ const Block = (config: BlockConfig) => {
     // viewport - tier 3's category index does the same.
     const root = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
+    // The calendar strip's turn: 0 until tier 1's first request settles, then one more per reload.
+    const [calendarturn, setCalendarturn] = useState(0);
+    // The two halves of the card/strip lighting (ADR-014 decision 9), lifted here because they
+    // join two siblings: the course a tier 1 card is pointed at, and the courses the open
+    // calendar day holds. Both come from data already in memory; neither costs a request.
+    const [pointed, setPointed] = useState<number | null>(null);
+    const [dayCourses, setDayCourses] = useState<number[]>([]);
     const {labels} = config;
 
     /**
@@ -186,6 +199,8 @@ const Block = (config: BlockConfig) => {
             if (seq.current === mine) {
                 // A transport failure says so; a server that answered gets the generic line.
                 setError((isTransportFailure(e) ? labels.connectionlost : labels.loaderror) || '');
+                // Settled, if by failing: the strip may ask now, and its own failure is its own.
+                setCalendarturn((current) => (current === 0 ? 1 : current));
             }
 
             return;
@@ -194,6 +209,8 @@ const Block = (config: BlockConfig) => {
             return;
         }
         setData(payload);
+        // Tier 1 painted first; the strip asks now, while the cards' progress is still on its way.
+        setCalendarturn((current) => (current === 0 ? 1 : current));
 
         const pending = [payload.continue, payload.new, payload.favourites]
             .flat()
@@ -304,6 +321,8 @@ const Block = (config: BlockConfig) => {
             await load(true);
         } finally {
             setReloading(false);
+            // The strip reloads after tier 1, as on first paint.
+            setCalendarturn((current) => current + 1);
         }
     }, [load]);
 
@@ -435,6 +454,16 @@ const Block = (config: BlockConfig) => {
             <div className="compass-content-head">
                 <Reload busy={reloading} config={config} onReload={reloadAll} />
             </div>
+            {config.calendar && (
+                <CalendarStrip
+                    config={config}
+                    calendar={config.calendar}
+                    turn={calendarturn}
+                    width={width}
+                    pointedCourse={pointed}
+                    onOpenCourses={setDayCourses}
+                />
+            )}
             {reconnecting !== null && (
                 <div className="compass-status compass-reconnecting text-muted small" role="status" aria-live="polite">
                     {fillObject(labels.reconnecting, {
@@ -463,6 +492,8 @@ const Block = (config: BlockConfig) => {
                         config={config}
                         onToggleFavourite={toggleFavourite}
                         onExplore={explore}
+                        litIds={dayCourses}
+                        onPoint={setPointed}
                     />
                     {/* The one notice an application gets in tier 1: it is never a card in a strip
                         (ADR-009). */}

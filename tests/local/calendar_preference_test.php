@@ -1,0 +1,103 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * The reader of the remembered calendar strip state.
+ *
+ * @package    block_compass
+ * @category   test
+ * @copyright  2026 Anderson Blaine
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace block_compass\local;
+
+use advanced_testcase;
+use block_compass\local\calendar\strip;
+use PHPUnit\Framework\Attributes\CoversClass;
+
+/**
+ * The client writes the preference through core's route, which leaves PARAM_RAW uncleaned, so
+ * the reader is the guard; each test pins one of its checks.
+ *
+ * @package    block_compass
+ * @category   test
+ * @copyright  2026 Anderson Blaine
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+#[CoversClass(calendar_preference::class)]
+final class calendar_preference_test extends advanced_testcase {
+    /**
+     * Nothing stored, an empty string and anything that is not a JSON object read as the defaults.
+     *
+     * @return void
+     */
+    public function test_nothing_stored_or_unreadable_reads_as_the_defaults(): void {
+        $defaults = ['view' => 'learning', 'filter' => 'all', 'relevance' => true];
+
+        foreach ([null, '', 'not json', '"a string"', '[]', '3'] as $stored) {
+            $this->assertSame($defaults, calendar_preference::validate($stored, true), var_export($stored, true));
+        }
+        $this->assertFalse(calendar_preference::validate(null, false)['relevance'], 'the default follows the site');
+    }
+
+    /**
+     * A well-formed state survives whole.
+     *
+     * @return void
+     */
+    public function test_a_well_formed_state_survives_whole(): void {
+        $json = json_encode(['view' => 'teaching', 'filter' => 'events', 'relevance' => false]);
+
+        $this->assertSame(
+            ['view' => 'teaching', 'filter' => 'events', 'relevance' => false],
+            calendar_preference::validate($json, true)
+        );
+    }
+
+    /**
+     * A member outside its vocabulary, or of the wrong type, falls back alone; the rest is kept.
+     *
+     * @return void
+     */
+    public function test_a_member_outside_its_vocabulary_falls_back_alone(): void {
+        $json = json_encode(['view' => 'grading', 'filter' => 'todo', 'relevance' => 0]);
+
+        $this->assertSame(
+            ['view' => 'learning', 'filter' => 'todo', 'relevance' => true],
+            calendar_preference::validate($json, true)
+        );
+        $this->assertSame('all', calendar_preference::validate(json_encode(['filter' => 'ALL']), true)['filter']);
+        $this->assertSame(strip::VIEWS, calendar_preference::VIEWS, 'the remembered view speaks the strip\'s vocabulary');
+    }
+
+    /**
+     * read() takes the current user's stored state and the relevance default from the setting.
+     *
+     * @return void
+     */
+    public function test_read_takes_the_viewers_own_state_and_the_sites_default(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+
+        set_config('calendar_relevance', 0, 'block_compass');
+        $this->assertSame(['view' => 'learning', 'filter' => 'all', 'relevance' => false], calendar_preference::read());
+
+        set_user_preference(calendar_preference::NAME, json_encode(['view' => 'teaching', 'relevance' => true]), $user);
+        $this->assertSame(['view' => 'teaching', 'filter' => 'all', 'relevance' => true], calendar_preference::read());
+    }
+}

@@ -26,6 +26,7 @@
 namespace block_compass;
 
 use advanced_testcase;
+use block_compass\local\calendar_cache;
 use block_compass\local\category_meta;
 use block_compass\local\course_fields;
 use block_compass\local\course_meta;
@@ -90,6 +91,7 @@ final class observer_test extends advanced_testcase {
         cache::make('block_compass', 'coursefields')->purge();
         cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'inventory')->purge();
+        cache::make('block_compass', 'calendarstrip')->purge();
     }
 
     /**
@@ -633,5 +635,34 @@ final class observer_test extends advanced_testcase {
         $this->assertFalse(details::get_many($userid, [$courseid])[$courseid]);
         $this->assertSame(56, details::get_many(0, [$courseid])[$courseid]);
         $this->assertSame(57, details::get_many($userid, [0])[0]);
+    }
+
+    /**
+     * Deleting an account drops its calendar strip entry, and only its own.
+     *
+     * The bystander's entry is the control: a purge, or a delete keyed on anything but the deleted
+     * user's id, fails on it. The account row marked deleted proves the event fired.
+     *
+     * Changes that must make it fail: the calendar delete removed from observer::user_deleted().
+     *
+     * @return void
+     */
+    public function test_deleting_an_account_drops_its_calendar_strip_entry(): void {
+        global $DB;
+
+        $gen = $this->getDataGenerator();
+        $doomed = $gen->create_user();
+        $doomedid = (int) $doomed->id;
+        $bystanderid = (int) $gen->create_user()->id;
+        foreach ([$doomedid, $bystanderid] as $userid) {
+            calendar_cache::set($userid, calendar_cache::entry([], [], 1, '2026-10-03', 'UTC', 1760000000));
+            $this->assertNotFalse(calendar_cache::get($userid));
+        }
+
+        delete_user($doomed);
+
+        $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
+        $this->assertFalse(calendar_cache::get($doomedid), 'the deleted account kept its calendar strip');
+        $this->assertNotFalse(calendar_cache::get($bystanderid));
     }
 }

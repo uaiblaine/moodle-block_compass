@@ -46,13 +46,17 @@ export const fill = (template: string | undefined, value: string): string =>
  * English and Portuguese both separate one from the rest and nothing else, so two strings per
  * count are enough. A label set without the `_one` string falls back to the plain one.
  *
+ * The count chooses the string; what is written into it is the count itself unless the caller
+ * words it, as the calendar strip's "up to 2" for a count that is only an upper bound.
+ *
  * @param {object} labels The translated labels.
  * @param {string} key The plain string's key.
  * @param {number} count The number the string states.
+ * @param {string} [shown] What the placeholder reads; the count by default.
  * @returns {string} The string with the count in it.
  */
-export const fillCount = (labels: Record<string, string>, key: string, count: number): string =>
-    fill(count === 1 && labels[`${key}_one`] ? labels[`${key}_one`] : labels[key], String(count));
+export const fillCount = (labels: Record<string, string>, key: string, count: number, shown: string = String(count)): string =>
+    fill(count === 1 && labels[`${key}_one`] ? labels[`${key}_one`] : labels[key], shown);
 
 /**
  * Put several values into a language string's object placeholders.
