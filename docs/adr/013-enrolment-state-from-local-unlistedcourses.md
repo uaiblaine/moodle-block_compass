@@ -130,7 +130,7 @@ waiting list* (list) — the theme's wording, families and Font Awesome icons. E
 whole literal class; the colours are Compass's own tokens chained to Bootstrap's subtle pairs,
 with the theme's measured pairs as fallbacks and the body colour as the dark text:
 
-| Pair | Boost 5.2, light | Boost 5.2, dark | theme_boost_union_fundaseg, light | fundaseg, dark | fallbacks, light / dark |
+| Pair | Boost 5.2, light | Boost 5.2, dark | institution child theme, light | institution child theme, dark | fallbacks, light / dark |
 |---|---|---|---|---|---|
 | scheduled | `#062b4c` on `#cfe2f2` 10.85 | `#dee2e6` on `#031626` 14.06 | `#03003b` on `#cdcce9` 12.57 | `#dee2e6` on `#01001d` 15.83 | 14.53 / 11.47 |
 | awaiting | `#60451f` on `#fcefdc` 7.82 | `#dee2e6` on `#302310` 11.74 | the same | the same | 7.82 / 10.43 |
@@ -180,9 +180,9 @@ since R4: tier 3's "No completion configured" never reached a teacher until this
 *Amended 2026-10-14 on `MOODLE_503_STABLE`: the crests come from the block's own hook; see the
 last section of this record. The text below is the 5.2 design, still true on `main`.*
 
-With `theme_boost_union_fundaseg` installed, tier 1 cards and tier 3 cards and rows show the
+With a theme answering the hook installed (the institution's Boost Union child), tier 1 cards and tier 3 cards and rows show the
 course's institutional crests (at most three), read only through
-`component_callback('theme_boost_union_fundaseg', 'course_badges', [$courseids], [])` — one
+`component_callback('<theme component>', 'course_badges', [$courseids], [])` — one
 batched call per response, no `class_exists`, no dependency, never the theme's classes — which
 applies the theme's own viewer rule. A setting shown only while the theme is installed switches
 them, on for new installs and off on upgrade.
@@ -223,7 +223,7 @@ test of the theme's real answer runs only where the theme is installed (m502).
   5.2 checkout.
 - Tokens: `--bs-primary-bg-subtle`, `--bs-primary-text-emphasis`, `--bs-warning-bg-subtle`,
   `--bs-warning-text-emphasis`, `--bs-body-color` in the sheets m502 serves for `boost` and
-  `boost_union_fundaseg`; ratios by the WCAG formula.
+  the institution's Boost Union child theme; ratios by the WCAG formula.
 - Tests: `relationship_test` (both parity checks), `inventory_test` (the three populations and
   their order), `explore_test` (the Scheduled and the awaiting rows), `attention_test` (the
   situations statement, its bound and the drop pin), `get_attention_test` (the counts and the
@@ -296,7 +296,7 @@ test of the theme's real answer runs only where the theme is installed (m502).
 
 ## Amendment (2026-10-14, `MOODLE_503_STABLE` only): the crests through the block's own hook
 
-**Decided by** the maintainer on 2026-10-14: `theme_boost_union_fundaseg` is discontinued and its
+**Decided by** the maintainer on 2026-10-14: the institution's previous theme is discontinued and its
 successor on Moodle 5.3, `theme_dimensions`, answers the same question; no plugin is to name a
 theme again. **Amends** decision 9 on this branch alone; `main` (5.2) keeps the named callback,
 with no retrofit. Decision 9's bounds, cleaning, setting, return structure and one-call-per-response

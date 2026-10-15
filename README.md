@@ -389,7 +389,7 @@ Credits
 -------
 
 The shape of a shell block rendered in the browser follows the sibling plugin
-`block_dimensions`; the three-tier reading of "my courses" was designed for Fundaseg.
+`block_dimensions`.
 
 
 License

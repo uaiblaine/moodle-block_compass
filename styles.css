@@ -29,7 +29,7 @@
        grey in dark mode. On the block's own page there is no card around it and the page's
        --bs-body-bg is behind it, which on Boost 5.3 is gray-100 ($body-bg), no longer white. */
     --block_compass-surface: var(--bs-card-bg, var(--bs-body-bg, #fff));
-    /* The state pills' two families, the theme card's (theme_boost_union_fundaseg): a later start
+    /* The state pills' two families, the theme card's (a Boost Union child theme): a later start
        in the primary's subtle pair, an application in the warning's. The fallbacks are the
        theme's own measured pairs, 14.53:1 and 7.82:1; Boost 5.2 serves 10.85:1 and 7.82:1. */
     --block_compass-scheduled-bg: var(--bs-primary-bg-subtle, #edeefb);
