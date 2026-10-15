@@ -115,9 +115,9 @@ final class client_policy_test extends advanced_testcase {
         $exporter = file_get_contents($root . '/classes/output/block.php');
         $ones = array_filter(array_keys($strings['en']), static fn($key) => str_ends_with($key, '_one'));
 
-        // Ten for the block's labels, nine for the calendar strip's strings, which the shell ships
+        // Ten for the block's labels, ten for the calendar strip's strings, which the shell ships
         // under the calendar key (block::CALENDAR_STRINGS).
-        $this->assertCount(19, $ones);
+        $this->assertCount(20, $ones);
         foreach ($ones as $key) {
             $this->assertArrayHasKey($key, $strings['pt_br'], $key);
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
@@ -175,6 +175,7 @@ final class client_policy_test extends advanced_testcase {
                 'getInventoryRows' => 'block_compass_get_inventory_rows',
                 'searchInventory' => 'block_compass_search_inventory',
                 'getStrip' => 'block_compass_get_strip',
+                'getStripCounts' => 'block_compass_get_strip_counts',
                 'getDay' => 'block_compass_get_day',
             ] as $name => $service
         ) {

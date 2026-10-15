@@ -10,11 +10,22 @@ namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Mo
 `v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
 [`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100501) - unreleased
+## v5.3-r1 (2026100502) - unreleased
 
 First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
 `MOODLE_503_STABLE` branch.
+
+### Added
+
+- The calendar strip's closed state (2026100502, the same work as v5.2-r1's 2026042001): the
+  strip opens and closes from its heading and each user's choice is remembered; closed, it is
+  one line of plain counts by period from the new read service `block_compass_get_strip_counts`
+  (`calendar_start` decides the first state, closed by default). There is no permanent reload
+  control any more: *Try again* and *Reload page* appear only once a load has failed. With
+  `block_feedback_tracker` installed, the teaching view counts the submissions waiting from that
+  plugin's ledger where it tracks the course (`calendar_grading`), and core's count reads the
+  assignments' index. Details under v5.2-r1 below.
 
 ### Changed
 
@@ -44,7 +55,7 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   (the 5.2 `.js.map` files are gone), and `js/esm/src/swizzle.json` closes every component to
   theme overrides, because the page loads the bundle, which contains them all.
 
-## v5.2-r1 (2026042000) - unreleased
+## v5.2-r1 (2026042001) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
@@ -78,13 +89,18 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - The view, the sort, the chips and the open filter panel are remembered for each user.
 - "No completion configured" is said to teachers only.
 - With the Boost Union FUNDASEG theme, cards and rows show the course's institutional crests.
-- A failed read retries itself, then offers *Try again* and *Reload page*; a reload control
-  refreshes the whole block.
+- A failed read retries itself, then offers *Try again* and *Reload page*. There is no
+  permanent reload control: the way back appears only once a load has failed.
 
 **Calendar strip** (off by default)
 
 - A row of days above the first tier, from ten days ago to the end of next month, each day
   coloured by what it holds, on the Dashboard, the Compass page or both.
+- The strip opens and closes from its heading, and each user's choice is remembered.
+  Closed, it is one line of plain counts by period: *Late, still open*, *Today*, *Tomorrow*,
+  *This week* and *Later*; a period opens the strip on its days. Closed costs one small count
+  and never the whole strip; `calendar_start` decides how the strip first shows (closed by
+  default).
 - Relevance weighting: graded work, starred courses and work due today or tomorrow weigh more;
   each user can switch it off.
 - Three styles: dots, a ring and pulse bars.
@@ -93,7 +109,9 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - Pointing at a day, focusing it or clicking it opens a day card with the day's items and the
   action buttons core's Timeline offers (a bottom sheet on a narrow block).
 - The teaching view counts submissions waiting to be graded, in the group core shows the
-  grader first.
+  grader first. With `block_feedback_tracker` installed, the courses it tracks are counted from
+  its own ledger and the closed line shows the submissions waiting too (`calendar_grading`);
+  the two plugins define "waiting" differently.
 - Weekends are hatched; with `block_feedback_tracker` installed, its academic calendar marks
   weekends, holidays and recesses.
 - A future count that may still shrink reads "up to N" until the day is opened.
@@ -109,8 +127,10 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 **Administration and scale**
 
-- Seven read-only web services that do not hold the session lock, each with a read budget
+- Eight read-only web services that do not hold the session lock, each with a read budget
   enforced by a test.
+- Core's count of submissions waiting is read through the assignments' index, not by a scan of
+  every submission.
 - Seven application caches; a shared in-memory store (Redis) is recommended for all of them.
 - An optional nightly task pre-warms the course lists of recently active users.
 - The client is one React bundle, announced with preload hints only where the block renders.
@@ -126,10 +146,13 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 ### Upgrading from a development build
 
 There is no upgrade path from the date-numbered development builds (`2026090400` to
-`2026101400`, never published): this release is a fresh install. A site that ran one of them
-sets the stored version back, then upgrades; its settings are kept:
+`2026101400`, never published): this release is a fresh install. A site that ran one of those
+builds sets the stored version back, then upgrades; its settings are kept:
 
 ```sh
 php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
+
+A site that installed `2026042000` from `MOODLE_502_STABLE` upgrades to `2026042001` in place;
+on `MOODLE_503_STABLE`, `2026100500` and `2026100501` upgrade to `2026100502` in place.

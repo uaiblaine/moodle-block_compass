@@ -24,6 +24,8 @@
 
 namespace block_compass\local\calendar;
 
+use block_compass\local\config;
+
 /**
  * Counts the submissions waiting to be graded in many assignments with one statement.
  *
@@ -53,31 +55,55 @@ namespace block_compass\local\calendar;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class grading implements grading_source {
+    /** @var string The source setting's value that reads block_feedback_tracker's ledger where it covers a course. */
+    public const SOURCE_TRACKER = 'tracker';
+
+    /** @var string The source setting's value that keeps core's counter for every course. */
+    public const SOURCE_CORE = 'core';
+
     /**
      * The source the strip counts grading work from: the one selection point.
      *
-     * Today it is always this class, core's counter mirrored. block_feedback_tracker keeps a ledger
-     * built for this question, block_feedback_tracker_sub (courseid, groupid, cmid, iteminstance,
-     * userid, islatest, iscurrent, timeclosed, timedismissed; index idx_course_group_submitted), and
-     * when the maintainer moves the count to it, this method returns a grading_source reading that
-     * table, chosen only when the plugin is installed: presence asked of core's component list,
-     * core_component::get_component_directory('block_feedback_tracker'), before any read, as
-     * {@see days_off::tracked()} asks before touching the plugin's classes. Without the plugin
-     * the answer stays this class. Nothing reads that table yet.
+     * Core's counter, mirrored by this class, unless block_feedback_tracker is installed and the
+     * calendar_grading setting keeps its default: then {@see tracker_grading}, which counts the
+     * assignments of the courses the plugin tracks from its ledger, block_feedback_tracker_sub, and
+     * hands the others to this class (ADR-014 amendment 11). The two definitions of "waiting"
+     * differ; tracker_grading's docblock says how.
      *
      * @return grading_source
      */
     public static function source(): grading_source {
-        return new self();
+        return self::tracker_active() ? new tracker_grading(new self()) : new self();
+    }
+
+    /**
+     * Whether the count comes from block_feedback_tracker's ledger where it covers a course.
+     *
+     * Presence is asked of core's component list before anything of the plugin is touched, as
+     * {@see days_off::tracked()} and {@see \block_compass\local\theme_badges} ask, and the plugin must
+     * be installed (its version recorded), or its table does not exist yet. Reads nothing past the
+     * config cache, which every request has warm. The presence is injectable so that tests can
+     * exercise both branches whether or not the site has the plugin.
+     *
+     * @param bool|null $installed Whether block_feedback_tracker is installed; null to ask {@see tracker_installed()}.
+     * @return bool
+     */
+    public static function tracker_active(?bool $installed = null): bool {
+        return config::calendar_grading() === self::SOURCE_TRACKER && ($installed ?? self::tracker_installed());
+    }
+
+    /**
+     * Whether block_feedback_tracker is installed: its code present and its version recorded.
+     *
+     * @return bool
+     */
+    public static function tracker_installed(): bool {
+        return \core_component::get_component_directory('block_feedback_tracker') !== null
+            && get_config('block_feedback_tracker', 'version') !== false;
     }
 
     /**
      * Submissions waiting to be graded, per assignment, in one statement.
-     *
-     * Index: assign primary key; assign_submission latestattempt (assignment, userid, groupid,
-     * latest); assign_grades uniqueattemptgrade (assignment, userid, attemptnumber);
-     * user_enrolments (userid) and enrol primary key; user primary key; groups_members unique
-     * (userid, groupid). Bound: an aggregate per assignment over at most LIMIT assignment ids.
      *
      * @param array $assignments Assignment instance id => group id (int) to limit the count to, or
      *     null to count every participant; at most LIMIT entries are counted.
@@ -92,7 +118,40 @@ final class grading implements grading_source {
         }
         require_once($CFG->dirroot . '/mod/assign/locallib.php');
 
-        $assignments = array_slice($assignments, 0, self::LIMIT, true);
+        [$sql, $params] = self::statement(array_slice($assignments, 0, self::LIMIT, true), $now);
+        $records = $DB->get_records_sql($sql, $params);
+
+        $waiting = [];
+        foreach ($records as $assignid => $record) {
+            if ((int) $record->waiting > 0) {
+                $waiting[(int) $assignid] = (int) $record->waiting;
+            }
+        }
+
+        return $waiting;
+    }
+
+    /**
+     * The counting statement and its parameters, apart so that its shape can be tested.
+     *
+     * The assignment list is bound twice: on the assignment (a.id) and on the submissions
+     * (s.assignment). The second is what lets the database walk assign_submission's latestattempt
+     * index from the assignments asked; with the list on a.id alone PostgreSQL scans the whole
+     * table (ADR-014 amendment 11 has the measurement). The two bindings carry their own prefixes,
+     * because a named placeholder is used once per statement.
+     *
+     * Index: assign primary key; assign_submission latestattempt (assignment, userid, groupid,
+     * latest); assign_grades uniqueattemptgrade (assignment, userid, attemptnumber);
+     * user_enrolments (userid) and enrol primary key; user primary key; groups_members unique
+     * (userid, groupid). Bound: an aggregate per assignment over at most LIMIT assignment ids.
+     *
+     * @param array $assignments Assignment instance id => group id or null, at most LIMIT entries.
+     * @param int $now Unix time to treat as now.
+     * @return array [SQL, parameters].
+     */
+    public static function statement(array $assignments, int $now): array {
+        global $DB;
+
         $everyone = [];
         $bygroup = [];
         foreach ($assignments as $assignid => $groupid) {
@@ -102,9 +161,11 @@ final class grading implements grading_source {
                 $bygroup[(int) $groupid][] = (int) $assignid;
             }
         }
-        [$insql, $params] = $DB->get_in_or_equal(array_map('intval', array_keys($assignments)), SQL_PARAMS_NAMED, 'gwa');
+        $ids = array_map('intval', array_keys($assignments));
+        [$insql, $params] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'gwaid');
+        [$subsql, $subparams] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'gwsid');
         [$everyonesql, $everyoneparams] = $DB->get_in_or_equal($everyone, SQL_PARAMS_NAMED, 'gwe', true, -1);
-        $params += $everyoneparams;
+        $params += $subparams + $everyoneparams;
         // Each assignment is limited to its own group: two assignments of one course may have different
         // active groups (another grouping, another group mode), so the groups are paired with their
         // assignments rather than pooled.
@@ -127,46 +188,37 @@ final class grading implements grading_source {
             'gwnow2' => $enrolnow,
         ];
 
-        $records = $DB->get_records_sql(
-            "SELECT s.assignment, COUNT(s.userid) AS waiting
-               FROM {assign} a
-               JOIN {assign_submission} s ON s.assignment = a.id
-          LEFT JOIN {assign_grades} g ON g.assignment = s.assignment AND g.userid = s.userid
-                                     AND g.attemptnumber = s.attemptnumber
-              WHERE a.id {$insql}
-                AND a.teamsubmission = 0
-                AND a.allowsubmissionsfromdate <= :gwopened
-                AND s.status = :gwsubmitted
-                AND s.latest = 1
-                AND s.timemodified IS NOT NULL
-                AND (s.timemodified >= g.timemodified OR g.timemodified IS NULL OR g.grade IS NULL
-                     OR (a.grade < 0 AND g.grade = :gwnotset))
-                AND EXISTS (
-                    SELECT 1
-                      FROM {user_enrolments} ue
-                      JOIN {enrol} en ON en.id = ue.enrolid AND en.courseid = a.course
-                      JOIN {user} u ON u.id = ue.userid
-                     WHERE ue.userid = s.userid
-                       AND ue.status = :gwactive AND en.status = :gwenabled
-                       AND ue.timestart < :gwnow1 AND (ue.timeend = 0 OR ue.timeend > :gwnow2)
-                       AND u.deleted = 0
-                )
-                AND (a.id {$everyonesql} OR EXISTS (
-                    SELECT 1
-                      FROM {groups_members} gm
-                     WHERE gm.userid = s.userid AND ({$groupsql})
-                ))
-           GROUP BY s.assignment",
-            $params
-        );
+        $sql = "SELECT s.assignment, COUNT(s.userid) AS waiting
+                  FROM {assign} a
+                  JOIN {assign_submission} s ON s.assignment = a.id
+             LEFT JOIN {assign_grades} g ON g.assignment = s.assignment AND g.userid = s.userid
+                                        AND g.attemptnumber = s.attemptnumber
+                 WHERE a.id {$insql}
+                   AND s.assignment {$subsql}
+                   AND a.teamsubmission = 0
+                   AND a.allowsubmissionsfromdate <= :gwopened
+                   AND s.status = :gwsubmitted
+                   AND s.latest = 1
+                   AND s.timemodified IS NOT NULL
+                   AND (s.timemodified >= g.timemodified OR g.timemodified IS NULL OR g.grade IS NULL
+                        OR (a.grade < 0 AND g.grade = :gwnotset))
+                   AND EXISTS (
+                       SELECT 1
+                         FROM {user_enrolments} ue
+                         JOIN {enrol} en ON en.id = ue.enrolid AND en.courseid = a.course
+                         JOIN {user} u ON u.id = ue.userid
+                        WHERE ue.userid = s.userid
+                          AND ue.status = :gwactive AND en.status = :gwenabled
+                          AND ue.timestart < :gwnow1 AND (ue.timeend = 0 OR ue.timeend > :gwnow2)
+                          AND u.deleted = 0
+                   )
+                   AND (a.id {$everyonesql} OR EXISTS (
+                       SELECT 1
+                         FROM {groups_members} gm
+                        WHERE gm.userid = s.userid AND ({$groupsql})
+                   ))
+              GROUP BY s.assignment";
 
-        $waiting = [];
-        foreach ($records as $assignid => $record) {
-            if ((int) $record->waiting > 0) {
-                $waiting[(int) $assignid] = (int) $record->waiting;
-            }
-        }
-
-        return $waiting;
+        return [$sql, $params];
     }
 }

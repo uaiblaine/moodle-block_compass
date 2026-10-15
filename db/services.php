@@ -75,6 +75,14 @@ $functions = [
         'ajax' => true,
         'readonlysession' => true,
     ],
+    'block_compass_get_strip_counts' => [
+        'classname' => 'block_compass\\external\\get_strip_counts',
+        'methodname' => 'execute',
+        'description' => 'The closed calendar strip of the current user: plain counts by period in both views.',
+        'type' => 'read',
+        'ajax' => true,
+        'readonlysession' => true,
+    ],
     'block_compass_get_day' => [
         'classname' => 'block_compass\\external\\get_day',
         'methodname' => 'execute',

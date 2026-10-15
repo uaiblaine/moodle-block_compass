@@ -27,8 +27,9 @@ namespace block_compass\local\calendar;
 /**
  * A source of the submissions waiting to be graded, many assignments in one call.
  *
- * {@see grading::source()} is the one place that chooses the implementation; {@see grading} (core's
- * own counter, mirrored in one statement) is the only one today.
+ * {@see grading::source()} is the one place that chooses the implementation: {@see grading} (core's
+ * own counter, mirrored in one statement), or {@see tracker_grading} (block_feedback_tracker's ledger
+ * where it covers a course, core's counter elsewhere; ADR-014 amendment 11).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -43,8 +44,9 @@ interface grading_source {
      *
      * The group is the grader's active group as {@see strip::grading_groups()} mirrors core's
      * default: a group id limits the count to that group's members, null counts every participant.
-     * The count is core's count_submissions_need_grading() for that group, so a source must agree
-     * with {@see \assign::count_submissions_need_grading_with_groups()} on what waits.
+     * {@see grading} counts what core's count_submissions_need_grading() counts for that group;
+     * {@see tracker_grading} counts what block_feedback_tracker calls pending, a definition that differs
+     * from core's in the cases its docblock lists.
      *
      * @param array $assignments Assignment instance id => group id (int) or null; at most LIMIT entries are counted.
      * @param int $now Unix time to treat as now.

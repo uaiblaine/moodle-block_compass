@@ -248,6 +248,33 @@ if ($ADMIN->fulltree) {
         1
     ));
 
+    // How the strip first shows for a viewer who never toggled it; each viewer's toggle wins (ADR-014 amendment 11).
+    $settings->add(new admin_setting_configselect(
+        'block_compass/calendar_start',
+        get_string('calendar_start', 'block_compass'),
+        get_string('calendar_start_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_CALENDAR_START,
+        [
+            'open' => get_string('calendar_start_open', 'block_compass'),
+            'closed' => get_string('calendar_start_closed', 'block_compass'),
+        ]
+    ));
+
+    // Where the teaching view's grading count comes from: offered only where block_feedback_tracker is
+    // installed, because without it there is one source, core's.
+    if (\block_compass\local\calendar\grading::tracker_installed()) {
+        $settings->add(new admin_setting_configselect(
+            'block_compass/calendar_grading',
+            get_string('calendar_grading', 'block_compass'),
+            get_string('calendar_grading_desc', 'block_compass'),
+            \block_compass\local\config::DEFAULT_CALENDAR_GRADING,
+            [
+                'tracker' => get_string('calendar_grading_tracker', 'block_compass'),
+                'core' => get_string('calendar_grading_core', 'block_compass'),
+            ]
+        ));
+    }
+
     // Pre-warming: the scheduled task is always registered and gated by enable_prewarm below.
     $settings->add(new admin_setting_heading(
         'block_compass/prewarm',

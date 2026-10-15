@@ -42,6 +42,13 @@ The strip is off by default (`calendar_enabled`). When on, it sits above the fir
 Dashboard, on the Compass page, or on both (`calendar_where`), and loads after the first tier so
 the cards always paint first.
 
+- **Open or closed.** The strip's heading opens and closes it, and each user's choice is
+  remembered; `calendar_start` decides how it first shows to someone who never chose (closed by
+  default). Closed, the strip is one line of plain counts by period: *Late, still open*, *Today*,
+  *Tomorrow*, *This week* (the five days after tomorrow) and *Later*. A period opens the strip on
+  its days, and Today and Tomorrow also open that day's card. A closed strip asks only for these
+  counts, never for the whole strip; closing an open strip asks nothing. A count made before the
+  strip was opened that day has no *Late* period yet and says so.
 - **Relevance.** Graded work, starred courses and work due today or tomorrow weigh more than a
   plain event; work that is late weighs little and closed work is not shown. Each user can
   switch the weighting off and see days by count alone; `calendar_relevance` sets the starting
@@ -57,7 +64,8 @@ the cards always paint first.
   (`gradebookroles`). The teaching view counts the submissions waiting to be graded, in the same
   group core's grading page shows that teacher first, beside the class's deadlines. An
   *Everything* / *To do* / *Events* filter narrows either view. Both choices are remembered per
-  user.
+  user. Closed, the teaching line counts grading work only with `block_feedback_tracker` (below);
+  without it, it counts the class's deadlines and events, and grading shows once it is open.
 
   ![The Teaching view of the strip: days carrying grading work, and a day card listing the submissions waiting to be graded](docs/screenshots/calendar-teaching.png)
 
@@ -206,10 +214,20 @@ Configuration
 | `calendar_sources` | deadlines, course, group and site events | What the strip counts: deadlines and grading work, course events, group events, site events, personal events, category events. |
 | `calendar_style` | dots | How each day is drawn: dots, ring or pulse bars. |
 | `calendar_relevance` | on | The starting value of each user's relevance switch. |
+| `calendar_start` | closed | How the strip first shows to someone who never opened or closed it: open (the row of days) or closed (counts by period). |
+| `calendar_grading` | Feedback Flow where it tracks the course | Offered only with `block_feedback_tracker`: where the teaching view's count of submissions waiting comes from. |
 
-**`block_feedback_tracker` integration.** Nothing to configure. When that plugin is installed,
-the strip reads its academic calendar for weekends, holidays, recesses and school days on a
-weekend; without it, weekends are core's *Weekend days* calendar setting.
+**`block_feedback_tracker` integration.** When that plugin is installed, the strip reads its
+academic calendar for weekends, holidays, recesses and school days on a weekend; without it,
+weekends are core's *Weekend days* calendar setting. It also counts the submissions waiting to be
+graded from the plugin's own ledger, in the courses the plugin tracks (a Feedback Flow block on
+the course, a visible course unless its *Process hidden courses* is on), and from Moodle core
+elsewhere; `calendar_grading` can keep Moodle core for every course. The two definitions of
+waiting differ: the ledger counts a submission answered in the gradebook as answered, a team
+submission once per member, files a student in several groups under the group joined most
+recently, and leaves out a suspended enrolment only at its next sweep. Its README lists every
+difference under *What counts as pending*. Only with the ledger does the closed strip show
+grading work, led by the number of submissions waiting.
 
 **Pre-warming (optional)**
 
@@ -272,7 +290,7 @@ Capabilities
 Web services
 ------------
 
-Seven read-only functions, callable over AJAX after login, never by the guest account. Each
+Eight read-only functions, callable over AJAX after login, never by the guest account. Each
 answers for the current user (none accepts a user id) and runs without the session lock on a
 site that enables read-only sessions:
 
@@ -284,6 +302,7 @@ site that enables read-only sessions:
 | `block_compass_search_inventory` | Paged mode: up to 50 courses matching a search. |
 | `block_compass_get_card_details` | Progress and image for up to 24 courses on screen. |
 | `block_compass_get_strip` | The calendar strip: per-day counts for the window. |
+| `block_compass_get_strip_counts` | The calendar strip closed: plain counts by period. |
 | `block_compass_get_day` | One day of the strip: its items with core's actions. |
 
 Writes go to core's own services: the star through `core_course_set_favourite_courses`, the
@@ -295,7 +314,7 @@ Privacy
 
 Compass stores three user preferences of its own: `block_compass_view` (list or cards),
 `block_compass_explore` (the toolbar of *All courses* as the user left it) and
-`block_compass_calendar` (the strip's view, filter and relevance switch). The privacy provider
+`block_compass_calendar` (the strip's view, filter, relevance switch and whether it is open). The privacy provider
 declares and exports all three.
 
 Everything else it shows belongs to core and stays core's to export and delete: courses,

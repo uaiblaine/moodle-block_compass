@@ -138,12 +138,15 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
         // The tier 3 toolbar's icon-only controls: list, grid and filter glyphs; the archive
-        // boxes, the accordion's chevrons and the reload control.
-        $icons = ['list', 'grid', 'filter', 'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl', 'reload'];
+        // boxes and the accordion's chevrons. No reload glyph: a way back appears only with a
+        // failure, as RetryNotice's two text buttons (ADR-014 amendment 11).
+        $icons = ['list', 'grid', 'filter', 'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl'];
         foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
         }
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
+        $this->assertArrayNotHasKey('reload', $props['icons'], 'no permanent reload control');
+        $this->assertArrayNotHasKey('reload', $props['labels'], 'no permanent reload control');
         $this->assertArrayNotHasKey('hide', $props['icons'], 'the archive control is drawn with the archive boxes, not the eye');
         // The category line and the remembered toolbar.
         $this->assertTrue($props['showcategory']);
@@ -417,10 +420,15 @@ final class block_compass_test extends advanced_testcase {
         $this->assertSame('ring', $calendar['style']);
         $this->assertFalse($calendar['relevance'], 'the site default of the switch');
         $this->assertSame(
-            ['view' => 'teaching', 'filter' => 'todo', 'relevance' => false],
+            ['view' => 'teaching', 'filter' => 'todo', 'relevance' => false, 'open' => false],
             $calendar['state'],
-            'the remembered members, and the site default for the one never stored'
+            'the remembered members, and the site defaults for the ones never stored'
         );
+        // The closed strip counts grading work only from block_feedback_tracker's ledger: on by default
+        // where the plugin is installed, off without it, and off when the admin keeps core's count.
+        $this->assertSame(\block_compass\local\calendar\grading::tracker_installed(), $calendar['grading']);
+        set_config('calendar_grading', 'core', 'block_compass');
+        $this->assertFalse($this->props()['calendar']['grading']);
         $this->assertSame((new \core\url('/calendar/view.php', ['view' => 'month']))->out(false), $calendar['url']);
         $this->assertSame((new \core\url('/calendar/view.php', ['view' => 'day']))->out(false), $calendar['dayurl']);
         $this->assertSame('America/Sao_Paulo', $calendar['timezone']);
@@ -471,7 +479,7 @@ final class block_compass_test extends advanced_testcase {
         $this->assertSame($calkeys, $shipped, 'the strip\'s strings are exactly the cal_ strings of the language file');
 
         $files = glob($root . '/js/esm/src/Calendar*.tsx');
-        $this->assertCount(2, $files, 'CalendarStrip.tsx and CalendarCard.tsx');
+        $this->assertCount(3, $files, 'CalendarStrip.tsx, CalendarLine.tsx and CalendarCard.tsx');
         $read = [];
         foreach ($files as $file) {
             $source = file_get_contents($file);

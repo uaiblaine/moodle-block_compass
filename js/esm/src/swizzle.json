@@ -11,6 +11,10 @@
     "eject": "prohibited",
     "wrap": "prohibited"
   },
+  "CalendarLine": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
   "CalendarStrip": {
     "eject": "prohibited",
     "wrap": "prohibited"
@@ -48,10 +52,6 @@
     "wrap": "prohibited"
   },
   "Progress": {
-    "eject": "prohibited",
-    "wrap": "prohibited"
-  },
-  "Reload": {
     "eject": "prohibited",
     "wrap": "prohibited"
   },

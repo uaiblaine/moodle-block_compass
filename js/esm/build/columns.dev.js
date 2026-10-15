@@ -3,7 +3,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 /**
  * How many tracks tier 1's card grid gets, from the width the block has.
  *
- * The theme card's arithmetic (theme_boost_union_fundaseg, scss/category.scss): three tracks at
+ * A course grid's arithmetic, as the institution's theme draws its own cards: three tracks at
  * its widest, two below 1200 px, one below 576 px, with a 16 px gap. Compass measures the block,
  * not the viewport, because the block may sit in a drawer or a narrow column, so the thresholds
  * are restated as track widths: the narrowest track the theme ever draws is its two-track one at

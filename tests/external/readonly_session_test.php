@@ -43,15 +43,15 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * preference bundle into $USER->preference, which a read-only request discards and the next
  * request reloads.
  *
- * One key is tolerated, for the two calendar services only (see CALENDAR_SERVICES): the write is
+ * One key is tolerated, for two of the calendar services only (see CALENDAR_SERVICES): the write is
  * core's, not the plugin's. calendar_show_event_type() (calendar/lib.php:1995-2003) memoises the
  * default event-type filter in $SESSION->calendarshoweventtype when the user has no persisted
  * filter, and is reached through core's raw retrieval strategy (calendar_set_filters,
  * calendar/lib.php:1633-1654). In a read-only session that write is dropped and the next request
  * recomputes the same default. Core declares 'readonlysession' => true on
  * core_calendar_get_action_events_by_timesort (lib/db/services.php:283), which takes the same
- * path. Every other key still fails; test_the_tolerance_is_one_key_for_two_services is the
- * control.
+ * path. get_strip_counts gets no tolerance: its counts pass never reaches core's vault. Every other
+ * key still fails; test_the_tolerance_is_one_key_for_two_services is the control.
  *
  * @package    block_compass
  * @category   test
@@ -64,6 +64,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 #[CoversClass(search_inventory::class)]
 #[CoversClass(get_card_details::class)]
 #[CoversClass(get_strip::class)]
+#[CoversClass(get_strip_counts::class)]
 #[CoversClass(get_day::class)]
 final class readonly_session_test extends advanced_testcase {
     /** @var string[] Services that reach core's calendar filter memo, and may add the one key below. */
@@ -95,6 +96,7 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_search_inventory',
             'block_compass_get_card_details',
             'block_compass_get_strip',
+            'block_compass_get_strip_counts',
             'block_compass_get_day',
         ];
 
@@ -149,7 +151,7 @@ final class readonly_session_test extends advanced_testcase {
      */
     public function test_every_service_is_a_read_declared_read_only(): void {
         $functions = self::declared_functions();
-        $this->assertCount(7, $functions);
+        $this->assertCount(8, $functions);
 
         foreach (array_keys($functions) as $name) {
             $this->assertSame('read', $functions[$name]['type'], $name);
@@ -283,6 +285,7 @@ final class readonly_session_test extends advanced_testcase {
                 array_column($data['details'], 'hascompletion')
             ),
             'block_compass_get_strip' => $this->assertTrue($data['enabled']),
+            'block_compass_get_strip_counts' => $this->assertTrue($data['enabled']),
             'block_compass_get_day' => $this->assertSame('learning', $data['view']),
         };
         $this->assertSame([], self::unexpected_keys($name, self::changed_keys($before, $after)), "$name changed \$SESSION");
@@ -315,6 +318,10 @@ final class readonly_session_test extends advanced_testcase {
         $this->assertSame(
             ['calendarshoweventtype'],
             self::unexpected_keys('block_compass_get_attention', ['calendarshoweventtype'])
+        );
+        $this->assertSame(
+            ['calendarshoweventtype'],
+            self::unexpected_keys('block_compass_get_strip_counts', ['calendarshoweventtype'])
         );
         $this->assertSame(
             ['block_compass_probe'],

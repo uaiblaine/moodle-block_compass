@@ -7,7 +7,8 @@ opening one from disk has no runtime, so this script rewrites each artboard into
 the same template and the same logic on Preact + htm (loaded from cdn.jsdelivr.net), with the
 artboard's tweaks as a small floating panel.
 
-Usage: python3 build_standalone.py   (writes html/<artboard>.html and html/index.html)
+Usage: python3 build_standalone.py   (writes html/<artboard>.html and html/index.html; an artboard
+listed in canvas.json but absent from the folder is skipped)
 Only the subset of the format these artboards use is supported: dotted-path holes, whole and
 interpolated attribute holes, <sc-for list as>, <sc-if value>, and the hint-* attributes (dropped).
 """
@@ -163,6 +164,9 @@ def main():
     order = json.loads((HERE / 'canvas.json').read_text())['order']
     links = []
     for name in order:
+        if not (HERE / name).exists():
+            # A partial copy of the folder (a scratch directory) builds what it holds.
+            continue
         title, page = build(HERE / name)
         target = name.replace('.dc.html', '.html').lower()
         (OUT / target).write_text(page, encoding='utf-8')

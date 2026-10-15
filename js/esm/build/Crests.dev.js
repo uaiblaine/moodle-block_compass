@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { jsxDEV } from "react/jsx-dev-runtime";
 /**
- * A course's institutional crests, as theme_boost_union_fundaseg's own course card draws them.
+ * A course's institutional crests, as a theme answering the block's course_badges hook supplies them.
  *
  * A named list of images with the theme's alternative text, at most three, in two sizes: on a
  * card's cover, bottom-right, clear of the New badge (top-left) and the star (top-right); in a list

@@ -75,6 +75,7 @@ const getInventory = /* @__PURE__ */ __name(() => read("block_compass_get_invent
 const getInventoryRows = /* @__PURE__ */ __name((groupid, after, chip, sort, filters) => read("block_compass_get_inventory_rows", { groupid, after, chip, sort, filters }), "getInventoryRows");
 const searchInventory = /* @__PURE__ */ __name((query, filters) => read("block_compass_search_inventory", { query, filters }), "searchInventory");
 const getStrip = /* @__PURE__ */ __name(() => read("block_compass_get_strip", {}), "getStrip");
+const getStripCounts = /* @__PURE__ */ __name(() => read("block_compass_get_strip_counts", {}), "getStripCounts");
 const getDay = /* @__PURE__ */ __name((date, view) => read("block_compass_get_day", { date, view }), "getDay");
 const setCalendarPreference = /* @__PURE__ */ __name(async (state) => {
   const repository = await amd("core_user/repository");
@@ -114,6 +115,7 @@ export {
   getInventory,
   getInventoryRows,
   getStrip,
+  getStripCounts,
   isTransportFailure,
   onRetry,
   searchInventory,

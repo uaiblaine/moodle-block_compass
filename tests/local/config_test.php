@@ -57,6 +57,7 @@ final class config_test extends advanced_testcase {
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
             'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category', 'enable_page',
             'calendar_enabled', 'calendar_where', 'calendar_sources', 'calendar_style', 'calendar_relevance',
+            'calendar_start', 'calendar_grading',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -96,6 +97,8 @@ final class config_test extends advanced_testcase {
         $this->assertSame(['deadlines', 'course', 'group', 'site'], config::calendar_sources());
         $this->assertSame('dots', config::calendar_style());
         $this->assertTrue(config::calendar_relevance());
+        $this->assertSame('closed', config::calendar_start());
+        $this->assertSame('tracker', config::calendar_grading());
     }
 
     /**
@@ -627,6 +630,16 @@ final class config_test extends advanced_testcase {
         $this->assertSame('ring', config::calendar_style());
         set_config('calendar_style', 'Ring', 'block_compass');
         $this->assertSame('dots', config::calendar_style());
+
+        set_config('calendar_start', 'open', 'block_compass');
+        $this->assertSame('open', config::calendar_start());
+        set_config('calendar_start', '1', 'block_compass');
+        $this->assertSame('closed', config::calendar_start());
+
+        set_config('calendar_grading', 'core', 'block_compass');
+        $this->assertSame('core', config::calendar_grading());
+        set_config('calendar_grading', 'ledger', 'block_compass');
+        $this->assertSame('tracker', config::calendar_grading());
     }
 
     /**

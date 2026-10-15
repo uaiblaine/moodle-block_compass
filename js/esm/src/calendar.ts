@@ -31,7 +31,10 @@
  */
 
 import {fillObject} from './str';
-import type {CalendarFilter, CalendarKind, CalendarView, DayItem, SpecialDay, StripDay} from './types';
+import type {
+    CalendarFilter, CalendarKind, CalendarView, DayItem, Period, PeriodKey, PeriodView, SpecialDay, StripCounts, StripDay,
+    StripPayload,
+} from './types';
 
 /** One calendar day in milliseconds; exact for UTC dates. */
 const DAY_MS = 86400000;
@@ -152,6 +155,134 @@ export const windowDays = (firstday: string, today: string): string[] => {
  * @returns {number} The home offset, which is also the earliest the arrows reach.
  */
 export const homeOffset = (todayindex: number, shown: number): number => Math.max(0, todayindex - Math.floor(shown / 2));
+
+/** The closed strip's periods, in the order the line names them (strip::PERIODS). */
+export const PERIOD_KEYS: PeriodKey[] = ['late', 'today', 'tomorrow', 'week', 'later'];
+
+/** Days after tomorrow that "This week" spans (strip::WEEK_DAYS). */
+const WEEK_DAYS = 5;
+
+/** The learning kinds the closed line counts: everything still open, done excluded (strip::LEARNING_COUNTED). */
+const LEARNING_COUNTED: CalendarKind[] = ['gradedsoon', 'graded', 'todo', 'late', 'event'];
+
+/** The teaching kinds the closed line counts without the ledger (strip::TEACHING_COUNTED_CORE). */
+const TEACHING_COUNTED_CORE: CalendarKind[] = ['class', 'event'];
+
+/**
+ * One view's days summed into the closed strip's periods: the browser's twin of strip::periods()
+ * (classes/local/calendar/strip.php), which get_strip_counts answers with. It runs on an open strip's
+ * payload when the strip closes, so closing costs no request; the payload is whole, so the past is
+ * known. Keep the two in step: the boundaries, the kinds each period counts and which periods are
+ * left out.
+ *
+ * @param {object[]} days The payload view's days.
+ * @param {string} view learning or teaching.
+ * @param {string} today Y-m-d.
+ * @param {boolean} past Whether the past part is known.
+ * @param {boolean} grading Whether grading work is counted (the ledger is the source).
+ * @returns {object} The periods, in order, the unknown ones absent, and the waiting lead.
+ */
+export const periodsOf = (days: StripDay[], view: CalendarView, today: string, past: boolean, grading: boolean): PeriodView => {
+    const tomorrow = addDays(today, 1);
+    const weekend = addDays(today, 1 + WEEK_DAYS);
+    let kinds = LEARNING_COUNTED;
+    let pastkinds: CalendarKind[] = past ? ['late'] : [];
+    if (view === 'teaching') {
+        kinds = grading ? TEACHING_KINDS : TEACHING_COUNTED_CORE;
+        pastkinds = grading ? ['grade', 'gradesoon'] : [];
+    }
+    const periods = new Map<PeriodKey, Period>();
+    PERIOD_KEYS.forEach((key) => {
+        if (key !== 'late' || pastkinds.length > 0) {
+            periods.set(key, {key, count: 0, step: 0, countstep: 0, courseids: []});
+        }
+    });
+    let waiting = 0;
+    days.forEach((day) => {
+        let key: PeriodKey = 'later';
+        if (day.date < today) {
+            key = 'late';
+        } else if (day.date === today) {
+            key = 'today';
+        } else if (day.date === tomorrow) {
+            key = 'tomorrow';
+        } else if (day.date <= weekend) {
+            key = 'week';
+        }
+        if (grading && view === 'teaching') {
+            waiting += day.waiting ?? 0;
+        }
+        const period = periods.get(key);
+        if (!period) {
+            return;
+        }
+        const count = (key === 'late' ? pastkinds : kinds).reduce((sum, kind) => sum + (day[kind] ?? 0), 0);
+        if (count === 0) {
+            return;
+        }
+        period.count += count;
+        period.step = Math.max(period.step, day.step);
+        period.countstep = Math.max(period.countstep, day.countstep);
+        day.courseids.forEach((id) => {
+            if (!period.courseids.includes(id)) {
+                period.courseids.push(id);
+            }
+        });
+    });
+
+    return {periods: Array.from(periods.values()), waiting};
+};
+
+/**
+ * An open strip's payload as the closed strip's counts, summed in the browser.
+ *
+ * @param {object} payload The strip payload, whole.
+ * @param {boolean} grading Whether grading work is counted (the ledger is the source).
+ * @returns {object} The counts, in get_strip_counts's shape.
+ */
+export const countsOf = (payload: StripPayload, grading: boolean): StripCounts => {
+    const days = windowDays(payload.firstday, payload.today);
+
+    return {
+        enabled: payload.enabled,
+        today: payload.today,
+        lastday: days[days.length - 1],
+        past: true,
+        grading,
+        truncated: payload.truncated,
+        bounded: payload.bounded,
+        haslearning: payload.haslearning,
+        hasteaching: payload.hasteaching,
+        views: {
+            learning: periodsOf(payload.views.learning.days, 'learning', payload.today, true, grading),
+            teaching: periodsOf(payload.views.teaching.days, 'teaching', payload.today, true, grading),
+        },
+    };
+};
+
+/**
+ * The days of the window a period spans, for lighting them when a period opens the strip.
+ *
+ * @param {string} key The period.
+ * @param {string} firstday Y-m-d, the window's first day.
+ * @param {string} today Y-m-d.
+ * @param {string} lastday Y-m-d, the window's last day.
+ * @returns {string[]} The first and last day, inclusive.
+ */
+export const periodSpan = (key: PeriodKey, firstday: string, today: string, lastday: string): [string, string] => {
+    switch (key) {
+        case 'late':
+            return [firstday, addDays(today, -1)];
+        case 'today':
+            return [today, today];
+        case 'tomorrow':
+            return [addDays(today, 1), addDays(today, 1)];
+        case 'week':
+            return [addDays(today, 2), addDays(today, 1 + WEEK_DAYS)];
+        default:
+            return [addDays(today, 2 + WEEK_DAYS), lastday];
+    }
+};
 
 /**
  * The kinds of a view, in drawing order.

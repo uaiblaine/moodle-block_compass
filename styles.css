@@ -16,7 +16,7 @@
     --block_compass-brand-ink: var(--bs-primary, #0f6cbf);
     --block_compass-brand-onink: var(--bs-white, #fff);
     --block_compass-line: var(--bs-border-color, #dee2e6);
-    /* A control's border, the one the Reload button draws (Boost's outline-secondary, gray-600):
+    /* A control's border, the one Bootstrap's outline-secondary buttons draw (Boost's gray-600):
        4.8:1 on Boost's white card, 4.6:1 on its gray-100 page, and in Boost 5.3's dark mode, which
        maps gray-600 to gray-400, 7.7:1 on the raised card and 10.8:1 on the page: all over the 3:1
        a control's edge needs. The
@@ -115,29 +115,6 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     margin-bottom: 1.25rem;
 }
 
-/* The block's own top-right corner: the title bar beside it is core's, so the reload control
-   sits on the first row of the content, pushed to the right. */
-.block_compass .compass-content-head {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.block_compass .compass-reload {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 1.5rem;
-    min-height: 1.5rem;
-    line-height: 1;
-}
-
-.block_compass .compass-reload:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
-    outline-offset: 2px;
-}
-
 /* The block's own page (index.php, on the base layout) keeps its content to 1080 px, centred: the
    theme's content box is full width on that layout. Keyed on the page's body id, which is the
    plugin's own and outweighs Boost's #page.drawers .main-inner. */
@@ -145,62 +122,14 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     max-width: 1080px;
 }
 
-/* The page without its title, keyed on the body class index.php adds:
-   the theme got an empty heading and its header holds nothing, so the header collapses to no
-   height (its inner margins are Bootstrap utilities, which win by weight, so they are boxed in
-   rather than fought); the page carries its own h1, visually hidden by core's class; and the
-   reload control leaves its row for the page's top-right corner, with the first row of content
-   padded away from it. The control is stacked above that row: the calendar strip, the first row
-   when it is on, is positioned, and a positioned box later in the page paints over an earlier one
-   of the same level, so its header took the control's clicks (z-index 4: above the strip's edge
-   fades, below an open day's card). */
+/* The page without its title, keyed on the body class index.php adds: the theme got an empty
+   heading and its header holds nothing, so the header collapses to no height (its inner margins are
+   Bootstrap utilities, which win by weight, so they are boxed in rather than fought); the page
+   carries its own h1, visually hidden by core's class. Nothing of the block's sits in the corner
+   the title leaves: there is no permanent reload control (ADR-014 amendment 11). */
 .block_compass-notitle #page-header {
     height: 0;
     overflow: hidden;
-}
-
-.block_compass-notitle .compass-page {
-    position: relative;
-}
-
-.block_compass-notitle .compass-page .compass-content-head {
-    position: absolute;
-    top: 0;
-    inset-inline-end: 0;
-    z-index: 4;
-    margin: 0;
-}
-
-.block_compass-notitle .compass-page .compass-cal-head,
-.block_compass-notitle .compass-page .compass-strip:first-of-type .compass-strip-head,
-.block_compass-notitle .compass-page .compass-explore:first-of-type .compass-explore-title,
-.block_compass-notitle .compass-page .compass-status,
-.block_compass-notitle .compass-page .compass-retry {
-    padding-inline-end: 2.5rem;
-}
-
-.block_compass .compass-reload-glyph {
-    display: inline-flex;
-}
-
-.block_compass .compass-reload-spin {
-    animation: block_compass-spin 1000ms linear infinite;
-}
-
-@keyframes block_compass-spin {
-    from {
-        transform: rotate(0deg);
-    }
-
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .block_compass .compass-reload-spin {
-        animation: none;
-    }
 }
 
 /* The way back from a failure: the message, then Try again and Reload page pushed to the end
@@ -1110,7 +1039,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     text-align: center;
 }
 
-/* The header's controls, Reload and the calendar link draw one border, --block_compass-control-line. */
+/* The header's controls and the calendar link draw one border, --block_compass-control-line. */
 .block_compass .compass-cal-iconbtn,
 .block_compass .compass-cal-todaybtn {
     display: inline-flex;
@@ -1679,11 +1608,14 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     margin: 0;
 }
 
+/* "Open the calendar": an icon link at the header's end, 40 px, named by its label and its tooltip. */
 .block_compass .compass-cal-link {
     display: inline-flex;
     align-items: center;
-    height: 2.375rem;
-    padding: 0 0.75rem;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
     border: 1px solid var(--block_compass-control-line);
     border-radius: 0.6rem;
     background: var(--block_compass-surface);
@@ -1699,6 +1631,189 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     flex-basis: 100%;
     margin: 0;
     color: var(--block_compass-muted);
+}
+
+/* The strip's heading holds its disclosure toggle (ADR-014 amendment 11): the heading's size is the
+   toggle's, and the toggle is a 44 px target. */
+.block_compass .compass-cal-title {
+    display: inline-flex;
+    margin: 0;
+    font-size: 1rem;
+}
+
+.block_compass .compass-cal-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 2.75rem;
+    padding: 0 0.75rem 0 0.25rem;
+    border: 0;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--block_compass-cal-text);
+    font-size: 1rem;
+    font-weight: 600;
+    transition: background-color 120ms ease;
+}
+
+.block_compass .compass-cal-toggle:hover {
+    background: var(--block_compass-cal-soft);
+}
+
+/* Core's chevron pair, shown and hidden by core's icons-collapse-expand rule, inline as a tier 3
+   group's is (.compass-group-chevron says why). */
+.block_compass .compass-cal-togglechev {
+    display: inline-flex;
+    align-items: center;
+    color: var(--block_compass-brand-text);
+}
+
+/* Closed, the strip is one band: the toggle, the waiting lead, the periods and the controls. */
+.block_compass .compass-cal-closed {
+    padding-bottom: 0.75rem;
+}
+
+.block_compass .compass-cal-closed .compass-cal-head {
+    justify-content: flex-start;
+    gap: 0.5rem 0.75rem;
+}
+
+.block_compass .compass-cal-closed .compass-cal-controls {
+    margin-inline-start: auto;
+}
+
+.block_compass .compass-cal-lead,
+.block_compass .compass-cal-linenote {
+    margin: 0;
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+}
+
+.block_compass .compass-cal-lead {
+    color: var(--block_compass-cal-text);
+    font-weight: 600;
+}
+
+.block_compass .compass-cal-periods {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.375rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* A period: its label, then its plain count on the heat disc of its busiest day. */
+.block_compass .compass-cal-period,
+.block_compass .compass-cal-psk {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    min-width: 6.5rem;
+    min-height: 3.5rem;
+    padding: 4px 12px 5px 10px;
+}
+
+.block_compass .compass-cal-period {
+    border: 0;
+    border-radius: 0.6rem;
+    background: transparent;
+    color: var(--block_compass-cal-text);
+    text-align: start;
+    transition: background-color 120ms ease, opacity 180ms ease;
+}
+
+.block_compass .compass-cal-period:hover {
+    background: var(--block_compass-cal-soft);
+}
+
+.block_compass .compass-cal-plabel {
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.block_compass .compass-cal-period-today .compass-cal-plabel {
+    color: var(--block_compass-cal-text);
+    font-weight: 700;
+}
+
+.block_compass .compass-cal-pchip {
+    display: inline-grid;
+    place-items: center;
+    min-width: 2.125rem;
+    height: 1.75rem;
+    padding: 0 0.5625rem;
+    border-radius: 0.875rem;
+    color: var(--block_compass-cal-text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.block_compass .compass-cal-pchip.compass-cal-heat-0 {
+    min-width: 0;
+    padding: 0 2px;
+}
+
+/* The two strongest steps keep a dark numeral, as a day's disc does. */
+.block_compass .compass-cal-period:not(.compass-cal-period-today) .compass-cal-pchip.compass-cal-heat-3,
+.block_compass .compass-cal-period:not(.compass-cal-period-today) .compass-cal-pchip.compass-cal-heat-4 {
+    color: var(--bs-dark, #212529);
+}
+
+/* Today's number is the ink disc, ringed by its heat from the second step, as today's day is. */
+.block_compass .compass-cal-period-today .compass-cal-pchip {
+    min-width: 2.125rem;
+    padding: 0 0.5625rem;
+    background: var(--block_compass-cal-ink);
+    color: var(--block_compass-cal-onink);
+}
+
+.block_compass .compass-cal-period-today .compass-cal-pchip.compass-cal-heat-2 {
+    box-shadow: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-heat-2);
+}
+
+.block_compass .compass-cal-period-today .compass-cal-pchip.compass-cal-heat-3 {
+    box-shadow: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-heat-3);
+}
+
+.block_compass .compass-cal-period-today .compass-cal-pchip.compass-cal-heat-4 {
+    box-shadow: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-heat-4);
+}
+
+/* Late work's number has no disc: it is the danger text, the theme's dark-aware emphasis of it. */
+.block_compass .compass-cal-period-past .compass-cal-pchip {
+    color: var(--bs-danger-text-emphasis, var(--block_compass-cal-danger));
+}
+
+.block_compass .compass-cal-period-zero .compass-cal-pchip {
+    color: var(--block_compass-muted);
+    font-weight: 600;
+}
+
+/* A tier 1 card pointed at: the periods holding its course are ringed, the others dimmed, as the
+   open row's days are; the ring carries the meaning, the dim only supports it. */
+.block_compass .compass-cal-period.compass-cal-period-dim {
+    opacity: 0.3;
+}
+
+.block_compass .compass-cal-period.compass-cal-period-match .compass-cal-pchip {
+    outline: 2px solid var(--block_compass-cal-accent);
+    outline-offset: 2px;
+}
+
+.block_compass .compass-cal-sk-plabel {
+    width: 3.6rem;
+    height: 0.7rem;
+}
+
+.block_compass .compass-cal-sk-pchip {
+    width: 2.4rem;
+    height: 1.625rem;
+    border-radius: 0.875rem;
 }
 
 /* The skeleton: the same rows at the same heights, shimmering unless motion is reduced. */
@@ -1718,11 +1833,6 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-sk-month {
     width: 16rem;
-    height: 2.375rem;
-}
-
-.block_compass .compass-cal-sk-controls {
-    width: 18rem;
     height: 2.375rem;
 }
 
@@ -2194,6 +2304,35 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-narrow .compass-cal-arrow {
     display: none;
+}
+
+/* Closed on a narrow block (the phone of the mockup): the band wraps into a block, the periods a
+   grid of equal cells with their short labels, each a 62 px target. */
+.block_compass .compass-cal-narrow .compass-cal-periods {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    flex-basis: 100%;
+    gap: 2px;
+    order: 2;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-period,
+.block_compass .compass-cal-narrow .compass-cal-psk {
+    align-items: center;
+    min-width: 0;
+    min-height: 3.875rem;
+    padding: 4px;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-plabel {
+    font-size: 0.72rem;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-lead,
+.block_compass .compass-cal-narrow .compass-cal-linenote {
+    flex-basis: 100%;
+    order: 3;
 }
 
 @media (prefers-reduced-motion: reduce) {

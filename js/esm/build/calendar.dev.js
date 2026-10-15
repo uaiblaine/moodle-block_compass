@@ -53,6 +53,91 @@ const windowDays = /* @__PURE__ */ __name((firstday, today) => {
   return days;
 }, "windowDays");
 const homeOffset = /* @__PURE__ */ __name((todayindex, shown) => Math.max(0, todayindex - Math.floor(shown / 2)), "homeOffset");
+const PERIOD_KEYS = ["late", "today", "tomorrow", "week", "later"];
+const WEEK_DAYS = 5;
+const LEARNING_COUNTED = ["gradedsoon", "graded", "todo", "late", "event"];
+const TEACHING_COUNTED_CORE = ["class", "event"];
+const periodsOf = /* @__PURE__ */ __name((days, view, today, past, grading) => {
+  const tomorrow = addDays(today, 1);
+  const weekend = addDays(today, 1 + WEEK_DAYS);
+  let kinds = LEARNING_COUNTED;
+  let pastkinds = past ? ["late"] : [];
+  if (view === "teaching") {
+    kinds = grading ? TEACHING_KINDS : TEACHING_COUNTED_CORE;
+    pastkinds = grading ? ["grade", "gradesoon"] : [];
+  }
+  const periods = /* @__PURE__ */ new Map();
+  PERIOD_KEYS.forEach((key) => {
+    if (key !== "late" || pastkinds.length > 0) {
+      periods.set(key, { key, count: 0, step: 0, countstep: 0, courseids: [] });
+    }
+  });
+  let waiting = 0;
+  days.forEach((day) => {
+    let key = "later";
+    if (day.date < today) {
+      key = "late";
+    } else if (day.date === today) {
+      key = "today";
+    } else if (day.date === tomorrow) {
+      key = "tomorrow";
+    } else if (day.date <= weekend) {
+      key = "week";
+    }
+    if (grading && view === "teaching") {
+      waiting += day.waiting ?? 0;
+    }
+    const period = periods.get(key);
+    if (!period) {
+      return;
+    }
+    const count = (key === "late" ? pastkinds : kinds).reduce((sum, kind) => sum + (day[kind] ?? 0), 0);
+    if (count === 0) {
+      return;
+    }
+    period.count += count;
+    period.step = Math.max(period.step, day.step);
+    period.countstep = Math.max(period.countstep, day.countstep);
+    day.courseids.forEach((id) => {
+      if (!period.courseids.includes(id)) {
+        period.courseids.push(id);
+      }
+    });
+  });
+  return { periods: Array.from(periods.values()), waiting };
+}, "periodsOf");
+const countsOf = /* @__PURE__ */ __name((payload, grading) => {
+  const days = windowDays(payload.firstday, payload.today);
+  return {
+    enabled: payload.enabled,
+    today: payload.today,
+    lastday: days[days.length - 1],
+    past: true,
+    grading,
+    truncated: payload.truncated,
+    bounded: payload.bounded,
+    haslearning: payload.haslearning,
+    hasteaching: payload.hasteaching,
+    views: {
+      learning: periodsOf(payload.views.learning.days, "learning", payload.today, true, grading),
+      teaching: periodsOf(payload.views.teaching.days, "teaching", payload.today, true, grading)
+    }
+  };
+}, "countsOf");
+const periodSpan = /* @__PURE__ */ __name((key, firstday, today, lastday) => {
+  switch (key) {
+    case "late":
+      return [firstday, addDays(today, -1)];
+    case "today":
+      return [today, today];
+    case "tomorrow":
+      return [addDays(today, 1), addDays(today, 1)];
+    case "week":
+      return [addDays(today, 2), addDays(today, 1 + WEEK_DAYS)];
+    default:
+      return [addDays(today, 2 + WEEK_DAYS), lastday];
+  }
+}, "periodSpan");
 const kindsOf = /* @__PURE__ */ __name((view) => view === "teaching" ? TEACHING_KINDS : LEARNING_KINDS, "kindsOf");
 const shownKinds = /* @__PURE__ */ __name((view, filter) => {
   const kinds = kindsOf(view);
@@ -231,9 +316,11 @@ export {
   BOUND_KINDS,
   LEARNING_KINDS,
   OPEN_KINDS,
+  PERIOD_KEYS,
   TEACHING_KINDS,
   addDays,
   clockTime,
+  countsOf,
   dateParts,
   dayMonth,
   dayOff,
@@ -248,6 +335,8 @@ export {
   marks,
   monthName,
   monthYear,
+  periodSpan,
+  periodsOf,
   score,
   settle,
   shortWeekday,
