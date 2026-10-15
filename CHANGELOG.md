@@ -92,7 +92,7 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
   and the search runs on the server.
 - The view, the sort, the chips and the open filter panel are remembered for each user.
 - "No completion configured" is said to teachers only.
-- With the Boost Union FUNDASEG theme, cards and rows show the course's institutional crests.
+- With a theme answering the `course_badges` hook, cards and rows show the course's institutional crests.
 - A failed read retries itself, then offers *Try again* and *Reload page*. There is no
   permanent reload control: the way back appears only once a load has failed.
 

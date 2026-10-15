@@ -766,7 +766,7 @@ Four rules the fleet paid for elsewhere and this plugin inherits:
   never derive it from `$USER` inside the wrapper. `$USER` is not constant per
   process (`\core\session\manager::set_user()` in CLI, adhoc tasks and "log in
   as"), and the failure is one person's inventory handed to the next
-  (`theme_boost_union_fundaseg`).
+  (the institution's Boost Union child theme).
 - **Deleting an account drops what the caches hold about it**; a provider that leaves
   derived data cached has erased nothing (`mod_interactivevideo`). Here the privacy provider owns
   no `delete_*` path (its data is two preferences, which core deletes), so the per-user
@@ -1284,7 +1284,7 @@ the following defaults flip, deliberately:
 - Re-run `mdl phpunit-init m502` when any mounted `version.php` moved, including
   another session's. A CSS change is invisible to Behat until `mdl behat-init`
   re-runs — the behat site serves theme CSS built at init time
-  (`theme_boost_union_fundaseg`).
+  (the institution's Boost Union child theme).
 - Never run Behat and `mdl ci` on the same stack at the same time (measured 9
   → 110 minutes with spurious WebDriver failures); the parallel run goes to
   m502b, where the per-stack lock is what `mdl mutate` relies on.

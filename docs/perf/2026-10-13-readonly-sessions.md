@@ -39,7 +39,7 @@ changes to it are discarded at the end of a read-only request.
   `get_fast_modinfo()` (the `cm_info_dynamic` callbacks of the mounted modules were checked;
   `interactivevideo_cm_info_dynamic()` returns before its session-writing helper outside a page
   that lists activities), `core/course_image` (an application cache), `format_string()`, and the
-  theme's `course_badges` callback (`theme_boost_union_fundaseg/lib.php:458`), whose call chain
+  theme's `course_badges` callback (the institution's Boost Union child theme, `lib.php:458`), whose call chain
   does not reach the theme's three `$SESSION` writers, which handle page requests.
 
 `tests/external/readonly_session_test.php` holds this in place:
