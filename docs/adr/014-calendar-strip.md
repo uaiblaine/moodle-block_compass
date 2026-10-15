@@ -954,6 +954,9 @@ with. The decision text above is kept as the maintainer reviewed it.
       the grading source"): one gate per guard named above, each claimed by its test. The ledger's
       pending rule is swept only on a stack that mounts the plugin
       (`cal_tracker_ledger_current.pl`, as amendment 10's window bound).
+    - **The language is a hit condition** (2026-10-15): the entry and the days opened in it hold
+      localised text, so it records `current_language()` and is a miss, rebuilt whole, in another
+      language (`cal_cache_lang.pl`, `cal_strip_records_lang.pl`).
     - **Behat.** The calendar scenario starts closed and checks the line and axe. It makes opening
       fail at the transport: a test step wraps `XMLHttpRequest` to send `get_strip` to a missing
       script, so nothing in the plugin knows about it. It checks that the way back appears only
