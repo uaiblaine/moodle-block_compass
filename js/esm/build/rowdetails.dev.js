@@ -18,6 +18,11 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  *   scrolling back over it costs nothing, and ids the server declined (an enrolment that
  *   ended, say) are marked filled too or they would be asked for on every scroll.
  *
+ * A failed batch is not asked again on a scroll: the hook says it failed, and the region offers
+ * Try again (RetryNotice), which re-watches the failed rows still on the page so the ones in view
+ * are asked once more. There is no other way back: the block has no permanent reload control
+ * (ADR-014 amendment 11).
+ *
  * @module     block_compass/rowdetails
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -27,9 +32,10 @@ import { getCardDetails } from "./repository";
 const BATCH = 24;
 const BUFFER_PX = 200;
 const FLUSH_MS = 100;
-const useRowDetails = /* @__PURE__ */ __name((onerror) => {
+const useRowDetails = /* @__PURE__ */ __name(() => {
   const [records, setRecords] = useState({});
   const [waiting, setWaiting] = useState({});
+  const [failed, setFailed] = useState(false);
   const pending = useRef(/* @__PURE__ */ new Set());
   const inflight = useRef([]);
   const filled = useRef(/* @__PURE__ */ new Set());
@@ -37,11 +43,7 @@ const useRowDetails = /* @__PURE__ */ __name((onerror) => {
   const elementofid = useRef(/* @__PURE__ */ new Map());
   const observer = useRef(null);
   const timer = useRef(null);
-  const reported = useRef(false);
-  const latesterror = useRef(onerror);
-  useEffect(() => {
-    latesterror.current = onerror;
-  }, [onerror]);
+  const failedids = useRef(/* @__PURE__ */ new Set());
   const stop = useCallback(() => {
     if (timer.current !== null) {
       window.clearInterval(timer.current);
@@ -81,10 +83,8 @@ const useRowDetails = /* @__PURE__ */ __name((onerror) => {
       });
       setRecords((current) => ({ ...current, ...arrived }));
     } catch (e) {
-      if (!reported.current) {
-        reported.current = true;
-        latesterror.current();
-      }
+      batch.forEach((id) => failedids.current.add(id));
+      setFailed(true);
     } finally {
       batch.forEach(release);
       inflight.current = [];
@@ -156,6 +156,24 @@ const useRowDetails = /* @__PURE__ */ __name((onerror) => {
       drop(id);
     };
   }, [drop, want]);
+  const retry = useCallback(() => {
+    const ids = Array.from(failedids.current);
+    failedids.current.clear();
+    setFailed(false);
+    ids.forEach((id) => {
+      filled.current.delete(id);
+      const element = elementofid.current.get(id);
+      if (!element) {
+        return;
+      }
+      if (observer.current) {
+        observer.current.unobserve(element);
+        observer.current.observe(element);
+      } else {
+        want(id);
+      }
+    });
+  }, [want]);
   useEffect(() => () => {
     observer.current?.disconnect();
     observer.current = null;
@@ -164,7 +182,7 @@ const useRowDetails = /* @__PURE__ */ __name((onerror) => {
       timer.current = null;
     }
   }, []);
-  return { records, waiting, observe };
+  return { records, waiting, failed, retry, observe };
 }, "useRowDetails");
 export {
   useRowDetails

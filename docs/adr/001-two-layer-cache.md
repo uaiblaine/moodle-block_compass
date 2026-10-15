@@ -556,3 +556,10 @@ Pinned by `explore_test::test_a_course_queued_for_deletion_leaves_tier_3_at_once
 `…_is_left_out_for_a_hidden_course_viewer`, `attention_test::test_a_course_queued_for_deletion_leaves_tier_1_for_a_hidden_course_viewer`
 and `hook_callbacks_test::test_queuing_a_deletion_drops_the_course_entry` and its three siblings, with the gates
 `deletion_hook_forget`, `deletion_forget_now`, `deletion_forget_shutdown`, `explore_deleting` and `attention_not_deleting`.
+
+## Amendment (2026-10-15): localised text in a cache
+
+None of the four layers above stores localised text (raw names, ids and numbers; the formatting
+happens at read time), so none is keyed by language. A cache that does store it, as the
+`calendarstrip` entry does (ADR-014 decision 8), must record `current_language()` and treat
+another language as a miss.

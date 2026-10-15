@@ -227,16 +227,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // that is no longer in the population it searched.
     const [searchgen, setSearchgen] = useState(0);
 
-    /**
-     * Say once that some progress did not arrive; the hook calls this at most once.
-     *
-     * @returns {void}
-     */
-    const detailsfailed = useCallback((): void => {
-        notify(labels.progresserror || '');
-    }, [labels.progresserror]);
-
-    const details = useRowDetails(detailsfailed);
+    // Progress and images for the rows in view; a failed batch is offered Try again below the toolbar.
+    const details = useRowDetails();
 
     const section = useRef<HTMLElement>(null);
     // The toolbar state as last read or written, so the mount - where React runs every effect
@@ -1255,6 +1247,9 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 onSelect={chooseSelection}
                 onClear={clearFilters}
             />
+            {details.failed && (
+                <RetryNotice message={labels.progresserror} retrying={false} config={config} onRetry={details.retry} />
+            )}
             <div className="compass-explore-body">
                 {showindex && (
                     <nav className="compass-index" aria-label={labels.categoryindex}>
@@ -1339,7 +1334,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                                             {/* Never the disabled attribute while its own run is
                                                 out: the focused button would drop the keyboard to
                                                 the body and "Archiving…" would be said to nobody
-                                                (see Reload.tsx). archiveAll() refuses a press
+                                                (see RetryNotice.tsx). archiveAll() refuses a press
                                                 while busy. Bootstrap's disabled class is kept for
                                                 its look: its pointer-events: none passes a click
                                                 to the group's toolbar beneath, which has no

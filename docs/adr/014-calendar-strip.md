@@ -836,6 +836,134 @@ with. The decision text above is kept as the maintainer reviewed it.
       `accessibility_rules_test::test_marks_go_through_the_dark_aware_ink` pins the pairing (axe
       checks text, not marks).
 
+11. **The strip closed, a remembered collapse, the counts service, no permanent reload, and the
+    grading source (the maintainer's decisions of 2026-10-14), version 2026042001 (2026100501 on
+    MOODLE_503_STABLE).** Accepted.
+    The design is `docs/mockup-calendar-strip/Slim.dc.html` and its record `slim-notes.md`
+    (option B, decisions 1 to 8).
+    - **No permanent reload control.** The always-visible Reload (`Reload.tsx`, the content head)
+      is gone, with its strings, glyph, corner CSS and the rules that kept it clickable without the
+      page title. A way back appears only once a load has failed, as block_feedback_tracker's
+      RetryNotice does: *Try again* and *Reload page* (`js/esm/src/RetryNotice.tsx`). Every failed
+      read keeps its notice (tier 1 and its progress, tier 3's inventory, groups and search, the
+      strip, the counts, a day). Tier 3's progress and images, which only notified before, now
+      offer Try again too: the hook re-watches the failed rows still on the page
+      (`js/esm/src/rowdetails.ts`, `retry`). Tier 1's Try again asks tier 1 again and then bumps the strip's turn, and the strip
+      asks again only for what of its own failed (`js/esm/src/Block.tsx`, `retry`). When the notice
+      leaves with the keyboard on it, focus goes to the group's summary, else to the strip's
+      toggle, else to the block's root, which takes focus with `tabIndex={-1}`
+      (`RetryNotice.tsx:62-75`, `Block.tsx:441`; WCAG 2.4.3).
+    - **Closed is the strip's other state, not a fourth style** (option B). The heading holds a
+      disclosure toggle, a `button` with `aria-expanded` and `aria-controls` naming the row's
+      region, which is rendered closed too, empty and `hidden`
+      (`js/esm/src/CalendarStrip.tsx`, `frame()`). Closed, the header line holds, after the
+      toggle, the Studying / Teaching switch and the calendar link (an icon link named by its label
+      and title), five periods with plain counts (`js/esm/src/CalendarLine.tsx`): *Late, still
+      open*; *Today*; *Tomorrow*; *This week*, the five days after tomorrow (not core's calendar
+      week); *Later*, to the window's end. There are no kind marks, no "up to", no needle, no days
+      off, no legend, and the stored filter is not applied. The number sits on the heat disc of the
+      period's busiest day (the open question of the notes, kept as drawn; the relevance switch
+      picks the step or the count step), Today's on the ink disc, and Late's in the danger
+      emphasis with no disc. A period's button says one sentence ("This week: 8 items. Opens the
+      strip on these days."). The polite live region says the summary once when the counts
+      arrive. A period opens the strip on its days, lit with the strip's lighting; the keyboard
+      waits on the toggle while the row loads (the period's button leaves with the line), then
+      moves to the period's first day holding work (the last, for the past). Today and Tomorrow also pin that
+      day's card, whose `get_day` leaves only after `get_strip` answered. Below 640 px of the block
+      the periods are a grid of equal 62 px cells with short labels.
+    - **The toggle is remembered** as the `open` member of `block_compass_calendar`, a JSON
+      boolean validated like `relevance` (`classes/local/calendar_preference.php:115`). A viewer
+      who never toggled gets `calendar_start` (Open / Closed, default Closed; `settings.php:252`,
+      `classes/local/config.php:450`). The shell ships the state with the props, so the first
+      render is the right shape: the row's skeleton open, the line's skeleton closed. The write is
+      optimistic and is put back with a notice (`cal_toggleerror`) if it fails while it is still
+      the last write (`CalendarStrip.tsx:768`), as block_feedback_tracker's dashboard does.
+    - **Requests.** Closed, the strip sends `get_strip_counts` once `get_attention` settles, and no
+      `get_strip` or `get_day` (the guards at `CalendarStrip.tsx:493` and `:539`, pinned by
+      `accessibility_rules_test::test_a_closed_strip_asks_only_for_its_counts`). Opening sends
+      `get_strip` once. Closing sends nothing: the line is summed in the browser from the payload in
+      hand (`js/esm/src/calendar.ts`, `countsOf()` and `periodsOf()`, the twin of
+      `strip::periods()`), and then knows Late. The pending hold (`pending.ts`) covers what the
+      state waits for: the counts closed, the row open, and either one while its Try again is out
+      (`CalendarStrip.tsx:463`). It never waits for a `get_strip` that a closed strip does not send.
+    - **`block_compass_get_strip_counts`** (`classes/external/get_strip_counts.php`, `db/services.php`,
+      `readonlysession`, no parameters, current user only). A fresh `calendarstrip` entry, whole or
+      counted only, is summed into periods at no domain read (`strip::counts()`,
+      `classes/local/calendar/strip.php:150`; `periods()`, `:418`). A stale entry is replaced by
+      the counts pass, `compute()` with `$whole` false (`:585`). The pass skips `past()` (`:636`)
+      and the days off (`:641`). It keeps the counted statement, the per-row `uservisible` checks
+      with the restricted rows' modinfo (amendment 2), and grading only when the ledger is the
+      source (`:629`). Otherwise each visible grading candidate is kept in the entry as a fact,
+      its module context's preload columns with it. The entry is stored flagged `past` false
+      (`classes/local/calendar_cache.php:144`, `is_complete()` at `:155`). `get_strip` on such an
+      entry completes it (`strip::complete()`, `:249`): it counts the deferred candidates (no
+      context read), runs `past()` to the entry's build instant, not to now (`:267`), so a
+      deadline that passed in between is counted once, and reads the days off. A day needs only
+      the sets, so `get_day` never completes an entry (`classes/local/calendar/day.php:109`). Late
+      is left out of a count without the past part, and the line says "Late work shows once the
+      strip has been opened today". Grading overdue needs the ledger, not the past part: it comes
+      from the counted statement's past `gradingdue` rows.
+    - **Budgets, measured** (`tests/external/get_strip_counts_budget_test.php`, the protocol of
+      `get_strip_budget_test`, its learner fixture; PostgreSQL, PHP 8.4, without
+      block_feedback_tracker): a fresh entry **2** (the floor); the counts pass **11** cold and
+      **11** warm through the service; opening after a count **6** (7 with block_feedback_tracker:
+      its calendar's statement), against a whole build's ≤ 61. A learner has no grading
+      candidates, so the ledger changes none of these. The slim notes estimated about 11.
+    - **Teaching closed.** With block_feedback_tracker's ledger as the source, the line leads with
+      "N submissions waiting to grade" (the window's waiting count) and counts Grading overdue and
+      the grading work of each period. Without it, it counts the class's deadlines and events, and
+      says "Grading work shows when the strip is open". The shell ships the flag (`grading`,
+      `classes/output/block.php`), so a collapse sums the payload by the same rule.
+      The entry records the source it was built under (`grading`, tracker or core) and that source
+      is a fifth hit condition, so flipping `calendar_grading` or installing or removing the
+      plugin rebuilds a fresh entry instead of summing it under the other source; `counts()` sums
+      by the recorded source.
+    - **The grading source.** Core's count is mirrored by `grading::waiting()`. It now binds the
+      assignment list on `s.assignment` as well as `a.id` (`classes/local/calendar/grading.php:197`):
+      with the filter on `a.id` alone PostgreSQL scanned `assign_submission`. Measured on a
+      million submissions (scratchpad grading bench, 2026-10-14): 266 ms at 10 assignments, 600 to
+      700 ms at 500, against 44 ms (8 ms with the group predicate) and 518 / 206 ms with the second
+      binding. A test pins the statement's shape (`grading_test::test_the_submissions_are_read_by_the_assignment_list`).
+      With block_feedback_tracker installed, `grading::source()` (`:75`) returns
+      `tracker_grading` by default (`calendar_grading`, offered only with the plugin; `core` keeps
+      core's count for every course). It works in three statements, the last two only when they
+      have work:
+      - coverage, by the plugin's own gate (a feedback_tracker block on the course's own context,
+        the course visible unless `process_hidden_courses`), bounded by the assignments asked
+        rather than the plugin's site-wide `processable_course_ids()`
+        (`classes/local/calendar/tracker_grading.php:130`);
+      - the ledger, `block_feedback_tracker_sub`, with the plugin's definition of pending, as its
+        rollup counts it: submitted, latest, current cycle, `timegraded` null (`:168`);
+      - core's count for the rest (`:83`).
+
+      The definitions differ, and the maintainer prefers the plugin's (its README, "What counts as
+      pending"):
+      - a gradebook grade answers a submission;
+      - a team assignment waits once per member;
+      - grader submissions are left out;
+      - a suspended enrolment leaves only at its sweep;
+      - an unreleased mark can stay pending;
+      - a student is filed under one group, the one joined most recently (`group_resolver`).
+
+      The grader's default active group therefore filters on the ledger's `groupid`: a student of
+      that group filed under another of their groups is not counted for it. The ledger costs 1 to
+      14 ms and the coverage 0.1 to 0.2 ms for 250 courses (the bench above). Budgets: with the
+      ledger active and grading work in a teaching day or a rebuild, the coverage statement adds
+      one read, and the ledger or core's count are one each, only when they have assignments; no
+      fixture without the plugin changes.
+    - **Evidence of the guards** (`mutations/gates.conf`, section "The strip closed, its counts and
+      the grading source"): one gate per guard named above, each claimed by its test. The ledger's
+      pending rule is swept only on a stack that mounts the plugin
+      (`cal_tracker_ledger_current.pl`, as amendment 10's window bound).
+    - **The language is a hit condition** (2026-10-15): the entry and the days opened in it hold
+      localised text, so it records `current_language()` and is a miss, rebuilt whole, in another
+      language (`cal_cache_lang.pl`, `cal_strip_records_lang.pl`).
+    - **Behat.** The calendar scenario starts closed and checks the line and axe. It makes opening
+      fail at the transport: a test step wraps the page's transport (`XMLHttpRequest` on 5.2, `fetch`
+      on 5.3, whose `core/ajax` is an ES module) to send `get_strip` to a missing
+      script, so nothing in the plugin knows about it. It checks that the way back appears only
+      then and that Try again brings the row, then opens a day as before, with axe in both modes.
+
 ## Consequences
 
 **Positive**

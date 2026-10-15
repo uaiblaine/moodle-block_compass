@@ -42,7 +42,15 @@ use core_cache\cache;
  *   ({@see calendar\strip::revalidated()}); the strip's own hit (is_fresh()) does not, so it stays
  *   at no database read;
  * - days: the days opened during this sign-in, keyed "<view>_<Y-m-d>", so that reopening one on a
- *   later page view costs nothing.
+ *   later page view costs nothing;
+ * - past: whether the payload is whole. False for the counts pass of a closed strip (ADR-014
+ *   amendment 11), which leaves out the past, the days off and, without block_feedback_tracker's
+ *   ledger, the grading count; {@see calendar\strip::complete()} adds them when the strip opens. An
+ *   entry without the key is whole;
+ * - deferred: the grading candidates such a pass left uncounted, as facts (no objects), empty otherwise;
+ * - lang: current_language() when it was built. The payload and the opened days hold localised text
+ *   (days-off labels, item names through the multilang filters, core's action names, times), so an
+ *   entry built in another language is a miss, rebuilt whole.
  *
  * An entry is served only when is_fresh() holds; anything else is rebuilt and replaces it whole,
  * days included. A miss is false, never an empty array.
@@ -78,10 +86,14 @@ final class calendar_cache {
     }
 
     /**
-     * Whether an entry may be served: the four hit conditions of ADR-014 decision 8, all of them.
+     * Whether an entry may be served: the four hit conditions of ADR-014 decision 8, the grading
+     * source and the language, all of them.
      *
      * The same sign-in, the same first day of the window (the day has not turned), the same
-     * timezone, and younger than TTL. The values are compared after a cast, because a store that
+     * timezone, younger than TTL, built under the grading source in force now (an admin flipping
+     * the setting, or the ledger plugin appearing, would otherwise sum a count built the other way)
+     * and in the language in force now (the entry holds localised text).
+     * The values are compared after a cast, because a store that
      * serialises may hand an integer back as a string.
      *
      * @param array $entry A cached entry.
@@ -89,17 +101,32 @@ final class calendar_cache {
      * @param string $timezone The user's timezone name now.
      * @param int $signin The sign-in marker now, $USER->currentlogin.
      * @param int $now Unix time to treat as now.
+     * @param string $grading The grading source now: tracker or core.
+     * @param string $lang The language now, current_language().
      * @return bool
      */
-    public static function is_fresh(array $entry, string $firstday, string $timezone, int $signin, int $now): bool {
-        if (!isset($entry['payload'], $entry['sets'], $entry['signin'], $entry['firstday'], $entry['timezone'], $entry['built'])) {
-            return false;
+    public static function is_fresh(
+        array $entry,
+        string $firstday,
+        string $timezone,
+        int $signin,
+        int $now,
+        string $grading,
+        string $lang
+    ): bool {
+        $keys = ['payload', 'sets', 'signin', 'firstday', 'timezone', 'built', 'grading', 'lang'];
+        foreach ($keys as $key) {
+            if (!isset($entry[$key])) {
+                return false;
+            }
         }
 
         return (int) $entry['signin'] === $signin
             && (string) $entry['firstday'] === $firstday
             && (string) $entry['timezone'] === $timezone
-            && $now - (int) $entry['built'] < self::TTL;
+            && $now - (int) $entry['built'] < self::TTL
+            && (string) $entry['grading'] === $grading
+            && (string) $entry['lang'] === $lang;
     }
 
     /**
@@ -113,6 +140,10 @@ final class calendar_cache {
      * @param int $built The instant it was built.
      * @param array|null $stamp The inventory stamp the sets were read under; null never matches a
      *     current stamp, so a day opened from such an entry rebuilds it first.
+     * @param array|null $deferred Null for a whole payload; for a counts pass, the grading candidates
+     *     it left uncounted (an empty array when it counted them).
+     * @param string $grading The grading source the build counted under: tracker or core.
+     * @param string $lang The language the build was made in, current_language().
      * @return array The entry.
      */
     public static function entry(
@@ -122,7 +153,10 @@ final class calendar_cache {
         string $firstday,
         string $timezone,
         int $built,
-        ?array $stamp = null
+        ?array $stamp = null,
+        ?array $deferred = null,
+        string $grading = 'core',
+        string $lang = 'en'
     ): array {
         return [
             'payload' => $payload,
@@ -133,7 +167,21 @@ final class calendar_cache {
             'built' => $built,
             'stamp' => $stamp,
             'days' => [],
+            'past' => $deferred === null,
+            'deferred' => $deferred ?? [],
+            'grading' => $grading,
+            'lang' => $lang,
         ];
+    }
+
+    /**
+     * Whether an entry's payload is whole, as get_strip ships it, or the counts pass of a closed strip.
+     *
+     * @param array $entry A cached entry.
+     * @return bool
+     */
+    public static function is_complete(array $entry): bool {
+        return (bool) ($entry['past'] ?? true);
     }
 
     /**

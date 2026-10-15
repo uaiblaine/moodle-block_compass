@@ -1,0 +1,1365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass slim strip</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#68717a;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;--cc-warn:#f0ad4e;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-hatch:#d4d9de;--cc-control:#6a737b;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 62%,var(--cc-surface));
+  --cc-h4:color-mix(in oklab,var(--cc-warn) 92%,var(--cc-surface));
+  --cc-shadow:0 28px 64px -18px rgba(16,24,40,.32),0 3px 10px rgba(16,24,40,.08);
+  --activityassessment:#f90086;--activitycollaboration:#5b40ff;--activitycommunication:#eb6200;--activitycontent:#0099ad;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root.cc-dark{
+  --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#99a1a9;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;--cc-control:#99a1a9;
+  --cc-accent:color-mix(in oklab,#0f6cbf 35%,#eceef0);--cc-on-accent:#0b1a29;
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 80%,var(--cc-surface));
+  --cc-ink:#f3f4f6;--cc-on-ink:#111417;--cc-hatch:#353b40;
+  --cc-shadow:0 28px 64px -18px rgba(0,0,0,.7),0 3px 10px rgba(0,0,0,.4);
+}
+.cc-root *{box-sizing:border-box}
+.cc-root button{font:inherit;color:inherit}
+.cc-root :focus-visible{outline:2px solid var(--cc-accent);outline-offset:3px}
+.cc-root a{color:var(--cc-accent)}
+
+/* Canvas furniture */
+.panel{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:16px;padding:26px 28px}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0 0 4px}
+.h{margin:0 0 6px;font-size:21px;font-weight:600;letter-spacing:-.01em}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2)}
+.tag--rec{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.tag--alt{border-style:dashed}
+.notes{margin:0;padding-left:18px;font-size:13.5px;color:var(--cc-text-2);line-height:1.55;display:flex;flex-direction:column;gap:6px}
+.notes b{color:var(--cc-text);font-weight:600}
+.notes code,.p code,td code{font-size:12.5px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:4px;padding:0 4px}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}
+table.t th{text-align:left;font-weight:600;color:var(--cc-muted);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--cc-line);vertical-align:bottom}
+table.t td{padding:9px 10px;border-bottom:1px solid var(--cc-line);color:var(--cc-text-2);vertical-align:top}
+table.t td b{color:var(--cc-text);font-weight:600}
+.frame{border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);padding:16px 18px}
+.cap{font-size:12.5px;color:var(--cc-muted);margin:8px 2px 0;line-height:1.45}
+.num{width:22px;height:22px;border-radius:50%;background:var(--cc-ink);color:var(--cc-on-ink);font-size:11.5px;font-weight:700;display:inline-grid;place-items:center;flex:none}
+.pin{position:absolute;z-index:6}
+.story{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.step{display:flex;flex-direction:column;gap:8px}
+.arrowr{font-size:12px;color:var(--cc-muted);display:flex;align-items:center;gap:6px}
+
+/* The strip shell: one header line, open or closed */
+.sl{position:relative;border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface)}
+.sl-band{display:flex;align-items:center;gap:12px;padding:8px 12px 8px 6px;min-height:64px;flex-wrap:wrap}
+.sl-h{margin:0;font-size:16px;font-weight:600}
+.sl-toggle{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0 12px 0 8px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;min-height:44px;color:var(--cc-text)}
+.sl-toggle:hover{background:var(--cc-surface-2)}
+.sl-chev{flex:none;transition:transform 160ms;color:var(--cc-control)}
+.sl-toggle[aria-expanded="false"] .sl-chev{transform:rotate(-90deg)}
+.sl-div{width:1px;align-self:stretch;margin:8px 2px;background:var(--cc-line)}
+.sl-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.sl-iconlink{width:40px;height:40px;border-radius:10px;border:1px solid var(--cc-control);display:grid;place-items:center;color:var(--cc-accent);background:var(--cc-surface)}
+.sl-seg{display:inline-flex;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:3px}
+.sl-segbtn{border:0;background:transparent;padding:6px 11px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--cc-text-2);display:inline-flex;align-items:center;gap:6px;min-height:34px}
+.sl-segbtn[aria-pressed="true"]{background:var(--cc-surface);color:var(--cc-text);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.sl-snap{font-size:13px;color:var(--cc-muted)}
+
+/* Counts by period, the collapsed body of the header line */
+.sl-cells{list-style:none;margin:0;padding:6px 0 0;display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+.sl-cell{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:104px;min-height:56px;padding:4px 12px 5px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;transition:background-color 120ms}
+.sl-cell:hover{background:var(--cc-surface-2)}
+.sl-lab{font-size:12.5px;color:var(--cc-text-2);line-height:1.2;white-space:nowrap}
+.sl-cell--today .sl-lab{color:var(--cc-text);font-weight:700}
+.sl-numline{display:flex;align-items:center;gap:6px;min-height:28px}
+.sl-upto{font-size:12px;color:var(--cc-text-2);white-space:nowrap}
+.sl-chip{min-width:34px;height:28px;padding:0 9px;border-radius:14px;display:inline-grid;place-items:center;font-size:16px;font-weight:700;color:var(--cc-text)}
+.sl-h0 .sl-chip{background:transparent;padding:0 2px;min-width:0}
+.sl-h1 .sl-chip{background:var(--cc-h1)}.sl-h2 .sl-chip{background:var(--cc-h2)}.sl-h3 .sl-chip{background:var(--cc-h3)}.sl-h4 .sl-chip{background:var(--cc-h4)}
+.cc-dark .sl-h3 .sl-chip,.cc-dark .sl-h4 .sl-chip{color:#1d2125}
+.sl-cell--today .sl-chip{background:var(--cc-ink);color:var(--cc-on-ink)}
+.sl-cell--today.sl-h2 .sl-chip{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h2)}
+.sl-cell--today.sl-h3 .sl-chip{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h3)}
+.sl-cell--today.sl-h4 .sl-chip{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h4)}
+.sl-soon .sl-chip{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.sl-cell--past .sl-chip{background:transparent;color:var(--cc-danger);padding:0 2px;min-width:0}
+.sl-cell--zero .sl-chip{color:var(--cc-muted);font-weight:600}
+.sl-marks{display:flex;align-items:center;gap:4px;height:9px}
+.sl-cell.sl-dim{opacity:.3}
+.sl-lead{display:flex;align-items:center;gap:10px;padding:0 8px}
+.sl-lead b{font-size:26px;font-weight:700;line-height:1;letter-spacing:-.01em}
+.sl-lead span{font-size:12.5px;color:var(--cc-text-2);line-height:1.25;max-width:96px}
+.sl-foot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:0 16px 10px;font-size:12px;color:var(--cc-muted)}
+.sl-foot span{display:inline-flex;align-items:center;gap:5px}
+
+/* Marks: shape carries the kind, as on the row of days */
+.mk{width:6px;height:6px;border-radius:50%;flex:none;display:inline-block}
+.mk--todo{background:var(--cc-accent)}
+.mk--graded{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px}
+.mk--urgent{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px;box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.mk--late{border:1.5px solid var(--cc-danger);border-radius:1px;transform:rotate(45deg)}
+.mk--event{width:7px;height:7px;border:1.5px solid var(--cc-text-2)}
+.mk--done{background:var(--cc-muted);opacity:.4;width:5px;height:5px}
+.mk--grade{background:var(--cc-accent);border-radius:1px;transform:rotate(45deg);width:7px;height:7px}
+.mk--gradesoon{background:var(--cc-accent);border-radius:1px;transform:rotate(45deg);width:7px;height:7px;box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.mk--class{border:1.5px solid var(--cc-text-2);border-radius:1.5px;width:7px;height:7px;opacity:.85}
+.sw{display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid var(--cc-line-2);flex:none}
+.sw--hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 3px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 3px)}
+.sw--off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 3px)}
+
+/* The open strip (the row of days as built, reduced to what the mockup needs) */
+.fs{padding:0 16px 12px}
+.fs-nav{display:flex;align-items:center;gap:8px}
+.fs-month{margin:0;font-size:18px;font-weight:600;min-width:180px;text-align:center}
+.fs-iconbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--cc-control);background:var(--cc-surface);display:grid;place-items:center;cursor:pointer;color:var(--cc-text-2)}
+.fs-iconbtn[disabled]{opacity:.65;cursor:default}
+.fs-today{height:38px;border-radius:10px;border:1px solid var(--cc-control);background:var(--cc-surface);padding:0 12px;font-size:13px;cursor:pointer}
+.fs-today[disabled]{opacity:.65;cursor:default}
+.fs-days{display:grid;grid-template-columns:repeat(21,minmax(0,1fr));column-gap:6px;margin-top:14px;position:relative}
+.fs-col{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:11px;transition:opacity 180ms}
+.fs-col.fs-dim{opacity:.26}
+.fs-needle{position:absolute;top:0;left:50%;width:10px;height:8px;margin-left:-5px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+.fs-day{width:100%;max-width:42px;aspect-ratio:1/1;border-radius:50%;border:0;display:grid;place-items:center;font-size:16px;font-weight:600;cursor:pointer;background:transparent;color:var(--cc-text);padding:0}
+.fs-day.h1{background:var(--cc-h1)}.fs-day.h2{background:var(--cc-h2)}.fs-day.h3{background:var(--cc-h3)}.fs-day.h4{background:var(--cc-h4)}
+.cc-dark .fs-day.h3,.cc-dark .fs-day.h4{color:#1d2125}
+.fs-day.off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.fs-day.hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 6px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.fs-day.past{color:var(--cc-muted)}
+.fs-day.today{background:var(--cc-ink);color:var(--cc-on-ink)}
+.fs-day.today.h4{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h4)}
+.fs-day.soon{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.fs-day.match{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.fs-day.pinned{outline:2px solid var(--cc-accent);outline-offset:2px}
+.fs-dots{display:flex;gap:3px;height:8px;align-items:center}
+.fs-wd{font-size:12px;color:var(--cc-muted)}
+.fs-col--today .fs-wd{color:var(--cc-text);font-weight:600}
+.fs-wd--off{position:relative}
+.fs-wd--off::after{content:"";position:absolute;left:-4px;right:-4px;bottom:-5px;height:4px;background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.fs-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--cc-muted)}
+.fs-legend span{display:inline-flex;align-items:center;gap:5px}
+.sk{border-radius:8px;background:linear-gradient(90deg,var(--cc-surface-2) 0,var(--cc-line) 40%,var(--cc-surface-2) 80%);background-size:300% 100%;animation:sk-shim 1100ms linear infinite}
+@keyframes sk-shim{from{background-position:100% 0}to{background-position:-100% 0}}
+
+.fs-day.sk{background:linear-gradient(90deg,var(--cc-surface-2) 0,var(--cc-line) 40%,var(--cc-surface-2) 80%);background-size:300% 100%}
+.hbox{display:grid}.hb1{background:var(--cc-h1)}.hb2{background:var(--cc-h2)}.hb3{background:var(--cc-h3)}.hb4{background:var(--cc-h4)}
+.hb0{background:var(--cc-surface-2);box-shadow:inset 0 0 0 1px var(--cc-line)}
+.cc-dark .hb3,.cc-dark .hb4{color:#1d2125}
+
+/* A day's card, as the strip draws it */
+.dc{position:absolute;z-index:20;top:calc(100% + 2px);width:420px;background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:18px;box-shadow:var(--cc-shadow)}
+.dc-head{display:flex;justify-content:space-between;gap:10px;padding:14px 16px 8px}
+.dc-title{margin:0;font-size:16px;font-weight:600}
+.dc-sub{display:flex;gap:8px;align-items:center;margin-top:3px;font-size:12.5px;color:var(--cc-muted)}
+.dc-rel{padding:1px 8px;border-radius:20px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2);font-weight:600}
+.dc-x{width:36px;height:36px;border:0;background:transparent;border-radius:9px;display:grid;place-items:center;color:var(--cc-muted);cursor:pointer}
+.dc-chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 6px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--cc-text-2);background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:20px;padding:2px 9px}
+.dc-list{list-style:none;margin:0;padding:4px 8px 6px}
+.it{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 8px}
+.ico{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--p);background:color-mix(in oklab,var(--p) 13%,var(--cc-surface))}
+.ico--assess{--p:var(--activityassessment)}.ico--comm{--p:var(--activitycommunication)}.ico--content{--p:var(--activitycontent)}.ico--collab{--p:var(--activitycollaboration)}
+.cc-dark .ico{background:color-mix(in oklab,var(--p) 26%,var(--cc-surface));color:color-mix(in oklab,var(--p) 55%,#fff)}
+.it-top{font-size:12px;color:var(--cc-muted)}
+.it-title{display:block;font-weight:600;font-size:14px;color:var(--cc-text);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.badge{font-size:11px;font-weight:600;border-radius:6px;padding:1px 6px;background:var(--cc-surface-2);color:var(--cc-text-2);border:1px solid var(--cc-line)}
+.badge--urgent{background:var(--cc-accent);color:var(--cc-on-accent);border-color:var(--cc-accent)}
+.badge--late{background:color-mix(in oklab,var(--cc-warn) 22%,var(--cc-surface));color:var(--cc-text);border-color:color-mix(in oklab,var(--cc-warn) 45%,var(--cc-surface))}
+.act{font-size:12.5px;font-weight:600;text-decoration:none;border-radius:9px;padding:7px 11px;white-space:nowrap}
+.act--primary{background:var(--cc-accent);color:var(--cc-on-accent)}
+.cc-root a.act--primary{color:var(--cc-on-accent)}
+.act--ghost{border:1px solid var(--cc-control);color:var(--cc-text)}
+.cc-root a.act--ghost{color:var(--cc-text)}
+.dc-foot{display:flex;justify-content:space-between;padding:10px 16px 12px;border-top:1px solid var(--cc-line);font-size:12.5px;color:var(--cc-muted)}
+
+/* Retry, only after a failure (the block's rule: no permanent reload control) */
+.retry{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:6px 16px 12px;padding:10px 14px;border-radius:10px;background:color-mix(in oklab,var(--cc-warn) 18%,var(--cc-surface));border:1px solid color-mix(in oklab,var(--cc-warn) 45%,var(--cc-surface));font-size:13.5px;color:var(--cc-text)}
+.retry-actions{display:flex;gap:8px;align-items:center}
+.btn-o{border:1px solid var(--cc-control);background:var(--cc-surface);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--cc-text)}
+.btn-link{border:0;background:transparent;color:var(--cc-accent);font-size:13px;cursor:pointer;padding:6px 4px}
+
+/* Page, tier 1, instrument */
+.pg{background:var(--cc-page);border-radius:16px;border:1px solid var(--cc-line);padding:20px}
+.blk{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:14px}
+.blk-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--cc-line)}
+.blk-head h2{margin:0;font-size:18px;font-weight:600}
+.blk-body{padding:14px 20px 20px;display:flex;flex-direction:column;gap:18px}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.card{border:1px solid var(--cc-line);border-radius:14px;overflow:hidden;background:var(--cc-surface)}
+.card-img{height:70px}
+.card-b{padding:10px 12px 12px;font-size:12px;color:var(--cc-muted)}
+.card-b b{display:block;color:var(--cc-text);font-size:14px;font-weight:600;margin-top:2px}
+.net{border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);overflow:hidden}
+.net-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--cc-line);font-size:13px}
+.net-list{list-style:none;margin:0;padding:4px 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.net-list li{display:grid;grid-template-columns:92px 250px minmax(0,1fr) 64px;gap:12px;padding:5px 16px;color:var(--cc-text-2)}
+.net-list li:nth-child(odd){background:var(--cc-surface-2)}
+.ntag{font-family:'Noto Sans',system-ui,sans-serif;font-size:11px;font-weight:600;border-radius:6px;padding:1px 7px;justify-self:start;border:1px solid var(--cc-line);background:var(--cc-surface)}
+.ntag--none{color:#3aa76d}.ntag--pref{color:var(--cc-text-2)}.ntag--req{color:var(--cc-accent)}.ntag--err{color:var(--cc-danger)}
+.live{font-size:12px;color:var(--cc-muted);padding:8px 16px;border-top:1px solid var(--cc-line)}
+
+/* Phone */
+.phone{flex:none;width:390px;height:844px;position:relative;overflow:hidden;border-radius:28px;border:1px solid var(--cc-line-2);background:var(--cc-page);display:flex;flex-direction:column}
+.ph-bar{height:56px;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex:none;font-weight:700}
+.ph .sl-band{padding:6px 8px 6px 4px}
+.ph .sl-cells{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;width:100%;padding:2px 0 4px}
+.ph .sl-cell{min-width:0;padding:4px 4px 5px;align-items:center;min-height:62px}
+.ph .sl-lab{font-size:11.5px}
+.ph .sl-upto{display:none}
+.ph .sl-chip{font-size:15px;height:26px;min-width:30px;padding:0 7px}
+.ph .fs-days{grid-template-columns:repeat(7,minmax(0,1fr))}
+
+/* Settings */
+.st-row{display:grid;grid-template-columns:230px minmax(0,1fr);gap:22px;padding:15px 0;border-bottom:1px solid var(--cc-line)}
+.st-lab{font-weight:600;font-size:14.5px}
+.st-key{font-size:12px;color:var(--cc-muted);margin-top:2px}
+.st-desc{font-size:13px;color:var(--cc-text-2);margin-top:6px;line-height:1.5}
+.st-def{font-size:12px;color:var(--cc-muted);margin-top:4px}
+.st-sel{height:38px;border:1px solid #c9ced3;border-radius:8px;padding:0 34px 0 12px;font:inherit;font-size:14px;background:var(--cc-surface);color:var(--cc-text)}
+.st-new{border:1.5px dashed var(--cc-accent);border-radius:10px;padding:14px 14px;margin:10px 0;border-bottom:1.5px dashed var(--cc-accent)}
+.st-gone{opacity:.55}
+
+pre.code{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:14px 16px;white-space:pre-wrap;color:var(--cc-text)}
+
+@media (prefers-reduced-motion: reduce){
+  .cc-root *{animation:none!important;transition:none!important}
+}
+</style>
+
+<style>
+.dcx-tweaks{position:fixed;right:16px;bottom:16px;z-index:9999;background:#fff;color:#1d2125;border:1px solid #d5dade;
+  border-radius:12px;padding:10px 12px;font:13px system-ui,sans-serif;box-shadow:0 10px 30px -12px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;min-width:190px}
+.dcx-tweaks b{font-weight:600}
+.dcx-tweaks label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dcx-tweaks a{color:#0f6cbf}
+</style>
+</head>
+<body>
+<div id="dcx-root"></div>
+<script type="module">
+import { h, render, Component as PreactComponent } from 'https://cdn.jsdelivr.net/npm/preact@10.24.3/dist/preact.module.js';
+import htm from 'https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.module.js';
+const html = htm.bind(h);
+class DCLogic extends PreactComponent {}
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.timers = [];
+    this.seq = 0;
+    this.failedOnce = false;
+    this.entry = (props.cache ?? 'cold') === 'warm' ? 'full' : 'none';
+    this.state = this.fresh(!!(props.startOpen ?? false), 'learning');
+    this.state.log = [];
+  }
+
+  fresh(open, view) {
+    return { open: open, view: view, counts: open ? 'none' : 'wait', countsSource: null, strip: open ? 'wait' : 'none', off: 0, focus: null, hover: null, pinned: null, dayState: {}, live: '—' };
+  }
+
+  componentDidMount() {
+    this.boot();
+  }
+
+  componentDidUpdate(prev) {
+    if (prev.cache !== this.props.cache) {
+      this.entry = this.props.cache === 'warm' ? 'full' : 'none';
+    }
+    if (prev.startOpen !== this.props.startOpen) {
+      this.clear();
+      this.setState(this.fresh(!!this.props.startOpen, this.state.view), () => this.boot());
+    }
+  }
+
+  componentWillUnmount() {
+    this.clear();
+  }
+
+  clear() {
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
+  }
+
+  later(fn, ms) {
+    const t = setTimeout(fn, ms);
+    this.timers.push(t);
+    return t;
+  }
+
+  ft() {
+    return this.props.feedbackTracker ?? false;
+  }
+
+  lat() {
+    return this.props.latency ?? 450;
+  }
+
+  addLog(tag, name, detail, reads) {
+    this.seq += 1;
+    const cls = { none: 'ntag ntag--none', pref: 'ntag ntag--pref', req: 'ntag ntag--req', err: 'ntag ntag--err' }[tag];
+    const label = { none: 'no request', pref: 'preference', req: 'request', err: 'failed' }[tag];
+    const e = { id: this.seq, cls: cls, tag: label, name: name, detail: detail, reads: reads || '' };
+    this.setState((st) => ({ log: [e].concat(st.log).slice(0, 8) }));
+  }
+
+  boot() {
+    this.attn = false;
+    this.addLog('none', 'first paint', this.state.open ? 'preference open: the row’s skeleton is reserved, no line of counts' : 'preference closed: the 66 px line is reserved, no row', '');
+    this.later(() => {
+      this.attn = true;
+      this.addLog('req', 'block_compass_get_attention', 'tier 1 first, as today', '≤ 7');
+      if (this.state.open) {
+        this.fetchStrip();
+      } else {
+        this.fetchCounts();
+      }
+    }, Math.round(this.lat() * 0.6));
+  }
+
+  fetchCounts() {
+    this.setState({ counts: 'loading' });
+    const warm = this.entry !== 'none';
+    this.later(() => {
+      if (warm) {
+        this.addLog('req', 'block_compass_get_strip_counts', 'warm entry: summed from the cached day map', '2');
+      } else {
+        this.entry = 'future';
+        this.addLog('req', 'block_compass_get_strip_counts', this.ft() ? 'cold: counts-only pass (future part; grading from block_feedback_tracker), stored with past: false' : 'cold: counts-only pass (future part; no grading statement), stored with past: false', this.ft() ? '≈ 12' : '≈ 11');
+      }
+      const source = this.entry === 'full' ? 'full' : 'future';
+      this.setState({ counts: 'ready', countsSource: source, live: this.summary(this.state.view, source) });
+    }, warm ? 90 : this.lat());
+  }
+
+  fetchStrip() {
+    this.setState({ strip: 'loading' });
+    const before = this.entry;
+    this.later(() => {
+      if ((this.props.failOpen ?? false) && !this.failedOnce) {
+        this.failedOnce = true;
+        this.setState({ strip: 'error', live: 'We could not load your calendar. (role="alert")' });
+        this.addLog('err', 'block_compass_get_strip', 'read() retried twice, 2 s apart, then the notice', '');
+        return;
+      }
+      if (before === 'full') {
+        this.addLog('req', 'block_compass_get_strip', 'cache hit: same sign-in and day', '2');
+      } else if (before === 'future') {
+        this.addLog('req', 'block_compass_get_strip', 'entry had the future only: adds the past through core’s vault', '≈ 51');
+      } else {
+        this.addLog('req', 'block_compass_get_strip', 'cold: the whole build', '≤ 62');
+      }
+      this.entry = 'full';
+      this.setState({ strip: 'ready', countsSource: 'full' });
+      const f = this.state.focus;
+      if (f === 'today' || f === 'tomorrow') {
+        this.pin(f === 'today' ? 10 : 11);
+      }
+    }, before === 'full' ? 120 : this.lat());
+  }
+
+  toggle() {
+    const st = this.state;
+    if (st.open) {
+      this.setState({ open: false, pinned: null, focus: null });
+      this.addLog('pref', 'block_compass_calendar', '{"open": false, ...} through core_user/repository', '');
+      if (st.strip === 'ready') {
+        this.setState({ counts: 'ready', countsSource: 'full' });
+        this.addLog('none', 'closed line', 'counts summed in the browser from the strip already loaded', '');
+      } else if (st.counts !== 'ready' && st.counts !== 'loading') {
+        if (this.attn) {
+          this.fetchCounts();
+        } else {
+          this.setState({ counts: 'wait' });
+        }
+      }
+      return;
+    }
+    this.setState({ open: true });
+    this.addLog('pref', 'block_compass_calendar', '{"open": true, ...} through core_user/repository', '');
+    if (st.strip !== 'ready' && st.strip !== 'loading') {
+      if (this.attn) {
+        this.fetchStrip();
+      } else {
+        this.setState({ strip: 'wait' });
+      }
+    }
+  }
+
+  openPeriod(key) {
+    const D = this.data();
+    const idx = D.views[this.state.view].filter((d) => d.b === key).map((d) => d.i);
+    const first = idx.length ? idx[0] : D.TODAY;
+    const off = Math.max(0, Math.min(D.N - 21, key === 'later' ? first - 3 : 0));
+    this.setState({ focus: key, off: off, pinned: null });
+    if (!this.state.open) {
+      this.toggle();
+    } else if (key === 'today' || key === 'tomorrow') {
+      this.pin(key === 'today' ? 10 : 11);
+    }
+  }
+
+  pin(i) {
+    if (this.state.pinned === i) {
+      this.setState({ pinned: null });
+      return;
+    }
+    this.setState({ pinned: i });
+    const k = this.state.view + i;
+    if (this.state.dayState[k]) {
+      this.addLog('none', 'block_compass_get_day', 'reopened: from page memory', '');
+      return;
+    }
+    this.setState((st) => ({ dayState: Object.assign({}, st.dayState, { [k]: 'loading' }) }));
+    this.later(() => {
+      this.setState((st) => ({ dayState: Object.assign({}, st.dayState, { [k]: 'ready' }) }));
+      this.addLog('req', 'block_compass_get_day', 'core’s pipeline for one day; settles that day’s counts', this.state.view === 'teaching' ? '≤ 11' : '≤ 66');
+    }, Math.round(this.lat() * 0.8));
+  }
+
+  reloadPage() {
+    this.clear();
+    const open = this.state.open;
+    this.setState(this.fresh(open, this.state.view), () => this.boot());
+  }
+
+  newSignin() {
+    this.entry = 'none';
+    this.failedOnce = false;
+    this.addLog('none', 'new sign-in', 'the entry’s marker no longer matches: next answer recounts', '');
+    this.reloadPage();
+  }
+
+  data() {
+    if (this._d) {
+      return this._d;
+    }
+    const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const WDL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const N = 59;
+    const TODAY = 10;
+    const cal = [];
+    for (let i = 0; i < N; i++) {
+      const t = new Date(Date.UTC(2026, 9, 3 + i));
+      cal.push({ i: i, n: t.getUTCDate(), m: t.getUTCMonth(), w: t.getUTCDay(), wd: WD[t.getUTCDay()], long: WDL[t.getUTCDay()] + ', ' + t.getUTCDate() + (t.getUTCMonth() === 9 ? ' October' : ' November') });
+    }
+    const OFF = { 9: 'Holiday (Founders’ Day)', 23: 'Recess', 30: 'Holiday (All Souls’ Day)' };
+    const bucket = (i) => (i < TODAY ? 'late' : i === TODAY ? 'today' : i === TODAY + 1 ? 'tomorrow' : i <= TODAY + 6 ? 'week' : 'later');
+    const mk = (spec) => spec.map((s) => Object.assign({ soon: 0, graded: 0, todo: 0, late: 0, event: 0, done: 0, gradesoon: 0, grade: 0, cls: 0, waiting: 0, step: 1 }, s, { b: bucket(s.i) }));
+    const learning = mk([
+      { i: 2, late: 1 }, { i: 3, done: 1, step: 0 }, { i: 4, event: 1 }, { i: 6, late: 1 },
+      { i: 10, soon: 1, todo: 1, event: 1, step: 4 }, { i: 11, soon: 1, step: 3 },
+      { i: 12, graded: 3, event: 1, step: 4, needle: true }, { i: 13, graded: 1, todo: 1, step: 2 }, { i: 15, event: 1 }, { i: 16, todo: 1 },
+      { i: 17, graded: 2, event: 1, step: 3 }, { i: 18, graded: 1, todo: 1, step: 2 }, { i: 19, graded: 1, event: 1, step: 2 }, { i: 23, todo: 1 },
+      { i: 27, graded: 2, step: 3 }, { i: 33, graded: 1, event: 1, step: 2 }, { i: 39, todo: 2, step: 2 }, { i: 48, graded: 2, event: 1, step: 3 }, { i: 58, event: 1 }
+    ]);
+    const teaching = mk([
+      { i: 5, grade: 1, waiting: 6, step: 3 }, { i: 10, cls: 1, event: 1 }, { i: 11, gradesoon: 1, waiting: 8, cls: 2, event: 2, step: 4, needle: true },
+      { i: 13, cls: 2 }, { i: 16, cls: 1, event: 1 }, { i: 18, grade: 1, waiting: 3, step: 2 }, { i: 25, cls: 3, event: 1, step: 2 },
+      { i: 32, grade: 1, waiting: 2, cls: 2, step: 2 }, { i: 46, cls: 3, event: 2, step: 2 }
+    ]);
+    this._d = { cal: cal, OFF: OFF, N: N, TODAY: TODAY, views: { learning: learning, teaching: teaching } };
+    return this._d;
+  }
+
+  kindsOf(view) {
+    return view === 'teaching'
+      ? [['gradesoon', 'mk mk--gradesoon'], ['grade', 'mk mk--grade'], ['cls', 'mk mk--class'], ['event', 'mk mk--event']]
+      : [['soon', 'mk mk--urgent'], ['graded', 'mk mk--graded'], ['todo', 'mk mk--todo'], ['late', 'mk mk--late'], ['event', 'mk mk--event']];
+  }
+
+  phrase(view, k, n, upto) {
+    const u = upto ? 'up to ' : '';
+    const pl = (one, many) => (n === 1 ? one : many);
+    switch (k) {
+      case 'soon': return u + n + ' graded, due today or tomorrow';
+      case 'graded': return u + n + ' graded';
+      case 'todo': return u + n + ' to do';
+      case 'late': return n + ' late, still open';
+      case 'event': return n + pl(' event', ' events');
+      case 'gradesoon': return n + ' to grade, due today or tomorrow';
+      case 'grade': return n + ' to grade';
+      case 'cls': return n + pl(' class deadline', ' class deadlines');
+    }
+    return '';
+  }
+
+  // The closed line's periods for one view: plain counts, no kind shapes, no "up to" (the maintainer,
+  // 2026-10-14). opts.cold drops Late (no past part while closed); opts.ft says block_feedback_tracker
+  // is installed: without it the Teaching line counts no grading work at all.
+  periods(view, opts) {
+    const D = this.data();
+    const o = opts || {};
+    const ft = o.ft !== false;
+    const defs = view === 'teaching'
+      ? [['late', 'Grading overdue', 'Overdue'], ['today', 'Today', 'Today'], ['tomorrow', 'Tomorrow', 'Tmrw.'], ['week', 'This week', 'Week'], ['later', 'Later', 'Later']]
+      : [['late', 'Late, still open', 'Late'], ['today', 'Today', 'Today'], ['tomorrow', 'Tomorrow', 'Tmrw.'], ['week', 'This week', 'Week'], ['later', 'Later', 'Later']];
+    let kinds = this.kindsOf(view).map((k) => k[0]);
+    if (view === 'teaching' && !ft) {
+      kinds = ['cls', 'event'];
+    }
+    const out = [];
+    defs.forEach((def, idx) => {
+      const key = def[0];
+      if (key === 'late' && ((view === 'learning' && o.cold) || (view === 'teaching' && !ft))) {
+        return;
+      }
+      const days = D.views[view].filter((d) => d.b === key);
+      // The past period counts only what is still to do there: late work, or grading overdue.
+      const counted = key === 'late' ? kinds.filter((k) => k === (view === 'teaching' ? 'grade' : 'late')) : kinds;
+      const sum = (d) => counted.reduce((n, k) => n + d[k], 0);
+      const total = days.reduce((n, d) => n + sum(d), 0);
+      const step = key === 'late' ? 0 : days.reduce((m, d) => Math.max(m, sum(d) ? d.step : 0), 0);
+      const items = total === 1 ? '1 item' : total + ' items';
+      // Closed: no needle and no days-off note (the maintainer, 2026-10-14), in the picture or the sentence.
+      let sentence = def[1] + ': ' + (total ? items : 'nothing open');
+      sentence += key === 'late' ? '. Opens the strip on the past days.' : '. Opens the strip on these days.';
+      const truncated = o.truncated && key === 'later';
+      const c = {};
+      this.kindsOf(view).forEach((k) => { c[k[0]] = days.reduce((n, d) => n + (counted.includes(k[0]) ? d[k[0]] : 0), 0); });
+      out.push({
+        key: key, idx: idx, label: def[1], short: def[2], total: total, counts: c,
+        shown: truncated ? 'many' : String(total),
+        sentence: sentence,
+        cls: 'sl-cell sl-h' + step + (key === 'late' ? ' sl-cell--past' : '') + (key === 'today' ? ' sl-cell--today' : '') + (total === 0 ? ' sl-cell--zero' : '')
+      });
+    });
+    return out;
+  }
+
+  bucketOf(i) {
+    const T = this.data().TODAY;
+    return i < T ? 'late' : i === T ? 'today' : i === T + 1 ? 'tomorrow' : i <= T + 6 ? 'week' : 'later';
+  }
+
+  summary(view, source) {
+    const p = this.periods(view, { cold: source === 'future', ft: this.ft() });
+    return 'Calendar: ' + p.map((b) => b.total + ' ' + b.label.toLowerCase()).join(', ');
+  }
+
+  lead(view) {
+    const w = this.data().views.teaching.reduce((s, d) => s + d.waiting, 0);
+    return { waiting: String(w), text: 'submissions waiting to grade' };
+  }
+
+  items(view, d) {
+    const FILE = 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4';
+    const QUIZ = 'M7.5 4h9A3.5 3.5 0 0 1 20 7.5v9a3.5 3.5 0 0 1-3.5 3.5h-9A3.5 3.5 0 0 1 4 16.5v-9A3.5 3.5 0 0 1 7.5 4zM8.5 12.5l2.5 2.5 4.5-5';
+    const FORUM = 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 20 12z';
+    const VIDEO = 'M5.5 6h8A2.5 2.5 0 0 1 16 8.5v7a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 3 15.5v-7A2.5 2.5 0 0 1 5.5 6zM16 10.5l5-3v9l-5-3';
+    const soonText = d.i === 10 ? 'Due today' : 'Due tomorrow';
+    const P = {
+      soon: [{ t: 'Pre-lab quiz 4', c: 'OC202', h: '8:00 PM', ico: QUIZ, p: 'assess', b: [[soonText, 'badge badge--urgent'], ['Graded', 'badge']], a: 'Attempt quiz now', pr: true }],
+      graded: [{ t: 'Project milestone 2', c: 'DS201', h: '11:59 PM', ico: FILE, p: 'assess', b: [['Graded', 'badge'], ['Starred course', 'badge']], a: 'Add submission', pr: true }, { t: 'Submit the case study', c: 'EE110', h: '8:00 PM', ico: FILE, p: 'assess', b: [['Graded', 'badge']], a: 'Add submission', pr: true }],
+      todo: [{ t: 'Weekly reflection', c: 'LA150', h: '11:59 PM', ico: FORUM, p: 'comm', b: [['Counts toward completion', 'badge']], a: 'Add post', pr: true }],
+      event: [{ t: 'Tutorial, group B', c: 'LA150', h: '10:00 AM', ico: VIDEO, p: 'content', b: [['Event', 'badge']], a: 'View', pr: false }],
+      gradesoon: [{ t: 'OSCE station reflection', c: 'CSKL300', h: '5:00 PM', ico: FILE, p: 'assess', b: [['Grading due tomorrow', 'badge badge--urgent'], ['8 submissions waiting', 'badge']], a: 'Grade', pr: true }],
+      cls: [{ t: 'Reading log: week 6 is due', c: 'ANAT101', h: '5:00 PM', ico: FILE, p: 'assess', b: [['Class deadline', 'badge']], a: 'View', pr: false }, { t: 'Quiz 3 closes', c: 'ANAT101', h: '6:00 PM', ico: QUIZ, p: 'assess', b: [['Class deadline', 'badge']], a: 'View', pr: false }]
+    };
+    P.event2 = [{ t: 'Ethics committee drop-in', c: 'RSRCH310', h: '1:00 PM', ico: VIDEO, p: 'content', b: [['Event', 'badge']], a: 'View', pr: false }];
+    const out = [];
+    const keys = view === 'teaching' ? ['gradesoon', 'cls', 'event'] : ['soon', 'graded', 'todo', 'event'];
+    keys.forEach((k) => {
+      for (let n = 0; n < d[k]; n++) {
+        const pool = view === 'teaching' && k === 'event' ? P.event2 : P[k];
+        const x = pool[n % pool.length];
+        out.push({ icoCls: 'ico ico--' + x.p, ico: x.ico, time: x.h, course: x.c, title: x.t, badges: x.b.map((b) => ({ t: b[0], cls: b[1] })), action: x.a, actCls: 'act ' + (x.pr ? 'act--primary' : 'act--ghost') });
+      }
+    });
+    return out;
+  }
+
+  renderVals() {
+    const st = this.state;
+    const D = this.data();
+    const view = st.view;
+    const settled = Object.keys(st.dayState).filter((k) => st.dayState[k] === 'ready' && k.indexOf(view) === 0).map((k) => Number(k.slice(view.length)));
+    const cold = st.countsSource === 'future';
+    const cells = this.periods(view, { cold: cold, ft: this.ft() }).map((b) => Object.assign(b, {
+      click: () => this.openPeriod(b.key),
+      enter: () => this.setState({ hover: b.key }),
+      leave: () => this.setState({ hover: null })
+    }));
+    const vdays = D.views[view];
+    const byI = {};
+    vdays.forEach((d) => { byI[d.i] = d; });
+    const kinds = this.kindsOf(view);
+    const off = Math.max(0, Math.min(D.N - 21, st.off));
+    const days = [];
+    for (let i = off; i < off + 21; i++) {
+      const c = D.cal[i];
+      const d = byI[i];
+      const shown = d ? kinds.reduce((s, k) => s + d[k[0]], 0) : 0;
+      const weekend = c.w === 0 || c.w === 6;
+      const hol = D.OFF[i];
+      let cls = 'fs-day';
+      if (i === D.TODAY) {
+        cls += ' today' + (d ? ' h' + d.step : '');
+      } else if (!shown && hol) {
+        cls += ' hol';
+      } else if (!shown && weekend) {
+        cls += ' off';
+      } else if (shown) {
+        cls += ' h' + (i < D.TODAY ? 0 : d.step) + (i < D.TODAY ? ' past' : '');
+      } else if (i < D.TODAY) {
+        cls += ' past';
+      }
+      if (d && (d.soon || d.gradesoon)) {
+        cls += ' soon';
+      }
+      const inFocus = st.focus && this.bucketOf(i) === st.focus;
+      if (inFocus && st.focus !== 'today' && st.focus !== 'tomorrow' && shown) {
+        cls += ' match';
+      }
+      if (st.pinned === i) {
+        cls += ' pinned';
+      }
+      const dots = [];
+      if (d) {
+        kinds.forEach((k) => { for (let n = 0; n < d[k[0]]; n++) { dots.push(k[1]); } });
+        if (d.done) {
+          dots.push('mk mk--done');
+        }
+      }
+      const parts = d ? kinds.filter((k) => d[k[0]] > 0).map((k) => this.phrase(view, k[0], d[k[0]], view === 'learning' && i >= D.TODAY && !settled.includes(i) && ['soon', 'graded', 'todo'].includes(k[0]))) : [];
+      days.push({
+        n: c.n, wd: c.wd, needle: !!(d && d.needle),
+        cls: cls, pinned: st.pinned === i,
+        colCls: 'fs-col' + (i === D.TODAY ? ' fs-col--today' : '') + (st.focus && st.focus !== 'today' && st.focus !== 'tomorrow' && !inFocus ? ' fs-dim' : ''),
+        dots: dots.slice(0, 4),
+        wdCls: 'fs-wd' + ((weekend || hol) && shown ? ' fs-wd--off' : ''),
+        label: c.long + (hol ? ', ' + hol : weekend ? ', weekend' : '') + ': ' + (parts.length ? parts.join(', ') : 'nothing open'),
+        click: () => this.pin(i)
+      });
+    }
+    const m1 = D.cal[off].m;
+    const m2 = D.cal[off + 20].m;
+    let card = { show: false };
+    if (st.pinned !== null && st.strip === 'ready') {
+      const i = st.pinned;
+      const d = byI[i] || { i: i, soon: 0, graded: 0, todo: 0, late: 0, event: 0, gradesoon: 0, grade: 0, cls: 0 };
+      const k = view + i;
+      const pos = i - off;
+      const n = kinds.reduce((s, kk) => s + d[kk[0]], 0);
+      card = {
+        show: pos >= 0 && pos < 21,
+        title: D.cal[i].long, rel: i === D.TODAY ? 'Today' : i === D.TODAY + 1 ? 'Tomorrow' : 'In ' + (i - D.TODAY) + ' days',
+        count: n + (n === 1 ? ' item' : ' items'),
+        left: 'calc(' + Math.max(0, Math.min(pos, 13)) + ' * (100% / 21))',
+        chips: kinds.filter((kk) => d[kk[0]] > 0).map((kk) => ({ mk: kk[1], text: this.phrase(view, kk[0], d[kk[0]], false) })),
+        loading: st.dayState[k] === 'loading', ready: st.dayState[k] === 'ready',
+        items: this.items(view, d)
+      };
+    }
+    const learnP = this.periods('learning', {});
+    const story = this.storyVals(learnP);
+    return {
+      themeCls: (this.props.dark ?? false) ? 'cc-dark' : '',
+      yes: true,
+      open: st.open, closed: !st.open,
+      isStudy: view === 'learning', isTeach: view === 'teaching', hasBoth: true,
+      setStudy: () => { if (view !== 'learning') { this.setState({ view: 'learning', pinned: null, focus: null }); this.addLog('pref', 'block_compass_calendar', '{"view": "learning"}: the counts carry both views, no request', ''); } },
+      setTeach: () => { if (view !== 'teaching') { this.setState({ view: 'teaching', pinned: null, focus: null }); this.addLog('pref', 'block_compass_calendar', '{"view": "teaching"}: the counts carry both views, no request', ''); } },
+      toggle: () => this.toggle(),
+      keyStrip: (e) => { if (e.key === 'Escape') { this.setState({ pinned: null }); } },
+      lead: this.lead(view),
+      showLead: !st.open && view === 'teaching' && this.ft(),
+      countsLoading: !st.open && (st.counts === 'loading' || st.counts === 'wait'),
+      countsReady: !st.open && st.counts === 'ready',
+      hasLineNote: !st.open && st.counts === 'ready' && ((cold && view === 'learning') || (view === 'teaching' && !this.ft())),
+      lineNote: view === 'teaching' ? 'Grading work shows when the strip is open' : 'Late work shows once the strip has been opened today',
+      skelCells: [1, 2, 3, 4, 5],
+      cells: cells,
+      cellsLabel: 'Your calendar, by period',
+      monthLabel: m1 === m2 ? (m1 === 9 ? 'October 2026' : 'November 2026') : 'October – November 2026',
+      atStart: off <= 0, atEnd: off >= D.N - 21, atToday: off === 0,
+      prev: () => this.setState({ off: Math.max(0, off - 7), pinned: null }),
+      next: () => this.setState({ off: Math.min(D.N - 21, off + 7), pinned: null }),
+      goToday: () => this.setState({ off: 0, pinned: null }),
+      stripLoading: st.open && (st.strip === 'loading' || st.strip === 'wait'),
+      stripError: st.open && st.strip === 'error',
+      stripReady: st.open && st.strip === 'ready',
+      retry: () => this.fetchStrip(),
+      reloadPage: () => this.reloadPage(),
+      newSignin: () => this.newSignin(),
+      skelDays: Array.from({ length: 21 }, (x, i) => i),
+      days: days,
+      daysLabel: view === 'teaching' ? 'Your teaching days' : 'Your days',
+      card: card,
+      closeCard: () => this.setState({ pinned: null }),
+      legend: view === 'teaching'
+        ? [{ mk: 'mk mk--grade', t: 'To grade' }, { mk: 'mk mk--class', t: 'Class deadline' }, { mk: 'mk mk--event', t: 'Event' }, { mk: 'sw sw--off', t: 'Weekend' }, { mk: 'sw sw--hol', t: 'Holiday or recess' }]
+        : [{ mk: 'mk mk--graded', t: 'Graded' }, { mk: 'mk mk--todo', t: 'To do' }, { mk: 'mk mk--late', t: 'Late, still open' }, { mk: 'mk mk--event', t: 'Event' }, { mk: 'mk mk--done', t: 'Done' }, { mk: 'sw sw--off', t: 'Weekend' }, { mk: 'sw sw--hol', t: 'Holiday or recess' }],
+      tier1: [
+        { bg: '#dbe6f2', cat: 'Computer Science', name: 'Data Structures' },
+        { bg: '#e6dff2', cat: 'Engineering', name: 'Circuits and Systems' },
+        { bg: '#f2e6db', cat: 'Chemistry', name: 'Organic Chemistry II' },
+        { bg: '#dff2e6', cat: 'Languages', name: 'Academic Writing' }
+      ],
+      log: st.log,
+      live: st.live,
+      cacheLine: 'Server entry for this sign-in and day: ' + ({ none: 'none (cold)', future: 'future only (past: false)', full: 'full' })[this.entry],
+      story: story,
+      states: this.stateVals(learnP),
+      l1: learnP,
+      l2: this.l2(),
+      l3: this.l3(learnP),
+      teachCellsFt: this.periods('teaching', { ft: true }),
+      teachCellsNoFt: this.periods('teaching', { ft: false }),
+      phoneItems: this.items('learning', D.views.learning.find((d) => d.i === D.TODAY)),
+      teachLead: this.lead('teaching'),
+      outline: this.outline(),
+      sr: [
+        { a: 'Page loads closed', b: '"Calendar, collapsed, button", then the list "Your calendar, by period, 5 items" once the counts arrive; the live region says the summary once.' },
+        { a: 'Toggle pressed', b: '"Calendar, expanded". The region is busy until the row arrives; nothing else is said.' },
+        { a: 'A period pressed', b: 'The strip opens; focus moves to the first day of the period, which reads its own sentence ("Thursday, 15 October: up to 3 graded, 1 event").' },
+        { a: 'Opening fails', b: 'The notice is an alert: "We could not load your calendar. Try again, button. Reload page, button." It exists only after a failure.' },
+        { a: 'Retry succeeds', b: 'The notice leaves; focus returns to the toggle, never to the body.' }
+      ]
+    };
+  }
+
+  storyVals(p) {
+    const few = p.slice(1, 5).map((b) => ({ cls: b.cls, label: b.label, shown: b.shown }));
+    const down = '';
+    const right = 'transform: rotate(-90deg)';
+    const discs = ['fs-day past', 'fs-day h1', 'fs-day today h4', 'fs-day h3 soon', 'fs-day h4', 'fs-day h2', 'fs-day off', 'fs-day h1', 'fs-day h1', 'fs-day h3', 'fs-day h2'];
+    const sk = Array.from({ length: 11 }, () => 'sk fs-day');
+    return [
+      { n: 1, title: 'First paint, stored closed', chev: right, cells: false, list: [], skel: true, nav: false, row: false, discs: [], blank: '', err: false, cap: 'The line’s height is reserved with skeleton counts; the row is never drawn. After get_attention: get_strip_counts (2 reads warm, about 12 cold).' },
+      { n: 2, title: 'The counts arrive', chev: right, cells: true, list: few, skel: false, nav: false, row: false, discs: [], blank: '', err: false, cap: 'Filled in place, no shift. The live region says the summary once.' },
+      { n: 3, title: 'Opened: the row loads', chev: down, cells: false, list: [], skel: false, nav: true, row: true, discs: sk, blank: '', err: false, cap: 'aria-expanded flips at once and the preference is written (optimistic, reverted with a notice if the write fails, as feedback_tracker does). get_strip: the past part only if the counts pass ran.' },
+      { n: 4, title: 'The row', chev: down, cells: false, list: [], skel: false, nav: true, row: true, discs: discs, blank: ' ', err: false, cap: 'The strip as built: month, arrows, Today, the filter. A period click arrives here with its days outlined.' },
+      { n: 5, title: 'Opening failed', chev: down, cells: false, list: [], skel: false, nav: true, row: false, discs: [], blank: '', err: true, cap: 'After read()’s two retries: the RetryNotice, in the row’s place. No reload control exists before this. Closing it again keeps the counts already shown.' },
+      { n: 6, title: 'Closed again', chev: right, cells: true, list: few, skel: false, nav: false, row: false, discs: [], blank: '', err: false, cap: 'No request: the counts are summed in the browser from the loaded strip, now with Late.' }
+    ];
+  }
+
+  stateVals(p) {
+    const cold = this.periods('learning', { cold: true });
+    const trunc = this.periods('learning', { truncated: true }).filter((b) => b.key !== 'late');
+    return [
+      { title: 'Warm', hasCells: true, cells: p, hasText: false, text: '', err: false, cap: 'Everything known: Late exact. Plain counts: no shapes, no needle, no days-off note.' },
+      { title: 'Cold, after the counts-only pass', hasCells: true, cells: cold, hasText: true, text: 'Late work shows once the strip has been opened today', err: false, cap: 'No Late period: only core’s vault knows it exactly, and that is the cost closed avoids.' },
+      { title: 'Truncated and bounded', hasCells: true, cells: trunc, hasText: true, text: 'Your 250 most active courses', err: false, cap: 'More than 2,000 rows: "many". Above inventory_max: the bound named, as the row names it.' },
+      { title: 'Nothing open', hasCells: false, cells: [], hasText: true, text: 'Nothing to do or attend until the end of November', err: false, cap: 'One sentence instead of five zeros.' },
+      { title: 'Teaching, without block_feedback_tracker', hasCells: true, cells: this.periods('teaching', { ft: false }), hasText: true, text: 'Grading work shows when the strip is open', err: false, cap: 'No waiting count and no Grading overdue: class deadlines and events only.' },
+      { title: 'Counting failed', hasCells: false, cells: [], hasText: true, text: '', err: true, cap: 'get_strip_counts failed after its retries: the notice, under the line. The toggle still opens the strip.' }
+    ];
+  }
+
+  l2() {
+    const D = this.data();
+    const keys = ['late', 'today', 'tomorrow', 'week', 'later'];
+    const kinds = [['Graded', 'mk mk--graded', ['soon', 'graded']], ['To do', 'mk mk--todo', ['todo']], ['Late', 'mk mk--late', ['late']], ['Events', 'mk mk--event', ['event']]];
+    return kinds.map((k) => {
+      const per = keys.map((b) => D.views.learning.filter((d) => d.b === b).reduce((s, d) => s + k[2].reduce((t, f) => t + d[f], 0), 0));
+      return { label: k[0], mk: k[1], total: String(per.reduce((s, n) => s + n, 0)), cells: per.map((n) => (n ? this.heatCls(n) : 'hb0')) };
+    });
+  }
+
+  heatCls(n) {
+    if (!n) {
+      return 'sl-h0';
+    }
+    const s = n < 2 ? 1 : n < 4 ? 2 : n < 7 ? 3 : 4;
+    return 'hbox hb' + s;
+  }
+
+  l3(p) {
+    const rows = [['Graded', 'mk mk--graded', ['soon', 'graded']], ['To do', 'mk mk--todo', ['todo']], ['Late', 'mk mk--late', ['late']], ['Events', 'mk mk--event', ['event']]];
+    return {
+      head: p.map((b) => b.short),
+      rows: rows.map((r) => ({
+        label: r[0], mk: r[1],
+        cells: p.map((b) => {
+          const n = r[2].reduce((s, f) => s + (b.counts[f] || 0), 0);
+          return { n: n ? String(n) : '·', cls: n ? this.heatCls(n) : '' };
+        })
+      }))
+    };
+  }
+
+  outline() {
+    return [
+      '<section class="compass-cal">',
+      '  <h3>',
+      '    <button type="button" aria-expanded="false"',
+      '            aria-controls="compass-cal-row">Calendar</button>',
+      '  </h3>',
+      '  <ul aria-label="Your calendar, by period">',
+      '    <li><button type="button"',
+      '         aria-label="This week: 8 items. Opens the strip',
+      '           on these days.">',
+      '      <span aria-hidden="true">This week … 8</span>',
+      '    </button></li>',
+      '    …',
+      '  </ul>',
+      '  <div role="group" aria-label="Show the strip for">…</div>',
+      '  <a href="/calendar/view.php?view=month"',
+      '     aria-label="Open the calendar" title="Open the calendar">…</a>',
+      '  <div id="compass-cal-row" role="region"',
+      '       aria-label="Calendar strip"></div>  (rendered only when open)',
+      '  <div class="visually-hidden" aria-live="polite">…</div>',
+      '</section>'
+    ].join('\n');
+  }
+}
+
+Component.prototype.render = function () {
+  const v = this.renderVals();
+  return html`
+<div class=${`cc-root ${v.themeCls}`} style="width: 1440px; padding: 40px; display: flex; flex-direction: column; gap: 28px">
+
+  <section class="panel" style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px">
+    <div>
+      <p class="kicker">ADR-014 follow-up · design proposal · not built</p>
+      <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 600; letter-spacing: -.01em">The calendar strip, closed: counts by period on one line</h1>
+      <p class="p">The maintainer's choice (option B): <b>the slim strip is the strip's closed state</b>, as block_feedback_tracker's slim hero is its dashboard's. Closed, the strip is one line: its toggle, then how many items fall late, today, tomorrow, this week and later, with no day columns. Opening it shows the row of days as built. The choice is the viewer's and is remembered in <code>block_compass_calendar</code>; the first paint honours it. Closed never asks <code>get_strip</code> or <code>get_day</code>: the counts come from a small service that answers from the strip's cache when it is warm and from a counts-only pass when it is not (the "Where the counts come from" panel).</p>
+      <p class="p" style="margin-top: 10px"><b>Decided by the maintainer, 2026-10-14:</b> the counts come from <code>get_strip_counts</code>; a cold count omits Late until the strip has been opened that day; a viewer who never chose starts closed; the closed line shows plain counts per period, with no kind shapes and no "up to" (the open strip keeps both as built); "N submissions waiting to grade" shows only with block_feedback_tracker installed; no needle and no days-off note on the closed line.</p>
+    </div>
+    <div>
+      <ul class="notes">
+        <li><b>1. Recommended, interactive.</b> The Dashboard block, closed and open, Studying and Teaching, with a request log. Tweaks: dark, latency, the cache's state, a failing open, and the preference at page load.</li>
+        <li><b>2. Transitions.</b> First paint closed and open, opening, a failed open with its retry, closing again.</li>
+        <li><b>3. Where the counts come from.</b> Three sources, their cost and how stale each can be; S2 decided.</li>
+        <li><b>4. States and what a dateless line drops.</b></li>
+        <li><b>5. Layouts considered for the line</b>, and <b>option A</b> (slim as a style of its own) kept as the alternative.</li>
+        <li><b>6. Settings</b>, <b>7. phone</b>, <b>8. Teaching with and without block_feedback_tracker (dark)</b>, <b>9. anatomy and accessibility.</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap">
+      <div>
+        <p class="kicker">1 · Decided (option B), interactive · try the feedbackTracker tweak with Teaching</p>
+        <h2 class="h">Closed, the strip is a line of counts; open, it is the row of days</h2>
+        <p class="p" style="max-width: 900px">Click the toggle or a period. A period opens the strip on its days; Today and Tomorrow also pin that day's card. "Simulate coming back to the page" re-renders with the preference as you left it: closed paints closed at once, open paints the strip's skeleton, and neither flashes the other state.</p>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap">
+        <button type="button" class="btn-o" onClick=${v.reloadPage}>Simulate coming back to the page</button>
+        <button type="button" class="btn-o" onClick=${v.newSignin}>Simulate a new sign-in</button>
+      </div>
+    </div>
+
+    <div class="pg">
+      <section class="blk" aria-labelledby="sl-btitle">
+        <div class="blk-head"><h2 id="sl-btitle">Compass</h2><span style="font-size: 12.5px; color: var(--cc-muted)">No reload control: a retry appears only when a load fails</span></div>
+        <div class="blk-body">
+          <div class="sl" onKeyDown=${v.keyStrip}>
+            <div class="sl-band">
+              <h3 class="sl-h">
+                <button type="button" class="sl-toggle" aria-expanded=${v.open} aria-controls="sl-body" onClick=${v.toggle}>
+                  <svg class="sl-chev" width="14" height="14" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>
+                  Calendar
+                </button>
+              </h3>
+              ${(v.closed) ? html`
+                ${(v.showLead) ? html`
+                  <span class="sl-div" aria-hidden="true"></span>
+                  <span class="sl-lead"><b>${v.lead.waiting}</b><span>${v.lead.text}</span></span>
+                ` : null}
+                <span class="sl-div" aria-hidden="true"></span>
+                ${(v.countsLoading) ? html`
+                  <ul class="sl-cells" aria-busy="true" aria-label="Loading the calendar's counts">
+                    ${(v.skelCells || []).map((k, __i0) => html`
+                      <li class="sl-cell" style="cursor: default"><span class="sk" style="width: 58px; height: 11px"></span><span class="sk" style="width: 38px; height: 26px; border-radius: 14px"></span></li>
+                    `)}
+                  </ul>
+                ` : null}
+                ${(v.countsReady) ? html`
+                  <ul class="sl-cells" aria-label=${v.cellsLabel}>
+                    ${(v.cells || []).map((b, __i0) => html`
+                      <li>
+                        <button type="button" class=${b.cls} aria-label=${b.sentence} onClick=${b.click} onMouseEnter=${b.enter} onMouseLeave=${b.leave}>
+                          
+                          <span class="sl-lab" aria-hidden="true">${b.label}</span>
+                          <span class="sl-numline" aria-hidden="true"><span class="sl-chip">${b.shown}</span></span>
+                          
+                          
+                        </button>
+                      </li>
+                    `)}
+                  </ul>
+                ` : null}
+                ${(v.hasLineNote) ? html`<span class="sl-snap">${v.lineNote}</span>` : null}
+              ` : null}
+              ${(v.open) ? html`
+                <div class="fs-nav">
+                  <button type="button" class="fs-iconbtn" aria-label="Earlier days" disabled=${v.atStart} onClick=${v.prev}><svg width="14" height="14" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M41.4 233.4a32 32 0 0 0 0 45.3l160 160a32 32 0 0 0 45.3-45.3L109.3 256l137.4-137.4a32 32 0 0 0-45.3-45.3l-160 160z"></path></svg></button>
+                  <span class="fs-month" aria-live="polite">${v.monthLabel}</span>
+                  <button type="button" class="fs-iconbtn" aria-label="Later days" disabled=${v.atEnd} onClick=${v.next}><svg width="14" height="14" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M278.6 233.4a32 32 0 0 1 0 45.3l-160 160a32 32 0 0 1-45.3-45.3L210.7 256 73.4 118.6a32 32 0 0 1 45.3-45.3l160 160z"></path></svg></button>
+                  <button type="button" class="fs-today" disabled=${v.atToday} onClick=${v.goToday}>Today</button>
+                </div>
+              ` : null}
+              <div class="sl-right">
+                ${(v.hasBoth) ? html`
+                  <div class="sl-seg" role="group" aria-label="Show the strip for">
+                    <button type="button" class="sl-segbtn" aria-pressed=${v.isStudy} onClick=${v.setStudy}>Studying</button>
+                    <button type="button" class="sl-segbtn" aria-pressed=${v.isTeach} onClick=${v.setTeach}>Teaching</button>
+                  </div>
+                ` : null}
+                <a class="sl-iconlink" href="#" aria-label="Open the calendar" title="Open the calendar"><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg></a>
+              </div>
+            </div>
+
+            ${(v.open) ? html`
+              <div id="sl-body" class="fs" role="region" aria-label="Calendar strip">
+                ${(v.stripLoading) ? html`
+                  <div class="fs-days" aria-busy="true" aria-label="Loading the calendar strip">
+                    ${(v.skelDays || []).map((k, __i0) => html`
+                      <div class="fs-col"><span class="sk" style="width: 100%; max-width: 42px; aspect-ratio: 1 / 1; border-radius: 50%"></span><span class="fs-dots"></span><span class="sk" style="width: 22px; height: 9px"></span></div>
+                    `)}
+                  </div>
+                ` : null}
+                ${(v.stripError) ? html`
+                  <div class="retry" role="alert" style="margin: 8px 0 4px">
+                    <span>We could not load your calendar.</span>
+                    <span class="retry-actions">
+                      <button type="button" class="btn-o" onClick=${v.retry}>Try again</button>
+                      <button type="button" class="btn-link" onClick=${v.reloadPage}>Reload page</button>
+                    </span>
+                  </div>
+                ` : null}
+                ${(v.stripReady) ? html`
+                  <div class="fs-days" role="list" aria-label=${v.daysLabel}>
+                    ${(v.days || []).map((d, __i0) => html`
+                      <div class=${d.colCls} role="listitem">
+                        ${(d.needle) ? html`<span class="fs-needle" aria-hidden="true"></span>` : null}
+                        <button type="button" class=${d.cls} aria-label=${d.label} aria-expanded=${d.pinned} onClick=${d.click}>${d.n}</button>
+                        <span class="fs-dots" aria-hidden="true">${(d.dots || []).map((m, __i1) => html`<span class=${m}></span>`)}</span>
+                        <span class=${d.wdCls} aria-hidden="true">${d.wd}</span>
+                      </div>
+                    `)}
+                    ${(v.card.show) ? html`
+                      <div class="dc" role="dialog" aria-label=${v.card.title} style=${`left: ${v.card.left}`}>
+                        <div class="dc-head">
+                          <div>
+                            <p class="dc-title">${v.card.title}</p>
+                            <div class="dc-sub"><span class="dc-rel">${v.card.rel}</span><span>${v.card.count}</span></div>
+                          </div>
+                          <button type="button" class="dc-x" aria-label="Close" onClick=${v.closeCard}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+                        </div>
+                        <div class="dc-chips">${(v.card.chips || []).map((ch, __i0) => html`<span class="chip"><span class=${ch.mk} aria-hidden="true"></span>${ch.text}</span>`)}</div>
+                        ${(v.card.loading) ? html`
+                          <div aria-busy="true" aria-label="Loading the day" style="padding: 6px 16px 10px; display: flex; flex-direction: column; gap: 12px">
+                            <span class="sk" style="height: 34px"></span><span class="sk" style="height: 34px"></span>
+                          </div>
+                        ` : null}
+                        ${(v.card.ready) ? html`
+                          <ul class="dc-list">
+                            ${(v.card.items || []).map((it, __i0) => html`
+                              <li class="it">
+                                <span class=${it.icoCls} aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d=${it.ico}></path></svg></span>
+                                <div style="min-width: 0"><div class="it-top">${it.time} · ${it.course}</div><a class="it-title" href="#">${it.title}</a><div class="badges">${(it.badges || []).map((bg, __i1) => html`<span class=${bg.cls}>${bg.t}</span>`)}</div></div>
+                                <a class=${it.actCls} href="#">${it.action}</a>
+                              </li>
+                            `)}
+                          </ul>
+                        ` : null}
+                        <div class="dc-foot"><span>Escape or the close button lets it go.</span><a href="#" style="font-weight: 600; text-decoration: none">Open this day in the calendar</a></div>
+                      </div>
+                    ` : null}
+                  </div>
+                  <div class="fs-legend" aria-hidden="true">
+                    ${(v.legend || []).map((lg, __i0) => html`<span><span class=${lg.mk}></span>${lg.t}</span>`)}
+                  </div>
+                ` : null}
+              </div>
+            ` : null}
+          </div>
+
+          <div class="cards">
+            ${(v.tier1 || []).map((c, __i0) => html`
+              <div class="card"><div class="card-img" style=${`background: ${c.bg}`}></div><div class="card-b">${c.cat}<b>${c.name}</b></div></div>
+            `)}
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="net">
+      <div class="net-head"><span><b>Requests</b> · what this page asked, newest first</span><span style="color: var(--cc-muted)">${v.cacheLine}</span></div>
+      <ul class="net-list">
+        ${(v.log || []).map((lg, __i0) => html`
+          <li><span class=${lg.cls}>${lg.tag}</span><span>${lg.name}</span><span style="font-family: 'Noto Sans', system-ui, sans-serif">${lg.detail}</span><span>${lg.reads}</span></li>
+        `)}
+      </ul>
+      <div class="live">Live region (polite) last said: <b style="color: var(--cc-text-2)">${v.live}</b></div>
+    </div>
+  </section>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 18px">
+    <div>
+      <p class="kicker">2 · Transitions</p>
+      <h2 class="h">One header line in every state, so nothing jumps</h2>
+      <p class="p" style="max-width: 1000px">The toggle, the view switch and the calendar link sit on the same line, closed or open. The shell knows the stored state before React mounts (<code>calendar_preference::read()</code> reads <code>$USER</code>'s loaded preferences, no database read) and passes it in the block's props, so the first paint reserves the right height: 66 px closed, the row's skeleton open. A request starts only after <code>get_attention</code> settles, as today.</p>
+    </div>
+    <div class="story">
+      ${(v.story || []).map((s, __i0) => html`
+        <div class="step">
+          <div class="arrowr"><span class="num">${s.n}</span><b style="color: var(--cc-text); font-size: 13.5px">${s.title}</b></div>
+          <div class="sl">
+            <div class="sl-band">
+              <span class="sl-toggle" aria-hidden="true"><svg class="sl-chev" width="14" height="14" viewBox="0 0 320 512" fill="currentColor" style=${s.chev}><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>Calendar</span>
+              ${(s.cells) ? html`
+                <ul class="sl-cells" style="padding: 0">
+                  ${(s.list || []).map((b, __i1) => html`
+                    <li class=${b.cls} style="min-width: 0; padding: 2px 6px; cursor: default"><span class="sl-lab">${b.label}</span><span class="sl-numline" style="min-height: 22px"><span class="sl-chip" style="height: 22px; font-size: 13px; min-width: 26px">${b.shown}</span></span></li>
+                  `)}
+                </ul>
+              ` : null}
+              ${(s.skel) ? html`
+                <span style="display: flex; gap: 10px"><span class="sk" style="width: 46px; height: 34px"></span><span class="sk" style="width: 46px; height: 34px"></span><span class="sk" style="width: 46px; height: 34px"></span><span class="sk" style="width: 46px; height: 34px"></span></span>
+              ` : null}
+              ${(s.nav) ? html`<span style="font-weight: 600; font-size: 14px; margin-left: 8px">‹ October 2026 ›</span>` : null}
+            </div>
+            ${(s.row) ? html`
+              <div style="display: flex; gap: 6px; padding: 2px 14px 14px">
+                ${(s.discs || []).map((x, __i1) => html`<span class=${x} style="width: 26px; height: 26px; max-width: 26px; font-size: 11px">${s.blank}</span>`)}
+              </div>
+            ` : null}
+            ${(s.err) ? html`
+              <div class="retry" style="margin: 0 12px 12px; font-size: 12.5px"><span>We could not load your calendar.</span><span class="retry-actions"><span class="btn-o" style="font-size: 12px">Try again</span><span class="btn-link" style="font-size: 12px">Reload page</span></span></div>
+            ` : null}
+          </div>
+          <p class="cap">${s.cap}</p>
+        </div>
+      `)}
+    </div>
+  </section>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 18px">
+    <div>
+      <p class="kicker">3 · Where the counts come from</p>
+      <h2 class="h">Closed must cost less than a strip build: answer from the cache, else count only the future</h2>
+      <p class="p" style="max-width: 1040px">A strip build is ≤ 61 reads (62 with block_feedback_tracker), and 49 of E2's 60 are the past part through core's vault, the only way to know "late, still open" exactly (ADR-014 decision 5). The cache entry lives per sign-in and day, so the first page after signing in is always cold. Three sources were weighed; S2 was decided.</p>
+    </div>
+    <table class="t">
+      <thead><tr><th style="width: 210px">Source</th><th>How</th><th style="width: 190px">Reads, closed</th><th style="width: 250px">How stale</th><th style="width: 230px">Verdict</th></tr></thead>
+      <tbody>
+        <tr><td><b>S1. The page render</b></td><td>The shell reads the <code>calendarstrip</code> entry and passes the counts in the props.</td><td>0 database reads (one cache get); nothing when cold</td><td>As fresh as the entry (30 min TTL, per sign-in and day)</td><td><b>Rejected.</b> Breaks non-negotiable 2 (no cache in <code>block_compass.php</code> or <code>classes/output/</code>), and it is empty after every sign-in.</td></tr>
+        <tr style="background: color-mix(in oklab, var(--cc-accent) 6%, var(--cc-surface))"><td><b>S2. <code>get_strip_counts</code></b> <span class="tag tag--rec">decided</span></td><td>A read service, <code>readonlysession</code>, sent after <code>get_attention</code> settles, only while closed. Warm entry: the buckets are summed from the entry's day map. Cold: a <b>counts-only pass</b>, the future part of <code>strip::compute()</code> without <code>past()</code>, stored in the same entry flagged <code>past: false</code>; opening the strip later adds only the past part.</td><td>Warm: <b>2</b> (the service floor). Cold: about <b>11</b> without block_feedback_tracker (no grading statement), about <b>12</b> with it (its grading source; the closed line reads no days off), to be measured (inventory 1, course filter 1, graded roles 1, groups 1, counted statement 1, restricted modinfo ≈ 7 for 8 courses)</td><td>The strip's own residual: up to the TTL, a new day or sign-in recounts. Late is unknown on a cold pass and shown once the strip has been opened that day.</td><td><b>Decided.</b> Same truth as the strip, never more than the future part; an open after a cold count costs the past part only, so the sum never exceeds today's build.</td></tr>
+        <tr><td><b>S3. The last counts, kept</b></td><td>The client writes the buckets into <code>block_compass_calendar</code> with the day and time when the viewer closes the strip; the shell passes them back.</td><td><b>0</b>, and no request at all</td><td>As old as the last close. Shown only on the same local day, with "as of 9:40"; otherwise the line shows no numbers.</td><td><b>Not chosen.</b> A viewer who keeps it closed sees numbers only on the day they last opened it.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div>
+        <p class="kicker">4 · States of the closed line</p>
+        <h2 class="h">Every state the line can be in</h2>
+      </div>
+      ${(v.states || []).map((s, __i0) => html`
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div class="sl">
+            <div class="sl-band" style="min-height: 56px; flex-wrap: nowrap">
+              <span class="sl-toggle" aria-hidden="true" style="font-size: 14px"><svg class="sl-chev" width="12" height="12" viewBox="0 0 320 512" fill="currentColor" style="transform: rotate(-90deg)"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>Calendar</span>
+              <span class="sl-div" aria-hidden="true"></span>
+              ${(s.hasCells) ? html`
+                <ul class="sl-cells" style="padding: 4px 0 0; flex-wrap: nowrap">
+                  ${(s.cells || []).map((b, __i1) => html`
+                    <li class=${b.cls} style="min-width: 0; padding: 2px 8px; cursor: default"><span class="sl-lab">${b.label}</span><span class="sl-numline" style="min-height: 24px"><span class="sl-chip" style="height: 24px; font-size: 14px">${b.shown}</span></span></li>
+                  `)}
+                </ul>
+              ` : null}
+              ${(s.hasText) ? html`<span class="sl-snap">${s.text}</span>` : null}
+            </div>
+            ${(s.err) ? html`<div class="retry" style="margin: 0 12px 10px; font-size: 12.5px"><span>We could not count your calendar.</span><span class="retry-actions"><span class="btn-o" style="font-size: 12px">Try again</span></span></div>` : null}
+          </div>
+          <p class="cap" style="margin-top: 2px"><b style="color: var(--cc-text-2)">${s.title}.</b> ${s.cap}</p>
+        </div>
+      `)}
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div>
+        <p class="kicker">What a dateless line keeps and drops</p>
+        <h2 class="h">The row's signals, one by one</h2>
+      </div>
+      <table class="t">
+        <thead><tr><th style="width: 180px">Row of days</th><th>On the closed line</th></tr></thead>
+        <tbody>
+          <tr><td><b>Heat per day</b></td><td>Kept as the number's disc: a period takes the step of its heaviest day (relevance on) or its busiest day by count (off), so one heavy Thursday is not diluted by four empty days.</td></tr>
+          <tr><td><b>Needle</b></td><td><b>Dropped</b> from the closed line, in the picture and the sentence (the maintainer). The open strip keeps it.</td></tr>
+          <tr><td><b>Graded due soon ring</b></td><td><b>Dropped</b> (the maintainer: plain counts while closed).</td></tr>
+          <tr><td><b>Today's ink disc</b></td><td>Kept: Today's number is the ink disc, its heat as a halo.</td></tr>
+          <tr><td><b>Kind marks</b></td><td><b>Dropped</b> (the maintainer). The line shows one plain count per period; the kinds are in the open strip and in the day’s card.</td></tr>
+          <tr><td><b>"Up to N"</b></td><td><b>Dropped</b> from the closed line, drawn and spoken (the maintainer). A future Studying count is still a bound; the open strip keeps "up to" as built, and a day’s card settles it.</td></tr>
+          <tr><td><b>Weekend hatch</b></td><td><b>Dropped.</b> Every multi-day period has a weekend; marking it says nothing.</td></tr>
+          <tr><td><b>Holiday or recess</b></td><td><b>Dropped</b> from the closed line, with the weekend hatch (the maintainer). The open strip keeps both.</td></tr>
+          <tr><td><b>Month, arrows, Today</b></td><td><b>Dropped</b> while closed; they come back with the row.</td></tr>
+          <tr><td><b>Filter (Everything / To do / Events)</b></td><td><b>Not shown and not applied</b> while closed (decided): the count is everything. The stored filter is kept for the row.</td></tr>
+          <tr><td><b>Relevance switch</b></td><td>Not shown; the stored value decides the heat.</td></tr>
+          <tr><td><b>Done</b></td><td><b>Dropped:</b> a trace, never a count to act on.</td></tr>
+          <tr><td><b>Card and strip lighting</b></td><td>Kept: pointing at a course card lights the periods holding its items; the course ids are in the counts.</td></tr>
+          <tr><td><b>"many" and the 250-course bound</b></td><td>Kept: "many" in place of a truncated period's number; the bound as the line's last words.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 18px">
+    <div>
+      <p class="kicker">5 · Layouts considered for the closed line</p>
+      <h2 class="h">Three ways to say "how many, and when", without dates</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span><span class="tag tag--rec">L1 · recommended</span> <b style="font-size: 14px">One line, by period</b></span>
+        <div class="sl"><div class="sl-band" style="flex-wrap: nowrap; gap: 4px">
+          <ul class="sl-cells" style="padding: 4px 0 0; flex-wrap: nowrap; gap: 0">
+            ${(v.l1 || []).map((b, __i0) => html`
+              <li class=${b.cls} style="min-width: 0; padding: 2px 5px; cursor: default"><span class="sl-lab" style="font-size: 11.5px">${b.label}</span><span class="sl-numline" style="min-height: 24px"><span class="sl-chip" style="height: 24px; font-size: 14px; min-width: 28px">${b.shown}</span></span></li>
+            `)}
+          </ul>
+        </div></div>
+        <p class="cap">Answers "when" first, as the row does; one plain count per period (the maintainer). 66 px. Closest to feedback_tracker's slim hero: one band, a value per slot.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span><span class="tag">L2</span> <b style="font-size: 14px">By kind, a heat strip per kind</b></span>
+        <div class="sl" style="padding: 10px 12px; display: flex; gap: 14px">
+          ${(v.l2 || []).map((k, __i0) => html`
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <span class="sl-lab" style="display: inline-flex; gap: 5px; align-items: center"><span class=${k.mk}></span>${k.label}</span>
+              <b style="font-size: 18px; line-height: 1">${k.total}</b>
+              <span style="display: flex; gap: 2px">${(k.cells || []).map((c, __i1) => html`<span class=${c} style="width: 10px; height: 8px; border-radius: 2px"></span>`)}</span>
+            </div>
+          `)}
+        </div>
+        <p class="cap">Literally "the count of activities and events". The five ticks are the periods, unlabelled: when something is due is a guess. Rejected for that.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <span><span class="tag">L3</span> <b style="font-size: 14px">Kind × period grid</b></span>
+        <div class="sl" style="padding: 8px 10px">
+          <table class="t" style="font-size: 12px">
+            <thead><tr><th style="padding: 3px 4px"></th>${(v.l3.head || []).map((hd, __i0) => html`<th style="padding: 3px 4px; font-size: 11px">${hd}</th>`)}</tr></thead>
+            <tbody>${(v.l3.rows || []).map((r, __i0) => html`<tr><td style="padding: 3px 4px; white-space: nowrap"><span class=${r.mk}></span> ${r.label}</td>${(r.cells || []).map((c, __i1) => html`<td style="padding: 2px"><span class=${c.cls} style="display: grid; place-items: center; height: 22px; border-radius: 6px; font-weight: 600">${c.n}</span></td>`)}</tr>`)}</tbody>
+          </table>
+        </div>
+        <p class="cap">Complete, and 170 px tall: no longer slim, and a second reading of the row rather than a summary. Rejected.</p>
+      </div>
+    </div>
+    <div style="border: 1.5px dashed var(--cc-line-2); border-radius: 14px; padding: 18px 20px; display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start">
+      <div>
+        <span class="tag tag--alt">Option A · the alternative, not chosen</span>
+        <h3 style="margin: 10px 0 4px; font-size: 16px; font-weight: 600">Slim as a style of its own</h3>
+        <p class="p" style="font-size: 13px">The admin picks "Counts by period" as a fourth strip style beside dots, ring and pulse. Closed is then a bare header with no numbers and no request; open is either the line or the row, never both.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px">
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+          <div class="sl" style="padding: 12px; font-size: 13px"><b>Closed</b>: "▸ Calendar", nothing else. 0 requests.</div>
+          <div class="sl" style="padding: 12px; font-size: 13px"><b>Open, style "Counts"</b>: the line above. <code>get_strip</code>, the full build.</div>
+          <div class="sl" style="padding: 12px; font-size: 13px"><b>Open, dots / ring / pulse</b>: the row. <code>get_strip</code>.</div>
+        </div>
+        <p class="cap" style="margin: 0">Cheaper to reason about (closed is free, no new service) but the counts cost a full build and the viewer cannot move between summary and detail: that is the admin's choice. B gives the viewer both and makes the summary the cheap state.</p>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 690px; gap: 28px; align-items: start">
+    <section class="panel" style="padding: 32px 40px">
+      <p class="kicker">6 · Settings</p>
+      <div style="font-size: 13px; color: var(--cc-muted)">Site administration / Plugins / Blocks / Compass</div>
+      <h2 style="margin: 16px 0 0; font-size: 18px; font-weight: 600">Calendar strip</h2>
+      <div class="st-row"><div><div class="st-lab">Show the calendar strip</div><div class="st-key">block_compass | calendar_enabled</div></div><div><span class="st-desc" style="margin: 0">Unchanged.</span></div></div>
+      <div class="st-row"><div><div class="st-lab">Where the strip shows</div><div class="st-key">block_compass | calendar_where</div></div><div><span class="st-desc" style="margin: 0">Unchanged.</span></div></div>
+      <div class="st-row"><div><div class="st-lab">Calendar sources</div><div class="st-key">block_compass | calendar_sources</div></div><div><span class="st-desc" style="margin: 0">Unchanged; the closed line counts the same sources.</span></div></div>
+      <div class="st-row st-new">
+        <div><div class="st-lab"><label for="sl-start">The strip starts</label></div><div class="st-key">block_compass | calendar_start</div><span class="tag tag--rec" style="margin-top: 8px">new</span></div>
+        <div>
+          <select id="sl-start" class="st-sel"><option>Open: the row of days</option><option selected=${v.yes}>Closed: counts by period</option></select>
+          <div class="st-def">Default: Closed: counts by period</div>
+          <div class="st-desc">How the strip first shows for someone who has never opened or closed it. Each person's toggle is remembered and wins over this. Closed costs a count of the coming weeks; open costs the whole strip, past included.</div>
+        </div>
+      </div>
+      <div class="st-row"><div><div class="st-lab">Strip style</div><div class="st-key">block_compass | calendar_style</div></div><div><select class="st-sel"><option selected=${v.yes}>Dots</option><option>Ring</option><option>Pulse bars</option></select><div class="st-desc">How each day is drawn when the strip is open. Unchanged: there is no fourth "slim" style in option B.</div></div></div>
+      <div class="st-row" style="border-bottom: 0"><div><div class="st-lab">Weigh days by relevance</div><div class="st-key">block_compass | calendar_relevance</div></div><div><span class="st-desc" style="margin: 0">Unchanged; it also decides the closed line's heat.</span></div></div>
+      <p class="cap" style="margin-top: 14px">The viewer picks with the toggle, stored as <code>open</code> (a JSON boolean) in <code>block_compass_calendar</code> beside <code>view</code>, <code>filter</code> and <code>relevance</code>; a missing member falls back to <code>calendar_start</code>.</p>
+    </section>
+
+    <section class="panel" style="display: flex; flex-direction: column; gap: 14px">
+      <p class="kicker">7 · Phone, 390 px</p>
+      <div style="display: flex; gap: 22px">
+        <div class="phone ph">
+          <div class="ph-bar"><span>☰</span><span>Dashboard</span><span style="width: 30px; height: 30px; border-radius: 50%; background: var(--cc-surface-2); display: grid; place-items: center; font-size: 11px">LM</span></div>
+          <div style="padding: 14px; display: flex; flex-direction: column; gap: 12px">
+            <div class="sl">
+              <div class="sl-band">
+                <span class="sl-toggle"><svg class="sl-chev" width="14" height="14" viewBox="0 0 320 512" fill="currentColor" style="transform: rotate(-90deg)" aria-hidden="true"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>Calendar</span>
+                <span class="sl-right"><span class="sl-iconlink" style="width: 40px; height: 40px"><svg width="13" height="15" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg></span></span>
+                <div class="sl-seg" style="width: 100%"><span class="sl-segbtn" aria-pressed="true" style="flex: 1 1 0; justify-content: center">Studying</span><span class="sl-segbtn" style="flex: 1 1 0; justify-content: center">Teaching</span></div>
+                <ul class="sl-cells">
+                  ${(v.l1 || []).map((b, __i0) => html`
+                    <li><span class=${b.cls} style="cursor: default"><span class="sl-lab">${b.short}</span><span class="sl-numline"><span class="sl-chip">${b.shown}</span></span></span></li>
+                  `)}
+                </ul>
+              </div>
+            </div>
+            <div class="card"><div class="card-img" style="height: 96px; background: #dbe6f2"></div><div class="card-b">Computer Science · Semester 2<b>Data Structures</b></div></div>
+            <div class="card"><div class="card-img" style="height: 96px; background: #e6dff2"></div><div class="card-b">Engineering · Year 1<b>Circuits and Systems</b></div></div>
+          </div>
+          <div aria-hidden="true" style="position: absolute; inset: 0; background: rgba(15, 18, 22, 0.38)"></div>
+          <section role="dialog" aria-label="Tuesday, 13 October" style="position: absolute; left: 0; right: 0; bottom: 0; background: var(--cc-surface); border-radius: 22px 22px 0 0; box-shadow: 0 -18px 40px -16px rgba(0, 0, 0, 0.35); padding: 8px 0 18px">
+            <span aria-hidden="true" style="display: block; width: 40px; height: 5px; border-radius: 5px; background: var(--cc-line-2); margin: 0 auto 8px"></span>
+            <div class="dc-head" style="padding-top: 4px"><div><p class="dc-title">Tuesday, 13 October</p><div class="dc-sub"><span class="dc-rel">Today</span><span>3 items</span></div></div><span class="dc-x"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></div>
+            <ul class="dc-list">
+              ${(v.phoneItems || []).map((it, __i0) => html`
+                <li class="it">
+                  <span class=${it.icoCls} aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d=${it.ico}></path></svg></span>
+                  <div style="min-width: 0"><div class="it-top">${it.time} · ${it.course}</div><span class="it-title">${it.title}</span><div class="badges">${(it.badges || []).map((bg, __i1) => html`<span class=${bg.cls}>${bg.t}</span>`)}</div></div>
+                  <span class=${it.actCls}>${it.action}</span>
+                </li>
+              `)}
+            </ul>
+            <p class="cap" style="margin: 4px 18px 0">Where a tap on Today ends: the strip opens behind the sheet (get_strip), then the day (get_day). The closed line stays in the picture to show what was tapped.</p>
+          </section>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-width: 0">
+          <ul class="notes">
+            <li><b>The line wraps into a block</b> below 640 px of the block's width: toggle and calendar link, the view switch, then the five periods as a grid.</li>
+            <li><b>Plain counts</b>, as on the desktop: no shapes, no "up to".</li>
+            <li><b>Labels shorten</b> from the language file (<code>cal_bucket_*_short</code>): Late, Today, Tmrw., Week, Later.</li>
+            <li><b>A period is a 62 px target</b>, above the 44 px minimum.</li>
+            <li><b>Tapping a period</b> opens the strip on those days; Today and Tomorrow open the day's bottom sheet (drawn), as the phone artboard of ADR-014 does.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 14px">
+    <p class="kicker">8 · Teaching, with and without block_feedback_tracker (dark shown for the first)</p>
+    <div class="cc-root cc-dark" style="border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px">
+      <span><span class="tag">With block_feedback_tracker</span></span>
+      <div class="sl">
+        <div class="sl-band">
+          <span class="sl-toggle"><svg class="sl-chev" width="14" height="14" viewBox="0 0 320 512" fill="currentColor" style="transform: rotate(-90deg)" aria-hidden="true"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>Calendar</span>
+          <span class="sl-div"></span>
+          <span class="sl-lead"><b>${v.teachLead.waiting}</b><span>${v.teachLead.text}</span></span>
+          <span class="sl-div"></span>
+          <ul class="sl-cells">
+            ${(v.teachCellsFt || []).map((b, __i0) => html`
+              <li><span class=${b.cls} style="cursor: default"><span class="sl-lab">${b.label}</span><span class="sl-numline"><span class="sl-chip">${b.shown}</span></span></span></li>
+            `)}
+          </ul>
+          
+          <div class="sl-right">
+            <div class="sl-seg"><span class="sl-segbtn">Studying</span><span class="sl-segbtn" aria-pressed="true">Teaching</span></div>
+            <span class="sl-iconlink"><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg></span>
+          </div>
+        </div>
+      </div>
+      <p class="cap" style="margin: 0">The lead and the grading counts come from block_feedback_tracker's submissions table through <code>grading::source()</code>, the seam amendment 9 left for it. Teaching counts are exact. Grading overdue comes from the counted statement's past <code>gradingdue</code> rows, so a cold count shows it too. In dark mode the calendar link and the open strip's marks go through <code>--block_compass-brand-ink</code>, and the third and fourth heat steps keep a dark numeral.</p>
+    </div>
+    <div style="border-radius: 16px; padding: 24px; border: 1px solid var(--cc-line); display: flex; flex-direction: column; gap: 12px">
+      <span><span class="tag">Without block_feedback_tracker</span></span>
+      <div class="sl">
+        <div class="sl-band">
+          <span class="sl-toggle"><svg class="sl-chev" width="14" height="14" viewBox="0 0 320 512" fill="currentColor" style="transform: rotate(-90deg)" aria-hidden="true"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>Calendar</span>
+          <span class="sl-div"></span>
+          <ul class="sl-cells">
+            ${(v.teachCellsNoFt || []).map((b, __i0) => html`
+              <li><span class=${b.cls} style="cursor: default"><span class="sl-lab">${b.label}</span><span class="sl-numline"><span class="sl-chip">${b.shown}</span></span></span></li>
+            `)}
+          </ul>
+          <span class="sl-snap">Grading work shows when the strip is open</span>
+          <div class="sl-right">
+            <div class="sl-seg"><span class="sl-segbtn">Studying</span><span class="sl-segbtn" aria-pressed="true">Teaching</span></div>
+            <span class="sl-iconlink"><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg></span>
+          </div>
+        </div>
+      </div>
+      <p class="cap" style="margin: 0">No waiting count and no grading statement while closed: without the plugin's table, counting the submissions waiting means core's per-assignment count, too costly for a line that is only a summary. The line counts the class's deadlines and events. It shows no Grading overdue period. Grading work appears as soon as the strip is opened.</p>
+    </div>
+  </section>
+
+  <section class="panel" style="display: flex; flex-direction: column; gap: 18px">
+    <div>
+      <p class="kicker">9 · Anatomy and accessibility</p>
+      <h2 class="h">One heading, one disclosure, a list of buttons</h2>
+    </div>
+    <div class="sl" style="margin-top: 10px">
+      <div class="sl-band">
+        <span style="position: relative"><span class="pin" style="left: -6px; top: -14px"><span class="num">1</span></span><span class="sl-toggle"><svg class="sl-chev" width="14" height="14" viewBox="0 0 320 512" fill="currentColor" style="transform: rotate(-90deg)" aria-hidden="true"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg>Calendar</span></span>
+        <span class="sl-div"></span>
+        <span style="position: relative"><span class="pin" style="left: -6px; top: -14px"><span class="num">2</span></span>
+          <ul class="sl-cells">
+            ${(v.l1 || []).map((b, __i0) => html`
+              <li><span class=${b.cls} style="cursor: default"><span class="sl-lab">${b.label}</span><span class="sl-numline"><span class="sl-chip">${b.shown}</span></span></span></li>
+            `)}
+          </ul>
+          <span class="pin" style="left: 286px; top: 20px"><span class="num">3</span></span>
+        </span>
+        <div class="sl-right">
+          <span style="position: relative"><span class="pin" style="left: -6px; top: -14px"><span class="num">4</span></span><span class="sl-seg"><span class="sl-segbtn" aria-pressed="true">Studying</span><span class="sl-segbtn">Teaching</span></span></span>
+          <span style="position: relative"><span class="pin" style="left: -6px; top: -14px"><span class="num">5</span></span><span class="sl-iconlink"><svg width="14" height="16" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg></span></span>
+        </div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 28px">
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <ul class="notes" style="list-style: none; padding: 0">
+        <li><span class="num">1</span> <b>Heading and disclosure.</b> The toggle is a <code>button</code> inside the strip's heading (level from <code>heading.ts</code>, 4/3/2 by <code>headinglevel</code>), the WAI disclosure pattern: <code>aria-expanded</code> and <code>aria-controls</code> naming the row's region. Its name is "Calendar"; the state is the attribute, never the text.</li>
+        <li><span class="num">2</span> <b>The periods are a list of buttons</b> (<code>ul</code> named "Your calendar, by period"), each named by one sentence: "This week: 8 items. Opens the strip on these days." The label and number inside are <code>aria-hidden</code>, as the row's dots are.</li>
+        <li><span class="num">3</span> <b>Plain counts, spoken as drawn.</b> No shapes and no "up to" on the closed line, in the picture or in the sentence (the maintainer). The open strip keeps both as built, <code>cal_upto</code> included (ADR-014 amendment 9).</li>
+        <li><span class="num">4</span> <b>The view switch</b> keeps <code>role="group"</code> and <code>aria-pressed</code>; switching while closed costs no request (the counts carry both views, as the strip payload does).</li>
+        <li><span class="num">5</span> <b>"Open the calendar"</b> becomes an icon link named by <code>aria-label</code> and <code>title</code>, 40 px, the control border (4.8:1).</li>
+        <li><span class="num">·</span> <b>Live region</b>, polite, keyed on a counter: once when the counts arrive ("Calendar: 2 late, still open, 3 today, 1 tomorrow, 8 this week, 18 later"), never on a later re-render. Opening the strip announces nothing extra: the region and its skeleton carry <code>aria-busy</code>; a failure is the <code>RetryNotice</code>'s <code>role="alert"</code>.</li>
+        <li><span class="num">·</span> <b>Focus.</b> Toggling keeps focus on the toggle. A period button opens the strip and moves focus to its first day (or the pinned day card for Today and Tomorrow). When a retry succeeds and the notice leaves, focus goes to the toggle: <code>RetryNotice</code>'s fallback today is <code>.compass-reload</code>, which the no-reload rule removes, so its target must change.</li>
+        <li><span class="num">·</span> <b>Motion and colour.</b> No height animation on open or close; the shimmer stops under reduced motion. Late's number is the danger colour (5.29:1 on white, 6.69:1 on the dark surface) with its hollow diamond, so nothing depends on hue. Labels are sentence case, never uppercase (feedback_tracker's eyebrows are; Compass's rule wins).</li>
+      </ul>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <p class="kicker">The markup, closed</p>
+      <pre class="code">${v.outline}</pre>
+      <p class="kicker" style="margin-top: 6px">What each moment announces</p>
+      <table class="t">
+        <thead><tr><th>Moment</th><th>Screen reader</th></tr></thead>
+        <tbody>
+          ${(v.sr || []).map((r, __i0) => html`<tr><td><b>${r.a}</b></td><td>${r.b}</td></tr>`)}
+        </tbody>
+      </table>
+    </div>
+    </div>
+  </section>
+</div>
+`;
+};
+const TWEAKS = {"dark": {"editor": "boolean", "default": false, "section": "Theme"}, "startOpen": {"editor": "boolean", "default": false, "section": "Preference at page load"}, "cache": {"editor": "enum", "options": ["cold", "warm"], "default": "cold", "section": "Server"}, "failOpen": {"editor": "boolean", "default": false, "section": "Server"}, "feedbackTracker": {"editor": "boolean", "default": false, "section": "Server"}, "latency": {"editor": "range", "min": 0, "max": 1500, "step": 50, "unit": "ms", "default": 450, "section": "Server"}};
+class Shell extends PreactComponent {
+  constructor(props) { super(props); this.state = {"dark": false, "startOpen": false, "cache": "cold", "failOpen": false, "feedbackTracker": false, "latency": 450}; }
+  render() {
+    const rows = Object.entries(TWEAKS).map(([key, t]) => {
+      const set = (value) => this.setState({ [key]: value });
+      if (t.editor === 'boolean') {
+        return html`<label>${key} <input type="checkbox" checked=${!!this.state[key]} onChange=${(e) => set(e.target.checked)} /></label>`;
+      }
+      if (t.editor === 'enum') {
+        return html`<label>${key} <select value=${this.state[key]} onChange=${(e) => set(e.target.value)}>
+          ${t.options.map((o) => html`<option value=${o}>${o}</option>`)}</select></label>`;
+      }
+      if (t.editor === 'range' || t.editor === 'int') {
+        return html`<label>${key} <input type="number" min=${t.min} max=${t.max} step=${t.step || 1} value=${this.state[key]}
+          onChange=${(e) => set(Number(e.target.value))} style="width: 80px" /></label>`;
+      }
+      return null;
+    });
+    return html`<${Component} ...${this.state} />${rows.length ? html`<aside class="dcx-tweaks" aria-label="Mockup tweaks">
+      <b>Tweaks</b>${rows}<a href="index.html">All artboards</a></aside>` : html`<aside class="dcx-tweaks"><a href="index.html">All artboards</a></aside>`}`;
+  }
+}
+render(html`<${Shell} />`, document.getElementById('dcx-root'));
+</script>
+</body>
+</html>

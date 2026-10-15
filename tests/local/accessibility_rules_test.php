@@ -220,7 +220,7 @@ final class accessibility_rules_test extends basic_testcase {
 
         $components = [
             'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
-            'Reload', 'RetryNotice', 'RowList', 'Row', 'Group',
+            'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip', 'CalendarLine', 'Block',
         ];
         foreach ($components as $component) {
             $this->assertArrayHasKey("js/esm/src/{$component}.tsx", $files);
@@ -360,12 +360,11 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The icon-only buttons name themselves.
      *
-     * Archive, Star and Reload render a glyph and nothing else, and the glyph is aria-hidden,
-     * so without an aria-label a screen reader announces "button" and the user is told to
-     * press something unnamed. The list/cards switch (ViewToggle) is two such buttons, and
-     * the Filter button (FilterToggle) hides its own text and count from the accessibility
-     * tree to say them as one sentence. Every button tag in these five files must carry the
-     * attribute.
+     * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
+     * without an aria-label a screen reader announces "button" and the user is told to press
+     * something unnamed. The list/cards switch (ViewToggle) is two such buttons, and the Filter
+     * button (FilterToggle) hides its own text and count from the accessibility tree to say them
+     * as one sentence. Every button tag in these four files must carry the attribute.
      *
      * @return void
      */
@@ -373,7 +372,6 @@ final class accessibility_rules_test extends basic_testcase {
         $files = $this->sources();
         $iconfiles = [
             'js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
-            'js/esm/src/Reload.tsx',
         ];
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
@@ -493,9 +491,9 @@ final class accessibility_rules_test extends basic_testcase {
         sort($sections);
         sort($titles);
         $this->assertSame(
-            ['js/esm/src/Explore.tsx', 'js/esm/src/Strip.tsx'],
+            ['js/esm/src/CalendarStrip.tsx', 'js/esm/src/Explore.tsx', 'js/esm/src/Strip.tsx'],
             $sections,
-            'the section rung is the section titles: a tier 1 strip and the tier 3 panel'
+            'the section rung is the section titles: the calendar strip, a tier 1 strip and the tier 3 panel'
         );
         $this->assertSame(
             ['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx'],
@@ -730,13 +728,13 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Core's .icon carries a right margin for a glyph before a label (theme/boost/scss/moodle/
      * icons.scss), and icon-no-margin is core's own way to drop it inside a control that has no
-     * label. The four icon-only controls are read; the Filter button keeps the margin on purpose,
+     * label. The three icon-only controls are read; the Filter button keeps the margin on purpose,
      * because its glyph precedes a word. Vacuity guard: each file must render a glyph span.
      *
      * @return void
      */
     public function test_the_icon_only_glyphs_carry_no_margin(): void {
-        $files = ['js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/Reload.tsx'];
+        $files = ['js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx'];
         foreach ($files as $file) {
             $spans = array_filter(
                 $this->tags($this->sources()[$file], 'span'),
@@ -792,7 +790,7 @@ final class accessibility_rules_test extends basic_testcase {
                 "{$selector}: a no-title rule removes something from the accessibility tree"
             );
         }
-        $this->assertGreaterThanOrEqual(3, $seen, 'no .block_compass-notitle rules found in styles.css');
+        $this->assertGreaterThanOrEqual(1, $seen, 'no .block_compass-notitle rules found in styles.css');
     }
 
     /**
@@ -824,15 +822,14 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A control that disables itself by being pressed is aria-disabled, never disabled.
      *
-     * The disabled attribute is applied in the render the control's own click causes, and a
-     * focused element that becomes disabled drops the keyboard to the body: the "Reloading…"
-     * label is then announced to nobody, and the next Tab starts at the top of the page. The
-     * components that render such a control are read: the reload control and Try again, the
-     * star while its write is out, Clear filters once its press has released the last filter,
-     * and Archive all (the one button Explore.tsx renders itself) while its run is out. Two
-     * controls keep the attribute on purpose, because the keyboard is moved deliberately after
-     * them: "Show more" in Group.tsx, and the archive control, whose row leaves the page and
-     * whose focus Explore's keepFocus() puts back. The vacuity guard is the button tag itself,
+     * The disabled attribute is applied in the render the control's own click causes, and a focused
+     * element that becomes disabled drops the keyboard to the body: the "Reloading…" label is then
+     * announced to nobody, and the next Tab starts at the top of the page. The components that render
+     * such a control are read: Try again, the star while its write is out, Clear filters once its press
+     * has released the last filter, and Archive all (the one button Explore.tsx renders itself) while
+     * its run is out. Two controls keep the attribute on purpose, because the keyboard is moved
+     * deliberately after them: "Show more" in Group.tsx, and the archive control, whose row leaves the
+     * page and whose focus Explore's keepFocus() puts back. The vacuity guard is the button tag itself,
      * in each file.
      *
      * Changes that must make it fail: the disabled attribute back on any button of these files,
@@ -842,8 +839,7 @@ final class accessibility_rules_test extends basic_testcase {
      */
     public function test_the_busy_controls_stay_focusable(): void {
         $files = [
-            'js/esm/src/Reload.tsx', 'js/esm/src/RetryNotice.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/FilterPanel.tsx',
-            'js/esm/src/Explore.tsx',
+            'js/esm/src/RetryNotice.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/FilterPanel.tsx', 'js/esm/src/Explore.tsx',
         ];
         foreach ($files as $file) {
             $tags = $this->tags($this->sources()[$file], 'button');
@@ -1426,34 +1422,185 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * Without the page title the reload control is stacked above the first row and padded away from it.
+     * There is no permanent reload control: a way back exists only in the notice a failed load shows.
      *
-     * With hide_page_title on, the control leaves its row for the page's top-right corner. The
-     * calendar strip, positioned and later in the page, painted its header over it, and the control
-     * took no click (measured on m502 at 588 px: elementFromPoint at its centre was the strip's
-     * header). The Behat scenario clicks it; this reads the two rules that make the click land: a
-     * z-index on the cornered control, and the strip's header among the rows padded away from it.
+     * The maintainer's rule (ADR-014 amendment 11): a reload or retry control appears only when a
+     * load fails, as block_feedback_tracker's RetryNotice does. So no component of its own, no class
+     * or label of one, and the page reload is RetryNotice's alone. The notice's focus fallback, which
+     * hands the keyboard on when the notice leaves (WCAG 2.4.3), names only classes a component
+     * renders: the reload control it once named is gone, and a fallback to nothing drops the
+     * keyboard to the body. Vacuity guards: the notice's reload and its fallback chain were found.
      *
-     * Changes that must make it fail: the z-index dropped; the calendar header left out of the padded rows.
+     * Changes that must make it fail: a reload control back in any component; the fallback aimed at a
+     * class nothing renders.
      *
      * @return void
      */
-    public function test_the_reload_control_stays_above_the_first_row_without_the_title(): void {
-        $cornered = 0;
-        $padded = 0;
-        foreach ($this->rules() as [$selector, $body]) {
-            if (!str_contains($selector, '.block_compass-notitle')) {
-                continue;
-            }
-            if (str_contains($selector, '.compass-content-head') && str_contains($body, 'position: absolute')) {
-                $cornered++;
-                $this->assertMatchesRegularExpression('/(?<![-\w])z-index:\s*[1-9]/', $body, 'the cornered control has no z-index');
-            }
-            if (preg_match('/\.compass-cal-head(?![\w-])/', $selector) && str_contains($body, 'padding-inline-end')) {
-                $padded++;
+    public function test_a_way_back_appears_only_with_a_failure(): void {
+        $sources = $this->reactsources();
+        $this->assertArrayNotHasKey('js/esm/src/Reload.tsx', $sources, 'a component of its own for a reload control');
+        foreach ($sources as $file => $contents) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/compass-reload\b|labels\.reload\b/',
+                $contents,
+                "{$file}: a reload control"
+            );
+            if ($file !== 'js/esm/src/RetryNotice.tsx') {
+                $this->assertStringNotContainsString('location.reload', $contents, "{$file}: a page reload outside RetryNotice");
             }
         }
-        $this->assertSame(1, $cornered, 'the no-title rule that corners the reload control was not found');
-        $this->assertSame(1, $padded, 'the calendar strip\'s header is not padded away from the reload control');
+        $notice = $sources['js/esm/src/RetryNotice.tsx'];
+        $this->assertStringContainsString('window.location.reload()', $notice, 'vacuity: the notice\'s own reload');
+
+        preg_match_all("/querySelector<HTMLElement>\('\.([\w-]+)'\)/", $notice, $matches);
+        $this->assertNotEmpty($matches[1], 'vacuity: the focus fallback chain was not found');
+        $code = '';
+        foreach ($sources as $file => $contents) {
+            if ($file !== 'js/esm/src/RetryNotice.tsx') {
+                $code .= $contents;
+            }
+        }
+        foreach ($matches[1] as $class) {
+            $this->assertMatchesRegularExpression(
+                '/className=["\'][^"\']*(?<![\w-])' . preg_quote($class, '/') . '(?![\w-])/',
+                $code,
+                "the focus fallback names .{$class}, which no component renders"
+            );
+        }
+    }
+
+    /**
+     * The strip's toggle is a disclosure inside the strip's heading, and the region it controls is always there.
+     *
+     * The WAI disclosure pattern (ADR-014 amendment 11, the mockup's anatomy): a button inside the
+     * heading, its state in aria-expanded and never in its text, aria-controls naming the row's
+     * region. The region is rendered closed too, empty and hidden, so the id the button names always
+     * exists. Vacuity guards: the toggle, the heading and the region were found.
+     *
+     * Changes that must make it fail: aria-expanded or aria-controls dropped; the toggle out of the
+     * heading; the region rendered only when open.
+     *
+     * @return void
+     */
+    public function test_the_strip_toggle_is_a_disclosure_in_its_heading(): void {
+        $source = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        $toggles = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-cal-toggle')
+        ));
+        $this->assertCount(1, $toggles, 'the strip\'s toggle was not found');
+        $this->assertMatchesRegularExpression('/\saria-expanded=\{open\}/', $toggles[0], 'the toggle states its state');
+        $this->assertMatchesRegularExpression('/\saria-controls=\{bodyid\}/', $toggles[0], 'the toggle names its region');
+
+        $this->assertMatchesRegularExpression(
+            '/<Heading className="compass-cal-title[^"]*">\s*<button\s[^>]*compass-cal-toggle/s',
+            $source,
+            'the toggle is the heading\'s button'
+        );
+        $regions = array_values(array_filter(
+            $this->tags($source, 'div'),
+            static fn(string $tag): bool => str_contains($tag, 'id={bodyid}')
+        ));
+        $this->assertCount(1, $regions, 'the region the toggle controls was not found');
+        $this->assertMatchesRegularExpression(
+            '/\shidden=\{!open\}/',
+            $regions[0],
+            'the region stays rendered, hidden while closed'
+        );
+    }
+
+    /**
+     * A closed strip asks for its counts alone; an open one for its row alone.
+     *
+     * The maintainer's rule (ADR-014 amendment 11): closed fires no get_strip and no get_day; the
+     * counts are asked only while closed, and never once a payload is in hand (closing sums it).
+     * No JavaScript runner exists, so the two request effects' guards are read where they are
+     * written. Vacuity guards: both requests were found, each in one effect.
+     *
+     * Changes that must make it fail: the row asked while closed; the counts asked while open or with
+     * a payload in hand.
+     *
+     * @return void
+     */
+    public function test_a_closed_strip_asks_only_for_its_counts(): void {
+        $source = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        preg_match_all('/useEffect\(\(\) => \{\n(.*?)\n    \}, \[[^\]]*\]\);/s', $source, $effects);
+        $strip = array_values(array_filter($effects[1], static fn(string $body): bool => str_contains($body, 'getStrip()')));
+        $counts = array_values(array_filter($effects[1], static fn(string $body): bool => str_contains($body, 'getStripCounts()')));
+        $this->assertCount(1, $strip, 'the row\'s request effect was not found');
+        $this->assertCount(1, $counts, 'the counts\' request effect was not found');
+        $this->assertMatchesRegularExpression(
+            '/^\s*if \(turn === 0 \|\| !open\) \{/',
+            $strip[0],
+            'the row is asked only while open'
+        );
+        $this->assertMatchesRegularExpression(
+            '/^\s*if \(turn === 0 \|\| open \|\| payload !== null\) \{/',
+            $counts[0],
+            'the counts are asked only while closed, and never with a payload to sum'
+        );
+    }
+
+    /**
+     * The closed line draws plain counts: no kind marks, no "up to", no needle, no day off.
+     *
+     * The maintainer's decisions 5 and 7 of the slim strip (ADR-014 amendment 11): the line keeps the
+     * toggle, the views switch, the calendar link, the periods with plain counts and, with
+     * block_feedback_tracker's ledger, the waiting lead. Vacuity guard: the period buttons were found,
+     * each named by its sentence.
+     *
+     * Changes that must make it fail: a dot, a ring, the bound wording, the needle or a day off drawn
+     * on the closed line.
+     *
+     * @return void
+     */
+    public function test_the_closed_line_draws_plain_counts(): void {
+        $source = $this->sources()['js/esm/src/CalendarLine.tsx'];
+        $periods = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'className={classes}')
+        ));
+        $this->assertCount(1, $periods, 'the period button was not found');
+        $this->assertMatchesRegularExpression('/\saria-label=\{label\}/', $periods[0], 'a period is named by its sentence');
+        $code = preg_replace(['#/\*.*?\*/#s', '#(?<![:/])//[^\n]*#'], '', $source);
+        $drawn = [
+            'compass-cal-dot', 'compass-cal-ring', 'compass-cal-needle', 'cal_upto', 'needle', 'dayOff', 'specialdays', 'legend',
+        ];
+        foreach ($drawn as $word) {
+            $this->assertStringNotContainsString($word, $code, "the closed line draws {$word}");
+        }
+    }
+
+    /**
+     * A period's short label, drawn on a narrow block, is part of the name its button speaks.
+     *
+     * WCAG 2.5.3: a voice-control user says what they see, and the button's name is the long
+     * label's sentence; a short label that is not in the long one ("Tmrw." beside "Tomorrow")
+     * cannot be spoken to the button. Compared case-insensitively, in every shipped language.
+     *
+     * @return void
+     */
+    public function test_a_short_period_label_is_inside_its_long_one(): void {
+        global $CFG;
+
+        $checked = 0;
+        foreach (['en', 'pt_br'] as $lang) {
+            $string = [];
+            include($CFG->dirroot . "/blocks/compass/lang/{$lang}/block_compass.php");
+            foreach ($string as $key => $short) {
+                if (!str_starts_with($key, 'cal_period_') || !str_ends_with($key, '_short')) {
+                    continue;
+                }
+                $long = $string[substr($key, 0, -strlen('_short'))];
+                $this->assertStringContainsStringIgnoringCase(
+                    rtrim($short, '.'),
+                    $long,
+                    "{$lang}: {$key} is not inside its long label"
+                );
+                $checked++;
+            }
+        }
+        // Vacuity guard: six periods, two languages.
+        $this->assertGreaterThanOrEqual(12, $checked);
     }
 }

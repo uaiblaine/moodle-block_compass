@@ -26,7 +26,8 @@
  */
 
 /**
- * One of a course's institutional crests, from theme_boost_union_fundaseg's callback.
+ * One of a course's institutional crests, from the \block_compass\hook\course_badges hook,
+ * answered by a theme such as theme_dimensions.
  *
  * The URL carries the file's content hash and the alternative text is the theme's; Compass
  * builds neither. A course without crests carries no badges key at all.
@@ -177,7 +178,6 @@ export type BlockConfig = {
         expanded: string,
         collapsed: string,
         collapsedrtl: string,
-        reload: string,
     },
     strips: Strip[],
     favouritesenabled: boolean,
@@ -201,11 +201,15 @@ export type CalendarView = 'learning' | 'teaching';
 /** What the strip and a day's card list: everything, only what is to do, or only events. */
 export type CalendarFilter = 'all' | 'todo' | 'events';
 
-/** The strip as the viewer left it, validated by classes/local/calendar_preference.php. */
+/**
+ * The strip as the viewer left it, validated by classes/local/calendar_preference.php: open is the
+ * row of days, closed the line of counts (ADR-014 amendment 11).
+ */
 export type CalendarState = {
     view: CalendarView,
     filter: CalendarFilter,
     relevance: boolean,
+    open: boolean,
 };
 
 /**
@@ -220,6 +224,8 @@ export type CalendarConfig = {
     style: 'dots' | 'ring' | 'pulse',
     relevance: boolean,
     state: CalendarState,
+    // Whether the closed line counts grading work: only with block_feedback_tracker's ledger as the source.
+    grading: boolean,
     url: string,
     dayurl: string,
     timezone: string,
@@ -282,6 +288,43 @@ export type StripPayload = {
     // Weekend days as core's mask: bit i for weekday i, 0 = Sunday.
     weekend: number,
     specialdays: SpecialDay[],
+};
+
+/** A period of the closed strip (amendment 11): late, today, tomorrow, the rest of the week, later. */
+export type PeriodKey = 'late' | 'today' | 'tomorrow' | 'week' | 'later';
+
+/** One period's plain count, the heat of its busiest day and the courses it counts. */
+export type Period = {
+    key: PeriodKey,
+    count: number,
+    step: number,
+    countstep: number,
+    courseids: number[],
+};
+
+/** One view of the closed strip: its periods in order, the unknown ones absent, and the waiting lead. */
+export type PeriodView = {
+    periods: Period[],
+    waiting: number,
+};
+
+/**
+ * The closed strip's counts: block_compass_get_strip_counts's answer, or the same shape summed in the
+ * browser from an open strip's payload (calendar.ts, periodsOf()).
+ */
+export type StripCounts = {
+    enabled: boolean,
+    today: string,
+    lastday: string,
+    // The past is counted, so the learning view's Late period is known.
+    past: boolean,
+    // The teaching view counts grading work.
+    grading: boolean,
+    truncated: boolean,
+    bounded: boolean,
+    haslearning: boolean,
+    hasteaching: boolean,
+    views: {learning: PeriodView, teaching: PeriodView},
 };
 
 /** Core's action for an event, as the Timeline shows it. */

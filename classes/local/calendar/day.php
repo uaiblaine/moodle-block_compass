@@ -105,7 +105,8 @@ final class day {
         if (!in_array($view, strip::VIEWS, true) || !self::in_window($date, strip::window($now, $tz))) {
             return null;
         }
-        $entry = strip::entry($userid, $now, $signin, $tz);
+        // The sets suffice for a day: an entry that only counted is not completed here (amendment 11).
+        $entry = strip::entry($userid, $now, $signin, $tz, false);
         $key = calendar_cache::day_key($view, $date);
         if (isset($entry['days'][$key])) {
             return $entry['days'][$key];

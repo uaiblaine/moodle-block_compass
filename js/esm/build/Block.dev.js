@@ -9,14 +9,15 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * the live region - and, once a ghost or a heading link has been pressed, tier 3. Opening
  * tier 3 is a state change, and no code outside React touches the block's DOM.
  *
- * The block also owns the reload control at the content's top-right, the "Reconnecting…"
- * line the repository's bounded retry reports through, and the amber notice with a way back
- * from a failed first paint.
+ * The block also owns the "Reconnecting…" line the repository's bounded retry reports through,
+ * and the amber notice with a way back from a failed first paint. There is no permanent reload
+ * control: a way back appears only once a load has failed, as RetryNotice (ADR-014 amendment 11).
  *
- * Where the shell shipped the calendar props, the calendar strip sits between the content head
- * and the status line (ADR-014 decision 2). It reserves its place from the first paint and asks
- * for its days only once tier 1's request has settled, answered or failed: the turn handed down
- * is 0 until then, and every reload bumps it once tier 1 has been asked again.
+ * Where the shell shipped the calendar props, the calendar strip sits first, above the status line
+ * (ADR-014 decision 2). It reserves its place from the first paint and asks for its counts or its
+ * days only once tier 1's request has settled, answered or failed: the turn handed down is 0 until
+ * then, and Try again on tier 1 bumps it once tier 1 has been asked again, so the strip asks again
+ * for whatever of its own failed.
  *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
@@ -27,7 +28,6 @@ import CalendarStrip from "./CalendarStrip";
 import Strip from "./Strip";
 import Ghost from "./Ghost";
 import Explore from "./Explore";
-import Reload from "./Reload";
 import RetryNotice from "./RetryNotice";
 import { notify } from "./notify";
 import { cardColumns } from "./columns";
@@ -52,8 +52,6 @@ const Block = /* @__PURE__ */ __name((config) => {
   const [chip, setChip] = useState(null);
   const [reveal, setReveal] = useState(0);
   const [starred, setStarred] = useState(null);
-  const [reloadkey, setReloadkey] = useState(0);
-  const [reloading, setReloading] = useState(false);
   const [reconnecting, setReconnecting] = useState(null);
   const kept = useRef(null);
   const [announcement, setAnnouncement] = useState({ text: "", at: 0 });
@@ -145,16 +143,9 @@ const Block = /* @__PURE__ */ __name((config) => {
     return () => window.removeEventListener("online", again);
   }, [error, load]);
   const refreshAttention = useCallback(() => load(true), [load]);
-  const reloadAll = useCallback(async () => {
-    setReloading(true);
-    setReveal(0);
-    setReloadkey((current) => current + 1);
-    try {
-      await load(true);
-    } finally {
-      setReloading(false);
-      setCalendarturn((current) => current + 1);
-    }
+  const retry = useCallback(async () => {
+    await load();
+    setCalendarturn((current) => current + 1);
   }, [load]);
   const toggleFavourite = useCallback(async (courseid, favourite, fullname) => {
     try {
@@ -217,25 +208,16 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 439,
+        lineNumber: 427,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 436,
+    lineNumber: 424,
     columnNumber: 9
   }), "notice");
-  return /* @__PURE__ */ jsxDEV("div", { ref: root, children: [
-    /* @__PURE__ */ jsxDEV("div", { className: "compass-content-head", children: /* @__PURE__ */ jsxDEV(Reload, { busy: reloading, config, onReload: reloadAll }, void 0, false, {
-      fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 455,
-      columnNumber: 17
-    }) }, void 0, false, {
-      fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 454,
-      columnNumber: 13
-    }),
+  return /* @__PURE__ */ jsxDEV("div", { ref: root, className: "compass-body", tabIndex: -1, children: [
     config.calendar && /* @__PURE__ */ jsxDEV(
       CalendarStrip,
       {
@@ -250,7 +232,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 458,
+        lineNumber: 443,
         columnNumber: 17
       }
     ),
@@ -259,17 +241,17 @@ const Block = /* @__PURE__ */ __name((config) => {
       attempts: String(reconnecting.attempts)
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 468,
+      lineNumber: 453,
       columnNumber: 17
     }),
     !data && error === null && reconnecting === null && /* @__PURE__ */ jsxDEV("div", { className: "compass-status text-muted small", role: "status", "aria-live": "polite", children: labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 476,
+      lineNumber: 461,
       columnNumber: 17
     }),
-    error !== null && /* @__PURE__ */ jsxDEV(RetryNotice, { message: error, retrying: false, config, onRetry: () => load() }, void 0, false, {
+    error !== null && /* @__PURE__ */ jsxDEV(RetryNotice, { message: error, retrying: false, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 481,
+      lineNumber: 466,
       columnNumber: 17
     }),
     data && config.strips.map((strip) => /* @__PURE__ */ jsxDEV(Fragment, { children: [
@@ -292,7 +274,7 @@ const Block = /* @__PURE__ */ __name((config) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-          lineNumber: 485,
+          lineNumber: 470,
           columnNumber: 21
         }
       ),
@@ -304,21 +286,21 @@ const Block = /* @__PURE__ */ __name((config) => {
       )
     ] }, strip.name, true, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 484,
+      lineNumber: 469,
       columnNumber: 17
     })),
     ghost && laststrip === null && /* @__PURE__ */ jsxDEV("div", { className: `compass-ghost-wrap compass-cards-${columns}`, children: /* @__PURE__ */ jsxDEV(Ghost, { count: ghost.count, text: ghost.text, cta: ghost.cta, kind: "tier2", onExplore: explore }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 512,
+      lineNumber: 497,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 511,
+      lineNumber: 496,
       columnNumber: 17
     }),
     data && shown === 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-empty text-muted", children: data.counts.total === 0 ? labels.nocourses : labels.emptyattention }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 516,
+      lineNumber: 501,
       columnNumber: 17
     }),
     exploring && /* @__PURE__ */ jsxDEV("div", { className: "compass-explore-wrap mt-3", children: /* @__PURE__ */ jsxDEV(
@@ -333,26 +315,26 @@ const Block = /* @__PURE__ */ __name((config) => {
         announce,
         onChanged: refreshAttention
       },
-      reloadkey,
+      void 0,
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 522,
+        lineNumber: 507,
         columnNumber: 21
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 521,
+      lineNumber: 506,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "alert", "aria-live": "assertive", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 537,
+      lineNumber: 521,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 451,
+    lineNumber: 441,
     columnNumber: 9
   });
 }, "Block");

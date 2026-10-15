@@ -361,6 +361,18 @@ final class config {
     /** @var string The strip style when nothing is stored. */
     public const DEFAULT_CALENDAR_STYLE = 'dots';
 
+    /** @var string[] How the strip first shows for a viewer who never toggled it: the row of days, or closed (amendment 11). */
+    public const CALENDAR_STARTS = ['open', 'closed'];
+
+    /** @var string How the strip first shows when nothing is stored: closed, the line of counts. */
+    public const DEFAULT_CALENDAR_START = 'closed';
+
+    /** @var string[] Where the teaching view's grading count comes from (amendment 11): the ledger, or core only. */
+    public const CALENDAR_GRADINGS = ['tracker', 'core'];
+
+    /** @var string The grading source when nothing is stored: block_feedback_tracker's ledger where it covers a course. */
+    public const DEFAULT_CALENDAR_GRADING = 'tracker';
+
     /**
      * Whether the calendar strip is on: off unless an explicit 1 is stored (ADR-014 decision 1).
      *
@@ -424,5 +436,35 @@ final class config {
         $value = get_config('block_compass', 'calendar_relevance');
 
         return $value === false || $value === '' || (int) $value === 1;
+    }
+
+    /**
+     * How the strip first shows for a viewer who never toggled it. An unset or unrecognised value means closed.
+     *
+     * The viewer's own toggle, kept in the block_compass_calendar preference, wins over this
+     * ({@see calendar_preference::defaults()}).
+     *
+     * @return string open or closed.
+     */
+    public static function calendar_start(): string {
+        $value = (string) get_config('block_compass', 'calendar_start');
+
+        return in_array($value, self::CALENDAR_STARTS, true) ? $value : self::DEFAULT_CALENDAR_START;
+    }
+
+    /**
+     * Where the teaching view counts the submissions waiting to be graded. An unset or unrecognised
+     * value means the ledger where it covers a course.
+     *
+     * The setting is offered only where block_feedback_tracker is installed, and read only through
+     * {@see calendar\grading::tracker_active()}, which asks the plugin's presence too: tracker on a site
+     * without the plugin is core's counter.
+     *
+     * @return string tracker or core.
+     */
+    public static function calendar_grading(): string {
+        $value = (string) get_config('block_compass', 'calendar_grading');
+
+        return in_array($value, self::CALENDAR_GRADINGS, true) ? $value : self::DEFAULT_CALENDAR_GRADING;
     }
 }

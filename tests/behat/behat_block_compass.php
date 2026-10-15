@@ -24,7 +24,8 @@
  */
 
 /**
- * The one step core does not have: showing a page in the dark colour mode.
+ * The steps core does not have: a page in the dark colour mode, and the calendar strip's requests
+ * failing at the transport.
  *
  * @package    block_compass
  * @category   test
@@ -66,5 +67,51 @@ class behat_block_compass extends behat_base {
                 $this->getSession()
             );
         }
+    }
+
+    /**
+     * Make the calendar strip's row request fail at the transport, as a dropped link does.
+     *
+     * The page's fetch is wrapped once: while the flag is up, a call whose info is
+     * block_compass_get_strip goes to a script that does not exist, so the answer is a 404 and the
+     * client's bounded retry gives up after its two retries. On 5.3 core/ajax is the AMD wrapper of
+     * the ES module @moodle/lms/core/ajax, which names the method in the URL and sends it through
+     * the global fetch (lib/js/esm/src/ajax.ts), not XMLHttpRequest as 5.2's lib/amd/src/ajax.js
+     * did. The counts' request, block_compass_get_strip_counts, and every other call pass. Nothing
+     * in the plugin knows about this: the failure is the browser's, as a real one is.
+     *
+     * @Given the calendar strip requests fail
+     * @return void
+     */
+    public function the_calendar_strip_requests_fail(): void {
+        $this->require_javascript('The requests are the browser\'s.');
+        $this->execute_script(<<<'JS'
+            (function() {
+                window.blockCompassBehatFail = true;
+                if (window.blockCompassBehatWrapped) {
+                    return;
+                }
+                window.blockCompassBehatWrapped = true;
+                var original = window.fetch;
+                window.fetch = function(input, init) {
+                    if (window.blockCompassBehatFail && typeof input === 'string'
+                            && /[?&]info=block_compass_get_strip(&|$)/.test(input)) {
+                        input = input.replace('/lib/ajax/service.php', '/lib/ajax/block_compass_behat_missing.php');
+                    }
+                    return original.call(window, input, init);
+                };
+            })();
+            JS);
+    }
+
+    /**
+     * Let the calendar strip's requests through again, after the calendar strip requests fail.
+     *
+     * @Given the calendar strip requests answer again
+     * @return void
+     */
+    public function the_calendar_strip_requests_answer_again(): void {
+        $this->require_javascript('The requests are the browser\'s.');
+        $this->execute_script('window.blockCompassBehatFail = false;');
     }
 }

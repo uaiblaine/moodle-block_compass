@@ -54,7 +54,15 @@ use core_calendar\local\event\entities\action_event_interface;
  * - courseids and groupids: the course set and the user's groups in it, which light the tier 1
  *   cards (decision 9);
  * - daysoff: the window's weekend mask and the days the institution marked off, raw
- *   ({@see days_off::read()}; ADR-014 amendment 10), shared by both views.
+ *   ({@see days_off::read()}; ADR-014 amendment 10), shared by both views; null in an entry that
+ *   only counted (below).
+ *
+ * Two depths of build (ADR-014 amendment 11). The whole strip, which get_strip ships, and the
+ * counts a closed strip shows, which get_strip_counts sums into periods ({@see periods()}). The
+ * counts pass is compute() without the part only an open strip pays: the past through core's
+ * vault, the days off and, unless block_feedback_tracker's ledger is the grading source, the
+ * grading count, whose candidates the entry keeps instead ({@see complete()}). Its entry is stored
+ * flagged past false, and an open strip later adds that part to it rather than building again.
  *
  * Who is a learner where is the gradebook's rule (graded_courses()): a course where the user holds
  * one of $CFG->gradebookroles is a learning course, every other course of the set a teaching
@@ -97,6 +105,21 @@ final class strip {
     /** @var int Submissions waiting beyond which grading work weighs no more (the mockup's cap). */
     public const WAITING_CAP = 30;
 
+    /** @var string[] The closed strip's periods (amendment 11), in the order the line names them. */
+    public const PERIODS = ['late', 'today', 'tomorrow', 'week', 'later'];
+
+    /** @var int Days after tomorrow that the period "This week" spans: Today, Tomorrow and it make seven. */
+    public const WEEK_DAYS = 5;
+
+    /** @var string[] The learning kinds the closed line counts: everything still open, done excluded. */
+    public const LEARNING_COUNTED = ['gradedsoon', 'graded', 'todo', 'late', 'event'];
+
+    /** @var string[] The teaching kinds the closed line counts without the ledger: no grading work. */
+    public const TEACHING_COUNTED_CORE = ['class', 'event'];
+
+    /** @var string[] The preload columns of a module context, kept for a deferred grading candidate. */
+    private const CONTEXT_COLUMNS = ['ctxid', 'ctxpath', 'ctxdepth', 'ctxlevel', 'ctxinstance', 'ctxlocked'];
+
     /**
      * The strip payload for the current user, from the cache when every hit condition holds.
      *
@@ -111,25 +134,80 @@ final class strip {
     }
 
     /**
-     * The user's cache entry, served when fresh and rebuilt otherwise (ADR-014 decision 8).
+     * The closed strip's counts for the current user, summed from the cache entry (amendment 11).
      *
-     * A hit costs no database read. A rebuild replaces the whole entry, so the days opened under
-     * another sign-in, day or timezone go with it.
+     * A fresh entry, whole or counted only, is summed with no database read; a stale one is
+     * replaced by the counts pass, which stores what it counted for an open strip to complete.
      *
      * @param int $userid The current user.
      * @param int $now Unix time to treat as now.
      * @param int $signin The sign-in marker, $USER->currentlogin.
      * @param \DateTimeZone $tz The user's timezone.
+     * @return array today and lastday (Y-m-d), past (the Late periods are known), grading (the
+     *     teaching view counts grading work: the ledger is the source), truncated, bounded,
+     *     haslearning, hasteaching, and views: learning and teaching, each from {@see periods()}.
+     */
+    public static function counts(int $userid, int $now, int $signin, \DateTimeZone $tz): array {
+        $entry = self::entry($userid, $now, $signin, $tz, false);
+        $payload = $entry['payload'];
+        $past = calendar_cache::is_complete($entry);
+        // The source the entry was built under, not the setting now: a hit is always the current source.
+        $grading = ($entry['grading'] ?? '') === grading::SOURCE_TRACKER;
+
+        return [
+            'today' => $payload['today'],
+            'lastday' => self::window($now, $tz)['lastday'],
+            'past' => $past,
+            'grading' => $grading,
+            'truncated' => $payload['truncated'],
+            'bounded' => $payload['bounded'],
+            'haslearning' => $payload['haslearning'],
+            'hasteaching' => $payload['hasteaching'],
+            'views' => [
+                'learning' => self::periods($payload['views']['learning']['days'], 'learning', $payload['today'], $past, $grading),
+                'teaching' => self::periods($payload['views']['teaching']['days'], 'teaching', $payload['today'], $past, $grading),
+            ],
+        ];
+    }
+
+    /**
+     * The user's cache entry, served when fresh and rebuilt otherwise (ADR-014 decision 8).
+     *
+     * A hit costs no database read. A rebuild replaces the whole entry, so the days opened under
+     * another sign-in, day or timezone go with it. A fresh entry that only counted is completed when
+     * the whole strip is asked for ({@see complete()}), and served as it is otherwise: its sets are
+     * whole, which is all a day and the counts need.
+     *
+     * @param int $userid The current user.
+     * @param int $now Unix time to treat as now.
+     * @param int $signin The sign-in marker, $USER->currentlogin.
+     * @param \DateTimeZone $tz The user's timezone.
+     * @param bool $whole Whether the caller needs the whole strip (get_strip), or the counts and the
+     *     sets suffice (get_strip_counts, get_day): a miss then builds the counts pass only.
      * @return array The entry {@see calendar_cache} describes.
      */
-    public static function entry(int $userid, int $now, int $signin, \DateTimeZone $tz): array {
+    public static function entry(int $userid, int $now, int $signin, \DateTimeZone $tz, bool $whole = true): array {
         $window = self::window($now, $tz);
         $entry = calendar_cache::get($userid);
-        if ($entry !== false && calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now)) {
-            return $entry;
+        $source = self::grading_source_name();
+        $lang = current_language();
+        $tzname = $tz->getName();
+        if ($entry !== false && calendar_cache::is_fresh($entry, $window['firstday'], $tzname, $signin, $now, $source, $lang)) {
+            return $whole && !calendar_cache::is_complete($entry) ? self::complete($userid, $entry, $now, $tz) : $entry;
         }
 
-        return self::rebuild($userid, $now, $signin, $tz, $window['firstday']);
+        return self::rebuild($userid, $now, $signin, $tz, $window['firstday'], $whole);
+    }
+
+    /**
+     * The name of the grading source now, as an entry records it: tracker or core.
+     *
+     * Reads nothing past the config cache ({@see grading::tracker_active()}).
+     *
+     * @return string {@see grading::SOURCE_TRACKER} or {@see grading::SOURCE_CORE}.
+     */
+    private static function grading_source_name(): string {
+        return grading::tracker_active() ? grading::SOURCE_TRACKER : grading::SOURCE_CORE;
     }
 
     /**
@@ -140,10 +218,18 @@ final class strip {
      * @param int $signin The sign-in marker, $USER->currentlogin.
      * @param \DateTimeZone $tz The user's timezone.
      * @param string $firstday The window's first day, Y-m-d.
+     * @param bool $whole Whether to build the whole strip, or the counts pass.
      * @return array The entry {@see calendar_cache} describes.
      */
-    private static function rebuild(int $userid, int $now, int $signin, \DateTimeZone $tz, string $firstday): array {
-        $built = self::compute($userid, $now, $tz);
+    private static function rebuild(
+        int $userid,
+        int $now,
+        int $signin,
+        \DateTimeZone $tz,
+        string $firstday,
+        bool $whole = true
+    ): array {
+        $built = self::compute($userid, $now, $tz, $whole);
         $entry = calendar_cache::entry(
             $built['payload'],
             $built['sets'],
@@ -151,11 +237,259 @@ final class strip {
             $firstday,
             $tz->getName(),
             $now,
-            $built['stamp']
+            $built['stamp'],
+            $built['deferred'],
+            $built['grading'],
+            current_language()
         );
         calendar_cache::set($userid, $entry);
 
         return $entry;
+    }
+
+    /**
+     * Add to a counted-only entry the part an open strip needs, store it whole and return it.
+     *
+     * The part: the deferred grading candidates counted ({@see grading::source()}), the past through
+     * core's vault, and the days off. The past runs to the instant the counted part started from,
+     * the entry's build time, not to now: a deadline that passed in between is still counted as the
+     * future part counted it, and never twice. The candidates carry their module context's preload
+     * columns, so their capability checks read nothing. Reads: those of grading_groups() and of the
+     * grading source when there are candidates, past(), and days_off::read().
+     *
+     * @param int $userid The current user.
+     * @param array $entry A fresh entry flagged past false.
+     * @param int $now Unix time to treat as now.
+     * @param \DateTimeZone $tz The user's timezone.
+     * @return array The entry, whole.
+     */
+    public static function complete(int $userid, array $entry, int $now, \DateTimeZone $tz): array {
+        self::require_core();
+        $window = self::window($now, $tz);
+        $built = (int) $entry['built'];
+        $payload = $entry['payload'];
+        $sets = $entry['sets'];
+        $views = [
+            'learning' => self::unfinish($payload['views']['learning']['days']),
+            'teaching' => self::unfinish($payload['views']['teaching']['days']),
+        ];
+
+        [$graded, $cut] = self::deferred_grading($userid, $entry['deferred'] ?? [], $sets, $built, $window, $tz);
+        foreach ($graded as $item) {
+            [$day, $kind, $weight] = [$item['day'], $item['kind'], $item['weight']];
+            self::add($views['teaching'], 'teaching', $day, $kind, $weight, $item['courseid'], $item['waiting']);
+        }
+        if ($sets['learning'] && in_array('deadlines', config::calendar_sources(), true)) {
+            $groupids = self::groups_in($sets['groups'], $sets['learning']);
+            foreach (self::past($userid, $sets['learning'], $groupids, $window['from'], $built - 1, $tz) as $item) {
+                $weight = self::weight($item['kind'], null, false, $built);
+                self::add($views['learning'], 'learning', $item['day'], $item['kind'], $weight, $item['courseid'], 0);
+            }
+        }
+        $hasteaching = $payload['hasteaching'] || $graded !== [];
+        if (!$hasteaching) {
+            $views['teaching'] = [];
+        }
+
+        $payload['views'] = [
+            'learning' => self::finish($views['learning'], 'learning', $window),
+            'teaching' => self::finish($views['teaching'], 'teaching', $window),
+        ];
+        $payload['hasteaching'] = $hasteaching;
+        $payload['truncated'] = $payload['truncated'] || $cut;
+        $payload['daysoff'] = days_off::read($window['firstday'], $window['lastday']);
+        $entry['payload'] = $payload;
+        $entry['past'] = true;
+        $entry['deferred'] = [];
+        calendar_cache::set($userid, $entry);
+
+        return $entry;
+    }
+
+    /**
+     * Count the grading candidates a counts pass deferred, and turn the ones with work waiting into items.
+     *
+     * @param int $userid The current user.
+     * @param array $deferred The entry's deferred candidates ({@see collect()}).
+     * @param array $sets The entry's sets.
+     * @param int $now The instant the entry was built, which the count treats as now.
+     * @param array $window From window().
+     * @param \DateTimeZone $tz The user's timezone.
+     * @return array [list of items (day, kind, weight, courseid, waiting), whether the count was cut at its bound].
+     */
+    private static function deferred_grading(
+        int $userid,
+        array $deferred,
+        array $sets,
+        int $now,
+        array $window,
+        \DateTimeZone $tz
+    ): array {
+        $candidates = [];
+        foreach ($deferred as $fact) {
+            context_helper::preload_from_record((object) $fact['context']);
+            $context = \core\context\module::instance((int) $fact['cmid'], IGNORE_MISSING);
+            if (!$context) {
+                continue;
+            }
+            $row = (object) [
+                'instance' => (int) $fact['instance'],
+                'courseid' => (int) $fact['courseid'],
+                'groupmode' => (int) $fact['groupmode'],
+                'groupingid' => (int) $fact['groupingid'],
+                'sorttime' => (int) $fact['sorttime'],
+            ];
+            $candidates[] = ['row' => $row, 'context' => $context];
+        }
+        if (!$candidates) {
+            return [[], false];
+        }
+        $assignments = self::grading_groups($candidates, $userid);
+        $waiting = grading::source()->waiting(array_slice($assignments, 0, grading::LIMIT, true), $now);
+
+        $items = [];
+        foreach ($candidates as $candidate) {
+            $item = self::grade_item($candidate['row'], $waiting, $sets, $now, $window, $tz);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+        }
+
+        return [$items, count($assignments) > grading::LIMIT];
+    }
+
+    /**
+     * One grading candidate as an item, or null when nothing waits (core hides such an action).
+     *
+     * @param \stdClass $row The candidate's row: instance, courseid and sorttime at least.
+     * @param array $waiting Assignment instance id => submissions waiting.
+     * @param array $sets The sets compute() builds.
+     * @param int $now Unix time to treat as now.
+     * @param array $window From window().
+     * @param \DateTimeZone $tz The user's timezone.
+     * @return array|null day, kind (gradesoon or grade), weight, courseid and waiting; null with nothing waiting.
+     */
+    private static function grade_item(
+        \stdClass $row,
+        array $waiting,
+        array $sets,
+        int $now,
+        array $window,
+        \DateTimeZone $tz
+    ): ?array {
+        $count = $waiting[(int) $row->instance] ?? 0;
+        if ($count === 0) {
+            return null;
+        }
+        $courseid = (int) $row->courseid;
+        $day = self::local_day((int) $row->sorttime, $tz);
+        $kind = $day === $window['today'] || $day === $window['tomorrow'] ? 'gradesoon' : 'grade';
+
+        return [
+            'view' => 'teaching',
+            'kind' => $kind,
+            'day' => $day,
+            'weight' => self::weight($kind, $sets['courses'][$courseid] ?? null, false, $now, $count),
+            'courseid' => $courseid,
+            'waiting' => $count,
+        ];
+    }
+
+    /**
+     * A finished view's days made addable again: course ids keyed by themselves, steps dropped.
+     *
+     * @param array $days Y-m-d => counters, as finish() leaves them.
+     * @return array Y-m-d => counters, as add() builds them.
+     */
+    private static function unfinish(array $days): array {
+        foreach ($days as $date => $day) {
+            $ids = array_map('intval', $day['courseids']);
+            $days[$date]['courseids'] = $ids ? array_combine($ids, $ids) : [];
+            unset($days[$date]['step'], $days[$date]['countstep']);
+        }
+
+        return $days;
+    }
+
+    /**
+     * One view's days summed into the closed strip's periods (amendment 11).
+     *
+     * Late is the days before today, Today and Tomorrow their own day, This week the WEEK_DAYS after
+     * tomorrow (seven days from today with the two before it, not core's calendar week) and Later the
+     * rest of the window. The past period counts only what is still to do there: late work, still
+     * open, in the learning view, left out while the past part is not known (a counted-only entry);
+     * grading work in the teaching view, left out when grading is not counted. The other periods
+     * count every kind the view shows, done excluded, and in the teaching view grading work only
+     * when the ledger is the source. The waiting lead is the window's submissions waiting, with the
+     * ledger only. js/esm/src/calendar.ts, periodsOf(), sums an open strip's payload the same way for
+     * the line a closed strip shows after it was open.
+     *
+     * @param array $days Y-m-d => counters, the payload's view.
+     * @param string $view learning or teaching.
+     * @param string $today Y-m-d.
+     * @param bool $past Whether the past part is known.
+     * @param bool $grading Whether grading work is counted: the ledger is the source.
+     * @return array periods (each key, count, step, countstep and courseids, in PERIODS order, the
+     *     unknown ones left out) and waiting (0 without the ledger).
+     */
+    public static function periods(array $days, string $view, string $today, bool $past, bool $grading): array {
+        $base = new \DateTimeImmutable($today . ' 00:00:00', new \DateTimeZone('UTC'));
+        $tomorrow = $base->modify('+1 day')->format('Y-m-d');
+        $weekend = $base->modify('+' . (1 + self::WEEK_DAYS) . ' days')->format('Y-m-d');
+        if ($view === 'teaching') {
+            // Grading overdue comes from the counted statement's past gradingdue rows, which a counts
+            // pass reads too: it needs the ledger, not the past part.
+            $kinds = $grading ? self::TEACHING_KINDS : self::TEACHING_COUNTED_CORE;
+            $pastkinds = $grading ? ['grade', 'gradesoon'] : [];
+        } else {
+            $kinds = self::LEARNING_COUNTED;
+            $pastkinds = $past ? ['late'] : [];
+        }
+
+        $periods = [];
+        foreach (self::PERIODS as $key) {
+            if ($key === 'late' && !$pastkinds) {
+                continue;
+            }
+            $periods[$key] = ['key' => $key, 'count' => 0, 'step' => 0, 'countstep' => 0, 'courseids' => []];
+        }
+        $waiting = 0;
+        foreach ($days as $date => $day) {
+            $date = (string) $date;
+            if ($date < $today) {
+                $key = 'late';
+            } else if ($date === $today) {
+                $key = 'today';
+            } else if ($date === $tomorrow) {
+                $key = 'tomorrow';
+            } else {
+                $key = $date <= $weekend ? 'week' : 'later';
+            }
+            if ($grading && $view === 'teaching') {
+                $waiting += (int) ($day['waiting'] ?? 0);
+            }
+            if (!isset($periods[$key])) {
+                continue;
+            }
+            $count = 0;
+            foreach ($key === 'late' ? $pastkinds : $kinds as $kind) {
+                $count += (int) ($day[$kind] ?? 0);
+            }
+            if ($count === 0) {
+                continue;
+            }
+            $periods[$key]['count'] += $count;
+            $periods[$key]['step'] = max($periods[$key]['step'], (int) ($day['step'] ?? 0));
+            $periods[$key]['countstep'] = max($periods[$key]['countstep'], (int) ($day['countstep'] ?? 0));
+            foreach ($day['courseids'] ?? [] as $courseid) {
+                $periods[$key]['courseids'][(int) $courseid] = (int) $courseid;
+            }
+        }
+        foreach ($periods as $key => $period) {
+            $periods[$key]['courseids'] = array_values($period['courseids']);
+        }
+
+        return ['periods' => array_values($periods), 'waiting' => $waiting];
     }
 
     /**
@@ -244,6 +578,9 @@ final class strip {
     /**
      * Build the strip payload and the sets a day's request reuses: no cache read or write.
      *
+     * With $whole false, the counts pass of amendment 11: no past, no days off, and the grading
+     * candidates deferred unless the ledger is the grading source ({@see collect()}).
+     *
      * Reads, in the order a request pays them: the inventory (one on a valid hit) and the
      * user's preferences (the archived courses, loaded once per request), the course filter, the
      * graded roles, the groups, the counted statement, the modinfo of courses with restricted
@@ -256,14 +593,18 @@ final class strip {
      * @param int $userid The current user.
      * @param int $now Unix time to treat as now.
      * @param \DateTimeZone $tz The user's timezone.
+     * @param bool $whole Whether to build the whole strip, or the counts pass.
      * @return array payload, stamp (the inventory stamp the sets were read under, read before them so a
-     *     change in between shows as a difference later) and sets: courses (id => isfavourite, timeaccess), learning and
-     *     teaching (course ids), groups (id => courseid, participation) and categories (ids).
+     *     change in between shows as a difference later), sets: courses (id => isfavourite, timeaccess), learning and
+     *     teaching (course ids), groups (id => courseid, participation) and categories (ids); and deferred: null for
+     *     the whole strip, else the grading candidates the counts pass left for complete(); and grading:
+     *     the grading source the build counted under (tracker or core), which the entry records.
      */
-    public static function compute(int $userid, int $now, \DateTimeZone $tz): array {
+    public static function compute(int $userid, int $now, \DateTimeZone $tz, bool $whole = true): array {
         self::require_core();
         $window = self::window($now, $tz);
         $sources = config::calendar_sources();
+        $gradingsource = self::grading_source_name();
         $inventory = inventory::get($userid);
         [$courses, $bounded, $categoryids] = self::courses($userid, $now, $inventory);
         $courseids = array_map('intval', array_keys($courses));
@@ -297,18 +638,26 @@ final class strip {
             $window['from'],
             $window['to']
         );
-        [$items, $gradingcut] = self::collect($userid, $rows, $sets, $now, $window, $tz);
+        [$items, $gradingcut, $deferred] = self::collect(
+            $userid,
+            $rows,
+            $sets,
+            $now,
+            $window,
+            $tz,
+            $whole || $gradingsource === grading::SOURCE_TRACKER
+        );
 
         // The boundary between the exact past and the counted future is now, not midnight: a
         // deadline that passed earlier today is decided by core (a quiz closed this morning is
         // dropped by its callback) instead of being counted as due today.
         $past = [];
-        if ($learning && in_array('deadlines', $sources, true)) {
+        if ($whole && $learning && in_array('deadlines', $sources, true)) {
             $past = self::past($userid, $learning, self::groups_in($groups, $learning), $window['from'], $now - 1, $tz);
         }
 
         // Weekends and the institution's days off: one statement with block_feedback_tracker, none without.
-        $daysoff = days_off::read($window['firstday'], $window['lastday']);
+        $daysoff = $whole ? days_off::read($window['firstday'], $window['lastday']) : null;
 
         $views = ['learning' => [], 'teaching' => []];
         $grading = 0;
@@ -326,7 +675,9 @@ final class strip {
             self::add($views['learning'], 'learning', $item['day'], $item['kind'], $weight, $item['courseid'], 0);
         }
         $hasteaching = $teaching !== [] || $grading > 0;
-        if (!$hasteaching) {
+        // A counts pass that deferred grading keeps the teaching view's other days: the count may yet
+        // make the viewer a teacher when complete() runs.
+        if (!$hasteaching && $deferred === []) {
             $views['teaching'] = [];
         }
 
@@ -348,7 +699,13 @@ final class strip {
             'daysoff' => $daysoff,
         ];
 
-        return ['payload' => $payload, 'sets' => $sets, 'stamp' => $inventory['stamp']];
+        return [
+            'payload' => $payload,
+            'sets' => $sets,
+            'stamp' => $inventory['stamp'],
+            'deferred' => $whole ? null : $deferred,
+            'grading' => $gradingsource,
+        ];
     }
 
     /**
@@ -848,16 +1205,29 @@ final class strip {
      *   carries a condition is asked of modinfo (decision 6, restricted()) unless the user holds
      *   moodle/course:ignoreavailabilityrestrictions. No extra read: the context columns are in the row.
      *
+     * Without $grading (the counts pass, the ledger not the source) no grading is counted: each visible
+     * grading candidate is returned as a deferred fact instead, its module context's preload columns
+     * with it, for {@see complete()} to count.
+     *
      * @param int $userid The current user.
      * @param \stdClass[] $rows Rows from future().
      * @param array $sets The sets compute() builds.
      * @param int $now Unix time to treat as now.
      * @param array $window From window().
      * @param \DateTimeZone $tz The user's timezone.
+     * @param bool $grading Whether to count the grading candidates now.
      * @return array [list of items (view, kind, day, weight, courseid, waiting, row), whether the
-     *     grading statement was cut at its bound].
+     *     grading statement was cut at its bound, the deferred grading candidates (empty with $grading)].
      */
-    public static function collect(int $userid, array $rows, array $sets, int $now, array $window, \DateTimeZone $tz): array {
+    public static function collect(
+        int $userid,
+        array $rows,
+        array $sets,
+        int $now,
+        array $window,
+        \DateTimeZone $tz,
+        bool $grading = true
+    ): array {
         $incourse = $sets['courses'];
         $teaching = array_flip($sets['teaching']);
         $candidates = [];
@@ -871,6 +1241,8 @@ final class strip {
             if ($row->modulename !== '' && $row->cmid === null) {
                 continue;
             }
+            // The context columns a deferred grading candidate keeps, read before the preload consumes them.
+            $ctx = array_intersect_key((array) $row, array_flip(self::CONTEXT_COLUMNS));
             $context = self::module_context($row);
             $isaction = (int) $row->type === CALENDAR_EVENT_TYPE_ACTION;
             $isteaching = isset($teaching[$courseid]);
@@ -881,7 +1253,14 @@ final class strip {
                 if ($row->completionstate !== null && (int) $row->completionstate !== COMPLETION_INCOMPLETE) {
                     continue;
                 }
-                $candidates[] = ['row' => $row, 'role' => 'grade', 'teacher' => true, 'context' => $context, 'view' => 'teaching'];
+                $candidates[] = [
+                    'row' => $row,
+                    'role' => 'grade',
+                    'teacher' => true,
+                    'context' => $context,
+                    'view' => 'teaching',
+                    'ctx' => $ctx,
+                ];
                 continue;
             }
             if ($isaction && (int) $row->sorttime < $now) {
@@ -927,18 +1306,35 @@ final class strip {
         }
         $hidden = self::restricted($userid, $ask);
 
-        // Grading work: each assignment's active group, then one count for every assignment that is left.
-        $grading = [];
+        // Grading work: each assignment's active group, then one count for every assignment that is left;
+        // or, in a counts pass without the ledger, the candidates kept for later.
+        $gradingwork = [];
+        $deferred = [];
         foreach ($candidates as $i => $candidate) {
             if (isset($hidden[(int) $candidate['row']->cmid])) {
                 unset($candidates[$i]);
                 continue;
             }
-            if ($candidate['role'] === 'grade') {
-                $grading[] = $candidate;
+            if ($candidate['role'] !== 'grade') {
+                continue;
             }
+            if ($grading) {
+                $gradingwork[] = $candidate;
+                continue;
+            }
+            $row = $candidate['row'];
+            $deferred[] = [
+                'instance' => (int) $row->instance,
+                'cmid' => (int) $row->cmid,
+                'courseid' => (int) $row->courseid,
+                'groupmode' => (int) $row->groupmode,
+                'groupingid' => (int) $row->groupingid,
+                'sorttime' => (int) $row->sorttime,
+                'context' => $candidate['ctx'],
+            ];
+            unset($candidates[$i]);
         }
-        $assignments = self::grading_groups($grading, $userid);
+        $assignments = self::grading_groups($gradingwork, $userid);
         $cut = count($assignments) > grading::LIMIT;
         $waiting = grading::source()->waiting(array_slice($assignments, 0, grading::LIMIT, true), $now);
 
@@ -951,12 +1347,11 @@ final class strip {
             $count = 0;
             switch ($candidate['role']) {
                 case 'grade':
-                    $count = $waiting[(int) $row->instance] ?? 0;
-                    if ($count === 0) {
-                        continue 2;
+                    $item = self::grade_item($row, $waiting, $sets, $now, $window, $tz);
+                    if ($item !== null) {
+                        $items[] = $item + ['row' => $row];
                     }
-                    $kind = $soon ? 'gradesoon' : 'grade';
-                    break;
+                    continue 2;
                 case 'class':
                     $kind = 'class';
                     break;
@@ -983,7 +1378,7 @@ final class strip {
             ];
         }
 
-        return [$items, $cut];
+        return [$items, $cut, $deferred];
     }
 
     /**

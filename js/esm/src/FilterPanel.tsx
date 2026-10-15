@@ -142,7 +142,7 @@ const FilterPanel = (
             })}
             {/* Never the disabled attribute: the press that releases the last filter would disable
                 the focused button in the render it causes, dropping the keyboard to the body (see
-                Reload.tsx). aria-disabled says it, and the handler refuses the press. Bootstrap's
+                RetryNotice.tsx). aria-disabled says it, and the handler refuses the press. Bootstrap's
                 disabled class is kept for its look: its pointer-events: none passes a click to the
                 panel beneath, which has no handler and no stretched link (see Star.tsx). */}
             <div>

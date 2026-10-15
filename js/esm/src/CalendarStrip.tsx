@@ -15,13 +15,19 @@
 
 /**
  * The calendar strip above tier 1 (ADR-014): a row of days weighed by what each holds, and a
- * day's items on demand.
+ * day's items on demand; closed, one line of plain counts by period (amendment 11).
  *
  * Mounted by Block only when the shell shipped the calendar props, so a site with the strip off
- * mounts nothing and asks nothing (decision 1). Its place is reserved by a skeleton of the same
- * shape from the first paint, and its one request, get_strip, leaves only when tier 1's request
- * has settled, answered or failed: Block hands the turn down (decision 2). Each zone loads, fails
- * and retries on its own, so a failed strip never blanks the cards.
+ * mounts nothing and asks nothing (decision 1). The heading holds a disclosure toggle; whether the
+ * strip starts open is the viewer's remembered toggle, or the site's calendar_start, shipped with
+ * the props, so the first paint reserves the shape it keeps: the row's skeleton open, the line's
+ * closed. Its request leaves only when tier 1's request has settled, answered or failed: Block hands
+ * the turn down (decision 2). Closed, that request is get_strip_counts and nothing else: no
+ * get_strip, no get_day. Opening asks get_strip once; closing asks nothing, the line being summed
+ * from the payload in hand (calendar.ts, countsOf()). The toggle is written to the preference at
+ * once and put back, with a notice, if the write fails. Each zone loads, fails and retries on its
+ * own, so a failed strip never blanks the cards; a request that failed is asked again by its own Try
+ * again, or by tier 1's.
  *
  * The row opens centred on today, so past days only fill the left half; the arrows move seven
  * days and never before that first position nor past the window's end, and Today returns to it
@@ -44,20 +50,24 @@
  */
 
 import {useEffect, useId, useMemo, useRef, useState} from 'react';
-import type {FocusEvent, KeyboardEvent, PointerEvent} from 'react';
+import type {FocusEvent, HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode} from 'react';
 import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
+import CalendarLine, {summaryOf} from './CalendarLine';
 import RetryNotice from './RetryNotice';
 import {
-    BOUND_KINDS, addDays, dateParts, dayOff, daysBetween, fromPayload, homeOffset, kindsOf, longDay, marks, monthName,
-    monthYear, score, settle, shortWeekday, shownKinds, step, windowDays,
+    BOUND_KINDS, addDays, countsOf, dateParts, dayOff, daysBetween, fromPayload, homeOffset, kindsOf, longDay, marks, monthName,
+    monthYear, periodSpan, score, settle, shortWeekday, shownKinds, step, windowDays,
 } from './calendar';
 import type {DayCounts, DayOff} from './calendar';
+import {sectionTag} from './heading';
 import {notify} from './notify';
-import {getDay, getStrip, setCalendarPreference} from './repository';
+import {getDay, getStrip, getStripCounts, setCalendarPreference} from './repository';
 import {hold} from './pending';
 import {fill, fillCount, fillObject} from './str';
-import type {BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, StripPayload} from './types';
+import type {
+    BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, PeriodKey, StripCounts, StripPayload,
+} from './types';
 
 /** Below this width of the block, in CSS px, the row shows a week and a day opens as a bottom sheet. */
 const NARROW_PX = 640;
@@ -131,15 +141,18 @@ const rowLength = (width: number, narrow: boolean, style: string): number => {
     return narrow ? 7 : 21;
 };
 
+/** What decides the drawn view: the strip payload, or the closed strip's counts, which say the same. */
+type ViewFacts = {haslearning: boolean, hasteaching: boolean};
+
 /**
  * The view the strip draws: the remembered one when the viewer has both kinds of course, else
  * the one kind the viewer has.
  *
- * @param {object|null} payload The strip payload.
+ * @param {object|null} payload The strip payload or the counts.
  * @param {string} chosen The remembered or chosen view.
  * @returns {string} learning or teaching.
  */
-const drawnView = (payload: StripPayload | null, chosen: CalendarView): CalendarView => {
+const drawnView = (payload: ViewFacts | null, chosen: CalendarView): CalendarView => {
     if (!payload) {
         return 'learning';
     }
@@ -170,8 +183,8 @@ const dayUrl = (base: string, from: number, index: number): string => {
 };
 
 /**
- * The strip's place while it waits: the same rows at the same heights, so nothing moves when it
- * fills in (decision 2).
+ * The open strip's place while it waits: the same rows at the same heights, so nothing moves when it
+ * fills in (decision 2). The header above it is the strip's own, with its toggle, from the first paint.
  *
  * @param {object} calendar The calendar props.
  * @param {number} shown How many days the row will show.
@@ -179,17 +192,9 @@ const dayUrl = (base: string, from: number, index: number): string => {
  * @returns {object} The rendered skeleton.
  */
 const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
-    const rootclass = narrow
-        ? `compass-cal compass-cal-style-${calendar.style} compass-cal-narrow compass-cal-waiting`
-        : `compass-cal compass-cal-style-${calendar.style} compass-cal-waiting`;
-
     return (
-        <section className={rootclass} aria-label={calendar.strings.cal_region} aria-busy="true">
+        <div className="compass-cal-waiting">
             <span className="visually-hidden">{calendar.strings.cal_loading}</span>
-            <div className="compass-cal-head" aria-hidden="true">
-                <span className="compass-cal-sk compass-cal-sk-month" />
-                <span className="compass-cal-sk compass-cal-sk-controls" />
-            </div>
             <div className="compass-cal-daysbox" aria-hidden="true">
                 <div className={`compass-cal-days compass-cal-days-${shown}`}>
                     {Array.from({length: shown}, (unused, at) => (
@@ -206,7 +211,7 @@ const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
             <div className="compass-cal-foot">
                 <p className="compass-cal-note small">{calendar.strings.cal_waiting}</p>
             </div>
-        </section>
+        </div>
     );
 };
 
@@ -384,16 +389,27 @@ const trackOf = (visible: string[], today: string): {start: string, width: strin
  * The strip.
  *
  * @param {object} props The block config, the calendar props, the turn (0 until tier 1 has
- *     settled, then bumped by every reload) and the block's measured width; see CalendarStripProps.
- * @returns {object} The rendered strip, its skeleton, its notice, or nothing.
+ *     settled, then bumped by tier 1's Try again), the block's measured width and the lighting; see
+ *     CalendarStripProps.
+ * @returns {object} The rendered strip, open or closed, or nothing.
  */
 const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCourses}: CalendarStripProps) => {
     const {strings} = calendar;
+    // Open: the row of days; closed: the line of counts. Seeded from the props, so the first paint has
+    // the remembered shape and never flashes the other (amendment 11).
+    const [open, setOpen] = useState(calendar.state.open);
     const [payload, setPayload] = useState<StripPayload | null>(null);
     const [failed, setFailed] = useState(false);
     const [retrying, setRetrying] = useState(false);
     // Bumped by Try again: the request effect runs again under the same turn.
     const [attempt, setAttempt] = useState(0);
+    // The closed line's counts from get_strip_counts, with their own failure and Try again.
+    const [counts, setCounts] = useState<StripCounts | null>(null);
+    const [countsfailed, setCountsfailed] = useState(false);
+    const [countsretrying, setCountsretrying] = useState(false);
+    const [countsattempt, setCountsattempt] = useState(0);
+    // What the polite live region says: the counts' summary, set once when they arrive.
+    const [summary, setSummary] = useState('');
     const [view, setView] = useState<CalendarView>(calendar.state.view);
     const [filter, setFilter] = useState<CalendarFilter>(calendar.state.filter);
     const [relevance, setRelevance] = useState(calendar.state.relevance);
@@ -405,45 +421,89 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const [focusdate, setFocusdate] = useState<string | null>(null);
     // What the client holds of each day it asked for, keyed view:date.
     const [entries, setEntries] = useState<Record<string, DayEntry>>({});
+    // The first and last day of the period that opened the strip, lit until the row moves or a day
+    // is pressed; null otherwise.
+    const [litspan, setLitspan] = useState<[string, string] | null>(null);
+    // The courses of the period pointed at on the closed line, for the cards' outline; null for none.
+    const [periodcourses, setPeriodcourses] = useState<number[] | null>(null);
     const stripseq = useRef(0);
+    const countsseq = useRef(0);
     const dayseq = useRef(0);
+    // The turn and attempt each request last left under, so a render or a toggle asks nothing new and
+    // only a Try again, or tier 1's, asks again for what failed.
+    const stripasked = useRef('');
+    const countsasked = useRef('');
+    // Every preference write, numbered: a failed toggle is put back only while it is the last write.
+    const writeseq = useRef(0);
+    // The period a press opened the strip on, until the row is there to show it.
+    const periodtarget = useRef<PeriodKey | null>(null);
+    // Whether the strip is open now, for an answer that lands after a toggle.
+    const openref = useRef(open);
+    openref.current = open;
     // The sequence number of the request whose answer counts, per view:date; a key absent here was
     // never asked or failed, so asking again is allowed.
     const asked = useRef<Record<string, number>>({});
     const opentimer = useRef<number | undefined>(undefined);
     const closetimer = useRef<number | undefined>(undefined);
     const buttons = useRef(new Map<string, HTMLButtonElement>());
-    // A day to focus once it is rendered, after the keyboard moved past the row's edge.
+    // A day to focus once it is rendered, after the keyboard moved past the row's edge or a period
+    // opened the strip; wantquiet says the focus must not open it.
     const wantfocus = useRef<string | null>(null);
+    const wantquiet = useRef(false);
     // Set before the strip moves focus itself, so the focus does not open the day it lands on.
     const quietfocus = useRef(false);
+    // The toggle, which holds the keyboard while a pressed period's row loads: the period's button
+    // leaves the page with the closed line.
+    const togglebutton = useRef<HTMLButtonElement>(null);
     // The pointer that last pressed a day: touch never prefetches (decision 9).
     const pointer = useRef('');
     const cardid = `${useId()}-day`;
-    // Pending JavaScript from the first render until the strip has an answer, so nothing reads the
-    // page as ready in the render between tier 1 settling and the strip's request (see pending.ts).
+    const bodyid = `${cardid}-row`;
+    // Pending JavaScript while the strip waits for what its state needs - the counts closed, the row
+    // open, either one while its Try again is out - so nothing reads the page as ready in the render
+    // between tier 1 settling and the strip's request (see pending.ts). Closed, the hold covers the
+    // counts alone: no get_strip is coming. A hold released is dropped, so opening later takes another.
+    const waiting = open
+        ? (payload === null && !failed) || retrying
+        : payload === null && ((counts === null && !countsfailed) || countsretrying);
     const release = useRef<(() => void) | null>(null);
-    if (release.current === null && payload === null && !failed) {
+    if (release.current === null && waiting) {
         release.current = hold(`block_compass/calendar-${cardid}`);
     }
     useEffect(() => {
-        if (payload !== null || failed) {
-            release.current?.();
+        if (!waiting && release.current !== null) {
+            release.current();
+            release.current = null;
         }
-    }, [payload, failed]);
+    }, [waiting]);
     useEffect(() => () => release.current?.(), []);
 
     const narrow = width > 0 && width < NARROW_PX;
     const shown = rowLength(width, narrow, calendar.style);
     const stepdays = Math.min(STEP_DAYS, shown);
-    const drawn = drawnView(payload, view);
-    const hasboth = !!payload && payload.haslearning && payload.hasteaching;
+    // The closed line's counts: summed from the payload once the strip has been open, else the service's.
+    const linecounts = useMemo(
+        () => (payload ? countsOf(payload, calendar.grading) : counts),
+        [payload, counts, calendar.grading]
+    );
+    const facts: ViewFacts | null = payload ?? linecounts;
+    const drawn = drawnView(facts, view);
+    const hasboth = !!facts && facts.haslearning && facts.hasteaching;
 
-    // The request, once tier 1 has settled and again on every reload or Try again. A new payload
-    // starts a new memory of days: a reload is a fresh look.
+    // The row, once the strip is open and tier 1 has settled, and again on Try again or on tier 1's
+    // Try again while it has failed. A new payload starts a new memory of days.
     useEffect(() => {
-        if (turn === 0) {
+        if (turn === 0 || !open) {
             return undefined;
+        }
+        const key = `${turn}:${attempt}`;
+        if (stripasked.current === key || (payload !== null && !failed)) {
+            return undefined;
+        }
+        stripasked.current = key;
+        if (failed) {
+            // Asked again by tier 1's Try again: the strip's notice says so while the answer travels.
+            setRetrying(true);
         }
         const mine = stripseq.current + 1;
         stripseq.current = mine;
@@ -474,17 +534,68 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         run();
 
         return undefined;
-    }, [turn, attempt]);
+    }, [turn, attempt, open]);
 
-    // Tell the block which courses the open day holds, so its cards can be outlined. The ids are
-    // the payload's own; the effect runs before the early returns below, as every hook must.
+    // The counts, once tier 1 has settled, while the strip is closed and holds no payload to sum; again
+    // on Try again or on tier 1's Try again while they have failed. Never while open.
+    useEffect(() => {
+        if (turn === 0 || open || payload !== null) {
+            return undefined;
+        }
+        const key = `${turn}:${countsattempt}`;
+        if (countsasked.current === key || (counts !== null && !countsfailed)) {
+            return undefined;
+        }
+        countsasked.current = key;
+        if (countsfailed) {
+            setCountsretrying(true);
+        }
+        const mine = countsseq.current + 1;
+        countsseq.current = mine;
+        /**
+         * Ask for the counts; say their summary once, if the strip is still closed when they land.
+         *
+         * @returns {Promise} Resolves when the answer or the failure is in state.
+         */
+        const run = async(): Promise<void> => {
+            try {
+                const answer = await getStripCounts();
+                if (countsseq.current !== mine) {
+                    return;
+                }
+                setCounts(answer);
+                setCountsfailed(false);
+                if (answer.enabled && !openref.current) {
+                    setSummary(summaryOf(strings, answer, drawnView(answer, view)));
+                }
+            } catch (e) {
+                if (countsseq.current === mine) {
+                    setCountsfailed(true);
+                }
+            }
+            if (countsseq.current === mine) {
+                setCountsretrying(false);
+            }
+        };
+        run();
+
+        return undefined;
+    }, [turn, countsattempt, open, payload]);
+
+    // Tell the block which courses to outline: the open day's, or, closed, the pointed period's. The
+    // ids are the payload's or the counts' own; the effect runs before the early return below, as
+    // every hook must.
     const openday = pinned ?? hover;
     useEffect(() => {
+        if (!open) {
+            onOpenCourses(periodcourses ?? []);
+            return;
+        }
         const day = payload && openday !== null
             ? payload.views[drawnView(payload, view)].days.find((entry) => entry.date === openday)
             : undefined;
         onOpenCourses(day ? day.courseids : []);
-    }, [payload, openday, view, onOpenCourses]);
+    }, [payload, openday, view, onOpenCourses, open, periodcourses]);
     useEffect(() => () => onOpenCourses([]), [onOpenCourses]);
 
     useEffect(() => () => {
@@ -492,7 +603,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         window.clearTimeout(closetimer.current);
     }, []);
 
-    // A day the keyboard moved to beyond the row's edge takes focus once the row has moved.
+    // A day the keyboard moved to beyond the row's edge, or the first day of the period that opened
+    // the strip, takes focus once the row has moved; the period's without opening.
     useEffect(() => {
         if (wantfocus.current === null) {
             return;
@@ -500,6 +612,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         const button = buttons.current.get(wantfocus.current);
         if (button) {
             wantfocus.current = null;
+            if (wantquiet.current) {
+                wantquiet.current = false;
+                // A button that already holds focus fires no focus event, which would leave the flag up.
+                quietfocus.current = document.activeElement !== button;
+            }
             button.focus();
         }
     });
@@ -522,75 +639,6 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     }, [payload, days, entries, drawn]);
     // The institution's marked days by date (block_feedback_tracker), empty without it.
     const specials = useMemo(() => new Map((payload ? payload.specialdays : []).map((day) => [day.date, day])), [payload]);
-
-    if (!payload && !failed) {
-        return skeleton(calendar, shown, narrow);
-    }
-    if (!payload) {
-        return (
-            <section className="compass-cal compass-cal-failed" aria-label={strings.cal_region}>
-                <RetryNotice
-                    message={strings.cal_loaderror}
-                    retrying={retrying}
-                    config={config}
-                    onRetry={() => {
-                        setRetrying(true);
-                        setAttempt((current) => current + 1);
-                    }}
-                />
-            </section>
-        );
-    }
-    if (!payload.enabled) {
-        // Switched off between the page and the request: the strip goes, and nothing else changes.
-        return null;
-    }
-
-    const empty: DayCounts = {counts: {}, weight: 0, settled: false};
-    /**
-     * A day's counters in the drawn view.
-     *
-     * @param {string} date Y-m-d.
-     * @returns {object} The counters, settled when the day's items are in.
-     */
-    const countsOf = (date: string): DayCounts => counted.get(date) ?? empty;
-
-    const kinds = shownKinds(drawn, filter);
-    const todayindex = daysBetween(payload.firstday, payload.today);
-    const home = homeOffset(todayindex, shown);
-    const last = Math.max(home, days.length - shown);
-    const first = Math.min(last, Math.max(home, offset ?? home));
-    const visible = days.slice(first, first + shown);
-    const lastday = days[days.length - 1];
-
-    const needle = needleOf(days.slice(todayindex), (date) => score(countsOf(date), drawn, filter, relevance));
-    // The needle's name: its tooltip, and the end of its day's sentence.
-    const needletitle = drawn === 'teaching' ? strings.cal_legend_needle_teaching : strings.cal_legend_needle_learning;
-    const monthlabel = monthLabel(visible, strings);
-    const tabstop = tabstopOf(visible, focusdate, payload.today);
-    const open = openday;
-    const bydate = new Map(payload.views[drawn].days.map((entry) => [entry.date, entry]));
-
-    /**
-     * Remember the strip as the viewer left it. A failed write keeps the choice on this page.
-     *
-     * @param {object} state The view, the filter and the relevance switch.
-     * @returns {void}
-     */
-    const remember = (state: CalendarState): void => {
-        setCalendarPreference(state).catch(() => notify(strings.cal_prefererror || ''));
-    };
-
-    /**
-     * Close whatever day is open, pinned or not.
-     *
-     * @returns {void}
-     */
-    const closeAll = (): void => {
-        window.clearTimeout(opentimer.current);
-        setHover(null);
-        setPinned(null);
-    };
 
     /**
      * Ask for a day's items once per page, and maybe the day after it.
@@ -649,7 +697,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      */
     const prefetchAfter = (date: string, which: CalendarView): void => {
         const next = addDays(date, 1);
-        if (next > lastday) {
+        if (!payload || next > days[days.length - 1]) {
             return;
         }
         const day = payload.views[which].days.find((candidate) => candidate.date === next);
@@ -658,6 +706,348 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             ensure(next, which, false);
         }
     };
+
+    // The period that opened the strip, once the row is there: its days lit, the row moved to show
+    // them, the keyboard on its first day holding work (the last, for the past), quietly; Today and
+    // Tomorrow also pin that day's card, which asks for the day only now, after the strip answered.
+    useEffect(() => {
+        const key = periodtarget.current;
+        if (key === null || !open || !payload || !payload.enabled) {
+            return;
+        }
+        periodtarget.current = null;
+        const which = drawnView(payload, view);
+        const [from, to] = periodSpan(key, payload.firstday, payload.today, days[days.length - 1]);
+        const held = payload.views[which].days
+            .filter((day) => day.date >= from && day.date <= to && kindsOf(which).some((kind) => (day[kind] ?? 0) > 0))
+            .map((day) => day.date);
+        let target = from < payload.firstday ? payload.firstday : from;
+        if (held.length > 0) {
+            target = key === 'late' ? held[held.length - 1] : held[0];
+        }
+        const home = homeOffset(daysBetween(payload.firstday, payload.today), shown);
+        const index = daysBetween(payload.firstday, target);
+        setLitspan([from, to]);
+        setOffset(index >= home && index < home + shown ? null : index);
+        wantfocus.current = target;
+        wantquiet.current = true;
+        if (key === 'today' || key === 'tomorrow') {
+            setPinned(target);
+            setHover(target);
+            ensure(target, which, false);
+        }
+    });
+
+    /**
+     * Remember the strip as the viewer left it. A failed write keeps the choice on this page.
+     *
+     * @param {object} state The view, the filter, the relevance switch and the open flag.
+     * @returns {void}
+     */
+    const remember = (state: CalendarState): void => {
+        writeseq.current += 1;
+        setCalendarPreference(state).catch(() => notify(strings.cal_prefererror || ''));
+    };
+
+    /**
+     * Close whatever day is open, pinned or not.
+     *
+     * @returns {void}
+     */
+    const closeAll = (): void => {
+        window.clearTimeout(opentimer.current);
+        setHover(null);
+        setPinned(null);
+    };
+
+    /**
+     * Open or close the strip, and remember it at once. The write is optimistic: if it fails while it
+     * is still the last write, the strip goes back as it was and a notice says so, as
+     * block_feedback_tracker's dashboard does with its collapse.
+     *
+     * @param {boolean} next Whether the strip opens.
+     * @returns {void}
+     */
+    const setOpenRemembered = (next: boolean): void => {
+        if (!next) {
+            closeAll();
+            setLitspan(null);
+        }
+        setPeriodcourses(null);
+        setOpen(next);
+        writeseq.current += 1;
+        const mine = writeseq.current;
+        setCalendarPreference({view, filter, relevance, open: next}).catch(() => {
+            if (writeseq.current !== mine) {
+                return;
+            }
+            setOpen(!next);
+            notify(strings.cal_toggleerror || '');
+        });
+    };
+
+    /**
+     * A period of the closed line was pressed: open the strip on its days.
+     *
+     * @param {string} key The period.
+     * @returns {void}
+     */
+    const openPeriod = (key: PeriodKey): void => {
+        periodtarget.current = key;
+        togglebutton.current?.focus();
+        setOpenRemembered(true);
+    };
+
+    /**
+     * Choose the studying or the teaching view, and remember it.
+     *
+     * @param {string} next The view.
+     * @returns {void}
+     */
+    const chooseView = (next: CalendarView): void => {
+        if (next === drawn) {
+            return;
+        }
+        closeAll();
+        setLitspan(null);
+        setView(next);
+        remember({view: next, filter, relevance, open});
+    };
+
+    /**
+     * Choose what the strip shows, and remember it.
+     *
+     * @param {string} next all, todo or events.
+     * @returns {void}
+     */
+    const chooseFilter = (next: CalendarFilter): void => {
+        if (next === filter) {
+            return;
+        }
+        setFilter(next);
+        remember({view, filter: next, relevance, open});
+    };
+
+    /**
+     * Turn the relevance switch, and remember it.
+     *
+     * @returns {void}
+     */
+    const toggleRelevance = (): void => {
+        setRelevance(!relevance);
+        remember({view, filter, relevance: !relevance, open});
+    };
+
+    if ((payload && !payload.enabled) || (!payload && linecounts && !linecounts.enabled)) {
+        // Switched off between the page and the request: the strip goes, and nothing else changes.
+        return null;
+    }
+
+    const Heading = sectionTag(config.headinglevel);
+    const rootclass = [
+        'compass-cal',
+        `compass-cal-style-${calendar.style}`,
+        narrow ? 'compass-cal-narrow' : '',
+        open ? 'compass-cal-isopen' : 'compass-cal-closed',
+    ].filter(Boolean).join(' ');
+
+    /**
+     * The views switch, the filter (open only, with the row) and the calendar link, at the header's end.
+     *
+     * @param {boolean} withfilter Whether the filter shows: the strip is open and its row is in.
+     * @returns {object} The rendered controls.
+     */
+    const controls = (withfilter: boolean) => (
+        <div className="compass-cal-controls">
+            {hasboth && (
+                <div className="compass-cal-seg" role="group" aria-label={strings.cal_views}>
+                    <button
+                        type="button"
+                        className="compass-cal-segbtn"
+                        aria-pressed={drawn === 'learning'}
+                        onClick={() => chooseView('learning')}
+                    >
+                        <span
+                            className="compass-cal-glyph"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.learning}}
+                        />
+                        {strings.cal_view_learning}
+                    </button>
+                    <button
+                        type="button"
+                        className="compass-cal-segbtn"
+                        aria-pressed={drawn === 'teaching'}
+                        onClick={() => chooseView('teaching')}
+                    >
+                        <span
+                            className="compass-cal-glyph"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: calendar.icons.teaching}}
+                        />
+                        {strings.cal_view_teaching}
+                    </button>
+                </div>
+            )}
+            {withfilter && (
+                <div className="compass-cal-seg" role="group" aria-label={strings.cal_filters}>
+                    {([['all', strings.cal_filter_all], ['todo', strings.cal_filter_todo], ['events', strings.cal_filter_events]] as
+                        [CalendarFilter, string][]).map(([name, text]) => (
+                        <button
+                            key={name}
+                            type="button"
+                            className="compass-cal-segbtn"
+                            aria-pressed={filter === name}
+                            onClick={() => chooseFilter(name)}
+                        >
+                            {text}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {/* Core's month view, as an icon link named by its label and its tooltip. */}
+            <a className="compass-cal-link" href={calendar.url} aria-label={strings.cal_open} title={strings.cal_open}>
+                <span
+                    className="compass-cal-glyph icon-no-margin"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{__html: calendar.icons.calendar}}
+                />
+            </a>
+        </div>
+    );
+
+    /**
+     * The strip in every state: the same section and header, its toggle first, so a toggle keeps the
+     * keyboard on it across the shapes; then the state's own part of the header, the controls, the
+     * row's region (empty and hidden while closed, so the toggle's aria-controls always names an
+     * element) and the polite live region, there from the first paint.
+     *
+     * @param {object} middle The header's own part: the closed line, or the month and the arrows.
+     * @param {boolean} withfilter Whether the filter shows.
+     * @param {object|null} body The row's region's content.
+     * @param {object|null} after What follows the header while closed: the counts' notice.
+     * @param {object} handlers The section's pointer, key and focus handlers, open only.
+     * @returns {object} The rendered strip.
+     */
+    const frame = (
+        middle: ReactNode,
+        withfilter: boolean,
+        body: ReactNode,
+        after: ReactNode,
+        handlers: HTMLAttributes<HTMLElement> = {}
+    ) => (
+        <section className={rootclass} aria-label={strings.cal_region} aria-busy={waiting || undefined} {...handlers}>
+            <div className="compass-cal-head">
+                <Heading className="compass-cal-title h6 mb-0">
+                    <button
+                        type="button"
+                        ref={togglebutton}
+                        className="compass-cal-toggle"
+                        aria-expanded={open}
+                        aria-controls={bodyid}
+                        onClick={() => setOpenRemembered(!open)}
+                    >
+                        {/* Core's own chevron pair, shown and hidden by core's icons-collapse-expand rule, as
+                            a tier 3 group's is (Group.tsx). */}
+                        <span
+                            className={open
+                                ? 'compass-cal-togglechev icons-collapse-expand'
+                                : 'compass-cal-togglechev icons-collapse-expand collapsed'}
+                            aria-hidden="true"
+                        >
+                            <span
+                                className="expanded-icon icon-no-margin"
+                                dangerouslySetInnerHTML={{__html: config.icons.expanded}}
+                            />
+                            <span className="collapsed-icon icon-no-margin">
+                                <span className="dir-rtl-hide" dangerouslySetInnerHTML={{__html: config.icons.collapsed}} />
+                                <span className="dir-ltr-hide" dangerouslySetInnerHTML={{__html: config.icons.collapsedrtl}} />
+                            </span>
+                        </span>
+                        {strings.cal_region}
+                    </button>
+                </Heading>
+                {middle}
+                {controls(withfilter)}
+            </div>
+            {after}
+            <div id={bodyid} className="compass-cal-body" hidden={!open}>
+                {body}
+            </div>
+            <span className="visually-hidden" aria-live="polite">{summary}</span>
+        </section>
+    );
+
+    if (!open) {
+        const linefailed = countsfailed && !payload;
+
+        return frame(
+            linefailed ? null : <CalendarLine
+                calendar={calendar}
+                counts={linecounts}
+                view={drawn}
+                relevance={relevance}
+                narrow={narrow}
+                pointedCourse={pointedCourse}
+                onPeriod={openPeriod}
+                onPoint={setPeriodcourses}
+            />,
+            false,
+            null,
+            linefailed ? (
+                <RetryNotice
+                    message={strings.cal_countserror}
+                    retrying={countsretrying}
+                    config={config}
+                    onRetry={() => {
+                        setCountsretrying(true);
+                        setCountsattempt((current) => current + 1);
+                    }}
+                />
+            ) : null
+        );
+    }
+    if (!payload) {
+        return frame(
+            <span className="compass-cal-sk compass-cal-sk-month" aria-hidden="true" />,
+            false,
+            failed ? (
+                <RetryNotice
+                    message={strings.cal_loaderror}
+                    retrying={retrying}
+                    config={config}
+                    onRetry={() => {
+                        setRetrying(true);
+                        setAttempt((current) => current + 1);
+                    }}
+                />
+            ) : skeleton(calendar, shown, narrow),
+            null
+        );
+    }
+
+    const empty: DayCounts = {counts: {}, weight: 0, settled: false};
+    /**
+     * A day's counters in the drawn view.
+     *
+     * @param {string} date Y-m-d.
+     * @returns {object} The counters, settled when the day's items are in.
+     */
+    const countsOfDay = (date: string): DayCounts => counted.get(date) ?? empty;
+
+    const kinds = shownKinds(drawn, filter);
+    const todayindex = daysBetween(payload.firstday, payload.today);
+    const home = homeOffset(todayindex, shown);
+    const last = Math.max(home, days.length - shown);
+    const first = Math.min(last, Math.max(home, offset ?? home));
+    const visible = days.slice(first, first + shown);
+
+    const needle = needleOf(days.slice(todayindex), (date) => score(countsOfDay(date), drawn, filter, relevance));
+    // The needle's name: its tooltip, and the end of its day's sentence.
+    const needletitle = drawn === 'teaching' ? strings.cal_legend_needle_teaching : strings.cal_legend_needle_learning;
+    const monthlabel = monthLabel(visible, strings);
+    const tabstop = tabstopOf(visible, focusdate, payload.today);
+    const bydate = new Map(payload.views[drawn].days.map((entry) => [entry.date, entry]));
 
     /**
      * Open a day as hovering does.
@@ -672,13 +1062,14 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     };
 
     /**
-     * Move the row, closing the open day.
+     * Move the row, closing the open day and the lit period.
      *
      * @param {number|null} to The new first index, or null for home.
      * @returns {void}
      */
     const shift = (to: number | null): void => {
         closeAll();
+        setLitspan(null);
         setOffset(to === null ? null : Math.min(last, Math.max(home, to)));
     };
 
@@ -733,6 +1124,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      */
     const pressDay = (date: string): void => {
         window.clearTimeout(opentimer.current);
+        setLitspan(null);
         if (pinned === date) {
             setPinned(null);
             if (narrow) {
@@ -807,11 +1199,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      * @returns {void}
      */
     const keyStrip = (event: KeyboardEvent<HTMLElement>): void => {
-        if (event.key !== 'Escape' || open === null) {
+        if (event.key !== 'Escape' || openday === null) {
             return;
         }
         const incard = !!(event.target as HTMLElement).closest('.compass-cal-card');
-        const day = open;
+        const day = openday;
         closeAll();
         if (incard || pinned !== null) {
             focusQuietly(day);
@@ -833,45 +1225,6 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             window.clearTimeout(opentimer.current);
             setHover(null);
         }
-    };
-
-    /**
-     * Choose the studying or the teaching view, and remember it.
-     *
-     * @param {string} next The view.
-     * @returns {void}
-     */
-    const chooseView = (next: CalendarView): void => {
-        if (next === drawn) {
-            return;
-        }
-        closeAll();
-        setView(next);
-        remember({view: next, filter, relevance});
-    };
-
-    /**
-     * Choose what the strip shows, and remember it.
-     *
-     * @param {string} next all, todo or events.
-     * @returns {void}
-     */
-    const chooseFilter = (next: CalendarFilter): void => {
-        if (next === filter) {
-            return;
-        }
-        setFilter(next);
-        remember({view, filter: next, relevance});
-    };
-
-    /**
-     * Turn the relevance switch, and remember it.
-     *
-     * @returns {void}
-     */
-    const toggleRelevance = (): void => {
-        setRelevance(!relevance);
-        remember({view, filter, relevance: !relevance});
     };
 
     /**
@@ -975,12 +1328,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         ));
     };
 
-    // The filters, in the order the control names them, each with its own string.
-    const filters: [CalendarFilter, string][] = [
-        ['all', strings.cal_filter_all],
-        ['todo', strings.cal_filter_todo],
-        ['events', strings.cal_filter_events],
-    ];
+
     const atstart = first <= home;
     const atend = first >= last;
     const track = trackOf(visible, payload.today);
@@ -998,134 +1346,75 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         </>
     );
     const athome = offset === null || first === home;
-    const rootclass = narrow
-        ? `compass-cal compass-cal-style-${calendar.style} compass-cal-narrow`
-        : `compass-cal compass-cal-style-${calendar.style}`;
 
-    return (
-        <section
-            className={rootclass}
-            aria-label={strings.cal_region}
-            onPointerEnter={() => window.clearTimeout(closetimer.current)}
-            onPointerLeave={() => {
-                window.clearTimeout(opentimer.current);
-                if (pinned === null) {
-                    closetimer.current = window.setTimeout(() => setHover(null), CLOSE_DELAY_MS);
-                }
-            }}
-            onKeyDown={keyStrip}
-            onBlur={blurStrip}
-        >
-            <div className="compass-cal-head">
-                <div className="compass-cal-nav">
-                    {/* Never the disabled attribute: a focused arrow that reaches the edge would drop
-                        the keyboard to the body. aria-disabled, and the handler refuses. */}
-                    <button
-                        type="button"
-                        className="compass-cal-iconbtn"
-                        aria-label={strings.cal_prev}
-                        aria-disabled={atstart || undefined}
-                        onClick={() => {
-                            if (!atstart) {
-                                shift(first - stepdays);
-                            }
-                        }}
-                    >
-                        {/* Core's chevrons, the ltr one or the rtl one shown by core's own direction
-                            classes, as a course section's chevron is (Group.tsx). */}
-                        <span
-                            className="compass-cal-chevron icon-no-margin dir-rtl-hide"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
-                        />
-                        <span
-                            className="compass-cal-chevron icon-no-margin dir-ltr-hide"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.next}}
-                        />
-                    </button>
-                    <p className="compass-cal-month" aria-live="polite">{monthlabel}</p>
-                    <button
-                        type="button"
-                        className="compass-cal-iconbtn"
-                        aria-label={strings.cal_next}
-                        aria-disabled={atend || undefined}
-                        onClick={() => {
-                            if (!atend) {
-                                shift(first + stepdays);
-                            }
-                        }}
-                    >
-                        <span
-                            className="compass-cal-chevron icon-no-margin dir-rtl-hide"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.next}}
-                        />
-                        <span
-                            className="compass-cal-chevron icon-no-margin dir-ltr-hide"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
-                        />
-                    </button>
-                    <button
-                        type="button"
-                        className="compass-cal-todaybtn"
-                        aria-disabled={athome || undefined}
-                        onClick={() => {
-                            if (!athome) {
-                                shift(null);
-                            }
-                        }}
-                    >
-                        {strings.cal_today}
-                    </button>
-                </div>
-                <div className="compass-cal-controls">
-                    {hasboth && (
-                        <div className="compass-cal-seg" role="group" aria-label={strings.cal_views}>
-                            <button
-                                type="button"
-                                className="compass-cal-segbtn"
-                                aria-pressed={drawn === 'learning'}
-                                onClick={() => chooseView('learning')}
-                            >
-                                <span
-                                    className="compass-cal-glyph"
-                                    aria-hidden="true"
-                                    dangerouslySetInnerHTML={{__html: calendar.icons.learning}}
-                                />
-                                {strings.cal_view_learning}
-                            </button>
-                            <button
-                                type="button"
-                                className="compass-cal-segbtn"
-                                aria-pressed={drawn === 'teaching'}
-                                onClick={() => chooseView('teaching')}
-                            >
-                                <span
-                                    className="compass-cal-glyph"
-                                    aria-hidden="true"
-                                    dangerouslySetInnerHTML={{__html: calendar.icons.teaching}}
-                                />
-                                {strings.cal_view_teaching}
-                            </button>
-                        </div>
-                    )}
-                    <div className="compass-cal-seg" role="group" aria-label={strings.cal_filters}>
-                        {filters.map(([name, text]) => (
-                            <button
-                                key={name}
-                                type="button"
-                                className="compass-cal-segbtn"
-                                aria-pressed={filter === name}
-                                onClick={() => chooseFilter(name)}
-                            >
-                                {text}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
+    const nav = (
+        <div className="compass-cal-nav">
+            {/* Never the disabled attribute: a focused arrow that reaches the edge would drop
+                the keyboard to the body. aria-disabled, and the handler refuses. */}
+            <button
+                type="button"
+                className="compass-cal-iconbtn"
+                aria-label={strings.cal_prev}
+                aria-disabled={atstart || undefined}
+                onClick={() => {
+                    if (!atstart) {
+                        shift(first - stepdays);
+                    }
+                }}
+            >
+                {/* Core's chevrons, the ltr one or the rtl one shown by core's own direction
+                    classes, as a course section's chevron is (Group.tsx). */}
+                <span
+                    className="compass-cal-chevron icon-no-margin dir-rtl-hide"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                />
+                <span
+                    className="compass-cal-chevron icon-no-margin dir-ltr-hide"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                />
+            </button>
+            <p className="compass-cal-month" aria-live="polite">{monthlabel}</p>
+            <button
+                type="button"
+                className="compass-cal-iconbtn"
+                aria-label={strings.cal_next}
+                aria-disabled={atend || undefined}
+                onClick={() => {
+                    if (!atend) {
+                        shift(first + stepdays);
+                    }
+                }}
+            >
+                <span
+                    className="compass-cal-chevron icon-no-margin dir-rtl-hide"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                />
+                <span
+                    className="compass-cal-chevron icon-no-margin dir-ltr-hide"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                />
+            </button>
+            <button
+                type="button"
+                className="compass-cal-todaybtn"
+                aria-disabled={athome || undefined}
+                onClick={() => {
+                    if (!athome) {
+                        shift(null);
+                    }
+                }}
+            >
+                {strings.cal_today}
+            </button>
+        </div>
+    );
+
+    const row = (
+        <>
             <div className="compass-cal-daysbox">
                 {/* The row's edges fade where more days lie beyond them: the arrows can still move
                     that way. The fades take no pointer, and a focused or open day rises above them. */}
@@ -1137,19 +1426,27 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                     aria-label={fill(strings.cal_days, String(shown))}
                 >
                     {visible.map((date, at) => {
-                        const day = countsOf(date);
+                        const day = countsOfDay(date);
                         const list = marks(day, kinds);
                         const level = step(score(day, drawn, filter, relevance), relevance);
                         const ymd = dateParts(date);
                         const off = dayOff(date, payload.weekend, specials.get(date));
                         const nothing = kindsOf(drawn).every((kind) => (day.counts[kind] ?? 0) === 0);
                         const istoday = date === payload.today;
-                        const isopen = open === date;
-                        // Pointing at a card: the days holding its course match, the others dim.
-                        const holds = pointedCourse !== null && !!bydate.get(date)?.courseids.includes(pointedCourse);
+                        const isopen = openday === date;
+                        // Pointing at a card: the days holding its course match, the others dim. A period
+                        // that opened the strip: its days holding work match, the days outside it dim.
                         let lighting = '';
                         if (pointedCourse !== null) {
+                            const holds = !!bydate.get(date)?.courseids.includes(pointedCourse);
                             lighting = holds ? 'compass-cal-col-match' : 'compass-cal-col-dim';
+                        } else if (litspan !== null) {
+                            const inside = date >= litspan[0] && date <= litspan[1];
+                            if (!inside) {
+                                lighting = 'compass-cal-col-dim';
+                            } else if (!nothing) {
+                                lighting = 'compass-cal-col-match';
+                            }
                         }
                         const dayclass = dayClass({
                             level,
@@ -1286,20 +1583,38 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         />
                         <label className="form-check-label" htmlFor={`${cardid}-relevance`}>{strings.cal_relevance}</label>
                     </div>
-                    <a className="compass-cal-link" href={calendar.url}>
-                        <span
-                            className="compass-cal-glyph"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.calendar}}
-                        />
-                        {strings.cal_open}
-                    </a>
                 </div>
                 {payload.bounded && <p className="compass-cal-note small">{fill(strings.cal_bounded, String(calendar.bound))}</p>}
                 {payload.truncated && <p className="compass-cal-note small">{strings.cal_truncated}</p>}
             </div>
-        </section>
+        </>
     );
+
+    /**
+     * The pointer left the strip and its card: an unpinned day closes after CLOSE_DELAY_MS.
+     *
+     * @returns {void}
+     */
+    const leaveStrip = (): void => {
+        window.clearTimeout(opentimer.current);
+        if (pinned === null) {
+            closetimer.current = window.setTimeout(() => setHover(null), CLOSE_DELAY_MS);
+        }
+    };
+
+    /**
+     * The pointer came back to the strip or its card: a pending close is called off.
+     *
+     * @returns {void}
+     */
+    const enterStrip = (): void => window.clearTimeout(closetimer.current);
+
+    return frame(nav, true, row, null, {
+        onPointerEnter: enterStrip,
+        onPointerLeave: leaveStrip,
+        onKeyDown: keyStrip,
+        onBlur: blurStrip,
+    });
 };
 
 export default CalendarStrip;
