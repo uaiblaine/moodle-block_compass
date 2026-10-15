@@ -31,6 +31,11 @@
  *   scrolling back over it costs nothing, and ids the server declined (an enrolment that
  *   ended, say) are marked filled too or they would be asked for on every scroll.
  *
+ * A failed batch is not asked again on a scroll: the hook says it failed, and the region offers
+ * Try again (RetryNotice), which re-watches the failed rows still on the page so the ones in view
+ * are asked once more. There is no other way back: the block has no permanent reload control
+ * (ADR-014 amendment 11).
+ *
  * @module     block_compass/rowdetails
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -49,24 +54,31 @@ const BUFFER_PX = 200;
 /** The pending set is drained this often while it is not empty. */
 const FLUSH_MS = 100;
 
-/** What the hook hands back: what is known, what is being waited for, and how to register. */
+/**
+ * What the hook hands back: what is known, what is being waited for, whether a batch failed, how
+ * to ask the failed rows again, and how to register.
+ */
 export type RowDetails = {
     records: Record<number, RowDetail>,
     waiting: Record<number, boolean>,
+    failed: boolean,
+    retry: () => void,
     observe: (id: number, element: Element) => () => void,
 };
 
 /**
  * Fetch the details of the rows that come into view.
  *
- * @param {Function} onerror Called once, the first time a batch fails.
- * @returns {object} The records, the rows still waiting, and the registration function.
+ * @returns {object} The records, the rows still waiting, the failure and its retry, and the
+ *     registration function.
  */
-export const useRowDetails = (onerror: () => void): RowDetails => {
+export const useRowDetails = (): RowDetails => {
     const [records, setRecords] = useState<Record<number, RowDetail>>({});
     // Why this is state and the sets below are refs: a skeleton is something the reader
     // sees, so it has to re-render; the bookkeeping the observer and the timer do must not.
     const [waiting, setWaiting] = useState<Record<number, boolean>>({});
+    // A batch failed since the last Try again: the region says so and offers the retry.
+    const [failed, setFailed] = useState(false);
 
     const pending = useRef<Set<number>>(new Set());
     const inflight = useRef<number[]>([]);
@@ -75,12 +87,8 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
     const elementofid = useRef<Map<number, Element>>(new Map());
     const observer = useRef<IntersectionObserver | null>(null);
     const timer = useRef<number | null>(null);
-    const reported = useRef(false);
-    const latesterror = useRef(onerror);
-
-    useEffect(() => {
-        latesterror.current = onerror;
-    }, [onerror]);
+    // The ids of the batches that failed, marked filled like the others until Try again.
+    const failedids = useRef<Set<number>>(new Set());
 
     /**
      * Stop the interval; it is started again by the next row that needs something.
@@ -143,15 +151,13 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
             setRecords((current) => ({...current, ...arrived}));
         } catch (e) {
             /*
-             * Say so once, and stop waiting. Every id in the batch is marked answered below
-             * whether or not this succeeded: a skeleton that never resolves misleads the
-             * reader, and re-asking on every scroll would hammer a server that has already
-             * failed. The row simply shows no progress.
+             * Say so, and stop waiting. Every id in the batch is marked answered below whether
+             * or not this succeeded: a skeleton that never resolves misleads the reader, and
+             * re-asking on every scroll would hammer a server that has already failed. The row
+             * shows no progress until Try again asks for it once more.
              */
-            if (!reported.current) {
-                reported.current = true;
-                latesterror.current();
-            }
+            batch.forEach((id) => failedids.current.add(id));
+            setFailed(true);
         } finally {
             batch.forEach(release);
             inflight.current = [];
@@ -260,6 +266,32 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
         };
     }, [drop, want]);
 
+    /**
+     * Try again: the failed rows still on the page are watched again, so those in view are asked
+     * for once more, in the batches a scroll would send.
+     *
+     * @returns {void}
+     */
+    const retry = useCallback((): void => {
+        const ids = Array.from(failedids.current);
+        failedids.current.clear();
+        setFailed(false);
+        ids.forEach((id) => {
+            filled.current.delete(id);
+            const element = elementofid.current.get(id);
+            if (!element) {
+                return;
+            }
+            if (observer.current) {
+                // A fresh observe() reports the element's intersection once, which asks for it if in view.
+                observer.current.unobserve(element);
+                observer.current.observe(element);
+            } else {
+                want(id);
+            }
+        });
+    }, [want]);
+
     // The region is going: disconnect the observer and stop the interval so no further batch
     // is sent. A batch already out still completes; its state updates then change nothing.
     useEffect(() => () => {
@@ -271,5 +303,5 @@ export const useRowDetails = (onerror: () => void): RowDetails => {
         }
     }, []);
 
-    return {records, waiting, observe};
+    return {records, waiting, failed, retry, observe};
 };

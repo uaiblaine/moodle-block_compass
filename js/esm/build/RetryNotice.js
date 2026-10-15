@@ -1,12 +1,16 @@
-import{useLayoutEffect as m,useRef as u}from"react";import{jsx as n,jsxs as a}from"react/jsx-runtime";var p=({message:r,retrying:t,config:l,onRetry:c})=>{let{labels:o}=l,i=t?"btn btn-sm btn-outline-secondary disabled":"btn btn-sm btn-outline-secondary",s=u(null);return m(()=>()=>{let e=s.current;if(!e||document.activeElement!==e)return;(e.closest(".compass-group")?.querySelector("summary")??e.closest(".block_compass")?.querySelector(".compass-reload")??null)?.focus()},[]),a("div",{className:"alert alert-warning compass-error compass-retry",role:"alert",children:[n("span",{children:r}),a("span",{className:"compass-retry-actions",children:[n("button",{type:"button",ref:s,className:i,"aria-disabled":t||void 0,onClick:()=>{t||c()},children:t?o.reloading:o.retry}),n("button",{type:"button",className:"btn btn-link btn-sm compass-linkbtn",onClick:()=>window.location.reload(),children:o.reloadpage})]})]})},y=p;export{y as default};
+import{useLayoutEffect as u,useRef as b}from"react";import{jsx as n,jsxs as l}from"react/jsx-runtime";var p=({message:c,retrying:t,config:r,onRetry:i})=>{let{labels:o}=r,m=t?"btn btn-sm btn-outline-secondary disabled":"btn btn-sm btn-outline-secondary",s=b(null);return u(()=>()=>{let e=s.current;if(!e||document.activeElement!==e)return;let a=e.closest(".block_compass");(e.closest(".compass-group")?.querySelector("summary")??a?.querySelector(".compass-cal-toggle")??a?.querySelector(".compass-body")??null)?.focus()},[]),l("div",{className:"alert alert-warning compass-error compass-retry",role:"alert",children:[n("span",{children:c}),l("span",{className:"compass-retry-actions",children:[n("button",{type:"button",ref:s,className:m,"aria-disabled":t||void 0,onClick:()=>{t||i()},children:t?o.reloading:o.retry}),n("button",{type:"button",className:"btn btn-link btn-sm compass-linkbtn",onClick:()=>window.location.reload(),children:o.reloadpage})]})]})},f=p;export{f as default};
 /**
  * The way back from every failure.
  *
  * Amber rather than error red, because the failure is recoverable; role="alert", so it is
  * announced; "Try again", which replays the loader that failed; and "Reload page" as the last
- * resort. The parent owns the retry callback and the in-flight flag; while a retry runs, Try
- * again is aria-disabled and refuses a second press (see Reload.tsx for why not disabled), and
- * the pointer-events: none of Bootstrap's disabled class passes a click only to the alert beneath.
+ * resort. It is the block's only reload control, and it exists only once a load has failed: no
+ * reload control is on the page before (ADR-014 amendment 11), as block_feedback_tracker does it.
+ * The parent owns the retry callback and the in-flight flag; while a retry runs, Try again is
+ * aria-disabled and refuses a second press, never disabled: the attribute would be applied in the
+ * render the button's own click causes, and a focused element that becomes disabled drops the
+ * keyboard to the body, so "Reloading…" would be said to nobody. The pointer-events: none of
+ * Bootstrap's disabled class passes a click only to the alert beneath.
  *
  * @module     block_compass/RetryNotice
  * @copyright  2026 Anderson Blaine

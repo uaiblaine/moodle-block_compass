@@ -337,7 +337,10 @@ final class day_test extends advanced_testcase {
         day::get($userid, $date, 'teaching', $now, $signin, $tz, $output);
         day::get($userid, $date, 'learning', $now, $signin, $tz, $output);
 
-        $ceilings = ['teaching' => 5 + 2, 'learning' => 63 + 2];
+        // With block_feedback_tracker's ledger as the grading source, the coverage statement is one
+        // more read; the fixture's course carries no Feedback Flow block, so core's count still runs.
+        $ledger = grading::tracker_active() ? 1 : 0;
+        $ceilings = ['teaching' => 5 + 2 + $ledger, 'learning' => 63 + 2];
         foreach ($ceilings as $view => $ceiling) {
             cache::make('block_compass', 'calendarstrip')->purge();
             $this->new_request();

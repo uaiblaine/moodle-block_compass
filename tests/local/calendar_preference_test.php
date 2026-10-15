@@ -46,12 +46,13 @@ final class calendar_preference_test extends advanced_testcase {
      * @return void
      */
     public function test_nothing_stored_or_unreadable_reads_as_the_defaults(): void {
-        $defaults = ['view' => 'learning', 'filter' => 'all', 'relevance' => true];
+        $defaults = ['view' => 'learning', 'filter' => 'all', 'relevance' => true, 'open' => false];
 
         foreach ([null, '', 'not json', '"a string"', '[]', '3'] as $stored) {
             $this->assertSame($defaults, calendar_preference::validate($stored, true), var_export($stored, true));
         }
         $this->assertFalse(calendar_preference::validate(null, false)['relevance'], 'the default follows the site');
+        $this->assertTrue(calendar_preference::validate(null, true, true)['open'], 'the open default follows the site');
     }
 
     /**
@@ -60,10 +61,10 @@ final class calendar_preference_test extends advanced_testcase {
      * @return void
      */
     public function test_a_well_formed_state_survives_whole(): void {
-        $json = json_encode(['view' => 'teaching', 'filter' => 'events', 'relevance' => false]);
+        $json = json_encode(['view' => 'teaching', 'filter' => 'events', 'relevance' => false, 'open' => true]);
 
         $this->assertSame(
-            ['view' => 'teaching', 'filter' => 'events', 'relevance' => false],
+            ['view' => 'teaching', 'filter' => 'events', 'relevance' => false, 'open' => true],
             calendar_preference::validate($json, true)
         );
     }
@@ -74,11 +75,15 @@ final class calendar_preference_test extends advanced_testcase {
      * @return void
      */
     public function test_a_member_outside_its_vocabulary_falls_back_alone(): void {
-        $json = json_encode(['view' => 'grading', 'filter' => 'todo', 'relevance' => 0]);
+        $json = json_encode(['view' => 'grading', 'filter' => 'todo', 'relevance' => 0, 'open' => 1]);
 
         $this->assertSame(
-            ['view' => 'learning', 'filter' => 'todo', 'relevance' => true],
+            ['view' => 'learning', 'filter' => 'todo', 'relevance' => true, 'open' => false],
             calendar_preference::validate($json, true)
+        );
+        $this->assertTrue(
+            calendar_preference::validate(json_encode(['open' => 'false']), true, true)['open'],
+            'a string is not the viewer\'s toggle: the site default stands'
         );
         $this->assertSame('all', calendar_preference::validate(json_encode(['filter' => 'ALL']), true)['filter']);
         $this->assertSame(strip::VIEWS, calendar_preference::VIEWS, 'the remembered view speaks the strip\'s vocabulary');
@@ -95,9 +100,39 @@ final class calendar_preference_test extends advanced_testcase {
         $this->setUser($user);
 
         set_config('calendar_relevance', 0, 'block_compass');
-        $this->assertSame(['view' => 'learning', 'filter' => 'all', 'relevance' => false], calendar_preference::read());
+        $this->assertSame(
+            ['view' => 'learning', 'filter' => 'all', 'relevance' => false, 'open' => false],
+            calendar_preference::read()
+        );
 
         set_user_preference(calendar_preference::NAME, json_encode(['view' => 'teaching', 'relevance' => true]), $user);
-        $this->assertSame(['view' => 'teaching', 'filter' => 'all', 'relevance' => true], calendar_preference::read());
+        $this->assertSame(
+            ['view' => 'teaching', 'filter' => 'all', 'relevance' => true, 'open' => false],
+            calendar_preference::read()
+        );
+    }
+
+    /**
+     * Never chosen, the strip starts as calendar_start says; the viewer's own toggle wins over it.
+     *
+     * The control is the same reader under the other setting value: the stored false must survive
+     * a site that starts open, and the stored true one that starts closed.
+     *
+     * @return void
+     */
+    public function test_the_open_flag_follows_the_site_until_the_viewer_toggles(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+
+        $this->assertFalse(calendar_preference::read()['open'], 'never set: closed');
+        set_config('calendar_start', 'open', 'block_compass');
+        $this->assertTrue(calendar_preference::read()['open'], 'the site starts open');
+
+        set_user_preference(calendar_preference::NAME, json_encode(['open' => false]), $user);
+        $this->assertFalse(calendar_preference::read()['open'], 'the viewer closed it on a site that starts open');
+        set_config('calendar_start', 'closed', 'block_compass');
+        set_user_preference(calendar_preference::NAME, json_encode(['open' => true]), $user);
+        $this->assertTrue(calendar_preference::read()['open'], 'the viewer opened it on a site that starts closed');
     }
 }

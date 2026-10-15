@@ -497,6 +497,31 @@ final class grading_test extends advanced_testcase {
     }
 
     /**
+     * The statement reads the submissions by the assignment list, not only the assignments.
+     *
+     * With the list on a.id alone PostgreSQL scans the whole of assign_submission; bound on
+     * s.assignment as well, it walks the latestattempt index from the assignments asked (ADR-014
+     * amendment 11). No result can tell the two apart, so the statement's shape is the reader: both
+     * bindings present, each with every id. The control is the a.id binding, which was always there.
+     *
+     * @return void
+     */
+    public function test_the_submissions_are_read_by_the_assignment_list(): void {
+        [$sql, $params] = grading::statement([11 => null, 12 => 5, 13 => null], 1000000);
+
+        $this->assertMatchesRegularExpression('/\ba\.id\s+IN\s*\(/i', $sql, 'the control: the assignments by id');
+        $this->assertMatchesRegularExpression('/\bs\.assignment\s+IN\s*\(/i', $sql, 'the submissions by the same list');
+        foreach (['gwaid', 'gwsid'] as $prefix) {
+            $bound = array_values(array_filter(
+                $params,
+                fn(string $name): bool => preg_match('/^' . $prefix . '\d+$/', $name) === 1,
+                ARRAY_FILTER_USE_KEY
+            ));
+            $this->assertEqualsCanonicalizing([11, 12, 13], $bound, "the {$prefix} binding carries every id");
+        }
+    }
+
+    /**
      * Core's own count, asked as the grader.
      *
      * @param int $cmid The assignment's course module.

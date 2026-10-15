@@ -18,9 +18,13 @@
  *
  * Amber rather than error red, because the failure is recoverable; role="alert", so it is
  * announced; "Try again", which replays the loader that failed; and "Reload page" as the last
- * resort. The parent owns the retry callback and the in-flight flag; while a retry runs, Try
- * again is aria-disabled and refuses a second press (see Reload.tsx for why not disabled), and
- * the pointer-events: none of Bootstrap's disabled class passes a click only to the alert beneath.
+ * resort. It is the block's only reload control, and it exists only once a load has failed: no
+ * reload control is on the page before (ADR-014 amendment 11), as block_feedback_tracker does it.
+ * The parent owns the retry callback and the in-flight flag; while a retry runs, Try again is
+ * aria-disabled and refuses a second press, never disabled: the attribute would be applied in the
+ * render the button's own click causes, and a focused element that becomes disabled drops the
+ * keyboard to the body, so "Reloading…" would be said to nobody. The pointer-events: none of
+ * Bootstrap's disabled class passes a click only to the alert beneath.
  *
  * @module     block_compass/RetryNotice
  * @copyright  2026 Anderson Blaine
@@ -53,16 +57,20 @@ const RetryNotice = ({message, retrying, config, onRetry}: RetryNoticeProps) => 
     // The notice leaves the page when what it reports is over - in the same commit as the press
     // for the callers that clear their state in the callback, or when the answer lands for the
     // ones that keep it up meanwhile - and a focused button that leaves the page drops the
-    // keyboard to the body. A layout effect's cleanup runs while the node is still in the
-    // document, so it can see that the button held focus and hand the keyboard to the group's
-    // own summary when the notice is inside a group, else to the block's reload control.
+    // keyboard to the body (WCAG 2.4.3). A layout effect's cleanup runs while the node is still in
+    // the document, so it can see that the button held focus and hand the keyboard on: to the
+    // group's own summary when the notice is inside a group, else to the calendar strip's toggle
+    // (the strip's own notices, and tier 1's, which sits right under the strip), else to the block's
+    // root, which takes focus without entering the tab order (Block.tsx).
     useLayoutEffect(() => () => {
         const node = button.current;
         if (!node || document.activeElement !== node) {
             return;
         }
+        const block = node.closest('.block_compass');
         const target = node.closest('.compass-group')?.querySelector<HTMLElement>('summary')
-            ?? node.closest('.block_compass')?.querySelector<HTMLElement>('.compass-reload')
+            ?? block?.querySelector<HTMLElement>('.compass-cal-toggle')
+            ?? block?.querySelector<HTMLElement>('.compass-body')
             ?? null;
         target?.focus();
     }, []);
