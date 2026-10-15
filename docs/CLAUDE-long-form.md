@@ -516,8 +516,8 @@ settings.php                 §8 settings: attention_max, new_days, dormant_mont
                              filter_fields (multiselect of eligible course custom fields, ADR-009),
                              enable_prewarm, prewarm_days, prewarm_budget_seconds, default_view,
                              enable_search, hide_block_title, show_index, show_category (the category
-                             line on cards, ADR-010), show_theme_badges (only while the FUNDASEG
-                             theme is installed, ADR-013), enable_page, hide_page_title (the page's title
+                             line on cards, ADR-010), show_theme_badges (only while a component
+                             answers the course_badges hook, ADR-013), enable_page, hide_page_title (the page's title
                              kept as a visually hidden h1, ADR-012 amendment 4) (ints via configtext+PARAM_INT, vocabularies via
                              configselect — never a free-text field for an enum)
 version.php                  requires 2026042000, supported [502, 502]
@@ -560,9 +560,9 @@ classes/
                              config, budget between users, warm one user = fill + shared layers (Phase 3)
     dormancy.php             the dormancy rule and the two reserved group ids, -1 dormant and -2
                              archived; zero reads, both inputs are in the inventory row (Phase 5, ADR-007)
-    theme_badges.php         the one door to theme_boost_union_fundaseg's crests: its
-                             course_badges callback through component_callback(), behind
-                             show_theme_badges, bounded at three, one call per response (ADR-013)
+    theme_badges.php         the one door to the courses' crests: dispatches the course_badges
+                             hook (classes/hook/), behind show_theme_badges, bounded at three, one
+                             dispatch per response (ADR-013, amended 2026-10-14)
     relationship.php         the one door to local_unlistedcourses' per-row rule
                              (access::classify_enrolment()): a cached inventory row or a database row in,
                              a RELATIONSHIP_* out; the shown four and their rank; replaced pending.php,

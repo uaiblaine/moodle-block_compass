@@ -230,9 +230,8 @@ final class config {
     /**
      * Whether cards show the theme's institutional crests. Never set means on.
      *
-     * A new install stores the setting's default, on, wherever the theme is installed; an
-     * upgrade from a version without it stores off (db/upgrade.php), so no site's cards change
-     * by surprise. Without the theme the setting is never offered and the callback answers
+     * A new install stores the setting's default, on, wherever a theme or plugin answers the
+     * course_badges hook. Where nothing answers, the setting is never offered and the hook adds
      * nothing, so this reads on and costs nothing (theme_badges::for_courses()).
      *
      * @return bool

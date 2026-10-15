@@ -170,6 +170,7 @@ classes/local/calendar/    the strip (ADR-014): strip (window, counted statement
                            (weekends from core, or block_feedback_tracker's calendar in one statement)
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
+classes/hook/course_badges.php the block's own hook, dispatched by local/theme_badges: course ids in, crests out
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, Platter, RowList, Row,
                            RowCard, Archive, Reload, RetryNotice, StatePill, CalendarStrip, CalendarCard, calendar,
@@ -245,9 +246,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   every failed read twice, 2 s apart), `RetryNotice`, `Reload`; busy controls `aria-disabled`, never
   `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
   "Client side".
-- **The theme's crests go through `classes/local/theme_badges.php` only**: it asks core's
-  component list before `component_callback()`, which throws for a component that is not
-  installed (it broke every first paint on a site without the theme once).
+- **The crests go through `classes/local/theme_badges.php` only**, which dispatches the block's
+  own hook, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-14): no
+  plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
+  costs the crests, never the first paint), and the listener, not the block, decides which
+  courses the current user may see a crest for.
 - Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
   fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).
