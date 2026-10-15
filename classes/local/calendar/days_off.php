@@ -65,7 +65,7 @@ final class days_off {
 
     /**
      * Whether block_feedback_tracker is installed: asked of core's component list before any of
-     * its classes is touched, as {@see \block_compass\local\theme_badges} asks before calling the theme.
+     * its classes is touched, because the plugin is optional and may be absent.
      *
      * @return bool
      */

@@ -529,6 +529,46 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
+     * With no stand-in, the crests come from the course_badges hook and reach the detail in the client's shape.
+     *
+     * Core's hook manager is replaced by one that knows only the fixture listener, which answers
+     * for the crested course and for a course the batch never named. The detail carries the
+     * crested course's badges as url and alt, the plain one carries no key, and the service's
+     * return structure keeps them.
+     *
+     * @return void
+     */
+    public function test_the_hook_answer_reaches_a_detail_in_the_shape_the_client_draws(): void {
+        require_once(__DIR__ . '/../fixtures/course_badges_listener.php');
+        \block_compass\fixtures\course_badges_listener::reset();
+        \core\di::set(
+            \core\hook\manager::class,
+            \core\hook\manager::phpunit_get_instance(['block_compass_fixture' => __DIR__ . '/../fixtures/course_badges_hooks.php'])
+        );
+        set_config('show_theme_badges', 1, 'block_compass');
+        $crested = (int) $this->course('Crested course')->id;
+        $plain = (int) $this->course('Plain course')->id;
+        $stranger = (int) $this->course('Not in the batch')->id;
+        foreach ([$crested, $plain] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - DAYSECS);
+        }
+        $crest = ['url' => 'https://example.com/pluginfile.php/1/theme_x/badge/a.png', 'alt' => 'A'];
+        \block_compass\fixtures\course_badges_listener::$answers = [$crested => [$crest], $stranger => [$crest]];
+
+        $details = array_column(cards::details($this->userid, [$crested, $plain], self::NOW), null, 'id');
+
+        $this->assertSame([[$crested, $plain]], \block_compass\fixtures\course_badges_listener::$asked);
+        $this->assertSame([$crest], $details[$crested]['badges']);
+        $this->assertArrayNotHasKey('badges', $details[$plain]);
+        $this->assertArrayNotHasKey($stranger, $details);
+        $answer = \core_external\external_api::clean_returnvalue(
+            \block_compass\external\get_card_details::execute_returns(),
+            ['details' => array_values($details)]
+        );
+        $this->assertSame([$crest], array_column($answer['details'], null, 'id')[$crested]['badges']);
+    }
+
+    /**
      * A Starts-soon card carries its start, the enrolment page, its cover and crests, and nothing an active card does.
      *
      * One course starts later, with completion on, its progress cached and the viewer a teacher

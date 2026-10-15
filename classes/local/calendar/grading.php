@@ -62,7 +62,7 @@ final class grading implements grading_source {
      * when the maintainer moves the count to it, this method returns a grading_source reading that
      * table, chosen only when the plugin is installed: presence asked of core's component list,
      * core_component::get_component_directory('block_feedback_tracker'), before any read, as
-     * {@see \block_compass\local\theme_badges} asks before calling the theme. Without the plugin
+     * {@see days_off::tracked()} asks before touching the plugin's classes. Without the plugin
      * the answer stays this class. Nothing reads that table yet.
      *
      * @return grading_source

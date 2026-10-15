@@ -35,8 +35,8 @@ use stdClass;
  * formatted with the course context rebuilt from the cache and the filters
  * preloaded in one query, category names the same way from the
  * category layer; images come from core's course_image cache; progress comes
- * from the details cache, pending when not cached; the theme's crests, when it is installed,
- * from its one callback (theme_badges), asked once per response. A card of the Starts-soon strip
+ * from the details cache, pending when not cached; the crests, from the course_badges hook
+ * (theme_badges), dispatched once per response. A card of the Starts-soon strip
  * (SCHEDULED_STRIP) is a course the learner cannot enter yet: it links to the enrolment page and
  * carries its start date (sched) and no progress, as tier 3's scheduled row does.
  *
@@ -60,7 +60,7 @@ final class cards {
      * @param int $userid The viewer.
      * @param array $strips Strip name => rows keyed by course id, as attention::build() returns them.
      * @param int $now Unix time to treat as now.
-     * @param callable|null $crests Stands in for the theme's callback in tests; see theme_badges::for_courses().
+     * @param callable|null $crests Stands in for the course_badges hook in tests; see theme_badges::for_courses().
      * @return array Strip name => list of card arrays, same order as the rows.
      */
     public static function build(int $userid, array $strips, int $now, ?callable $crests = null): array {
@@ -96,7 +96,7 @@ final class cards {
         $progress = details::get_many($userid, $withcompletion);
 
         // Every card's image in one read of core's course_image cache, and every card's crests in one
-        // call to the theme.
+        // dispatch of the course_badges hook.
         $images = self::images(array_keys($entries));
         $badges = theme_badges::for_courses(array_keys($entries), $crests);
         $result = [];
@@ -322,13 +322,13 @@ final class cards {
      * courses nobody scrolls to. Warm, the image is free; cold it is core's course_image
      * datasource, which loops per course whatever the entry point
      * (course/classes/cache/course_image.php:99-105) - which is why the contexts are warmed from
-     * the course layer just below. The crests come the same way, in one call to the theme
-     * (theme_badges), so the get_inventory payload carries none.
+     * the course layer just below. The crests come the same way, in one dispatch of the
+     * course_badges hook (theme_badges), so the get_inventory payload carries none.
      *
      * @param int $userid The viewer.
      * @param int[] $courseids At most DETAILS_BATCH ids.
      * @param int|null $now Unix time to treat as now; null for time().
-     * @param callable|null $crests Stands in for the theme's callback in tests; see theme_badges::for_courses().
+     * @param callable|null $crests Stands in for the course_badges hook in tests; see theme_badges::for_courses().
      * @return array List of entries: id, hascompletion, progress, imageurl and hasimage, plus
      *     teacher (true) when completion is off and the viewer is not a learner, and badges when
      *     the course has crests.
@@ -432,7 +432,7 @@ final class cards {
             ];
         }
 
-        // Every detail's image in one read of core's course_image cache, and its crests in one call to the theme.
+        // Every detail's image in one read of core's course_image cache, and its crests in one dispatch of the hook.
         $ids = array_column($result, 'id');
         $images = self::images($ids);
         $badges = theme_badges::for_courses($ids, $crests);

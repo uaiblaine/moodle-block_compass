@@ -10,7 +10,7 @@ namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Mo
 `v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
 [`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100500) - unreleased
+## v5.3-r1 (2026100501) - unreleased
 
 First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
@@ -18,6 +18,13 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 ### Changed
 
+- The institutional crests on cards come from the block's own hook,
+  `\block_compass\hook\course_badges`, which any theme or plugin answers from its `db/hooks.php`;
+  the block no longer names a theme (ADR-013, amendment of 2026-10-14). The answering component
+  decides which courses the current user may see a crest for, the block keeps at most three a
+  course and ignores answers for courses it did not ask about, and a listener that fails costs
+  the crests, never the page. The *Show the theme's institutional badges* setting is offered
+  while something answers the hook, and its description no longer names a theme.
 - The modulepreload hints follow Moodle 5.3's import map. Each URL is the one the page's map
   resolves the module to: on 5.3 core modules and the bundle are served through the current
   theme (`@moodle/lms/theme-<theme>/...`), so the 5.2 URLs pointed at files the loader never
