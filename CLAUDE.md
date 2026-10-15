@@ -262,8 +262,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   every failed read twice, 2 s apart), then `RetryNotice` (Try again, Reload page): **no
   permanent reload control**, a way back appears only once a load has failed, and every failed
   read offers one; tier 1's Try again re-asks tier 1, then whatever of the strip failed. Busy
-  controls `aria-disabled`, never `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
-  "Client side".
+  controls `aria-disabled`, never `disabled`. "No completion configured" is addressed to the teacher by capability. The
+  strip's row is one native scroller (ADR-014 amendment 12): it scrolls itself through `scrollRow()` (never
+  `scrollIntoView`; a day is focused with `preventScroll`), its own scrolls are flagged so they close no card and hold the
+  pending counter until they settle, the day card is the scroller's sibling, and a day opens on hover only while wholly in
+  view (`calendar.ts` `whollyInView()`). Long form: "Client side".
 - **The crests go through `classes/local/theme_badges.php` only**, which dispatches the block's
   own hook, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-14): no
   plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure

@@ -52,7 +52,54 @@ const windowDays = /* @__PURE__ */ __name((firstday, today) => {
   }
   return days;
 }, "windowDays");
-const homeOffset = /* @__PURE__ */ __name((todayindex, shown) => Math.max(0, todayindex - Math.floor(shown / 2)), "homeOffset");
+const DAY_PITCH_PX = 50;
+const RING_PITCH_PX = 60;
+const DAY_GAP_PX = 6;
+const RING_GAP_PX = 12;
+const EDGE_INSET_PX = 32;
+const NARROW_INSET_PX = 4;
+const NARROW_SHOWN = 7.5;
+const NARROW_SHOWN_RING = 5.5;
+const TARGET_PX = 44;
+const DISC_PX = 36;
+const PULSE_DISC_PX = 30;
+const HOME_PAST = 5;
+const NARROW_HOME_PAST = 3;
+const MARK_SLOTS = 4;
+const fit = /* @__PURE__ */ __name((width, narrow, style) => {
+  const gap = style === "ring" ? RING_GAP_PX : DAY_GAP_PX;
+  const inset = narrow ? NARROW_INSET_PX : EDGE_INSET_PX;
+  let pitch = style === "ring" ? RING_PITCH_PX : DAY_PITCH_PX;
+  if (narrow && width > 0) {
+    pitch = Math.max(gap + 24, Math.floor((width - 2 * inset + gap) / (style === "ring" ? NARROW_SHOWN_RING : NARROW_SHOWN)));
+  }
+  const column = pitch - gap;
+  const whole = width > 0 ? Math.max(1, Math.floor((width - 2 * inset + gap) / pitch)) : 1;
+  return {
+    pitch,
+    gap,
+    column,
+    inset,
+    target: Math.min(TARGET_PX, column),
+    disc: Math.min(style === "pulse" ? PULSE_DISC_PX : DISC_PX, column),
+    whole
+  };
+}, "fit");
+const homeIndex = /* @__PURE__ */ __name((todayindex, narrow) => Math.max(0, todayindex - (narrow ? NARROW_HOME_PAST : HOME_PAST)), "homeIndex");
+const stepOf = /* @__PURE__ */ __name((whole) => 7 * Math.max(1, Math.floor(whole / 7)), "stepOf");
+const whollyInView = /* @__PURE__ */ __name((index, row, scroll, width) => {
+  const start = row.inset + index * row.pitch - scroll;
+  return start >= row.inset - 0.5 && start + row.column <= width - row.inset + 0.5;
+}, "whollyInView");
+const leastScroll = /* @__PURE__ */ __name((index, row, scroll, width) => {
+  if (whollyInView(index, row, scroll, width)) {
+    return scroll;
+  }
+  if (row.inset + index * row.pitch - scroll < row.inset) {
+    return index * row.pitch;
+  }
+  return Math.max(0, (index - row.whole + 1) * row.pitch);
+}, "leastScroll");
 const PERIOD_KEYS = ["late", "today", "tomorrow", "week", "later"];
 const WEEK_DAYS = 5;
 const LEARNING_COUNTED = ["gradedsoon", "graded", "todo", "late", "event"];
@@ -202,7 +249,7 @@ const step = /* @__PURE__ */ __name((value, relevance) => {
   }
   return value < 8 ? 3 : 4;
 }, "step");
-const marks = /* @__PURE__ */ __name((day, kinds) => {
+const itemKinds = /* @__PURE__ */ __name((day, kinds) => {
   const list = [];
   kinds.forEach((kind) => {
     for (let at = 0; at < (day.counts[kind] ?? 0); at++) {
@@ -210,6 +257,23 @@ const marks = /* @__PURE__ */ __name((day, kinds) => {
     }
   });
   return list;
+}, "itemKinds");
+const MARK_PRIORITY = {
+  learning: [["gradedsoon", "graded"], ["late"], ["todo"], ["event"], ["done"]],
+  teaching: [["gradesoon", "grade"], ["class"], ["event"]]
+};
+const marks = /* @__PURE__ */ __name((day, kinds, view) => {
+  const present = [];
+  MARK_PRIORITY[view].forEach((group) => {
+    const shown = group.find((kind) => kinds.includes(kind) && (day.counts[kind] ?? 0) > 0);
+    if (shown) {
+      present.push(shown);
+    }
+  });
+  if (present.length <= MARK_SLOTS) {
+    return { kinds: present, more: 0 };
+  }
+  return { kinds: present.slice(0, MARK_SLOTS - 1), more: present.length - (MARK_SLOTS - 1) };
 }, "marks");
 const sortItems = /* @__PURE__ */ __name((items, view) => {
   const order = kindsOf(view);
@@ -228,6 +292,20 @@ const MONTH_KEYS = [
   "cal_month_10",
   "cal_month_11",
   "cal_month_12"
+];
+const MONTH_SHORT_KEYS = [
+  "cal_monthshort_01",
+  "cal_monthshort_02",
+  "cal_monthshort_03",
+  "cal_monthshort_04",
+  "cal_monthshort_05",
+  "cal_monthshort_06",
+  "cal_monthshort_07",
+  "cal_monthshort_08",
+  "cal_monthshort_09",
+  "cal_monthshort_10",
+  "cal_monthshort_11",
+  "cal_monthshort_12"
 ];
 const WEEKDAY_KEYS = [
   "cal_weekday_0",
@@ -294,6 +372,7 @@ const timeParts = /* @__PURE__ */ __name((time, timezone) => {
   return { year, month, day, weekday: weekdayOf(year, month, day), hour: numbers.hour % 24, minute: numbers.minute };
 }, "timeParts");
 const monthName = /* @__PURE__ */ __name((strings, month) => strings[MONTH_KEYS[month - 1]] ?? "", "monthName");
+const monthShort = /* @__PURE__ */ __name((strings, month) => strings[MONTH_SHORT_KEYS[month - 1]] ?? "", "monthShort");
 const monthYear = /* @__PURE__ */ __name((strings, month, year) => fillObject(strings.cal_format_monthyear, { month: monthName(strings, month), year: String(year) }), "monthYear");
 const longDay = /* @__PURE__ */ __name((strings, parts) => fillObject(strings.cal_format_dayname, {
   weekday: strings[WEEKDAY_KEYS[parts.weekday]] ?? "",
@@ -314,9 +393,13 @@ const clockTime = /* @__PURE__ */ __name((strings, parts) => {
 }, "clockTime");
 export {
   BOUND_KINDS,
+  DAY_PITCH_PX,
+  EDGE_INSET_PX,
   LEARNING_KINDS,
+  MARK_SLOTS,
   OPEN_KINDS,
   PERIOD_KEYS,
+  RING_PITCH_PX,
   TEACHING_KINDS,
   addDays,
   clockTime,
@@ -327,13 +410,17 @@ export {
   dayString,
   dayTime,
   daysBetween,
+  fit,
   fromPayload,
-  homeOffset,
+  homeIndex,
   inWeekend,
+  itemKinds,
   kindsOf,
+  leastScroll,
   longDay,
   marks,
   monthName,
+  monthShort,
   monthYear,
   periodSpan,
   periodsOf,
@@ -343,7 +430,9 @@ export {
   shownKinds,
   sortItems,
   step,
+  stepOf,
   timeParts,
+  whollyInView,
   windowDays
 };
 //# sourceMappingURL=calendar.dev.js.map

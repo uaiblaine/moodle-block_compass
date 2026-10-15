@@ -59,8 +59,8 @@ class block implements renderable, templatable {
      * strip off ships none of them. The _one keys are the singular twins fillCount() picks. The
      * month and weekday names and the cal_format_* templates are how the client writes a date in
      * the site language (js/esm/src/calendar.ts): the browser computes only the numbers. Months are
-     * cal_month_01 to cal_month_12; weekdays are numbered 0 (Sunday) to 6, as getUTCDay() and PHP's
-     * date('w') number them.
+     * cal_month_01 to cal_month_12, and cal_monthshort_01 to cal_monthshort_12 for a narrow block's
+     * month span; weekdays are numbered 0 (Sunday) to 6, as getUTCDay() and PHP's date('w') number them.
      *
      * @var string[]
      */
@@ -79,7 +79,10 @@ class block implements renderable, templatable {
         'cal_legend_needle_learning', 'cal_legend_needle_teaching', 'cal_legend_todo', 'cal_legend_weekend',
         'cal_loaderror', 'cal_loading', 'cal_loadingcounts', 'cal_loadingday', 'cal_many', 'cal_month_01',
         'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06', 'cal_month_07',
-        'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12', 'cal_monthspan', 'cal_next',
+        'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12', 'cal_monthshort_01',
+        'cal_monthshort_02', 'cal_monthshort_03', 'cal_monthshort_04', 'cal_monthshort_05', 'cal_monthshort_06',
+        'cal_monthshort_07', 'cal_monthshort_08', 'cal_monthshort_09', 'cal_monthshort_10', 'cal_monthshort_11',
+        'cal_monthshort_12', 'cal_monthspan', 'cal_next',
         'cal_note_gradingopen', 'cal_note_latecold', 'cal_nothing', 'cal_nothing_until', 'cal_open', 'cal_openday',
         'cal_period_label', 'cal_period_label_past', 'cal_period_late', 'cal_period_late_short', 'cal_period_later',
         'cal_period_later_short', 'cal_period_overdue', 'cal_period_overdue_short', 'cal_period_today',
