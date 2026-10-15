@@ -27,6 +27,7 @@ namespace block_compass\external;
 
 use advanced_testcase;
 use block_compass\local\budget;
+use block_compass\local\calendar\grading;
 use block_compass\local\calendar\strip;
 use core_cache\cache;
 use core_calendar\local\event\container;
@@ -119,7 +120,10 @@ final class get_day_budget_test extends advanced_testcase {
         get_day::execute($date, 'teaching');
         get_day::execute($date, 'learning');
 
-        $ceilings = ['teaching' => 9 + 2, 'learning' => 63 + 1 + 2];
+        // With block_feedback_tracker's ledger as the grading source, the coverage statement is one
+        // more read; the fixture's course carries no Feedback Flow block, so core's count still runs.
+        $ledger = grading::tracker_active() ? 1 : 0;
+        $ceilings = ['teaching' => 9 + 2 + $ledger, 'learning' => 63 + 1 + 2];
         foreach ($ceilings as $view => $ceiling) {
             cache::make('block_compass', 'calendarstrip')->purge();
             $this->new_request();

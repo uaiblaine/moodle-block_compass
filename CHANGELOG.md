@@ -20,7 +20,7 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042000) - unreleased
+## v5.2-r1 (2026042001) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
@@ -54,13 +54,18 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - The view, the sort, the chips and the open filter panel are remembered for each user.
 - "No completion configured" is said to teachers only.
 - With the Boost Union FUNDASEG theme, cards and rows show the course's institutional crests.
-- A failed read retries itself, then offers *Try again* and *Reload page*; a reload control
-  refreshes the whole block.
+- A failed read retries itself, then offers *Try again* and *Reload page*. There is no
+  permanent reload control: the way back appears only once a load has failed.
 
 **Calendar strip** (off by default)
 
 - A row of days above the first tier, from ten days ago to the end of next month, each day
   coloured by what it holds, on the Dashboard, the Compass page or both.
+- The strip opens and closes from its heading, and each user's choice is remembered.
+  Closed, it is one line of plain counts by period: *Late, still open*, *Today*, *Tomorrow*,
+  *This week* and *Later*; a period opens the strip on its days. Closed costs one small count
+  and never the whole strip; `calendar_start` decides how the strip first shows (closed by
+  default).
 - Relevance weighting: graded work, starred courses and work due today or tomorrow weigh more;
   each user can switch it off.
 - Three styles: dots, a ring and pulse bars.
@@ -69,7 +74,9 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - Pointing at a day, focusing it or clicking it opens a day card with the day's items and the
   action buttons core's Timeline offers (a bottom sheet on a narrow block).
 - The teaching view counts submissions waiting to be graded, in the group core shows the
-  grader first.
+  grader first. With `block_feedback_tracker` installed, the courses it tracks are counted from
+  its own ledger and the closed line shows the submissions waiting too (`calendar_grading`);
+  the two plugins define "waiting" differently.
 - Weekends are hatched; with `block_feedback_tracker` installed, its academic calendar marks
   weekends, holidays and recesses.
 - A future count that may still shrink reads "up to N" until the day is opened.
@@ -85,8 +92,10 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 **Administration and scale**
 
-- Seven read-only web services that do not hold the session lock, each with a read budget
+- Eight read-only web services that do not hold the session lock, each with a read budget
   enforced by a test.
+- Core's count of submissions waiting is read through the assignments' index, not by a scan of
+  every submission.
 - Seven application caches; a shared in-memory store (Redis) is recommended for all of them.
 - An optional nightly task pre-warms the course lists of recently active users.
 - The client is one React bundle, announced with preload hints only where the block renders.
@@ -102,10 +111,12 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 ### Upgrading from a development build
 
 There is no upgrade path from the date-numbered development builds (`2026090400` to
-`2026101400`, never published): this release is a fresh install. A site that ran one of them
-sets the stored version back, then upgrades; its settings are kept:
+`2026101400`, never published): this release is a fresh install. A site that ran one of those
+builds sets the stored version back, then upgrades; its settings are kept:
 
 ```sh
 php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
+
+A site that installed `2026042000` from this branch upgrades to `2026042001` in place.

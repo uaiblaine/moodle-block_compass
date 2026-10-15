@@ -27,8 +27,9 @@ namespace block_compass\local;
 /**
  * Reader of the block_compass_calendar preference (ADR-014 decisions 10 and 11).
  *
- * One JSON object holds the view (studying or teaching), the item filter and the relevance
- * switch. The client writes it through core's preference route, which leaves a PARAM_RAW value
+ * One JSON object holds the view (studying or teaching), the item filter, the relevance switch
+ * and whether the strip is open (the row of days) or closed (the line of counts, ADR-014
+ * amendment 11). The client writes it through core's preference route, which leaves a PARAM_RAW value
  * uncleaned, so the reading is where the validation is, as for
  * {@see explore_preference}: a member outside its vocabulary, or of the wrong type, falls back to
  * its default and the rest is kept. Whether the stored view can be drawn (a teaching view for
@@ -53,35 +54,48 @@ final class calendar_preference {
      * The state the strip starts in for a viewer who never changed it.
      *
      * @param bool|null $relevance The relevance default; null for the site's calendar_relevance setting.
-     * @return array view, filter and relevance.
+     * @param bool|null $open The open default; null for the site's calendar_start setting.
+     * @return array view, filter, relevance and open.
      */
-    public static function defaults(?bool $relevance = null): array {
-        return ['view' => 'learning', 'filter' => 'all', 'relevance' => $relevance ?? config::calendar_relevance()];
+    public static function defaults(?bool $relevance = null, ?bool $open = null): array {
+        return [
+            'view' => 'learning',
+            'filter' => 'all',
+            'relevance' => $relevance ?? config::calendar_relevance(),
+            'open' => $open ?? config::calendar_start() === 'open',
+        ];
     }
 
     /**
      * The current viewer's stored state, validated, or the defaults.
      *
-     * @return array view, filter and relevance, each within its vocabulary.
+     * @return array view, filter, relevance and open, each within its vocabulary.
      */
     public static function read(): array {
         $stored = get_user_preferences(self::NAME, null);
 
-        return self::validate(is_string($stored) ? $stored : null, config::calendar_relevance());
+        return self::validate(
+            is_string($stored) ? $stored : null,
+            config::calendar_relevance(),
+            config::calendar_start() === 'open'
+        );
     }
 
     /**
      * Keep of a stored value what the vocabulary admits, member by member.
      *
-     * The relevance switch is kept only as a JSON boolean: "0", 0 or "false" are not the
-     * viewer's switch, and reading them as one would turn a malformed value into a choice.
+     * The relevance switch and the open flag are kept only as JSON booleans: "0", 0 or "false"
+     * are not the viewer's choice, and reading them as one would turn a malformed value into a
+     * choice. A stored value without the open member starts as the site's
+     * calendar_start says.
      *
      * @param string|null $json The stored JSON, or null when nothing is stored.
      * @param bool $relevancedefault The relevance default, the site's setting.
-     * @return array view, filter and relevance, each within its vocabulary.
+     * @param bool $opendefault The open default, the site's calendar_start setting.
+     * @return array view, filter, relevance and open, each within its vocabulary.
      */
-    public static function validate(?string $json, bool $relevancedefault): array {
-        $state = self::defaults($relevancedefault);
+    public static function validate(?string $json, bool $relevancedefault, bool $opendefault = false): array {
+        $state = self::defaults($relevancedefault, $opendefault);
         if ($json === null || $json === '') {
             return $state;
         }
@@ -97,6 +111,9 @@ final class calendar_preference {
         }
         if (isset($decoded['relevance']) && is_bool($decoded['relevance'])) {
             $state['relevance'] = $decoded['relevance'];
+        }
+        if (isset($decoded['open']) && is_bool($decoded['open'])) {
+            $state['open'] = $decoded['open'];
         }
 
         return $state;

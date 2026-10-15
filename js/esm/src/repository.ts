@@ -28,7 +28,7 @@
 import {amd} from './amd';
 import type {
     Attention, CalendarState, CalendarView, CardDetail, DayAnswer, ExploreState, FilterParam, Inventory, RowPage, SearchHits,
-    StripPayload,
+    StripCounts, StripPayload,
 } from './types';
 
 type AjaxRequest = {methodname: string, args: Record<string, unknown>};
@@ -130,7 +130,7 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
 /**
  * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.
  *
- * Reads only: the seven services below answer questions, so asking again changes nothing. Writes
+ * Reads only: the eight services below answer questions, so asking again changes nothing. Writes
  * are never retried - the star goes through call(), the view, the toolbar and the archive through
  * core_user/repository - because a write that may have landed must not be sent again. The
  * callers' sequence numbers already drop an answer that arrives after they moved on.
@@ -261,6 +261,18 @@ export const getStrip = (): Promise<StripPayload> =>
     read<StripPayload>('block_compass_get_strip', {});
 
 /**
+ * The closed strip's counts for the current user: plain numbers by period in both views (ADR-014
+ * amendment 11).
+ *
+ * Asked once tier 1 has settled, and only while the strip is closed; an open strip that closes sums
+ * its own payload instead (calendar.ts, countsOf()).
+ *
+ * @returns {Promise} The counts.
+ */
+export const getStripCounts = (): Promise<StripCounts> =>
+    read<StripCounts>('block_compass_get_strip_counts', {});
+
+/**
  * One day's items in one view, through core's pipeline for the learning view (decision 7).
  *
  * @param {string} date The day, Y-m-d in the user's timezone, inside the strip's window.
@@ -271,12 +283,13 @@ export const getDay = (date: string, view: CalendarView): Promise<DayAnswer> =>
     read<DayAnswer>('block_compass_get_day', {date, view});
 
 /**
- * Remember the calendar strip as the viewer left it: the view, the filter and the relevance switch.
+ * Remember the calendar strip as the viewer left it: the view, the filter, the relevance switch and
+ * whether it is open.
  *
  * One JSON object through core's preference route, as the tier 3 toolbar is; the shell validates
  * its shape when it reads it back (classes/local/calendar_preference.php). A write, so never retried.
  *
- * @param {object} state The view, the filter and the relevance switch.
+ * @param {object} state The view, the filter, the relevance switch and the open flag.
  * @returns {Promise} Resolves once the preference is written.
  */
 export const setCalendarPreference = async(state: CalendarState): Promise<void> => {

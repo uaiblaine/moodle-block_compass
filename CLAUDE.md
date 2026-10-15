@@ -14,7 +14,8 @@ Sized for a million users, so **every endpoint has a query budget enforced by a 
 **Moodle 5.2 only** (`$plugin->supported = [502, 502]`); **one hard dependency,
 `local_unlistedcourses`** (ADR-013), which decides what every enrolment row means through
 `classes/local/relationship.php` and nowhere else. No own tables: MUC entries, three user
-preferences (`block_compass_view`, `block_compass_explore`, `block_compass_calendar`) and three
+preferences (`block_compass_view`, `block_compass_explore`, `block_compass_calendar`: one JSON of
+`view`, `filter`, `relevance` and `open`, validated member by member on read) and three
 `prewarm_*` config rows.
 Favourites are core's course star; archiving writes the Course overview block's
 `block_myoverview_hidden_course_*` preferences. CI: one MAH job (`MOODLE_502_STABLE`, full
@@ -95,10 +96,12 @@ Breaking one is a design change: stop and raise it with the maintainer.
   validation, 24 h TTL, deleted with the account), `details` (per user+course, 1 h TTL),
   `coursefields` and `filterfields` (ADR-009), `calendarstrip` (per user, the strip and its sets
   for the sign-in, first day and timezone, 30 min TTL; ADR-014). **Never invalidate `inventory`,
-  `details` or `calendarstrip` from course or calendar events.** Names are formatted at response
-  time with the filters of every shown context preloaded in one query (`filters.php`), in an
-  explicit context, never `$PAGE`'s (a service leaves it on the user context). Redis recommended
-  for all seven.
+  `details` or `calendarstrip` from course or calendar events.** A `calendarstrip` entry is whole
+  or counted only (`past` false: no past, no days off, grading deferred without the ledger);
+  `strip::complete()` adds the rest when the strip opens, the past to the entry's build instant.
+  Names are formatted at response time with the filters of every shown context preloaded in one
+  query (`filters.php`), in an explicit context, never `$PAGE`'s (a service leaves it on the user
+  context). Redis recommended for all seven.
 - **Stamp validation** (ADR-002): one statement of seven `userid`-indexed aggregates decides
   whether a cached inventory is valid; on a miss the stamp comes from the fill's own rows.
 - **Pre-warming** (ADR-003): the task is always scheduled and gated by `enable_prewarm` (never
@@ -113,7 +116,9 @@ Breaking one is a design change: stop and raise it with the maintainer.
   rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses;
   `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer.
   `get_strip` 2 on a hit, ≤ 61 cold or warm (62 with `block_feedback_tracker` installed: its
-  calendar's one statement, ADR-014 amendment 10); `get_day` 2 reopened, 11 teaching (PostgreSQL),
+  calendar's one statement, ADR-014 amendment 10), 6 to complete a counted-only entry (7 with
+  it); `get_strip_counts` 2 on a fresh entry (whole or counted only), 11 cold and 11 warm (the
+  counts pass: no vault, no days off, grading only with the ledger; ADR-014 amendment 11); `get_day` 2 reopened, 11 teaching (PostgreSQL),
   ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
   preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
@@ -149,21 +154,24 @@ in the long form).
 ```
 block_compass.php, index.php (the block's page, ADR-012), settings.php, lib.php (preference declarations,
                            the two archive icons), version.php
-classes/external/          seven READ functions in the USER context, all readonlysession, none accepting a
+classes/external/          eight READ functions in the USER context, all readonlysession, none accepting a
                            userid; writes go to core's own services from the browser
 classes/local/             THE ONLY place $DB is allowed: budget, config (reads get_config() every call),
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
                            inventory, explore, matcher, prewarm, dormancy, relationship, filter_fields,
                            course_fields, explore_preference, calendar_cache, calendar_preference
 classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
-                           default active group), day, grading (mirrors count_submissions_need_grading_with_groups();
-                           grading::source() is the one selection point behind grading_source), days_off
-                           (weekends from core, or block_feedback_tracker's calendar in one statement)
+                           default active group, the counts pass and its completion, periods), day, grading
+                           (mirrors count_submissions_need_grading_with_groups(), the list bound on s.assignment
+                           too; grading::source() is the one selection point behind grading_source),
+                           tracker_grading (block_feedback_tracker's ledger where it covers the course, core's
+                           count elsewhere; amendment 11), days_off (weekends from core, or
+                           block_feedback_tracker's calendar in one statement)
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, Platter, RowList, Row,
-                           RowCard, Archive, Reload, RetryNotice, StatePill, CalendarStrip, CalendarCard, calendar,
+                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, calendar,
                            rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
                            str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
@@ -181,8 +189,16 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `core_course_set_favourite_courses`, preferences and the archive through
   `core_user/repository` to the router endpoint (batches of 50 to archive, one at a time to
   bring back; a `null` in the batch route is a 500). An archive reloads both tiers. The calendar
-  strip asks `get_strip` only once `get_attention` settles (tier 1 paints first, ADR-014), and
-  `get_day` per opened day.
+  strip asks only once `get_attention` settles (tier 1 paints first, ADR-014): closed,
+  `get_strip_counts` and nothing else (no `get_strip`, no `get_day`); open, `get_strip`, and
+  `get_day` per opened day; closing sums the payload in hand (`calendar.ts` `countsOf()`, the
+  twin of `strip::periods()`). The open/closed toggle is the `open` member of
+  `block_compass_calendar`, written optimistically and put back with a notice on failure;
+  `calendar_start` (default closed) decides for a viewer who never toggled, and the shell ships
+  the state so the first paint has the right shape. The grading count comes from
+  `block_feedback_tracker`'s ledger where that plugin covers the course (`calendar_grading`,
+  offered only with the plugin; its definition of pending differs from core's), and only then
+  does the closed teaching line count grading work.
 - **Favourites are the core star**; `enable_favourites` only hides the UI and skips the strip's
   query. **Archived courses are the Course overview block's rows: never delete them on
   uninstall.** The plugin's own preference families are declared in `lib.php` and exported by
@@ -210,9 +226,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `core_favourites\service_factory`; `course_category_updated` cannot tell a move from a rename
   (observer drops descendants); `user_deleted` fires after the enrolments are gone;
   `core_course_category::get_many()` is request-scoped, so the hot path reads `categorymeta`.
-- **Web services**: the fleet checklist; all seven are reads and declare `readonlysession`
-  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for the two calendar
-  services); course names through
+- **Web services**: the fleet checklist; all eight are reads and declare `readonlysession`
+  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip` and
+  `get_day`; `get_strip_counts` never reaches core's vault); course names through
   `format_string(..., ['escape' => false])` before a `PARAM_TEXT` return; vocabularies checked
   before any work; a request answerable without work returns before any check that could throw.
   One `cachedef_<name>` per definition (a missing one is fatal on 5.x); `{$a}` parity between
@@ -233,8 +249,10 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant and
   archived groups `-1`/`-2`, the toolbar remembered through `explore_preference` (shape
   validated server-side, membership client-side), resilience in `repository.ts` (bounded retry:
-  every failed read twice, 2 s apart), `RetryNotice`, `Reload`; busy controls `aria-disabled`, never
-  `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
+  every failed read twice, 2 s apart), then `RetryNotice` (Try again, Reload page): **no
+  permanent reload control**, a way back appears only once a load has failed, and every failed
+  read offers one; tier 1's Try again re-asks tier 1, then whatever of the strip failed. Busy
+  controls `aria-disabled`, never `disabled`. "No completion configured" is addressed to the teacher by capability. Long form:
   "Client side".
 - **The theme's crests go through `classes/local/theme_badges.php` only**: it asks core's
   component list before `component_callback()`, which throws for a component that is not

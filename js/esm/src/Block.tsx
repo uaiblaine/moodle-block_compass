@@ -21,14 +21,15 @@
  * the live region - and, once a ghost or a heading link has been pressed, tier 3. Opening
  * tier 3 is a state change, and no code outside React touches the block's DOM.
  *
- * The block also owns the reload control at the content's top-right, the "Reconnecting…"
- * line the repository's bounded retry reports through, and the amber notice with a way back
- * from a failed first paint.
+ * The block also owns the "Reconnecting…" line the repository's bounded retry reports through,
+ * and the amber notice with a way back from a failed first paint. There is no permanent reload
+ * control: a way back appears only once a load has failed, as RetryNotice (ADR-014 amendment 11).
  *
- * Where the shell shipped the calendar props, the calendar strip sits between the content head
- * and the status line (ADR-014 decision 2). It reserves its place from the first paint and asks
- * for its days only once tier 1's request has settled, answered or failed: the turn handed down
- * is 0 until then, and every reload bumps it once tier 1 has been asked again.
+ * Where the shell shipped the calendar props, the calendar strip sits first, above the status line
+ * (ADR-014 decision 2). It reserves its place from the first paint and asks for its counts or its
+ * days only once tier 1's request has settled, answered or failed: the turn handed down is 0 until
+ * then, and Try again on tier 1 bumps it once tier 1 has been asked again, so the strip asks again
+ * for whatever of its own failed.
  *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
@@ -41,7 +42,6 @@ import Strip from './Strip';
 import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
 import Explore from './Explore';
-import Reload from './Reload';
 import RetryNotice from './RetryNotice';
 import type {GhostKind} from './Ghost';
 import {notify} from './notify';
@@ -120,14 +120,11 @@ const Block = (config: BlockConfig) => {
     const [reveal, setReveal] = useState(0);
     // The last star toggled here, for tier 3 to apply to the rows it holds; null until one is.
     const [starred, setStarred] = useState<StarChange | null>(null);
-    // Bumped by the reload control: tier 3 remounts under it, a fresh open.
-    const [reloadkey, setReloadkey] = useState(0);
-    const [reloading, setReloading] = useState(false);
     // Which attempt the repository's bounded retry is on, while it is; null otherwise.
     const [reconnecting, setReconnecting] = useState<Reconnecting | null>(null);
-    // Tier 3's toolbar as it is now, and the JSON last read or written for it: a reload remounts
-    // Explore under a new key, and a remount seeded from the props - parsed once, at page load -
-    // would revert a sort, chip, selection or view changed since.
+    // Tier 3's toolbar as it is now, and the JSON last read or written for it: a remount seeded from
+    // the props - parsed once, at page load - would revert a sort, chip, selection or view changed
+    // since, so a remount reads this instead.
     const kept = useRef<KeptToolbar | null>(null);
     // The counter is what makes a repeat announceable: React writes nothing when the text
     // is identical, so a screen reader would hear the first "X added to favourites" and
@@ -140,7 +137,7 @@ const Block = (config: BlockConfig) => {
     // viewport - tier 3's category index does the same.
     const root = useRef<HTMLDivElement>(null);
     const [width, setWidth] = useState(0);
-    // The calendar strip's turn: 0 until tier 1's first request settles, then one more per reload.
+    // The calendar strip's turn: 0 until tier 1's first request settles, then one more per Try again.
     const [calendarturn, setCalendarturn] = useState(0);
     // The two halves of the card/strip lighting (ADR-014 decision 9), lifted here because they
     // join two siblings: the course a tier 1 card is pointed at, and the courses the open
@@ -179,8 +176,8 @@ const Block = (config: BlockConfig) => {
      *
      * @param {boolean} keep Whether to keep the cards on screen while the new payload
      *     travels. False on first paint and on Try again; true for a refresh (after a tier 3
-     *     archive or favourite, and on reload), where the strips are merely stale and blanking
-     *     them would read as a failure.
+     *     archive or favourite), where the strips are merely stale and blanking them would read
+     *     as a failure.
      * @returns {Promise} Resolves when the payload and its details are in state, or
      *     when the failure is.
      */
@@ -306,24 +303,15 @@ const Block = (config: BlockConfig) => {
     const refreshAttention = useCallback((): Promise<void> => load(true), [load]);
 
     /**
-     * Everything the page holds, again: tier 1 through load, tier 3 as a fresh open under a
-     * new key when it is open - with the toolbar as it is now, from the kept ref, and without
-     * the scroll and focus a press would bring: the reveal counter goes back to zero, because
-     * a reload is not a gesture towards tier 3.
+     * Try again after tier 1 failed: tier 1, then the strip's turn, as on first paint. The strip asks
+     * again only for what of its own failed (CalendarStrip.tsx), so one press brings back a page whose
+     * link dropped under both, and a strip that had answered costs nothing.
      *
      * @returns {Promise} Resolves when tier 1 has been fetched again.
      */
-    const reloadAll = useCallback(async(): Promise<void> => {
-        setReloading(true);
-        setReveal(0);
-        setReloadkey((current) => current + 1);
-        try {
-            await load(true);
-        } finally {
-            setReloading(false);
-            // The strip reloads after tier 1, as on first paint.
-            setCalendarturn((current) => current + 1);
-        }
+    const retry = useCallback(async(): Promise<void> => {
+        await load();
+        setCalendarturn((current) => current + 1);
     }, [load]);
 
     /**
@@ -447,13 +435,10 @@ const Block = (config: BlockConfig) => {
         </p>
     );
 
+    // The root takes focus only when a notice that held it leaves with nothing nearer to give it to
+    // (RetryNotice.tsx): tabIndex -1 keeps it out of the tab order.
     return (
-        <div ref={root}>
-            {/* The block's own top-right corner: the title bar beside it is core's, so the reload
-                control sits on the first row of the content. */}
-            <div className="compass-content-head">
-                <Reload busy={reloading} config={config} onReload={reloadAll} />
-            </div>
+        <div ref={root} className="compass-body" tabIndex={-1}>
             {config.calendar && (
                 <CalendarStrip
                     config={config}
@@ -478,7 +463,7 @@ const Block = (config: BlockConfig) => {
                 </div>
             )}
             {error !== null && (
-                <RetryNotice message={error} retrying={false} config={config} onRetry={() => load()} />
+                <RetryNotice message={error} retrying={false} config={config} onRetry={retry} />
             )}
             {data && config.strips.map((strip) => (
                 <Fragment key={strip.name}>
@@ -520,7 +505,6 @@ const Block = (config: BlockConfig) => {
             {exploring && (
                 <div className="compass-explore-wrap mt-3">
                     <Explore
-                        key={reloadkey}
                         config={config}
                         chip={chip}
                         reveal={reveal}

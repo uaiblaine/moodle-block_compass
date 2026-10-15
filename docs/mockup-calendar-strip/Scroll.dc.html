@@ -1,0 +1,1495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compass strip that scrolls</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#68717a;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;--cc-warn:#f0ad4e;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-hatch:#d4d9de;--cc-control:#6a737b;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 62%,var(--cc-surface));
+  --cc-h4:color-mix(in oklab,var(--cc-warn) 92%,var(--cc-surface));
+  --cc-shadow:0 28px 64px -18px rgba(16,24,40,.32),0 3px 10px rgba(16,24,40,.08);
+  --activityassessment:#f90086;--activitycollaboration:#5b40ff;--activitycommunication:#eb6200;--activitycontent:#0099ad;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root.cc-dark{
+  --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#99a1a9;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;--cc-control:#99a1a9;
+  --cc-accent:color-mix(in oklab,#0f6cbf 35%,#eceef0);--cc-on-accent:#0b1a29;
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 80%,var(--cc-surface));
+  --cc-ink:#f3f4f6;--cc-on-ink:#111417;--cc-hatch:#353b40;
+  --cc-shadow:0 28px 64px -18px rgba(0,0,0,.7),0 3px 10px rgba(0,0,0,.4);
+}
+.cc-root,.cc-root *{box-sizing:border-box}
+.cc-root button{font:inherit;color:inherit}
+.cc-root :focus-visible{outline:2px solid var(--cc-accent);outline-offset:3px}
+.cc-root a{color:var(--cc-accent)}
+.sx-calm *{transition:none!important;animation:none!important}
+
+/* Canvas furniture (as Slim.dc.html) */
+.panel{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:16px;padding:26px 28px}
+.sx-panel{margin-top:28px}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0 0 4px}
+.h{margin:0 0 6px;font-size:21px;font-weight:600;letter-spacing:-.01em}
+.h1t{margin:0 0 8px;font-size:30px;font-weight:700;letter-spacing:-.015em}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.sx-lead{max-width:980px;margin-bottom:18px}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2)}
+.tag--rec{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.tag--old{border-style:dashed}
+.tag--q{background:transparent;border-color:var(--cc-warn);color:var(--cc-text)}
+.notes{margin:0;padding-left:18px;font-size:13.5px;color:var(--cc-text-2);line-height:1.55;display:flex;flex-direction:column;gap:6px}
+.notes b{color:var(--cc-text);font-weight:600}
+.notes code,.p code,td code,.sx-mono{font-size:12.5px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:4px;padding:0 4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}
+table.t th{text-align:left;font-weight:600;color:var(--cc-muted);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--cc-line);vertical-align:bottom}
+table.t td{padding:9px 10px;border-bottom:1px solid var(--cc-line);color:var(--cc-text-2);vertical-align:top}
+table.t td b{color:var(--cc-text);font-weight:600}
+.num{width:22px;height:22px;border-radius:50%;background:var(--cc-ink);color:var(--cc-on-ink);font-size:11.5px;font-weight:700;display:inline-grid;place-items:center;flex:none}
+.pin{position:absolute;z-index:9;box-shadow:0 0 0 2px var(--cc-surface)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
+.card-s{border:1px solid var(--cc-line);border-radius:12px;padding:14px 16px;background:var(--cc-surface)}
+.card-s h3{margin:0 0 6px;font-size:15px;font-weight:600}
+.ask{display:flex;gap:12px;align-items:flex-start}
+.ask p{margin:0}
+.ask .q{font-size:13.5px;color:var(--cc-muted);font-style:italic}
+
+/* Figures: a strip frame and its notes */
+.sx-body{display:flex;flex-direction:column;gap:30px}
+.sx-body--row{flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:40px}
+.sx-fig{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:start}
+.sx-fig--below{grid-template-columns:minmax(0,1fr)}
+.sx-fig--solo{grid-template-columns:auto}
+.sx-figtitle{margin:0 0 8px;font-size:13.5px;font-weight:600;color:var(--cc-text);display:flex;gap:8px;align-items:center}
+.sx-fignotes{padding-top:30px}
+.sx-fig--below .sx-fignotes{padding-top:0;max-width:1000px}
+.sx-spacer{display:block}
+
+/* The block around the strip; its content box is the strip's measured width */
+.sx-block{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:14px;padding:14px 16px 12px;color:var(--cc-text)}
+.sx-strip{position:relative}
+.sx-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:40px}
+.sx-toggle{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:0 8px 0 2px;border-radius:9px;font-size:16px;font-weight:600;min-height:38px;cursor:pointer}
+.sx-chev{color:var(--cc-control)}
+.sx-month{margin:0;font-size:18px;font-weight:600;min-width:15.5rem}
+.sx-month--c{min-width:12rem;text-align:center}
+.sx-narrow .sx-month{min-width:0;font-size:16px;flex:1 1 auto}
+.sx-today,.sx-iconbtn{display:inline-flex;align-items:center;justify-content:center;height:38px;min-width:38px;padding:0 12px;border:1px solid var(--cc-control);border-radius:10px;background:var(--cc-surface);font-size:13px;cursor:pointer;color:var(--cc-text)}
+.sx-iconbtn{padding:0}
+.sx-today[aria-disabled="true"],.sx-iconbtn[aria-disabled="true"]{opacity:.65;cursor:default}
+.sx-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.sx-seg{display:inline-flex;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:3px}
+.sx-segbtn{border:0;background:transparent;padding:5px 11px;border-radius:7px;font-size:13px;color:var(--cc-text-2);min-height:30px}
+.sx-segbtn[aria-pressed="true"]{background:var(--cc-surface);color:var(--cc-accent);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.sx-narrow .sx-seg{display:flex;margin-top:8px}
+.sx-narrow .sx-segbtn{flex:1 1 0;min-height:36px}
+.sx-callink{width:38px;height:38px;border-radius:10px;border:1px solid var(--cc-control);display:grid;place-items:center;color:var(--cc-accent)}
+
+/* The row: a native horizontal scroller between two reserved edge zones */
+.sx-daysbox{position:relative;margin-top:12px}
+.sx-scroller{display:grid;grid-auto-flow:column;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;padding-top:12px;padding-bottom:6px;align-items:start}
+.sx-scroller::-webkit-scrollbar{display:none}
+.sx-narrow .sx-scroller{scrollbar-width:thin;padding-bottom:8px}
+.sx-narrow .sx-scroller::-webkit-scrollbar{display:block;height:6px}
+.sx-col{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;scroll-snap-align:start;transition:opacity 180ms}
+.sx-col--dim{opacity:.28}
+.sx-needle{position:absolute;top:-11px;left:50%;width:10px;height:8px;margin-left:-5px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+.sx-day{position:relative;border-radius:50%;border:0;display:grid;place-items:center;font-size:16px;font-weight:600;cursor:pointer;background:transparent;color:var(--cc-text);padding:0;transition:background-color 160ms,box-shadow 160ms}
+.sx-hit:hover .sx-day.h0:not(.off):not(.hol),.sx-grid21 .sx-day.h0:not(.off):not(.hol):hover{background:var(--cc-surface-2)}
+/* The button is the 44 px target; the disc inside it is 36 px, so the gaps between discs breathe. */
+.sx-hit{position:relative;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;padding:0;cursor:pointer}
+.sx-hit.kfocus{outline:2px solid var(--cc-accent);outline-offset:1px}
+.sx-day.h1{background:var(--cc-h1)}.sx-day.h2{background:var(--cc-h2)}.sx-day.h3{background:var(--cc-h3)}.sx-day.h4{background:var(--cc-h4)}
+.cc-dark .sx-day.h3,.cc-dark .sx-day.h4{color:#1d2125}
+.sx-day.off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.sx-day.hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 6px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 6px);color:var(--cc-muted)}
+.sx-day.past{color:var(--cc-muted)}
+.sx-day.today{background:var(--cc-ink);color:var(--cc-on-ink)}
+.sx-day.today.halo2{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3.5px var(--cc-h2)}
+.sx-day.today.halo3{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3.5px var(--cc-h3)}
+.sx-day.today.halo4{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3.5px var(--cc-h4)}
+.sx-day.soon{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.sx-day.open{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-text-2)}
+.sx-day.pinned{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-accent)}
+.sx-day.kfocus{outline:2px solid var(--cc-accent);outline-offset:3px}
+.sx-num{position:relative;z-index:1}
+.sx-dots{display:flex;gap:3px;height:9px;align-items:center;white-space:nowrap}
+.sx-more{font-size:10px;line-height:9px;color:var(--cc-muted);font-weight:600;margin-left:2px}
+/* A phone's column is 38 px: four slots still fit, a little tighter. */
+.sx-narrow .sx-dots{gap:2px}
+.sx-narrow .sx-dots .mk{width:6px;height:6px}
+.sx-narrow .sx-more{margin-left:1px;font-size:9.5px}
+.sx-wd{font-size:12.5px;color:var(--cc-muted);line-height:16px;position:relative}
+.sx-wd--today{color:var(--cc-text);font-weight:700}
+.sx-wd--off::after,.sx-wd--hol::after{content:"";position:absolute;left:-5px;right:-5px;bottom:-6px;height:4px;border-radius:2px}
+.sx-wd--off::after{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.sx-wd--hol::after{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 4px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 4px)}
+.sx-style-ring .sx-dots{visibility:hidden}
+.sx-ring{position:absolute;top:-6px;left:-6px;width:calc(100% + 12px);height:calc(100% + 12px);transform:rotate(-90deg);pointer-events:none;overflow:visible}
+.sx-arc{fill:none;stroke-width:3;stroke-linecap:round}
+.sx-arc--graded,.sx-arc--gradedsoon,.sx-arc--todo{stroke:var(--cc-accent)}
+.sx-arc--late{stroke:var(--cc-danger);opacity:.55}
+.sx-arc--event{stroke:var(--cc-muted)}
+.sx-arc--done{stroke:var(--cc-line-2)}
+.sx-barbox{height:46px;display:flex;align-items:flex-end;justify-content:center;width:100%}
+.sx-bar{width:62%;max-width:26px;border-radius:5px 5px 2px 2px;background:var(--cc-line)}
+.sx-bar.h1{background:var(--cc-h1)}.sx-bar.h2{background:var(--cc-h2)}.sx-bar.h3{background:var(--cc-h3)}.sx-bar.h4{background:var(--cc-h4)}
+.sx-bar.late{background:var(--cc-danger)}
+
+/* Marks (as Slim.dc.html) */
+.mk{width:6px;height:6px;border-radius:50%;flex:none;display:inline-block}
+.mk--todo{background:var(--cc-accent)}
+.mk--graded{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px}
+.mk--urgent{background:var(--cc-accent);border-radius:1.5px;width:7px;height:7px;box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.mk--late{border:1.5px solid var(--cc-danger);border-radius:1px;transform:rotate(45deg)}
+.mk--event{width:7px;height:7px;border:1.5px solid var(--cc-text-2)}
+.mk--done{background:var(--cc-muted);opacity:.4;width:5px;height:5px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid var(--cc-line-2);flex:none}
+.sw--hol{background:repeating-linear-gradient(45deg,var(--cc-hatch) 0 1px,transparent 1px 3px),repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 3px)}
+.sw--off{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 1px,transparent 1px 3px)}
+
+/* Edge fades: only on a side that can still scroll; they take no pointer */
+.sx-fade{position:absolute;top:0;z-index:2;pointer-events:none}
+.sx-fade--start{left:0;background:linear-gradient(90deg,var(--cc-surface) 0,var(--cc-surface) 62%,transparent)}
+.sx-fade--end{right:0;background:linear-gradient(270deg,var(--cc-surface) 0,var(--cc-surface) 62%,transparent)}
+.sx-narrow .sx-fade--start{background:linear-gradient(90deg,var(--cc-surface),transparent)}
+.sx-narrow .sx-fade--end{background:linear-gradient(270deg,var(--cc-surface),transparent)}
+
+/* The floating arrows, at the row's two ends, centred on the discs */
+.sx-arrow{position:absolute;z-index:3;width:30px;height:30px;border-radius:50%;border:1px solid var(--cc-control);background:var(--cc-surface);box-shadow:0 2px 8px -2px rgba(16,24,40,.28);display:grid;place-items:center;color:var(--cc-text);cursor:pointer;padding:0;transition:opacity 120ms,box-shadow 120ms}
+.sx-arrow:hover{background:var(--cc-surface-2)}
+.sx-arrow--prev{left:2px}
+.sx-arrow--next{right:2px}
+.sx-arrow[aria-disabled="true"]{opacity:.65;box-shadow:none;cursor:default;background:var(--cc-surface)}
+
+/* The window map, a scrubber: press to jump, drag the thumb; the snap lands at release */
+.sx-mapbox{position:relative;height:24px;margin-top:2px;display:flex;align-items:center;cursor:pointer;touch-action:pan-y;user-select:none}
+.sx-mapbox .sx-map{flex:1 1 auto;margin-top:0}
+.sx-mapbox:hover .sx-thumb,.sx-mapbox--drag .sx-thumb{top:-3px;height:8px;background:color-mix(in oklab,var(--cc-text) 40%,transparent)}
+.sx-mapbox .sx-thumb{cursor:grab}
+.sx-mapbox--drag,.sx-mapbox--drag .sx-thumb{cursor:grabbing}
+.sx-mapbox--drag .sx-thumb{transition:none}
+.sx-litick{position:absolute;top:6px;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--cc-accent)}
+.sx-scroller.sx-nosnap{scroll-snap-type:none}
+/* The demonstration of which days answer the pointer */
+.sx-zone{position:absolute;top:0;z-index:4;pointer-events:none;background:repeating-linear-gradient(135deg,color-mix(in oklab,var(--cc-danger) 18%,transparent) 0 2px,transparent 2px 7px);border-inline:1px dashed var(--cc-danger)}
+.sx-zone span{position:absolute;bottom:-18px;font-size:11px;font-weight:600;color:var(--cc-danger);white-space:nowrap}
+.sx-zone--start span{left:0}.sx-zone--end span{right:0}
+.sx-col--partial .sx-hit{outline:1px dashed var(--cc-danger);outline-offset:1px}
+/* The window map: the whole window, the days in view, today and the needle */
+.sx-map{position:relative;height:2px;border-radius:2px;background:var(--cc-line);margin-top:12px}
+.sx-thumb{position:absolute;top:-2px;height:6px;border-radius:6px;background:color-mix(in oklab,var(--cc-text) 26%,transparent);transition:left 120ms}
+.sx-tick{position:absolute;top:-5px;width:2px;height:12px;margin-left:-1px;border-radius:2px;background:var(--cc-text)}
+.sx-tickneedle{position:absolute;top:-14px;width:9px;height:7px;margin-left:-4.5px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%)}
+.sx-maplabels{position:relative;height:16px;font-size:11.5px;color:var(--cc-muted);margin-top:6px}
+.sx-maplabels span{position:absolute;top:0;left:0;white-space:nowrap}
+.sx-maplabels .sx-ml-today{transform:translateX(-50%)}
+.sx-maplabels .sx-ml-end{left:auto;right:0}
+
+/* As built: the 21-day grid and the track */
+.sx-grid21{display:grid;grid-template-columns:repeat(21,minmax(0,1fr));column-gap:6px;padding-top:12px;align-items:start}
+.sx-grid21 .sx-col{scroll-snap-align:none}
+.sx-grid21 .sx-dots{justify-content:center;width:100%}
+.sx-more--old{margin-left:-7px}
+.sx-grid21 .sx-day{width:100%;max-width:44px;aspect-ratio:1/1}
+.sx-oldfade{position:absolute;top:0;bottom:20px;width:56px;z-index:2;pointer-events:none}
+.sx-oldfade--start{left:0;background:linear-gradient(90deg,var(--cc-surface) 8%,transparent)}
+.sx-oldfade--end{right:0;background:linear-gradient(270deg,var(--cc-surface) 8%,transparent)}
+.sx-track{position:relative;height:2px;margin-top:16px;border-radius:2px;background:var(--cc-line)}
+.sx-trackmark{position:absolute;top:-1px;height:4px;display:flex;justify-content:center}
+.sx-trackmark::after{content:"";width:62%;height:4px;border-radius:4px;background:var(--cc-text)}
+
+/* The day's card: a sibling of the scroller, never inside it */
+.sx-card{position:absolute;z-index:8;border:1px solid var(--cc-line);border-radius:17px;background:color-mix(in srgb,var(--cc-surface) 94%,transparent);backdrop-filter:blur(22px) saturate(170%);box-shadow:var(--cc-shadow);padding:14px 16px 10px;font-size:14px;text-align:left}
+.sx-card--pinned{border-color:color-mix(in oklab,var(--cc-accent) 45%,var(--cc-line))}
+.sx-caret{position:absolute;top:-7px;width:13px;height:13px;border-top:1px solid var(--cc-line);border-left:1px solid var(--cc-line);background:var(--cc-surface);transform:rotate(45deg)}
+.sx-cardhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sx-cardtitle{margin:0;font-size:16px;font-weight:600}
+.sx-cardsub{margin:4px 0 0;display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--cc-muted)}
+.sx-chip{display:inline-flex;align-items:center;padding:1px 9px;border-radius:20px;background:var(--cc-surface-2);border:1px solid var(--cc-line);font-weight:600;color:var(--cc-text-2)}
+.sx-x{width:34px;height:34px;border:0;background:transparent;border-radius:8px;display:grid;place-items:center;color:var(--cc-muted);cursor:pointer;margin:-4px -6px 0 0}
+.sx-items{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column}
+.sx-items li{display:flex;gap:11px;align-items:center;padding:8px 0;border-top:1px solid var(--cc-line)}
+.sx-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex:none;color:var(--p);background:color-mix(in oklab,var(--p) 13%,var(--cc-surface))}
+.sx-ico--assess{--p:var(--activityassessment)}.sx-ico--todo{--p:var(--activitycontent)}.sx-ico--event{--p:var(--cc-text-2)}.sx-ico--late{--p:var(--cc-danger)}
+.sx-itext{min-width:0;flex:1 1 auto}
+.sx-imeta{font-size:12px;color:var(--cc-muted)}
+.sx-ititle{display:block;text-decoration:none;font-weight:600;font-size:13.5px;color:var(--cc-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sx-badge{display:inline-block;margin-top:3px;font-size:11px;font-weight:600;border-radius:6px;padding:1px 7px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2)}
+.sx-badge--acc{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.sx-badge--danger{border-color:var(--cc-danger);color:var(--cc-danger);background:transparent}
+.sx-act{font-size:12.5px;font-weight:600;border-radius:9px;padding:7px 10px;white-space:nowrap;text-decoration:none;flex:none}
+.sx-act--primary{background:var(--cc-accent);color:var(--cc-on-accent)!important}
+.sx-act--ghost{border:1px solid var(--cc-line-2);color:var(--cc-text-2)!important}
+.sx-cardfoot{margin:6px 0 0;padding-top:8px;border-top:1px solid var(--cc-line);display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--cc-muted)}
+.sx-outnote{font-size:12px;color:var(--cc-muted);margin:6px 0 0}
+
+/* Legend */
+.sx-legend{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--cc-text-2)}
+.sx-legend li{display:inline-flex;align-items:center;gap:6px}
+.sx-legneedle{width:9px;height:7px;background:var(--cc-accent);clip-path:polygon(0 0,100% 0,50% 100%);display:inline-block}
+
+/* Phone shell */
+.sx-phone{border:10px solid #15181b;border-radius:44px;background:var(--cc-page);overflow:hidden;padding-bottom:18px}
+.sx-phonebar{height:48px;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-weight:700;font-size:15px}
+.sx-phone .sx-block{margin:12px 0 0 2px;border-radius:14px}
+
+/* The clipping demonstration */
+.sx-clipbox{position:relative;height:150px;border:1px dashed var(--cc-danger);border-radius:10px;overflow:hidden;background:var(--cc-surface)}
+.sx-okbox{position:relative;height:150px;border:1px dashed var(--cc-line-2);border-radius:10px;background:var(--cc-surface)}
+.sx-minirow{display:flex;gap:6px;padding:14px 12px 0}
+.sx-minidisc{width:34px;height:34px;border-radius:50%;background:var(--cc-h1);flex:none}
+.sx-minidisc.today{background:var(--cc-ink)}
+.sx-minicard{position:absolute;left:70px;top:62px;width:260px;height:150px;border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);box-shadow:var(--cc-shadow);padding:12px 14px;font-size:13px}
+.sx-cut{position:absolute;left:0;right:0;bottom:0;padding:3px 10px;font-size:11.5px;font-weight:600;color:var(--cc-danger);background:color-mix(in oklab,var(--cc-danger) 10%,var(--cc-surface))}
+
+/* Outline */
+.sx-outline{margin:0;padding:0;list-style:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.7;color:var(--cc-text-2)}
+.sx-outline li{white-space:normal;overflow-wrap:anywhere}
+.sx-outline .i1{padding-left:14px}.sx-outline .i2{padding-left:28px}.sx-outline .i3{padding-left:42px}.sx-outline .i4{padding-left:56px}
+.sx-outline b{color:var(--cc-text);font-weight:600}
+</style>
+</helmet>
+<div class="{{rootCls}}" style="width: 1440px; padding: 44px 28px 64px">
+
+  <header class="panel">
+    <p class="kicker">ADR-014 follow-up · design only · 14 October 2026, second round after the maintainer's review · block_compass, branch calendar-slim-collapse</p>
+    <h1 class="h1t">The strip scrolls: arrows over the row's ends, smaller discs, five days back</h1>
+    <p class="p sx-lead">The open strip is one native horizontal scroller holding the whole window (ten past days to the end of next month). The arrows float over the two ends of the row of days, each disabled when nothing more lies that way, and a day half under an arrow peeks out. Days are 36 px discs in 44 px targets every 50 px. The strip opens with today after five past days on a desktop and three on a phone, and the map under the row is a scrubber: press it to jump, drag its thumb to move. Interactive below: scroll with a trackpad, shift and the wheel, the arrows, the map or the keyboard.</p>
+    <div class="grid3" style="margin-top: 6px">
+      <div class="card-s">
+        <h3>First round (2026-10-14)</h3>
+        <ol class="notes">
+          <li><b>Horizontal scrolling</b>, the arrows out of the month's header, floating at the row's ends; disabled when nothing is left that way.</li>
+          <li><b>Learn from</b> block_dimensions' filter bar and local_dimensions' Panorama course list.</li>
+          <li><b>Spacing</b>: the phone's, on every width.</li>
+          <li><b>Five past days</b> on a desktop; the phone keeps three.</li>
+        </ol>
+      </div>
+      <div class="card-s">
+        <h3>Second round: the review</h3>
+        <ol class="notes">
+          <li><b>The map is a real control</b>: press to jump, drag to scroll, the snap at release (touch too).</li>
+          <li><b>Smaller discs</b>: 36 px in a 44 px target; rings never touch.</li>
+          <li><b>Marks</b> (third round): one per kind present, never repeated; four slots, the fourth a +N when five kinds meet.</li>
+          <li><b>Hover only on a day wholly in view</b>: not under an arrow, not cut by an edge.</li>
+          <li><b>Answers</b>: Home and End reach the window's ends; a pinned card closes when its day leaves the view; the scrollbar hides where the map shows; a 14-day step; arrows over the days; a half-day peek on the phone.</li>
+        </ol>
+      </div>
+      <div class="card-s">
+        <h3>The answer in one look</h3>
+        <ol class="notes">
+          <li><b>Scroller</b>: <code>overflow-x: auto</code>, snap per day, contained overscroll. Offset paging goes.</li>
+          <li><b>Arrows</b>: 30 px, over the row's ends, <code>aria-disabled</code> at each end, 14 days a click.</li>
+          <li><b>Days</b>: a day every 50 px. 14 whole days on the Dashboard (784 px), 19 on the page (1034 px), 7½ on a phone.</li>
+          <li><b>Home</b>: five past days (three on a phone); the window keeps its ten.</li>
+          <li><b>Map</b>: a pointer scrubber, aria-hidden; the row already does all of it by keyboard.</li>
+          <li><b>Fits whole?</b> Then nothing scrolls: no arrows, no map, no fades.</li>
+        </ol>
+      </div>
+    </div>
+  </header>
+
+  <sc-for list="{{panels}}" as="pn">
+  <section class="panel sx-panel">
+    <p class="kicker">{{pn.kicker}}</p>
+    <h2 class="h">{{pn.title}}</h2>
+    <p class="p sx-lead">{{pn.lead}}</p>
+    <div class="{{pn.bodyCls}}">
+      <sc-for list="{{pn.frames}}" as="f">
+        <figure class="{{f.figCls}}">
+          <div>
+            <p class="sx-figtitle"><span class="{{f.tagCls}}">{{f.tag}}</span>{{f.title}}</p>
+            <div class="{{f.shellCls}}" style="{{f.shellStyle}}">
+              <sc-if value="{{f.phone}}">
+                <div class="sx-phonebar"><span>≡</span><span>Dashboard</span><span class="sx-chip">LM</span></div>
+              </sc-if>
+              <div class="{{f.blockCls}}" style="width: {{f.blockW}}px">
+
+                <sc-if value="{{f.before}}">
+                  <div class="sx-strip">
+                    <div class="sx-head">
+                      <button type="button" class="sx-toggle" aria-expanded="true"><svg class="sx-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>Calendar</button>
+                      <button type="button" class="sx-iconbtn" aria-label="Earlier days" aria-disabled="true"><svg width="14" height="14" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M41.4 233.4a32 32 0 0 0 0 45.3l160 160a32 32 0 0 0 45.3-45.3L109.3 256l137.4-137.4a32 32 0 0 0-45.3-45.3l-160 160z"></path></svg></button>
+                      <p class="sx-month sx-month--c">October 2026</p>
+                      <button type="button" class="sx-iconbtn" aria-label="Later days"><svg width="14" height="14" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M278.6 233.4a32 32 0 0 1 0 45.3l-160 160a32 32 0 0 1-45.3-45.3L210.7 256 73.4 118.6a32 32 0 0 1 45.3-45.3l160 160z"></path></svg></button>
+                      <button type="button" class="sx-today" aria-disabled="true">Today</button>
+                      <span class="sx-right"><span class="sx-seg"><button type="button" class="sx-segbtn" aria-pressed="true">Everything</button><button type="button" class="sx-segbtn" aria-pressed="false">To do</button><button type="button" class="sx-segbtn" aria-pressed="false">Events</button></span></span>
+                    </div>
+                    <div class="sx-daysbox">
+                      <div class="sx-grid21">
+                        <sc-for list="{{f.bdays}}" as="d">
+                          <div class="sx-col">
+                            <sc-if value="{{d.needle}}"><span class="sx-needle" aria-hidden="true"></span></sc-if>
+                            <button type="button" class="{{d.cls}}" tabindex="-1" aria-label="{{d.label}}">{{d.n}}</button>
+                            <span class="sx-dots" aria-hidden="true"><sc-for list="{{d.dots}}" as="x"><span class="{{x}}"></span></sc-for><sc-if value="{{d.more}}"><span class="sx-more sx-more--old">{{d.more}}</span></sc-if></span>
+                            <span class="{{d.wdCls}}" aria-hidden="true">{{d.wd}}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                                            <span class="sx-oldfade sx-oldfade--end" aria-hidden="true"></span>
+                      <div class="sx-track" aria-hidden="true"><span class="sx-trackmark" style="left: {{f.trackLeft}}%; width: {{f.trackW}}%"></span></div>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{f.after}}">
+                  <div class="{{f.stripCls}}" onMouseLeave="{{f.leave}}">
+                    <div class="sx-head">
+                      <button type="button" class="sx-toggle" aria-expanded="true"><svg class="sx-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>Calendar</button>
+                      <p class="sx-month" aria-live="polite">{{f.month}}</p>
+                      <button type="button" class="sx-today" aria-disabled="{{f.atHome}}" onClick="{{f.goToday}}">Today</button>
+                      <sc-if value="{{f.wide}}">
+                        <span class="sx-right">
+                          <span class="sx-seg"><button type="button" class="sx-segbtn" aria-pressed="true">Everything</button><button type="button" class="sx-segbtn" aria-pressed="false">To do</button><button type="button" class="sx-segbtn" aria-pressed="false">Events</button></span>
+                          <a class="sx-callink" href="#" aria-label="Open the calendar" title="Open the calendar"><svg width="16" height="16" viewBox="0 0 448 512" fill="currentColor" aria-hidden="true"><path d="M128 0c17.7 0 32 14.3 32 32v32h128V32c0-17.7 14.3-32 32-32s32 14.3 32 32v32h48c26.5 0 48 21.5 48 48v48H0v-48c0-26.5 21.5-48 48-48h48V32c0-17.7 14.3-32 32-32zM0 192h448v272c0 26.5-21.5 48-48 48H48c-26.5 0-48-21.5-48-48V192z"></path></svg></a>
+                        </span>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{f.narrow}}">
+                      <span class="sx-seg"><button type="button" class="sx-segbtn" aria-pressed="true">Everything</button><button type="button" class="sx-segbtn" aria-pressed="false">To do</button><button type="button" class="sx-segbtn" aria-pressed="false">Events</button></span>
+                    </sc-if>
+                    <div class="sx-daysbox" onKeyDown="{{f.keyBox}}">
+                      <div class="sx-scroller" role="list" aria-label="{{f.listLabel}}" data-frame="{{f.id}}" data-init="{{f.initS}}" onScroll="{{f.onScroll}}" style="{{f.scrollerStyle}}">
+                        <sc-for list="{{f.days}}" as="d">
+                          <div role="listitem" class="{{d.colCls}}">
+                            <sc-if value="{{d.needle}}"><span class="sx-needle" aria-hidden="true" title="Most relevant day ahead"></span></sc-if>
+                            <sc-if value="{{f.pulse}}"><span class="sx-barbox" aria-hidden="true"><span class="{{d.barCls}}" style="height: {{d.barH}}px"></span></span></sc-if>
+                            <button type="button" class="{{d.hitCls}}" data-idx="{{d.i}}" data-partial="{{d.partial}}" tabindex="{{d.tab}}" aria-label="{{d.label}}" aria-haspopup="dialog" aria-expanded="{{d.expanded}}" style="{{f.hitStyle}}" onMouseEnter="{{d.enter}}" onFocus="{{d.focus}}" onClick="{{d.click}}" onKeyDown="{{d.key}}">
+                              <span class="{{d.cls}}" style="{{f.discStyle}}">
+                                <sc-if value="{{f.ring}}"><svg class="sx-ring" viewBox="0 0 60 60" aria-hidden="true" focusable="false"><sc-for list="{{d.arcs}}" as="a"><circle cx="30" cy="30" r="27" class="{{a.cls}}" stroke-dasharray="{{a.dash}}" stroke-dashoffset="{{a.off}}"></circle></sc-for></svg></sc-if>
+                                <span class="sx-num">{{d.n}}</span>
+                              </span>
+                            </button>
+                            <span class="sx-dots" aria-hidden="true"><sc-for list="{{d.dots}}" as="x"><span class="{{x}}"></span></sc-for><sc-if value="{{d.more}}"><span class="sx-more">{{d.more}}</span></sc-if></span>
+                            <span class="{{d.wdCls}}" aria-hidden="true">{{d.wd}}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <sc-if value="{{f.fadeStart}}"><span class="sx-fade sx-fade--start" aria-hidden="true" style="{{f.fadeStyle}}"></span></sc-if>
+                      <sc-if value="{{f.fadeEnd}}"><span class="sx-fade sx-fade--end" aria-hidden="true" style="{{f.fadeStyle}}"></span></sc-if>
+                      <sc-if value="{{f.arrows}}">
+                        <button type="button" class="sx-arrow sx-arrow--prev" tabindex="-1" aria-label="Earlier days" title="Earlier days" aria-disabled="{{f.atStart}}" style="top: {{f.arrowTop}}px" onClick="{{f.prev}}"><svg width="13" height="13" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M41.4 233.4a32 32 0 0 0 0 45.3l160 160a32 32 0 0 0 45.3-45.3L109.3 256l137.4-137.4a32 32 0 0 0-45.3-45.3l-160 160z"></path></svg></button>
+                        <button type="button" class="sx-arrow sx-arrow--next" tabindex="-1" aria-label="Later days" title="Later days" aria-disabled="{{f.atEnd}}" style="top: {{f.arrowTop}}px" onClick="{{f.next}}"><svg width="13" height="13" viewBox="0 0 320 512" fill="currentColor" aria-hidden="true"><path d="M278.6 233.4a32 32 0 0 1 0 45.3l-160 160a32 32 0 0 1-45.3-45.3L210.7 256 73.4 118.6a32 32 0 0 1 45.3-45.3l160 160z"></path></svg></button>
+                      </sc-if>
+                      <sc-if value="{{f.zones}}">
+                        <span class="sx-zone sx-zone--start" style="{{f.zoneStartStyle}}"><span>No hover here</span></span>
+                        <span class="sx-zone sx-zone--end" style="{{f.zoneEndStyle}}"><span>No hover here</span></span>
+                      </sc-if>
+                      <sc-if value="{{f.map}}">
+                        <div style="{{f.mapStyle}}">
+                          <div class="{{f.mapCls}}" aria-hidden="true" title="Drag to move through the window" onPointerDown="{{f.mapDown}}" onPointerMove="{{f.mapMove}}" onPointerUp="{{f.mapUp}}" onPointerCancel="{{f.mapUp}}">
+                            <div class="sx-map">
+                              <sc-for list="{{f.litTicks}}" as="lt"><span class="sx-litick" style="left: {{lt}}%"></span></sc-for>
+                              <span class="sx-thumb" style="left: {{f.thumbLeft}}%; width: {{f.thumbW}}%"></span>
+                              <span class="sx-tick" style="left: {{f.todayTick}}%"></span>
+                              <span class="sx-tickneedle" style="left: {{f.needleTick}}%"></span>
+                            </div>
+                          </div>
+                          <sc-if value="{{f.mapLabels}}"><div class="sx-maplabels" aria-hidden="true"><span>4 Oct</span><span class="sx-ml-today" style="left: {{f.todayTick}}%">Today</span><span class="sx-ml-end">30 Nov</span></div></sc-if>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{f.card}}">
+                        <div class="{{f.card.cls}}" role="dialog" aria-label="{{f.card.title}}" style="left: {{f.card.left}}px; top: {{f.card.top}}px; width: {{f.card.w}}px">
+                          <sc-if value="{{f.card.caret}}"><span class="sx-caret" style="left: {{f.card.caretX}}px"></span></sc-if>
+                          <div class="sx-cardhead">
+                            <div>
+                              <p class="sx-cardtitle">{{f.card.title}}</p>
+                              <p class="sx-cardsub"><span class="sx-chip">{{f.card.chip}}</span>{{f.card.count}}</p>
+                            </div>
+                            <sc-if value="{{f.card.pinned}}"><button type="button" class="sx-x" aria-label="Close" onClick="{{f.card.close}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button></sc-if>
+                          </div>
+                          <sc-if value="{{f.card.out}}"><p class="sx-outnote">Its day is scrolled out of view; the card stays until it is closed.</p></sc-if>
+                          <ul class="sx-items">
+                            <sc-for list="{{f.card.items}}" as="it">
+                              <li>
+                                <span class="{{it.ico}}" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{it.path}}"></path></svg></span>
+                                <span class="sx-itext"><span class="sx-imeta">{{it.time}} · {{it.code}}</span><a class="sx-ititle" href="#">{{it.title}}</a><span class="{{it.badgeCls}}">{{it.badge}}</span></span>
+                                <a class="{{it.actCls}}" href="#">{{it.action}}</a>
+                              </li>
+                            </sc-for>
+                          </ul>
+                          <p class="sx-cardfoot"><span>{{f.card.foot}}</span><a href="#">Open this day in the calendar</a></p>
+                        </div>
+                      </sc-if>
+                    </div>
+                    <sc-if value="{{f.legend}}">
+                      <ul class="sx-legend" aria-hidden="true">
+                        <li><span class="mk mk--graded"></span>Graded</li>
+                        <li><span class="mk mk--todo"></span>To do</li>
+                        <li><span class="mk mk--late"></span>Late, still open</li>
+                        <li><span class="mk mk--event"></span>Event</li>
+                        <li><span class="mk mk--done"></span>Done</li>
+                        <li><span class="sx-legneedle"></span>Most relevant day ahead</li>
+                        <li><span class="sw sw--off"></span>Weekend</li>
+                        <li><span class="sw sw--hol"></span>Holiday or recess</li>
+                      </ul>
+                    </sc-if>
+                    <sc-if value="{{f.pins}}">
+                      <sc-for list="{{f.pinList}}" as="pp"><span class="num pin" style="left: {{pp.x}}px; top: {{pp.y}}px">{{pp.n}}</span></sc-for>
+                    </sc-if>
+                  </div>
+                </sc-if>
+
+              </div>
+            </div>
+            <span class="sx-spacer" style="height: {{f.below}}px"></span>
+          </div>
+          <sc-if value="{{f.hasNotes}}">
+            <ul class="notes sx-fignotes"><sc-for list="{{f.notes}}" as="t"><li>{{t}}</li></sc-for></ul>
+          </sc-if>
+        </figure>
+      </sc-for>
+
+      <sc-if value="{{pn.spacing}}">
+        <div>
+          <table class="t">
+            <thead><tr><th>Where</th><th>Row width</th><th>As built: days, pitch, disc</th><th>Proposed: days, pitch, disc</th><th>At home: past · today · ahead</th></tr></thead>
+            <tbody>
+              <tr><td><b>Dashboard</b></td><td>784 px</td><td>21 days, 37.6 px, 31.6 px</td><td><b>14 whole days, 50 px, disc 36 px</b> in a 44 px target; 14 px between discs; part of a day under each arrow</td><td>5 · 1 · 8</td></tr>
+              <tr><td><b>Block's page</b> (ADR-012)</td><td>1034 px</td><td>21 days, 49.5 px, 43.5 px</td><td><b>19 whole days, 50 px, disc 36 px</b></td><td>5 · 1 · 13</td></tr>
+              <tr><td><b>Phone</b> (390 px screen)</td><td>about 332 px</td><td>7 days, 49 px, 41.6 px (the 2.6rem cap)</td><td><b>7½ days, 44 px, disc 36 px</b> in a 38 × 44 px target; the half day invites the swipe</td><td>3 · 1 · 3 ½</td></tr>
+              <tr><td><b>Ring style</b>, Dashboard / page</td><td>784 / 1034 px</td><td>13 / 17 days, 60.9 / 61.3 px; the rings nearly touch</td><td><b>12 / 16 whole days, 60 px</b>: disc 36, ring 48, <b>12 px clear between rings</b></td><td>5 · 1 · 6 / 5 · 1 · 10</td></tr>
+            </tbody>
+          </table>
+          <p class="p" style="margin-top: 10px; font-size: 13px">Measured: <code>calendar-strip.png</code> is 1548 px at 2x (774 CSS px); its row spans 750 px, a day every 36.0 px, discs about 30 px. <code>mobile.png</code> is 780 px at 2x (390 CSS px): a day every 49.5 px, discs 41.5 px. The CSS gives the same: a 21-track grid with a 6 px gap (<code>styles.css:1170-1174</code>), discs <code>width: 100%; max-width: 2.75rem</code> (<code>:1229-1236</code>), 2.6rem on a narrow block (<code>:2271-2274</code>). The block's page already has the phone's spacing; only the Dashboard and narrower desktop columns are dense.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pn.clip}}">
+        <div class="grid2">
+          <div>
+            <p class="sx-figtitle"><span class="tag tag--old">Breaks</span>The card stays a child of the day's column</p>
+            <div class="sx-clipbox">
+              <div class="sx-minirow"><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc today"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span></div>
+              <div class="sx-minicard"><b>Thursday, 15 October</b><br>Tomorrow · 5 items</div>
+              <span class="sx-cut">Cut at the scroller's edge</span>
+            </div>
+            <p class="p" style="margin-top: 8px; font-size: 13px">With <code>overflow-x: auto</code>, a <code>visible</code> overflow-y computes to <code>auto</code> (CSS Overflow 3), so the scroller clips its children vertically too. <code>overflow-x: clip</code> would leave y visible, but clip does not scroll. No overflow-y trick saves a card inside the scroller.</p>
+          </div>
+          <div>
+            <p class="sx-figtitle"><span class="tag tag--rec">Proposed</span>The card is the scroller's sibling, in the same strip</p>
+            <div class="sx-okbox">
+              <div class="sx-minirow"><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc today"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span><span class="sx-minidisc"></span></div>
+              <div class="sx-minicard"><b>Thursday, 15 October</b><br>Tomorrow · 5 items</div>
+            </div>
+            <p class="p" style="margin-top: 120px; font-size: 13px">One card element after the scroller inside <code>.compass-cal-daysbox</code>, positioned from the open day's column: left = the column's centre minus half the card, clamped to the strip, the caret at the day. This replaces <code>alignOf()</code>'s index rule (<code>CalendarStrip.tsx:284</code>). It stays inside the strip, so the block's tokens, the dark override and the hover intent (close 200 ms after leaving the strip and its card) hold as built. Not a portal to <code>body</code>: it would leave the block's scope (fleet rule: tokens on every root a plugin paints). The phone's sheet is <code>position: fixed</code> and is not clipped by the scroller, provided the scroller never gets a transform, filter or containment.</p>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{pn.anatomy}}">
+        <div class="grid3">
+          <div class="card-s">
+            <h3>Parts</h3>
+            <ol class="notes">
+              <li><b>Month</b> of the days in view, "October – November 2026" across the turn; updated when the first or last day in view changes, spoken politely once the scroll settles.</li>
+              <li><b>Today</b>: back to the home position (5 past days, 3 narrow); <code>aria-disabled</code> while there.</li>
+              <li><b>Earlier days</b>, floating over the row's start; <code>aria-disabled</code> at scrollLeft 0, where the scroller's 32 px padding keeps the first day clear of it. Pointer only: <code>tabindex="-1"</code>, named. It takes the pointer: nothing under it hovers.</li>
+              <li><b>Start fade</b>, only while the row can scroll back; the day partly under it does not open on hover.</li>
+              <li><b>A day</b>: a 44 px button around a 36 px disc, in a list item; one tab stop for the whole window (roving). Under it, <b>one mark per kind present</b>.</li>
+              <li><b>The scroller</b>: <code>overflow-x: auto</code>, snap per day, <code>overscroll-behavior-x: contain</code>; the native scrollbar hidden wherever the map shows.</li>
+              <li><b>Later days</b>, the end arrow; disabled at the window's last day.</li>
+              <li><b>Window map</b>, a scrubber: press to jump, drag the thumb, snap at release; today's tick, the needle's tick, and dots for the days of a pointed tier 1 card. Hidden on a narrow block and when the whole window fits.</li>
+              <li><b>Marks</b>: one per kind present, never repeated, by priority Graded › Late, still open › To do › Event › Done (teaching: grading › class deadline › event). Four slots: every kind when they fit; with five, the first three and +N, N = further kinds (today: Graded, Late, To do, +2). As built: one mark per item, four, then a +N that runs into them.</li>
+            </ol>
+          </div>
+          <div class="card-s">
+            <h3>Markup outline</h3>
+            <ul class="sx-outline">
+              <li><b>section.compass-cal</b></li>
+              <li class="i1">header.compass-cal-head › toggle · <b>p.compass-cal-month</b>[aria-live] · Today</li>
+              <li class="i1"><b>div.compass-cal-daysbox</b> (position: relative)</li>
+              <li class="i2"><b>div.compass-cal-days</b>[role=list] (the scroller)</li>
+              <li class="i3">div.compass-cal-col[role=listitem] × 58 to 72</li>
+              <li class="i4">button.compass-cal-day[tabindex=0 or -1] › span.compass-cal-disc</li>
+              <li class="i2">span.compass-cal-fade × 0 to 2 [aria-hidden]</li>
+              <li class="i2">button.compass-cal-edge × 2 [tabindex=-1]</li>
+              <li class="i2"><b>div.compass-cal-card</b>[role=dialog] (sibling)</li>
+              <li class="i2">div.compass-cal-map [aria-hidden] (pointer scrubber)</li>
+              <li class="i1">div.compass-cal-foot › legend · switch · link</li>
+            </ul>
+          </div>
+          <div class="card-s">
+            <h3>Keyboard and screen reader</h3>
+            <table class="t">
+              <tbody>
+                <tr><td><b>Tab</b></td><td>Into the row on today (or the last focused day); out to the card, then the footer.</td></tr>
+                <tr><td><b>Left / Right</b></td><td>The previous or next day; the row scrolls the least that shows it whole between the arrows.</td></tr>
+                <tr><td><b>Page Up / Down</b></td><td>A step back or forward (14 days, 7 narrow).</td></tr>
+                <tr><td><b>Home / End</b></td><td>The window's first and last day (decided).</td></tr>
+                <tr><td><b>Enter, Space</b></td><td>Pin the day's card; Escape closes it and returns to the day.</td></tr>
+              </tbody>
+            </table>
+            <p class="p" style="margin-top: 8px; font-size: 13px">Every day of the window is in the list and the accessibility tree, scrolled into view or not, so browse mode reads them all. The list's name says the span ("Days from 4 October to 30 November"). Reduced motion makes every programmatic scroll instant.</p>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </section>
+  </sc-for>
+
+  <section class="panel sx-panel">
+    <p class="kicker">Study</p>
+    <h2 class="h">What block_dimensions and local_dimensions taught</h2>
+    <p class="p sx-lead">Both are the same author's horizontal scrollers. The filter bar is a paged, clipped mask; the Panorama course list is a native snap track. The strip takes the track's native scrolling and the bar's keyboard and fade discipline.</p>
+    <div class="grid2">
+      <div>
+        <p class="sx-figtitle"><span class="tag">block_dimensions</span>the filter bar (amd/src/filter_tabs_nav.js, styles.css)</p>
+        <table class="t">
+          <thead><tr><th>Does well</th><th>Where</th><th>For the strip</th></tr></thead>
+          <tbody>
+            <tr><td>Paddles are pointer conveniences: <code>tabIndex = -1</code>, localised names, <code>aria-hidden</code> kept in step with what is shown</td><td>filter_tabs_nav.js:101-124, 349-372</td><td><b>Taken</b>: tabindex -1, named; ours stay visible when disabled, so no aria-hidden</td></tr>
+            <tr><td>Focus moves with <code>preventScroll: true</code>, then the bar scrolls itself, so the browser's own focus jump does not fight the animation</td><td>:461-501 (the call at :500)</td><td><b>Taken</b></td></tr>
+            <tr><td>A fade only where a paddle shows: the mask's colour at a side turns opaque via <code>:has()</code> on the hidden paddle</td><td>styles.css:1366-1374, 1384-1412</td><td><b>Taken</b>: fade only on a side that can scroll</td></tr>
+            <tr><td>ResizeObserver re-centres; transitions off during resize and the first paint</td><td>filter_tabs_nav.js:181, 192-201, 442-457</td><td><b>Taken</b>: keep the first day in view on resize; no smooth scroll on the first paint</td></tr>
+            <tr><td>Reduced motion read from <code>matchMedia</code>, the scroll jumps</td><td>:174, 317-323</td><td><b>Taken</b></td></tr>
+            <tr><td>Overscroll contained</td><td>styles.css:1391</td><td><b>Taken</b> as <code>overscroll-behavior-x: contain</code> (no history swipe on macOS)</td></tr>
+            <tr><td><b>Limits</b>: <code>overflow-x: hidden</code> (:1390), so no touch or trackpad scroll; paddle state derived from the computed target, not the measured scrollLeft (:252-310); left-to-right math only</td><td>as cited</td><td><b>Avoided</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <p class="sx-figtitle"><span class="tag">local_dimensions</span>Panorama's course list (amd/src/accordion.js, styles.css)</p>
+        <table class="t">
+          <thead><tr><th>Does well</th><th>Where</th><th>For the strip</th></tr></thead>
+          <tbody>
+            <tr><td>Native track: <code>overflow-x: auto</code>, <code>scroll-snap-type: x mandatory</code>, snap-align start, scrollbar hidden</td><td>styles.css:4367-4385, 4397-4402</td><td><b>Taken</b></td></tr>
+            <tr><td>Arrow state from the measured scroll (scrollLeft against scrollWidth − clientWidth, 2 px tolerance); both off when it fits</td><td>accordion.js:1809-1838, 1853</td><td><b>Taken</b>, with <code>Math.abs</code> for right-to-left</td></tr>
+            <tr><td>Re-evaluated on scroll, on resize, next frame and after 120 ms</td><td>:1888-1900</td><td><b>Taken</b>: scroll and ResizeObserver</td></tr>
+            <tr><td>Snap turned off while its own tween or a drag runs, because a rAF tween fights mandatory snap</td><td>styles.css:4387-4395; accordion.js:1689</td><td><b>Lesson</b>: use native <code>scrollTo(smooth)</code> to snap-aligned targets, nothing to switch off</td></tr>
+            <tr><td>A partly hidden card scrolls whole into view when clicked</td><td>:1741-1757</td><td><b>Taken</b> for a day pressed or focused at an edge</td></tr>
+            <tr><td>Drag-to-scroll with a 6 px threshold and click suppression</td><td>:1993-2058</td><td><b>Not taken</b>: every cell is a button</td></tr>
+            <tr><td>Controls in the header "so it does not jump when a card expands"; disabled = a class with pointer-events none (keys still fire)</td><td>styles.css:4345, 4444-4448</td><td>Our row has a fixed height, so the arrows can float at its ends; disabled stays <code>aria-disabled</code> with a refusing handler</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel sx-panel">
+    <p class="kicker">Record</p>
+    <h2 class="h">What changes in ADR-014, and the maintainer's answers</h2>
+    <div class="grid2">
+      <div class="card-s">
+        <h3>ADR-014 changes</h3>
+        <ul class="notes">
+          <li><b>Decision 3</b>: "The strip opens centred on today. The arrows move seven days" becomes: the row scrolls across the whole window; it opens with five past days before today (three on a narrow block); the arrows float over the row's ends and move 14 days; Home and End reach the window's ends. The window (10 past days, <code>strip::PAST_DAYS</code>, to the end of next month) does not change.</li>
+          <li><b>Decision 9</b>: a day opens on hover only when it is wholly in view; the card is no longer a DOM child of the day's column and closes when its day leaves the view; the disc is 36 px in a 44 px target, a day every 50 px (ring style 60 px); one mark per kind present under a day, never repeated, four slots, +N counting further kinds (replaces one mark per item, <code>marks()</code>, calendar.ts:444-453, and <code>DOTS_MAX</code>).</li>
+          <li><b>Amendment 10</b>: the fades follow the scroll position; the track becomes the window map, a pointer scrubber; the native scrollbar is hidden wherever the map shows; nothing scrolls, and no arrows or map show, when the whole window fits.</li>
+          <li><b>Amendment 11</b>: "a period opens the strip on its days" scrolls; Late scrolls to the window's start.</li>
+          <li>Nothing on the server: payload, cache, budgets and the closed line are untouched.</li>
+        </ul>
+      </div>
+      <div class="card-s">
+        <h3>The maintainer's answers and decisions (2026-10-14)</h3>
+        <ol class="notes">
+          <li><b>Home and End</b>: the window's ends.</li>
+          <li><b>A pinned card whose day scrolls away</b>: it closes, once its day is no longer wholly in view (the same test as hover). Focus inside it goes back to the day.</li>
+          <li><b>Scrollbar</b>: hidden wherever the map shows (a wide block that can scroll). A block wide enough for the whole window (about 2,950 px for 58 days) has nothing to scroll: no arrows, no map, no fades, no scrollbar. A narrow block has no map and keeps the platform's thin scrollbar. <b>Decided.</b></li>
+          <li><b>Step</b>: 14 days.</li>
+          <li><b>Arrows over the days</b>, with the hover rule: a day under an arrow or cut by an edge does not open on hover; a click on it scrolls it into view first.</li>
+          <li><b>Phone</b>: a half-day peek, 7½ days.</li>
+          <li><b>Map ticks for a pointed card</b>: pointing at a tier 1 card already lights its days in the row, but only the days in view; with 14 of 58 days in view, most can be out of sight. Dots on the map show where they are. <b>Decided.</b></li>
+          <li><b>The map's accessibility</b>: aria-hidden and out of the tab order; the row does everything by keyboard. <b>Decided.</b></li>
+          <li><b>Marks</b>: one per kind present, four slots, +N counting further kinds. <b>Decided</b> (third round).</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"stripStyle":{"editor":"enum","options":["dots","ring","pulse"],"default":"dots","section":"Live strip"},"liveWidth":{"editor":"enum","options":["784","1034","390"],"default":"784","section":"Live strip"},"dark":{"editor":"boolean","default":false,"section":"Theme"},"reducedMotion":{"editor":"boolean","default":false,"section":"Theme"},"$preview":{"width":1440,"height":12000}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sx: {}, ui: {} };
+    this.geo = {};
+    this.ui0 = {};
+    this.pending = {};
+    this.raf = 0;
+    this.prog = {};
+    this.drag = null;
+  }
+
+  componentDidMount() {
+    this.place(null);
+  }
+
+  componentDidUpdate(prev) {
+    if (prev.liveWidth !== this.props.liveWidth || prev.stripStyle !== this.props.stripStyle) {
+      this.place('live');
+    }
+  }
+
+  // Puts each scroller at its starting position before the first look (no smooth scroll on the first paint).
+  place(only) {
+    // Synchronously (the DOM is there after mount), not on a frame: a hidden tab runs no frames.
+    setTimeout(() => {
+      document.querySelectorAll('.sx-scroller[data-frame]').forEach((el) => {
+        if (only && el.dataset.frame !== only) {
+          return;
+        }
+        this.prog[el.dataset.frame] = Date.now();
+        el.scrollLeft = Number(el.dataset.init) || 0;
+      });
+      if (only) {
+        this.setState((st) => {
+          const sx = Object.assign({}, st.sx);
+          const ui = Object.assign({}, st.ui);
+          delete sx[only];
+          delete ui[only];
+          return { sx: sx, ui: ui };
+        });
+      }
+    }, 0);
+  }
+
+  data() {
+    if (this._d) {
+      return this._d;
+    }
+    const MS = 86400000;
+    const START = Date.UTC(2026, 9, 4);
+    const N = 58;
+    const TODAY = 10;
+    const OFF = { 8: 'Holiday (Our Lady of Aparecida)', 19: 'Recess (Academic week)', 29: 'Holiday (All Souls’ Day)', 47: 'Holiday (Black Awareness Day)' };
+    const FIX = {
+      0: [], 1: [], 2: [], 3: ['event'], 4: ['event'], 5: ['late', 'event'], 6: ['event'], 7: ['event', 'event'],
+      8: ['late', 'event', 'event'], 9: ['late', 'late', 'event', 'event'], 10: ['gradedsoon', 'late', 'todo', 'event', 'done'],
+      11: ['gradedsoon', 'gradedsoon', 'todo', 'event', 'event'], 12: ['graded', 'graded', 'event', 'event'], 13: ['graded'],
+      14: ['graded', 'todo'], 15: ['todo'], 16: ['graded', 'graded'], 17: ['graded', 'event', 'event'], 18: ['graded', 'event'],
+      19: [], 20: []
+    };
+    const ORDER = ['gradedsoon', 'graded', 'todo', 'late', 'event', 'done'];
+    const W = { gradedsoon: 3, graded: 3, todo: 2, late: 2, event: 1, done: 0 };
+    let seed = 11;
+    const rnd = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+    const days = [];
+    for (let i = 0; i < N; i++) {
+      const t = new Date(START + i * MS);
+      const wd = t.getUTCDay();
+      const weekend = wd === 0 || wd === 6;
+      let kinds;
+      if (FIX[i]) {
+        kinds = FIX[i];
+      } else if (OFF[i]) {
+        kinds = [];
+      } else if (weekend) {
+        kinds = rnd() < 0.7 ? [] : ['event'];
+      } else {
+        const k = Math.floor(rnd() * 4);
+        kinds = [];
+        let graded = 0;
+        for (let j = 0; j < k; j++) {
+          const r = rnd();
+          if (r < 0.35 && graded < 2) {
+            kinds.push('graded');
+            graded++;
+          } else {
+            kinds.push(r < 0.7 ? 'todo' : 'event');
+          }
+        }
+        kinds.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
+      }
+      const score = kinds.reduce((s, k) => s + W[k], 0);
+      const level = score === 0 ? 0 : score <= 2 ? 1 : score <= 5 ? 2 : score <= 8 ? 3 : 4;
+      days.push({ i: i, dd: t.getUTCDate(), wd: wd, mo: t.getUTCMonth(), weekend: weekend, hol: OFF[i] || '', kinds: kinds, score: score, level: level });
+    }
+    let needle = TODAY;
+    for (let i = TODAY; i < N; i++) {
+      if (days[i].score > days[needle].score) {
+        needle = i;
+      }
+    }
+    // The days holding an ANAT101 item, as the card lists them (itemsOf()): what pointing at its tier 1 card lights.
+    const lit = days.filter((d) => d.kinds.slice(0, 4).some((k, j) => (d.i + j) % 5 === 0)).map((d) => d.i);
+    this._d = { N: N, TODAY: TODAY, days: days, needle: needle, lit: lit };
+    return this._d;
+  }
+
+  names() {
+    return {
+      WD: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      WDL: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+      MON: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    };
+  }
+
+  // A day's sentence, as the language file words it (decision 9; amendment 10 for the days off).
+  sentence(d, needle) {
+    const L = this.names();
+    const c = {};
+    d.kinds.forEach((k) => {
+      const key = k === 'gradedsoon' ? 'graded' : k;
+      c[key] = (c[key] || 0) + 1;
+    });
+    // In the marks' priority, so the kinds a +N hides are named in the same order after the shown ones.
+    const parts = [];
+    if (c.graded) {
+      parts.push(c.graded + ' graded');
+    }
+    if (c.late) {
+      parts.push(c.late + ' late, still open');
+    }
+    if (c.todo) {
+      parts.push(c.todo + ' to do');
+    }
+    if (c.event) {
+      parts.push(c.event + (c.event === 1 ? ' event' : ' events'));
+    }
+    if (c.done) {
+      parts.push(c.done + ' done');
+    }
+    let s = L.WDL[d.wd] + ', ' + d.dd + ' ' + L.MON[d.mo];
+    if (d.hol) {
+      s += ', ' + d.hol;
+    } else if (d.weekend) {
+      s += ', weekend';
+    }
+    s += ': ' + (parts.length ? parts.join(', ') : 'nothing open');
+    if (d.i === needle) {
+      s += '. Most relevant day ahead';
+    }
+    return s;
+  }
+
+  dayClass(d, D, extra) {
+    const empty = d.kinds.length === 0;
+    let cls = 'sx-day';
+    if (d.i === D.TODAY) {
+      cls += ' today' + (d.level >= 2 ? ' halo' + Math.min(4, d.level) : '');
+    } else if (empty && d.hol) {
+      cls += ' hol';
+    } else if (empty && d.weekend) {
+      cls += ' off';
+    } else {
+      cls += ' h' + d.level;
+    }
+    if (d.i < D.TODAY) {
+      cls += ' past';
+    }
+    if (d.i !== D.TODAY && d.kinds.indexOf('gradedsoon') >= 0) {
+      cls += ' soon';
+    }
+    return cls + (extra || '');
+  }
+
+  wdClass(d, D) {
+    const empty = d.kinds.length === 0;
+    let cls = 'sx-wd';
+    if (d.i === D.TODAY) {
+      cls += ' sx-wd--today';
+    } else if (!empty && d.hol) {
+      cls += ' sx-wd--hol';
+    } else if (!empty && d.weekend) {
+      cls += ' sx-wd--off';
+    }
+    return cls;
+  }
+
+  // Proposed: one mark per kind present, never repeated, by priority Graded > Late, still open > To do >
+  // Event > Done (teaching: grading > class deadline > event). Four slots: all kinds when they fit,
+  // else the first three and +N, N = the further kinds hidden (each is named, with its count, in the
+  // day's sentence and card).
+  kindMarks(d) {
+    const PRIORITY = ['graded', 'late', 'todo', 'event', 'done'];
+    const present = PRIORITY.filter((k) => d.kinds.some((x) => (x === 'gradedsoon' ? 'graded' : x) === k));
+    const soon = d.kinds.indexOf('gradedsoon') >= 0;
+    const mark = (k) => 'mk mk--' + (k === 'graded' && soon ? 'urgent' : k);
+    if (present.length <= 4) {
+      return { dots: present.map(mark), more: '' };
+    }
+    return { dots: present.slice(0, 3).map(mark), more: '+' + (present.length - 3) };
+  }
+
+  // As built: one mark per item, at most `max` (DOTS_MAX), then +N items.
+  dotsOf(d, max) {
+    return d.kinds.slice(0, max).map((k) => 'mk mk--' + (k === 'gradedsoon' ? 'urgent' : k));
+  }
+
+  moreOf(d, max) {
+    return d.kinds.length > max ? '+' + (d.kinds.length - max) : '';
+  }
+
+  arcsOf(d) {
+    const C = 2 * Math.PI * 27;
+    const list = d.kinds.slice(0, 6);
+    const count = list.length;
+    const gap = count > 1 ? 6 : 0;
+    return list.map((k, at) => ({
+      cls: 'sx-arc sx-arc--' + k,
+      dash: (C / count - gap).toFixed(2) + ' ' + C.toFixed(2),
+      off: (-(at * C) / count - gap / 2).toFixed(2)
+    }));
+  }
+
+  itemsOf(d) {
+    const CODES = ['ANAT101', 'PHAR210', 'DS201', 'EE110', 'OC202'];
+    const TIMES = ['8:00 AM', '10:00 AM', '12:00 PM', '2:00 PM', '5:00 PM', '6:00 PM', '11:59 PM'];
+    const QUIZ = 'M7.5 4h9A3.5 3.5 0 0 1 20 7.5v9a3.5 3.5 0 0 1-3.5 3.5h-9A3.5 3.5 0 0 1 4 16.5v-9A3.5 3.5 0 0 1 7.5 4zM8.5 12.5l2.5 2.5 4.5-5';
+    const FILE = 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4';
+    const CAP = 'M2 9l10-5 10 5-10 5zM6 11v5c3 2 9 2 12 0v-5';
+    const GRADED = ['Quiz 3: Respiratory system', 'Dosage calculations', 'Project milestone 2', 'Lab report 4'];
+    return d.kinds.slice(0, 4).map((k, j) => {
+      const base = { time: TIMES[(d.i * 3 + j) % 7], code: CODES[(d.i + j) % 5] };
+      if (k === 'graded' || k === 'gradedsoon') {
+        return Object.assign(base, { ico: 'sx-ico sx-ico--assess', path: QUIZ, title: GRADED[(d.i + j) % 4], badge: k === 'gradedsoon' ? 'Graded, due soon' : 'Graded', badgeCls: 'sx-badge sx-badge--acc', action: 'Attempt quiz now', actCls: 'sx-act sx-act--primary' });
+      }
+      if (k === 'todo') {
+        return Object.assign(base, { ico: 'sx-ico sx-ico--todo', path: FILE, title: 'Reading log: week ' + (1 + d.i % 9), badge: 'To do', badgeCls: 'sx-badge', action: 'Add submission', actCls: 'sx-act sx-act--primary' });
+      }
+      if (k === 'late') {
+        return Object.assign(base, { ico: 'sx-ico sx-ico--late', path: FILE, title: 'Essay draft', badge: 'Late, still open', badgeCls: 'sx-badge sx-badge--danger', action: 'Add submission', actCls: 'sx-act sx-act--primary' });
+      }
+      if (k === 'done') {
+        return Object.assign(base, { ico: 'sx-ico sx-ico--event', path: QUIZ, title: 'Lab safety quiz', badge: 'Done', badgeCls: 'sx-badge', action: 'View', actCls: 'sx-act sx-act--ghost' });
+      }
+      return Object.assign(base, { ico: 'sx-ico sx-ico--event', path: CAP, title: 'Anatomy lab briefing', badge: 'Event', badgeCls: 'sx-badge', action: 'View', actCls: 'sx-act sx-act--ghost' });
+    });
+  }
+
+  uiOf(id, st) {
+    const s = st || this.state;
+    return Object.assign({ hover: null, pinned: null, focus: null, ring: null, drag: false }, this.ui0[id] || {}, s.ui[id] || {});
+  }
+
+  setUi(id, patch) {
+    this.setState((st) => {
+      const ui = Object.assign({}, st.ui);
+      ui[id] = Object.assign({}, this.uiOf(id, st), patch);
+      return { ui: ui };
+    });
+  }
+
+  scroller(id) {
+    return document.querySelector('.sx-scroller[data-frame="' + id + '"]');
+  }
+
+  scrollOf(id) {
+    const el = this.scroller(id);
+    return el ? Math.abs(el.scrollLeft) : 0;
+  }
+
+  behavior() {
+    const reduce = this.props.reducedMotion || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    return reduce ? 'auto' : 'smooth';
+  }
+
+  // Wholly in view: the day's column inside the scroller's box minus the inset the arrows sit over.
+  fullyAt(g, i, s) {
+    const x0 = g.inset + i * g.p - s;
+    return x0 >= g.inset - 0.5 && x0 + g.col <= g.W - g.inset + 0.5;
+  }
+
+  fully(id, i) {
+    const g = this.geo[id];
+    return !!g && this.fullyAt(g, i, this.scrollOf(id));
+  }
+
+  // Scrolls the strip only, never the page, to put day `index` first wholly in view.
+  goTo(id, index) {
+    const g = this.geo[id];
+    const el = this.scroller(id);
+    if (!g || !el) {
+      return;
+    }
+    const left = Math.max(0, Math.min(g.maxS, index * g.p));
+    this.prog[id] = Date.now();
+    el.scrollTo({ left: left, behavior: this.behavior() });
+  }
+
+  page(id, dir) {
+    const g = this.geo[id];
+    if (!g) {
+      return;
+    }
+    const s = this.scrollOf(id);
+    if ((dir < 0 && s <= 2) || (dir > 0 && s >= g.maxS - 2)) {
+      return;
+    }
+    this.setUi(id, { hover: null, pinned: null });
+    this.goTo(id, Math.round(s / g.p) + dir * g.step);
+  }
+
+  today(id) {
+    const g = this.geo[id];
+    if (!g || Math.abs(this.scrollOf(id) - g.homeS) <= 2) {
+      return;
+    }
+    this.setUi(id, { hover: null, pinned: null });
+    this.goTo(id, g.home);
+  }
+
+  // Shows day i wholly in view, scrolling the least.
+  reveal(id, i) {
+    const g = this.geo[id];
+    if (!g) {
+      return;
+    }
+    const s = this.scrollOf(id);
+    if (this.fullyAt(g, i, s)) {
+      return;
+    }
+    const x0 = g.inset + i * g.p - s;
+    this.goTo(id, x0 < g.inset ? i : i - g.nFull + 1);
+  }
+
+  keyDay(id, i, e) {
+    const g = this.geo[id];
+    let t = null;
+    if (e.key === 'ArrowRight') {
+      t = i + 1;
+    } else if (e.key === 'ArrowLeft') {
+      t = i - 1;
+    } else if (e.key === 'Home') {
+      t = 0;
+    } else if (e.key === 'End') {
+      t = g.N - 1;
+    } else if (e.key === 'PageDown') {
+      t = i + g.step;
+    } else if (e.key === 'PageUp') {
+      t = i - g.step;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    t = Math.max(0, Math.min(g.N - 1, t));
+    const el = this.scroller(id);
+    const btn = el && el.querySelector('[data-idx="' + t + '"]');
+    if (!btn) {
+      return;
+    }
+    // The browser's own focus scroll would jump (and scroll the page); the strip scrolls itself.
+    btn.focus({ preventScroll: true });
+    this.reveal(id, t);
+  }
+
+  focusDay(id, i) {
+    const u = this.uiOf(id);
+    this.setUi(id, { focus: i, ring: null, hover: u.pinned === null ? i : u.hover });
+    this.reveal(id, i);
+  }
+
+  // The pointer opens only a day wholly in view; a day under an arrow or cut by an edge stays shut.
+  enter(id, i) {
+    const u = this.uiOf(id);
+    if (u.pinned !== null || this.drag) {
+      return;
+    }
+    if (!this.fully(id, i)) {
+      if (u.hover !== null) {
+        this.setUi(id, { hover: null });
+      }
+      return;
+    }
+    if (u.hover !== i) {
+      this.setUi(id, { hover: i });
+    }
+  }
+
+  leave(id) {
+    const u = this.uiOf(id);
+    if (u.pinned === null && u.hover !== null) {
+      this.setUi(id, { hover: null });
+    }
+  }
+
+  // A press on a partly hidden day scrolls it into view first, then pins it.
+  press(id, i) {
+    const u = this.uiOf(id);
+    if (u.pinned === i) {
+      this.setUi(id, { pinned: null, hover: null });
+      return;
+    }
+    this.reveal(id, i);
+    this.setUi(id, { pinned: i, hover: i });
+  }
+
+  keyBox(id, e) {
+    if (e.key !== 'Escape') {
+      return;
+    }
+    const u = this.uiOf(id);
+    const back = u.pinned !== null ? u.pinned : u.hover;
+    this.setUi(id, { pinned: null, hover: null });
+    const el = this.scroller(id);
+    const btn = el && back !== null ? el.querySelector('[data-idx="' + back + '"]') : null;
+    if (btn) {
+      btn.focus({ preventScroll: true });
+    }
+  }
+
+  // A user's scroll closes a hovered card, and a pinned one once its day is no longer wholly in view.
+  // Scrolls the strip makes itself (arrows, Today, keyboard, a press) close nothing.
+  onScroll(id, e) {
+    this.pending[id] = Math.abs(e.currentTarget.scrollLeft);
+    if (this.raf) {
+      return;
+    }
+    // A short timer rather than a frame, so the mockup also follows in a background tab.
+    this.raf = setTimeout(() => {
+      this.raf = 0;
+      const pend = this.pending;
+      this.pending = {};
+      this.setState((st) => {
+        const sx = Object.assign({}, st.sx, pend);
+        const ui = Object.assign({}, st.ui);
+        Object.keys(pend).forEach((k) => {
+          const u = this.uiOf(k, st);
+          const g = this.geo[k];
+          const own = Date.now() - (this.prog[k] || 0) < 900;
+          if (own || !g) {
+            return;
+          }
+          if (u.pinned === null && u.hover !== null) {
+            ui[k] = Object.assign({}, u, { hover: null });
+          } else if (u.pinned !== null && !this.fullyAt(g, u.pinned, pend[k])) {
+            ui[k] = Object.assign({}, u, { hover: null, pinned: null });
+          }
+        });
+        return { sx: sx, ui: ui };
+      });
+    }, 16);
+  }
+
+  // The map as a scrubber: press on the line to jump there, drag the thumb, snap at release.
+  scrubTo(fx) {
+    const d = this.drag;
+    const g = this.geo[d.id];
+    const t = Math.max(0, Math.min(1 - d.tw, fx - d.grab));
+    d.el.scrollLeft = Math.max(0, Math.min(g.maxS, t * g.N * g.p));
+  }
+
+  mapDown(id, e) {
+    const g = this.geo[id];
+    const el = this.scroller(id);
+    if (!g || !el || (e.pointerType === 'mouse' && e.button !== 0)) {
+      return;
+    }
+    const box = e.currentTarget;
+    const r = box.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width;
+    const tl = this.scrollOf(id) / g.p / g.N;
+    const tw = g.span / g.N;
+    const onThumb = fx >= tl - 0.01 && fx <= tl + tw + 0.01;
+    this.drag = { id: id, el: el, tw: tw, grab: onThumb ? fx - tl : tw / 2 };
+    try {
+      box.setPointerCapture(e.pointerId);
+    } catch (err) {
+      // A synthetic pointer has no capture; the drag still follows moves over the map.
+    }
+    el.classList.add('sx-nosnap');
+    if (!onThumb) {
+      this.scrubTo(fx);
+    }
+    this.setUi(id, { drag: true, hover: null, pinned: null });
+    e.preventDefault();
+  }
+
+  mapMove(id, e) {
+    if (!this.drag || this.drag.id !== id) {
+      return;
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    this.scrubTo((e.clientX - r.left) / r.width);
+  }
+
+  mapUp(id) {
+    if (!this.drag || this.drag.id !== id) {
+      return;
+    }
+    const g = this.geo[id];
+    const el = this.drag.el;
+    this.drag = null;
+    el.classList.remove('sx-nosnap');
+    this.goTo(id, Math.round(Math.abs(el.scrollLeft) / g.p));
+    this.setUi(id, { drag: false });
+  }
+
+  // A narrow block shortens the months of a span, so Today keeps its line.
+  monthLabel(a, b, short) {
+    const L = this.names();
+    if (a.mo === b.mo) {
+      return L.MON[a.mo] + ' 2026';
+    }
+    const nm = (m) => (short ? L.MON[m].slice(0, 3) : L.MON[m]);
+    return nm(a.mo) + ' – ' + nm(b.mo) + ' 2026';
+  }
+
+  chipOf(rel) {
+    if (rel === 0) {
+      return 'Today';
+    }
+    if (rel === 1) {
+      return 'Tomorrow';
+    }
+    if (rel === -1) {
+      return 'Yesterday';
+    }
+    return rel > 1 ? 'In ' + rel + ' days' : -rel + ' days ago';
+  }
+
+  // The row's geometry: a day every p px; the arrows sit over `inset` px at each end; the scroller's
+  // padding and scroll-padding equal the inset, so a snapped row starts its first whole day just
+  // past the start arrow, and at either end of the window the end day sits clear of the arrow.
+  geometry(c) {
+    const D = this.data();
+    const style = c.style || 'dots';
+    const narrow = !!c.narrow;
+    const ring = style === 'ring';
+    const N = D.N;
+    const inset = narrow ? 4 : 32;
+    const gap = ring ? 12 : 6;
+    let p = ring ? 60 : 50;
+    if (narrow) {
+      // The phone's half-day peek: 7 1/2 days (5 1/2 for rings) in the row.
+      p = Math.floor((c.W - 2 * inset + gap) / (ring ? 5.5 : 7.5));
+    }
+    const col = p - gap;
+    const disc = style === 'pulse' ? 30 : 36;
+    const hit = Math.min(44, col);
+    const nFull = Math.max(1, Math.floor((c.W - 2 * inset + gap) / p));
+    const content = 2 * inset + N * p - gap;
+    const scrolls = content > c.W + 1;
+    const maxS = Math.max(0, content - c.W);
+    const past = narrow ? Math.floor((nFull - 1) / 2) : 5;
+    const home = Math.max(0, D.TODAY - past);
+    const homeS = Math.min(maxS, home * p);
+    const step = narrow ? 7 : Math.max(7, 7 * Math.floor(nFull / 7));
+    return { W: c.W, N: N, inset: inset, gap: gap, p: p, col: col, disc: disc, hit: hit, nFull: nFull, scrolls: scrolls, maxS: maxS, home: home, homeS: homeS, step: step, span: (c.W - 2 * inset) / p, narrow: narrow, ring: ring, pulse: style === 'pulse', style: style };
+  }
+
+  // One strip, scrolled. c: id, W (the strip's width), style, narrow, first, ui0, title, notes...
+  frame(c) {
+    const D = this.data();
+    const L = this.names();
+    if (c.ui0) {
+      this.ui0[c.id] = c.ui0;
+    }
+    const u = this.uiOf(c.id);
+    const g = this.geometry(c);
+    this.geo[c.id] = g;
+    const id = c.id;
+    const N = g.N;
+    const initS = c.first === undefined ? g.homeS : Math.max(0, Math.min(g.maxS, c.first * g.p));
+    const s = this.state.sx[id] !== undefined ? this.state.sx[id] : initS;
+    const first = Math.max(0, Math.min(N - 1, Math.round(s / g.p)));
+    const last = Math.min(N - 1, first + g.nFull - 1);
+    const atStart = s <= 2;
+    const atEnd = s >= g.maxS - 2;
+    const atHome = Math.abs(s - g.homeS) <= 2;
+    const barTop = g.pulse ? 52 : 0;
+    const discTop = 12 + barTop;
+    const rowH = discTop + 44 + 6 + 9 + 6 + 16 + (g.narrow ? 8 : 6);
+    const openIdx = u.pinned !== null ? u.pinned : u.hover;
+    const tabIdx = u.focus !== null ? u.focus : (D.TODAY >= first && D.TODAY <= last ? D.TODAY : first);
+    const days = D.days.map((d) => {
+      let extra = '';
+      if (openIdx === d.i) {
+        extra += u.pinned === d.i ? ' pinned' : ' open';
+      }
+      const x0 = g.inset + d.i * g.p - s;
+      const partial = x0 + g.col > 0 && x0 < g.W && !this.fullyAt(g, d.i, s);
+      let colCls = 'sx-col';
+      if (c.lit && c.lit.indexOf(d.i) < 0) {
+        colCls += ' sx-col--dim';
+      }
+      if (c.zones && partial) {
+        colCls += ' sx-col--partial';
+      }
+      return {
+        i: d.i,
+        n: d.dd,
+        wd: L.WD[d.wd],
+        wdCls: this.wdClass(d, D),
+        colCls: colCls,
+        hitCls: 'sx-hit' + (u.ring === d.i ? ' kfocus' : ''),
+        partial: partial,
+        cls: this.dayClass(d, D, extra),
+        label: this.sentence(d, D.needle),
+        dots: this.kindMarks(d).dots,
+        more: this.kindMarks(d).more,
+        needle: d.i === D.needle,
+        tab: d.i === tabIdx ? 0 : -1,
+        expanded: openIdx === d.i,
+        arcs: g.ring ? this.arcsOf(d) : [],
+        barCls: 'sx-bar h' + d.level + (d.kinds.indexOf('late') >= 0 ? ' late' : ''),
+        barH: d.kinds.length ? 10 + Math.min(d.kinds.length, 5) * 7 : 4,
+        enter: () => this.enter(id, d.i),
+        focus: () => this.focusDay(id, d.i),
+        click: () => this.press(id, d.i),
+        key: (e) => this.keyDay(id, d.i, e)
+      };
+    });
+    let card = null;
+    if (openIdx !== null && !g.narrow) {
+      const d = D.days[openIdx];
+      const center = g.inset + openIdx * g.p + g.col / 2 - s;
+      const w = Math.min(400, c.W);
+      const left = Math.max(0, Math.min(c.W - w, center - w / 2));
+      const items = this.itemsOf(d);
+      card = {
+        cls: 'sx-card' + (u.pinned !== null ? ' sx-card--pinned' : ''),
+        title: L.WDL[d.wd] + ', ' + d.dd + ' ' + L.MON[d.mo],
+        chip: this.chipOf(openIdx - D.TODAY),
+        count: items.length ? (d.kinds.length + (d.kinds.length === 1 ? ' item' : ' items')) : 'Nothing open',
+        left: Math.round(left),
+        top: rowH + 6,
+        w: w,
+        caret: true,
+        caretX: Math.round(center - left - 6.5),
+        out: false,
+        pinned: u.pinned !== null,
+        close: () => this.setUi(id, { pinned: null, hover: null }),
+        items: items,
+        foot: u.pinned !== null ? 'Pinned. Escape or the close button lets it go.' : 'Click the day to pin this card.'
+      };
+    }
+    const fadeW = g.narrow ? 18 : g.inset + 16;
+    const arrows = !g.narrow && g.scrolls;
+    const map = !g.narrow && g.scrolls && c.map !== false;
+    const frameVals = {
+      id: id,
+      after: true,
+      before: false,
+      wide: !g.narrow,
+      narrow: g.narrow,
+      ring: g.ring,
+      pulse: g.pulse,
+      month: this.monthLabel(D.days[first], D.days[last], g.narrow),
+      atHome: atHome,
+      atStart: atStart,
+      atEnd: atEnd,
+      arrows: arrows,
+      fadeStart: g.scrolls && !atStart,
+      fadeEnd: g.scrolls && !atEnd,
+      fadeStyle: 'width: ' + fadeW + 'px; height: ' + rowH + 'px',
+      arrowTop: Math.round(discTop + 22 - 15),
+      zones: !!c.zones,
+      zoneStartStyle: 'left: 0; width: ' + g.inset + 'px; height: ' + rowH + 'px',
+      zoneEndStyle: 'right: 0; width: ' + g.inset + 'px; height: ' + rowH + 'px',
+      listLabel: 'Days from 4 October to 30 November',
+      initS: initS,
+      scrollerStyle: 'padding-inline: ' + g.inset + 'px; scroll-padding-inline: ' + g.inset + 'px; grid-auto-columns: ' + g.col + 'px; column-gap: ' + g.gap + 'px' + (g.narrow ? '' : '; scrollbar-width: none'),
+      hitStyle: 'width: ' + g.hit + 'px; height: 44px',
+      discStyle: 'width: ' + g.disc + 'px; height: ' + g.disc + 'px; font-size: ' + (g.disc < 34 ? 13 : 15) + 'px',
+      days: days,
+      card: card,
+      map: map,
+      mapCls: 'sx-mapbox' + (u.drag ? ' sx-mapbox--drag' : ''),
+      mapLabels: !!c.mapLabels,
+      mapStyle: 'margin: 0 ' + g.inset + 'px',
+      thumbLeft: ((s / g.p) / N * 100).toFixed(2),
+      thumbW: (Math.min(N, g.span) / N * 100).toFixed(2),
+      todayTick: ((D.TODAY + 0.5) / N * 100).toFixed(2),
+      needleTick: ((D.needle + 0.5) / N * 100).toFixed(2),
+      litTicks: c.lit ? c.lit.map((i) => ((i + 0.5) / N * 100).toFixed(2)) : [],
+      legend: !!c.legend,
+      pins: !!c.pins,
+      pinList: c.pins ? this.pinsOf(c, g, first, discTop, rowH) : [],
+      onScroll: (e) => this.onScroll(id, e),
+      prev: () => this.page(id, -1),
+      next: () => this.page(id, 1),
+      goToday: () => this.today(id),
+      leave: () => this.leave(id),
+      keyBox: (e) => this.keyBox(id, e),
+      mapDown: (e) => this.mapDown(id, e),
+      mapMove: (e) => this.mapMove(id, e),
+      mapUp: () => this.mapUp(id),
+      stripCls: 'sx-strip' + (g.narrow ? ' sx-narrow' : '') + ' sx-style-' + g.style,
+      blockW: c.W + 34
+    };
+    return this.wrap(c, frameVals);
+  }
+
+  pinsOf(c, g, first, discTop, rowH) {
+    const D = this.data();
+    const top = 52;
+    const tx = g.inset + (D.TODAY - first) * g.p + g.col / 2;
+    const ax = g.inset + (D.TODAY + 3 - first) * g.p + g.col / 2;
+    return [
+      { n: 1, x: 112, y: -26 },
+      { n: 2, x: 372, y: -26 },
+      { n: 3, x: -14, y: top + discTop + 22 - 32 },
+      { n: 4, x: 22, y: top + rowH - 4 },
+      { n: 5, x: tx + 16, y: top + discTop - 8 },
+      { n: 6, x: 300, y: top + rowH - 4 },
+      { n: 7, x: c.W - 8, y: top + discTop + 22 - 32 },
+      { n: 8, x: 190, y: top + rowH + 12 },
+      { n: 9, x: ax + 18, y: top + discTop + 46 }
+    ];
+  }
+
+  wrap(c, v) {
+    const phone = !!c.phone;
+    return Object.assign(v, {
+      figCls: 'sx-fig' + (c.below ? ' sx-fig--below' : '') + (c.notes ? '' : ' sx-fig--solo'),
+      tag: c.tag || 'Proposed',
+      tagCls: 'tag ' + (c.tagCls || 'tag--rec'),
+      title: ' ' + c.title,
+      notes: c.notes || [],
+      hasNotes: !!c.notes,
+      phone: phone,
+      shellCls: phone ? 'sx-phone' : '',
+      shellStyle: phone ? 'width: 390px' : '',
+      blockCls: 'sx-block' + (c.dark ? ' cc-root cc-dark' : ''),
+      below: c.below ? 0 : (c.room || 0)
+    });
+  }
+
+  before(c) {
+    const D = this.data();
+    const L = this.names();
+    const bdays = D.days.slice(0, 21).map((d) => ({
+      n: d.dd,
+      wd: L.WD[d.wd],
+      wdCls: this.wdClass(d, D),
+      cls: this.dayClass(d, D, ''),
+      label: this.sentence(d, D.needle),
+      dots: this.dotsOf(d, 4),
+      more: this.moreOf(d, 4),
+      needle: d.i === D.needle
+    }));
+    return this.wrap(c, {
+      id: c.id,
+      after: false,
+      before: true,
+      bdays: bdays,
+      trackLeft: (D.TODAY / 21 * 100).toFixed(2),
+      trackW: (100 / 21).toFixed(2),
+      blockW: c.W + 34
+    });
+  }
+
+  renderVals() {
+    const D = this.data();
+    const lw = this.props.liveWidth || '784';
+    const style = this.props.stripStyle || 'dots';
+    const phone = lw === '390';
+    const live = this.frame({
+      id: 'live',
+      W: phone ? 332 : Number(lw),
+      narrow: phone,
+      phone: phone,
+      style: style,
+      legend: !phone,
+      mapLabels: true,
+      title: phone ? 'Phone, 390 px screen' : 'Live, ' + lw + ' px',
+      below: !phone && lw === '1034',
+      room: phone ? 0 : 330,
+      notes: [
+        'Scroll with a trackpad, shift and the wheel, a touch screen, the floating arrows, the map under the row, or the keyboard (Tab into the row, then the arrow keys, Page Up and Down, Home and End).',
+        'The arrows sit over the row’s ends and step 14 days, so each weekday keeps its column; each is disabled at its end. Today returns to five past days (three on a phone).',
+        'Point at a day for its card, click to pin it. A day under an arrow or cut by an edge does not open on hover; a click on it scrolls it into view and then pins it.',
+        'The map is a scrubber: press anywhere on it to jump, drag the thumb to move; the row snaps to a whole day when you let go.',
+        'A hovered card closes when you scroll; a pinned one closes once its day is no longer wholly in view.',
+        'Tweaks: style, width (784 Dashboard, 1034 block page, 390 phone), dark, reduced motion.'
+      ]
+    });
+    const a784 = this.frame({ id: 'a784', W: 784, title: 'Proposed, Dashboard, 784 px', legend: true, mapLabels: true, notes: [
+      '14 whole days and part of one under each arrow; a day every 50 px, as on a phone. The disc is 36 px inside a 44 px target, so 14 px of air separate two discs.',
+      'Home: 9 October first, today (Wednesday 14) sixth: five past days. The days before stay one arrow, one swipe or one drag of the map away.',
+      'Under each day, one mark per kind present, never repeated: 15 October holds two graded items, one Graded mark. Today holds five kinds: Graded (ringed, due soon), Late, To do, then +2 for Event and Done, named with their counts in the day\u2019s sentence.',
+      'The arrows float over the row’s ends; the day partly under one does not answer the pointer (panel 5).'
+    ] });
+    const b784 = this.before({ id: 'b784', W: 784, tag: 'As built', tagCls: 'tag--old', title: 'Dashboard, 784 px: 21 days, today centred', notes: [
+      '21 equal tracks in 784 px: a day every 37.6 px, discs 31.6 px (the screenshot: 36 px and about 30 px at 774 px).',
+      'Today centred: ten past days, the left half of the row (decision 3; homeOffset(), calendar.ts:157).',
+      'One mark per item, four, then +N items (marks(), calendar.ts:444-453; DOTS_MAX, CalendarStrip.tsx:98): 15 October repeats its marks and the +1 runs into them.',
+      'Arrows and Today in the header, moving 7 days (STEP_DAYS, :85); the track marks today’s place in the row (amendment 10).'
+    ] });
+    const p1034 = this.frame({ id: 'p1034', W: 1034, title: 'Proposed, the block’s page, 1034 px', below: true, legend: true, mapLabels: true, notes: [
+      '19 whole days at the same 50 px pitch (as built: 21 at 49.5 px). Home: 5 past, today, 13 ahead, 9 to 27 October. A step is still 14 days, two whole weeks.'
+    ] });
+    const mid = this.frame({ id: 'mid', W: 784, first: 18, title: 'Scrolled into the turn of the month: both arrows enabled', notes: [
+      '22 October to 4 November whole, with 21 October and 5 November peeking under the arrows: the month reads “October – November 2026” (the days wholly in view).',
+      'Both fades and both arrows; the map’s thumb has left today’s tick behind, and the needle’s tick shows where the most relevant day is.'
+    ] });
+    const start = this.frame({ id: 'start', W: 784, first: 0, title: 'At the window’s start: Earlier days disabled', notes: [
+      'scrollLeft 0: the scroller’s 32 px padding keeps 4 October clear of the disabled arrow (0.65, core’s disabled look, amendment 10), so no day is ever stuck under a dead arrow.',
+      'No start fade. The past’s late work is all here, which is where the closed line’s Late period opens the strip.'
+    ] });
+    const end = this.frame({ id: 'end', W: 784, first: 57, title: 'At the window’s end: Later days disabled', notes: [
+      'The end of next month (decision 3), 30 November clear of the disabled arrow; no end fade. Holidays stay cross-hatched (20 November).'
+    ] });
+    const zones = this.frame({ id: 'zones', W: 784, first: 18, zones: true, title: 'Which days answer the pointer', notes: [
+      'Wholly in view = the day’s column inside the scroller’s box minus 32 px at each end, the strip the arrows sit over. Dashed: 21 October and 5 November, partly hidden.',
+      'A partly hidden day does not open or prefetch on hover. The arrow takes the pointer itself (no pass-through to the day under it); moving onto a partly hidden day closes a hovered card.',
+      'A click on a partly hidden day scrolls it into view first, then pins it; focus does the same. Touch has no hover: a tap reveals, then opens the sheet.'
+    ] });
+    const hover = this.frame({ id: 'hover', W: 784, first: 12, ui0: { pinned: 24, hover: 24 }, room: 380, title: 'A pinned card while scrolled, at the row’s end', notes: [
+      'The card is the scroller’s sibling: left = the day’s centre minus half the card, clamped to the strip; the caret stays on the day.',
+      'Scroll this row: the card follows its day, and closes once the day is no longer wholly in view (the maintainer’s answer 2). Focus inside the card goes back to the day.',
+      'Scrolls the strip makes itself (arrows, Today, keyboard, a press on a peeking day) are flagged and close nothing they did not mean to.'
+    ] });
+    const kb1 = this.frame({ id: 'kb1', W: 784, ui0: { focus: 18, ring: 18 }, title: 'Keyboard 1: focus on the last whole day (22 October)', notes: [
+      'One tab stop for the whole window; the focused day holds tabindex 0. The ring is on the 44 px target.'
+    ] });
+    const kb2 = this.frame({ id: 'kb2', W: 784, first: 6, ui0: { focus: 19, ring: 19 }, title: 'Keyboard 2: Right arrow, the row moves one day', notes: [
+      'Focus moves with preventScroll, then the strip scrolls the least that shows the day wholly: one day here, never the page.',
+      'Page Down moves 14 days; Home and End reach 4 October and 30 November, the window’s ends.'
+    ] });
+    const ring = this.frame({ id: 'ring', W: 784, style: 'ring', title: 'Ring style: 12 px clear between rings', notes: [
+      'Disc 36, arcs 6 px outside it (ring 48), a day every 60 px: 12 px of clear space between two rings, where as built they nearly touch (60.9 px for a 53 px ring).',
+      '12 whole days at 784 px, 16 at 1034 px; a step is one week here (7 × floor(12 / 7)).'
+    ] });
+    const pulse = this.frame({ id: 'pulse', W: 784, style: 'pulse', title: 'Pulse style', notes: [
+      'The bars sit above 30 px discs; the arrows centre on the 44 px targets. Late work keeps its danger bar.'
+    ] });
+    const scrub = this.frame({ id: 'scrub', W: 784, first: 26, ui0: { drag: true }, mapLabels: true, title: 'The map as a scrubber, mid-drag', notes: [
+      'Press on the line: the thumb centres there and the row follows at once. Drag the thumb: the row follows the pointer (mouse, pen or touch). Release: the row snaps to the nearest whole day.',
+      'While dragging, snap is off on the scroller and set again at release (local_dimensions’ lesson, styles.css:4387-4395); the release is one native smooth scroll to a snap point.',
+      'A 24 px tall hit area around the 2 px line; pointer capture keeps the drag when the pointer leaves it; touch-action pan-y keeps the page’s vertical scroll.',
+      'aria-hidden and out of the tab order: the row already does everything the map does by keyboard (arrows, Page Up and Down, Home and End), and WCAG 2.5.7 is met by the single press and by the arrows.'
+    ] });
+    const lit = this.frame({ id: 'lit', W: 784, lit: D.lit, title: 'Pointing at an ANAT101 card in tier 1', notes: [
+      'As built: pointing at a tier 1 card lights the days holding its course and dims the others, in the row (decision 9). That stays.',
+      'New: the lit days can now be out of view (14 of 58 in sight), so the map shows a dot under each of them. Nothing scrolls on its own; the dots say where to go.',
+      'Recommended: cheap (the course ids are already in the payload), and the only way to know the lit days beyond the view.'
+    ] });
+    const phone1 = this.frame({ id: 'ph1', W: 332, narrow: true, phone: true, title: 'Phone, home: 3 past, today, 3 ahead, half a day' });
+    const phone2 = this.frame({ id: 'ph2', W: 332, narrow: true, phone: true, first: 22, title: 'Phone, swiped into November' });
+    const dark = this.frame({ id: 'dark', W: 784, dark: true, ui0: { pinned: 11, hover: 11 }, legend: true, room: 440, title: 'Dark mode, a pinned card on the needle’s day', notes: [
+      'Every token as built: the arrows draw the control border, the map and fades paint the surface, marks take the dark-aware ink (--block_compass-brand-ink, amendment 10).'
+    ] });
+    const anat = this.frame({ id: 'anat', W: 784, pins: true, first: 3, title: 'The parts, numbered' });
+    const panels = [
+      { kicker: '1 · Interactive', title: 'Try it', lead: 'The proposed strip as one native scroller. The code sets the starting position, moves the strip for the arrows, Today, the map and the keyboard, and reads the position back for the arrows, fades, month and map.', bodyCls: 'sx-body', frames: [live] },
+      { kicker: '2 · Spacing and marks', title: 'Before and after on the Dashboard', lead: 'Smaller discs in the same 44 px targets: the days breathe without losing the phone’s pitch. One mark per kind present under a day, never repeated; four slots.', bodyCls: 'sx-body', frames: [b784, a784], spacing: true },
+      { kicker: '3 · The block’s page', title: 'The page at 1034 px', lead: 'The same rule, 19 whole days.', bodyCls: 'sx-body', frames: [p1034] },
+      { kicker: '4 · States', title: 'The middle, the start and the end', lead: 'Arrows, fades and Today come from the measured scroll position, with a 2 px tolerance (local_dimensions’ rule). On a block wide enough for the whole window (about 2,950 px) nothing scrolls: no arrows, no fades, no map.', bodyCls: 'sx-body', frames: [mid, start, end] },
+      { kicker: '5 · The pointer', title: 'Hover opens only a day wholly in view', lead: 'With the arrows over the row’s ends, a day can sit half under one. Such a day neither opens nor prefetches on hover, and a pinned card closes when its day stops being wholly in view.', bodyCls: 'sx-body', frames: [zones, hover], clip: true },
+      { kicker: '6 · The map', title: 'A scrubber, and where a pointed card’s days are', lead: 'The map looked draggable, so now it is: press to jump, drag to move, snap at release.', bodyCls: 'sx-body', frames: [scrub, lit] },
+      { kicker: '7 · Keyboard', title: 'Focus scrolls the row into view', lead: 'The arrows and the map are pointer conveniences; the keyboard reaches every day of the window through the row itself.', bodyCls: 'sx-body', frames: [kb1, kb2] },
+      { kicker: '8 · Strip styles', title: 'Ring and pulse in the scroller', lead: 'One payload, three styles, as built. The slim closed line (amendment 11) has no row and does not change.', bodyCls: 'sx-body', frames: [ring, pulse] },
+      { kicker: '9 · Phone', title: 'Phone, 390 px', lead: 'Below 640 px of the block: seven and a half days, three past, no arrows and no map (touch scrolls; a mouse on a narrow window gets the platform’s thin scrollbar), thin fades, the day’s sheet from the bottom as built.', bodyCls: 'sx-body sx-body--row', frames: [phone1, phone2] },
+      { kicker: '10 · Dark', title: 'Dark mode', lead: 'Bootstrap’s colour mode, Moodle 5.2’s one mechanism.', bodyCls: 'sx-body', frames: [dark] },
+      { kicker: '11 · Anatomy and accessibility', title: 'Anatomy, markup and keys', lead: 'The row is one tab stop covering the whole window, and screen readers read every day whether it is in view or not.', bodyCls: 'sx-body', frames: [anat], anatomy: true }
+    ];
+    return {
+      rootCls: 'cc-root' + (this.props.dark ? ' cc-dark' : '') + (this.props.reducedMotion ? ' sx-calm' : ''),
+      panels: panels
+    };
+  }
+}
+</script>
+</body>
+</html>

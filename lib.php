@@ -37,7 +37,7 @@
  * leaves a JSON string alone - and the validation belongs to the reader,
  * {@see \block_compass\local\explore_preference::read()}, which keeps only what the current
  * configuration can draw. The third, the calendar strip as the viewer left it (view, filter,
- * relevance), is declared the same way for the same reason and read by
+ * relevance, open or closed), is declared the same way for the same reason and read by
  * {@see \block_compass\local\calendar_preference::read()}.
  *
  * @return array The definitions, keyed by preference name.

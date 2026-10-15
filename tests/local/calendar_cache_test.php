@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The calendar strip's cache entry: the four hit conditions and the opened days.
+ * The calendar strip's cache entry: the five hit conditions and the opened days.
  *
  * @package    block_compass
  * @category   test
@@ -42,7 +42,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(strip::class)]
 final class calendar_cache_test extends advanced_testcase {
     /**
-     * Each hit condition alone turns a fresh entry stale; all four together keep it fresh.
+     * Each hit condition alone turns a fresh entry stale; all five together keep it fresh.
      *
      * The first assertion is the control: the entry as built is served up to the last second of
      * the TTL, so every false that follows is the one condition that changed.
@@ -54,14 +54,51 @@ final class calendar_cache_test extends advanced_testcase {
         $entry = calendar_cache::entry(['views' => []], ['courses' => []], 42, '2026-10-03', 'America/Sao_Paulo', $now);
 
         $tz = 'America/Sao_Paulo';
-        $this->assertTrue(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL - 1));
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 43, $now), 'another sign-in');
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-04', $tz, 42, $now), 'the day turned');
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', 'UTC', 42, $now), 'another timezone');
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL), 'too old');
+        $this->assertTrue(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL - 1, 'core'));
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 43, $now, 'core'), 'another sign-in');
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-04', $tz, 42, $now, 'core'), 'the day turned');
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', 'UTC', 42, $now, 'core'), 'another timezone');
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL, 'core'), 'too old');
+
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'tracker'), 'another grading source');
 
         unset($entry['sets']);
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now), 'an entry of another shape');
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'core'), 'an entry of another shape');
+    }
+
+    /**
+     * An entry built under another grading source is rebuilt, and the rebuild records the current one.
+     *
+     * The entry is rewritten to say it was built under the ledger, which is what a build before an
+     * admin flipped calendar_grading would have stored (the ledger plugin need not be installed).
+     * The control: the same entry, recording the current source, is served as it is. Reading the
+     * source costs no database read (config is cached), so the budgets are unchanged.
+     *
+     * @return void
+     */
+    public function test_an_entry_built_under_another_grading_source_is_rebuilt(): void {
+        $this->resetAfterTest();
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $tz = \core_date::get_user_timezone_object();
+        $now = time();
+        $userid = (int) $user->id;
+
+        $first = strip::entry($userid, $now, 100, $tz);
+        $this->assertSame('core', $first['grading'], 'no ledger on the site: core counts');
+        $this->assertFalse(strip::counts($userid, $now + 60, 100, $tz)['grading']);
+        $this->assertSame($now, strip::entry($userid, $now + 60, 100, $tz)['built'], 'control: same source, served');
+
+        $first['grading'] = 'tracker';
+        calendar_cache::set($userid, $first);
+        $rebuilt = strip::entry($userid, $now + 120, 100, $tz);
+        $this->assertSame($now + 120, $rebuilt['built'], 'another source, rebuilt');
+        $this->assertSame('core', $rebuilt['grading']);
+
+        $first['grading'] = 'tracker';
+        calendar_cache::set($userid, $first);
+        $this->assertFalse(strip::counts($userid, $now + 180, 100, $tz)['grading'], 'counts follow the rebuilt entry');
     }
 
     /**
