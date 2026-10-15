@@ -1603,4 +1603,313 @@ final class accessibility_rules_test extends basic_testcase {
         // Vacuity guard: six periods, two languages.
         $this->assertGreaterThanOrEqual(12, $checked);
     }
+
+    /**
+     * The body of one arrow function of a client source, from its declaration to its closing line.
+     *
+     * @param string $source The file.
+     * @param string $start The text the declaration starts with.
+     * @param string $end The closing line: a component's inner function by default, "\n};\n" for a module's.
+     * @return string The body; the test fails when the declaration is missing.
+     */
+    private function body(string $source, string $start, string $end = "\n    };\n"): string {
+        $from = strpos($source, $start);
+        $this->assertNotFalse($from, "{$start} not found");
+        $to = strpos($source, $end, $from);
+        $this->assertNotFalse($to, "the end of {$start} not found");
+
+        return substr($source, $from, $to - $from);
+    }
+
+    /**
+     * The strip's arrows are named pointer conveniences, out of the tab order, disabled by attribute
+     * state at each end, and refused there by their handler.
+     *
+     * ADR-014 amendment 12 (the scroll notes' D2): the arrows float over the row's ends; the row's keys do
+     * everything they do, so they are not tab stops, but voice control needs their names, so they are
+     * neither aria-hidden nor unnamed. At each end of the window an arrow says aria-disabled (never the
+     * disabled attribute, which would drop a focused control's keyboard to the body), and its handler
+     * refuses, since aria-disabled stops nothing by itself. They show only on a wide block whose window
+     * is longer than its row. Vacuity guard: both arrows were found, each by its own class.
+     *
+     * Changes that must make it fail: an arrow back in the tab order, unnamed, hidden from assistive
+     * technology or without its end state; the handler moving past an end; the arrows on a narrow block.
+     *
+     * @return void
+     */
+    public function test_the_strip_arrows_are_named_pointer_conveniences(): void {
+        $source = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        $edges = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-cal-edge ')
+        ));
+        $this->assertCount(2, $edges, 'the two arrows were not found');
+        $expected = [
+            'compass-cal-edge-prev' => ['cal_prev', 'atstart', '-1'],
+            'compass-cal-edge-next' => ['cal_next', 'atend', '1'],
+        ];
+        foreach ($expected as $class => [$name, $end, $direction]) {
+            $tags = array_values(array_filter($edges, static fn(string $tag): bool => str_contains($tag, $class)));
+            $this->assertCount(1, $tags, "{$class} was not found");
+            $tag = $tags[0];
+            $this->assertMatchesRegularExpression('/\stabIndex=\{-1\}/', $tag, "{$class}: out of the tab order");
+            $this->assertMatchesRegularExpression("/\\saria-label=\\{strings\\.{$name}\\}/", $tag, "{$class}: named");
+            $this->assertMatchesRegularExpression(
+                "/\\saria-disabled=\\{rowview\\.{$end} \\|\\| undefined\\}/",
+                $tag,
+                "{$class}: disabled at its end"
+            );
+            $this->assertDoesNotMatchRegularExpression('/\s(disabled|aria-hidden)=/', $tag, "{$class}: disabled or hidden");
+            $this->assertStringContainsString("onClick={() => page({$direction})}", $tag, "{$class}: steps through page()");
+        }
+        $page = $this->body($source, 'const page = (direction: number): void => {');
+        $this->assertStringContainsString(
+            'if (direction < 0 ? scroll <= EDGE_TOLERANCE_PX : scroll >= el.scrollWidth - el.clientWidth - EDGE_TOLERANCE_PX) {',
+            $page,
+            'the handler refuses at each end'
+        );
+        $this->assertStringContainsString(
+            'scrollRow((Math.round(scroll / row.pitch) + direction * stepdays) * row.pitch, true);',
+            $page,
+            'an arrow steps whole weeks'
+        );
+        $this->assertStringContainsString('const arrows = !narrow && scrolls;', $source, 'arrows only where the row scrolls, wide');
+    }
+
+    /**
+     * The window's map is a pointer scrubber hidden from assistive technology, and the native scrollbar is
+     * hidden wherever it shows.
+     *
+     * The maintainer's round 3 (the scroll notes' D8 and D10): the map is aria-hidden and out of the tab
+     * order, because the row already does by keyboard all the map does and a slider would be a second tab
+     * stop with a second model of the same position; it leaves the page's vertical pan to touch, turns the
+     * snap off while it drags, and shows only on a wide block whose window is longer than its row, where
+     * it replaces the browser's scrollbar. A narrow block keeps the platform's thin one. Vacuity guard:
+     * the map element was found by its pointer handler.
+     *
+     * Changes that must make it fail: the map exposed or focusable; the native scrollbar shown beside it;
+     * the snap left on during a drag.
+     *
+     * @return void
+     */
+    public function test_the_window_map_is_a_hidden_pointer_scrubber(): void {
+        $source = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        $maps = array_values(array_filter(
+            $this->tags($source, 'div'),
+            static fn(string $tag): bool => str_contains($tag, 'onPointerDown={mapDown}')
+        ));
+        $this->assertCount(1, $maps, 'the map was not found');
+        $this->assertMatchesRegularExpression('/\saria-hidden="true"/', $maps[0], 'the map is hidden from assistive technology');
+        $this->assertDoesNotMatchRegularExpression('/\s(tabIndex|role)=/', $maps[0], 'the map is no control of the tab order');
+        $this->assertStringContainsString('const map = !narrow && scrolls;', $source, 'the map only where the row scrolls, wide');
+        $this->assertStringContainsString("el.classList.add('compass-cal-nosnap');", $this->body($source, 'const mapDown = '));
+        $this->assertStringContainsString("el.classList.remove('compass-cal-nosnap');", $this->body($source, 'const mapUp = '));
+
+        $found = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            if ($selector === '.block_compass .compass-cal-days') {
+                $found['scroller'] = preg_match('/(?<![-\w])scrollbar-width:\s*none;/', $body);
+                $found['snap'] = preg_match('/scroll-snap-type:\s*x mandatory;/', $body);
+            } else if ($selector === '.block_compass .compass-cal-narrow .compass-cal-days') {
+                $found['narrow'] = preg_match('/(?<![-\w])scrollbar-width:\s*thin;/', $body);
+            } else if ($selector === '.block_compass .compass-cal-days.compass-cal-nosnap') {
+                $found['nosnap'] = preg_match('/scroll-snap-type:\s*none;/', $body);
+            } else if ($selector === '.block_compass .compass-cal-map') {
+                $found['pan'] = preg_match('/touch-action:\s*pan-y;/', $body);
+            }
+        }
+        $this->assertSame(
+            ['narrow' => 1, 'nosnap' => 1, 'pan' => 1, 'scroller' => 1, 'snap' => 1],
+            array_merge(['narrow' => 0, 'nosnap' => 0, 'pan' => 0, 'scroller' => 0, 'snap' => 0], $found),
+            'the scroller hides its scrollbar and snaps, the narrow one keeps a thin one, the drag unsnaps, the map pans'
+        );
+    }
+
+    /**
+     * The strip scrolls itself, never the page, jumps under reduced motion, and holds Moodle's pending
+     * counter while its own smooth scroll runs.
+     *
+     * The scroll notes' D7 and risks 1 and 5: a day's focus moves with preventScroll and the row then
+     * scrolls by the least that shows it, because scrollIntoView's block axis would move the page; every
+     * programmatic scroll is instant when reduced motion is asked for; and a Behat step must not click
+     * mid-animation, so the strip's own scroll holds the pending counter until it settles and that is
+     * rendered. Vacuity guards: the scroll call, the focus calls and the hold were found.
+     *
+     * Changes that must make it fail: a scrollIntoView anywhere in the strip's sources, a day focused without
+     * preventScroll, a smooth scroll that ignores reduced motion, the hold dropped.
+     *
+     * @return void
+     */
+    public function test_the_strip_scrolls_itself_and_never_the_page(): void {
+        $strip = ['CalendarStrip.tsx', 'CalendarCard.tsx', 'CalendarLine.tsx', 'calendar.ts'];
+        foreach ($strip as $name) {
+            // Code only: the comments say why it is not called. Tier 3's index moves the page on purpose.
+            $code = preg_replace(['#/\*.*?\*/#s', '#(?<![:/])//[^\n]*#'], '', $this->sources()["js/esm/src/{$name}"]);
+            $this->assertStringNotContainsString('scrollIntoView', $code, "{$name}: scrollIntoView moves the page too");
+        }
+        $source = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        $scroll = $this->body($source, 'const scrollRow = (target: number, smooth: boolean): void => {');
+        $this->assertStringContainsString(
+            "el.scrollTo({left: isRtl(el) ? -left : left, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto'});",
+            $scroll,
+            'the row scrolls itself, and jumps under reduced motion'
+        );
+        $this->assertStringContainsString("window.matchMedia('(prefers-reduced-motion: reduce)')", $source);
+        $tick = chr(96);
+        $this->assertStringContainsString(
+            "scrollhold.current = hold({$tick}block_compass/calendar-scroll-\${cardid}{$tick});",
+            $scroll,
+            'the strip\'s own scroll holds the pending counter'
+        );
+        $this->assertStringContainsString('selfscroll.current = true;', $scroll);
+        $this->assertStringContainsString('setSettled((current) => current + 1);', $this->body($source, 'const endSelfScroll = '));
+        $this->assertMatchesRegularExpression(
+            '/useEffect\(\(\) => \{\s*if \(!selfscroll\.current && scrollhold\.current !== null\) \{\s*'
+                . 'scrollhold\.current\(\);\s*scrollhold\.current = null;\s*\}\s*\}, \[settled\]\);/',
+            $source,
+            'the hold is let go only after the settled scroll is rendered'
+        );
+
+        preg_match_all('/([\w.?]+)\.focus\(([^)]*)\)/', $source, $calls, PREG_SET_ORDER);
+        $days = 0;
+        foreach ($calls as [$call, $target, $argument]) {
+            if ($target === 'togglebutton.current?') {
+                continue;
+            }
+            $days++;
+            $this->assertSame('{preventScroll: true}', $argument, "a day focused with the browser's own scroll: {$call}");
+        }
+        $this->assertGreaterThanOrEqual(2, $days, 'vacuity: the day focus calls were not found');
+    }
+
+    /**
+     * A day opens on hover only while it is wholly in view, a press reveals a peeking day first, and only
+     * the viewer's scroll closes an open day.
+     *
+     * The maintainer's round 2, request 5 (the scroll notes' D3 and D4): wholly in view is the day's
+     * column inside the scroller less the arrows' inset at each end. A partly hidden day neither opens
+     * nor prefetches on hover, and the hover timer asks again when it fires; a press or a keyboard focus
+     * on it scrolls it into view first. A user's scroll closes a hovered day, and a pinned one once its day
+     * leaves the view by the same test; the strip's own scrolls are flagged and close nothing (else a
+     * reveal closes the card it opens for). Vacuity guard: each handler was found.
+     *
+     * Changes that must make it fail: the hover open without the test; the press pinning a peeking day
+     * where it is; the test ignoring the inset; the strip's own scrolls treated as the viewer's; a pinned
+     * card kept, or closed, whatever its day's place.
+     *
+     * @return void
+     */
+    public function test_hover_opens_only_a_day_wholly_in_view(): void {
+        $source = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        $enter = $this->body($source, 'const enterDay = (');
+        $guard = strpos($enter, "if (!isWhole(index)) {\n            if (hover !== null) {\n                setHover(null);");
+        $timer = strpos($enter, 'opentimer.current = window.setTimeout(() => {');
+        $this->assertNotFalse($guard, 'a partly hidden day opens on hover');
+        $this->assertNotFalse($timer, 'vacuity: the hover timer');
+        $this->assertLessThan($timer, $guard, 'the test runs before the timer is set');
+        $this->assertStringContainsString("            if (isWhole(index)) {\n                openDay(date, true);", $enter);
+
+        $press = $this->body($source, 'const pressDay = (');
+        $this->assertMatchesRegularExpression(
+            '/\n        reveal\(index\);\n        setPinned\(date\);/',
+            $press,
+            'a press reveals first'
+        );
+        $focus = $this->body($source, 'const focusDay = (');
+        $this->assertStringContainsString("\n        reveal(index);\n", $focus, 'a focus reveals');
+
+        $scrolled = $this->body($source, 'const scrolled = (): void => {');
+        $this->assertMatchesRegularExpression(
+            '/^const scrolled = \(\): void => \{\s*if \(selfscroll\.current\) \{\s*window\.clearTimeout\(selftimer\.current\);'
+                . '\s*selftimer\.current = window\.setTimeout\(endSelfScroll, SCROLL_QUIET_MS\);\s*\} else \{\s*userScrolled\(\);/',
+            $scrolled,
+            'only the viewer\'s scroll closes anything'
+        );
+        $user = $this->body($source, 'const userScrolled = (): void => {');
+        $this->assertStringContainsString(
+            'if (!el || index < 0 || whollyInView(index, geo.current.row, scrollOf(el), el.clientWidth)) {',
+            $user,
+            'a pinned day closes once it leaves the view, by the hover\'s test'
+        );
+        $this->assertStringContainsString("closeAll();\n        if (incard) {\n            focusQuietly(day);", $user);
+
+        $calendar = $this->sources()['js/esm/src/calendar.ts'];
+        $this->assertStringContainsString(
+            'return start >= row.inset - 0.5 && start + row.column <= width - row.inset + 0.5;',
+            $this->body($calendar, 'export const whollyInView = (', "\n};\n"),
+            'wholly in view leaves the arrows\' inset out at both ends'
+        );
+    }
+
+    /**
+     * A day's marks say which kinds are present, never how many: one mark per kind, never repeated, by
+     * priority, in four slots, the last a "+N" of the further kinds; and the day's sentence names the kinds
+     * in the same order.
+     *
+     * The maintainer's round 3 (the scroll notes, "Marks"): Studying Graded › Late, still open › To do ›
+     * Event › Done, graded due soon being the Graded kind, ringed; Teaching grading › class deadlines ›
+     * events. With more than four kinds, the first three and "+N", N counting kinds, not items. The ring
+     * style's arcs stay one per item. No JavaScript runner exists, so the rule is read where it is written,
+     * and the stylesheet keeps the slot on one line. Vacuity guards: the function, the render and the
+     * sentence were found.
+     *
+     * Changes that must make it fail: a fifth slot; another priority; a mark per item; "+N" counting items;
+     * the sentence in another order.
+     *
+     * @return void
+     */
+    public function test_a_day_marks_each_kind_once_in_four_slots(): void {
+        $calendar = $this->sources()['js/esm/src/calendar.ts'];
+        $this->assertStringContainsString('export const MARK_SLOTS = 4;', $calendar);
+        $this->assertStringContainsString(
+            "    learning: [['gradedsoon', 'graded'], ['late'], ['todo'], ['event'], ['done']],",
+            $calendar,
+            'the studying priority'
+        );
+        $this->assertStringContainsString("    teaching: [['gradesoon', 'grade'], ['class'], ['event']],", $calendar);
+        $marks = $this->body($calendar, 'export const marks = (', "\n};\n");
+        $this->assertStringContainsString(
+            'const shown = group.find((kind) => kinds.includes(kind) && (day.counts[kind] ?? 0) > 0);',
+            $marks,
+            'one mark per kind, the first of its group present'
+        );
+        $this->assertStringContainsString("if (present.length <= MARK_SLOTS) {\n        return {kinds: present, more: 0};", $marks);
+        $this->assertStringContainsString(
+            'return {kinds: present.slice(0, MARK_SLOTS - 1), more: present.length - (MARK_SLOTS - 1)};',
+            $marks,
+            'three marks and a "+N" counting the further kinds'
+        );
+
+        $strip = $this->sources()['js/esm/src/CalendarStrip.tsx'];
+        $this->assertStringContainsString('const mark = marks(day, kinds, drawn);', $strip);
+        $this->assertMatchesRegularExpression(
+            '/<span className="compass-cal-dots" aria-hidden="true">\s*\{mark\.kinds\.map\(\(kind\) => \(\s*'
+                . '<span key=\{kind\} className=\{\x60compass-cal-dot compass-cal-dot-\$\{kind\}\x60\} \/>\s*\)\)\}\s*'
+                . '\{mark\.more > 0 && <span className="compass-cal-more">\{\x60\+\$\{mark\.more\}\x60\}<\/span>\}\s*<\/span>/',
+            $strip,
+            'the marks row draws the marks and the "+N", nothing per item'
+        );
+        $this->assertStringContainsString('{segments(items)}', $strip, 'the ring keeps one arc per item');
+
+        $label = $this->body($strip, 'const dayLabel = ');
+        $order = [
+            "'cal_count_gradedsoon_today'", "'cal_count_graded'", "'cal_count_late'", "'cal_count_todo'",
+            'cal_count_gradesoon_today', "cal_count_grade,", "'cal_count_class'", "'cal_count_event'", "'cal_count_done'",
+        ];
+        $at = -1;
+        foreach ($order as $key) {
+            $found = strpos($label, $key);
+            $this->assertNotFalse($found, "the sentence does not name {$key}");
+            $this->assertGreaterThan($at, $found, "the sentence names {$key} out of the marks' order");
+            $at = $found;
+        }
+
+        $nowrap = 0;
+        foreach ($this->rules() as [$selector, $body]) {
+            if ($selector === '.block_compass .compass-cal-dots') {
+                $nowrap += preg_match('/white-space:\s*nowrap;/', $body);
+            }
+        }
+        $this->assertSame(1, $nowrap, 'the marks\' slot wraps');
+    }
 }

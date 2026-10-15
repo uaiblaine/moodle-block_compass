@@ -1,6 +1,7 @@
 # The strip scrolls (design notes)
 
-A follow-up design to ADR-014. It is a design only: no code, no ADR yet. The canvas is
+A follow-up design to ADR-014, implemented in version 2026042002 and recorded as ADR-014 amendment 12
+(Accepted, 2026-10-15), which lists where the code departs from these notes. The canvas is
 `Scroll.dc.html`, one tall interactive artboard (1440 × 12000) in the same `.dc.html` format as the
 other strip mockups. `html/scroll.html` is its standalone render, made by `build_standalone.py`.
 

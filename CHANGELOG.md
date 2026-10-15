@@ -20,7 +20,7 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042001) - unreleased
+## v5.2-r1 (2026042002) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
@@ -61,6 +61,15 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 - A row of days above the first tier, from ten days ago to the end of next month, each day
   coloured by what it holds, on the Dashboard, the Compass page or both.
+- The row scrolls across the whole window with a trackpad, touch or the keyboard, and scrolling
+  asks the server nothing. It opens with five past days before today (three on a narrow block),
+  a day every 50 px. Two arrows over the row's ends move two weeks at a time and are disabled at
+  each end; *Today* returns; the month follows the days in view. A map under the row shows the
+  whole window, today and the most relevant day ahead: press it to jump, drag it to move. A day
+  opens on hover only when it is wholly in view, and a day partly hidden scrolls into view when it
+  is pressed or focused.
+- Under each day, one mark per kind of item present, never repeated: four at most, then "+N"
+  for the further kinds. The day's sentence names every kind with its count in the same order.
 - The strip opens and closes from its heading, and each user's choice is remembered.
   Closed, it is one line of plain counts by period: *Late, still open*, *Today*, *Tomorrow*,
   *This week* and *Later*; a period opens the strip on its days. Closed costs one small count
@@ -121,4 +130,4 @@ php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
 
-A site that installed `2026042000` from this branch upgrades to `2026042001` in place.
+A site that installed `2026042000` or `2026042001` from this branch upgrades to `2026042002` in place.

@@ -17,10 +17,12 @@
  * One day of the calendar strip, opened: its items with core's own action buttons (ADR-014
  * decisions 7 and 9).
  *
- * The card is rendered inside the day's column, so the pointer moving from the day into it never
- * leaves the strip and the card stays open; it is positioned over the tier 1 cards and moves
- * nothing below it, and below 640 px of block width the stylesheet makes it a bottom sheet. It is
- * a dialog with a close button once pinned; hovering shows the same card without the button.
+ * The card is rendered once, beside the row's scroller and inside the strip (ADR-014 amendment 12):
+ * a scroller clips its children on both axes, and inside the strip the pointer moving from the day
+ * into the card never leaves it, so the card stays open. The strip places it under its day, clamped
+ * to the strip (CalendarStrip.tsx, paint()); it is layered over the tier 1 cards and moves nothing
+ * below it, and below 640 px of block width the stylesheet makes it a bottom sheet. It is a dialog
+ * with a close button once pinned; hovering shows the same card without the button.
  *
  * The time of an item is formatted here from timestart, in the user's Moodle timezone and the
  * site language's words and clock (calendar.ts, clockTime()), and core's formattedtime is not
@@ -39,7 +41,7 @@
 import type {ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
 import {
-    OPEN_KINDS, clockTime, dateParts, dayMonth, daysBetween, longDay, marks, shownKinds, sortItems, timeParts,
+    OPEN_KINDS, clockTime, dateParts, dayMonth, daysBetween, itemKinds, longDay, shownKinds, sortItems, timeParts,
 } from './calendar';
 import type {DayCounts, DayOff} from './calendar';
 import {fill, fillCount} from './str';
@@ -60,7 +62,6 @@ type CalendarCardProps = {
     counts: DayCounts,
     off: DayOff,
     entry: DayEntry | undefined,
-    align: 'start' | 'center' | 'end',
     pinned: boolean,
     dayurl: string,
     config: BlockConfig,
@@ -321,12 +322,12 @@ const CardBody = ({entry, items, count, strings, timezone, istoday, empty, confi
  * The card.
  *
  * @param {object} props The day, its counters and what the client holds of it, the view and the
- *     filter, the placement, whether it is pinned, the day's calendar link, the configs and the
- *     two callbacks; see CalendarCardProps.
+ *     filter, whether it is pinned, the day's calendar link, the configs and the two callbacks; see
+ *     CalendarCardProps.
  * @returns {object} The rendered card.
  */
 const CalendarCard = ({
-    id, date, today, view, filter, counts, off, entry, align, pinned, dayurl, config, calendar, onClose, onRetry,
+    id, date, today, view, filter, counts, off, entry, pinned, dayurl, config, calendar, onClose, onRetry,
 }: CalendarCardProps) => {
     const {strings} = calendar;
     const kinds = shownKinds(view, filter);
@@ -334,7 +335,7 @@ const CalendarCard = ({
     const title = longDay(strings, dateParts(date));
     const ready = entry && entry.status === 'ready' ? entry : null;
     const items = ready ? sortItems(ready.items.filter((item) => kinds.includes(item.kind)), view) : [];
-    const count = ready ? items.length : marks(counts, kinds).length;
+    const count = ready ? items.length : itemKinds(counts, kinds).length;
 
     /**
      * How many of a kind the day holds, under the filter.
@@ -350,13 +351,11 @@ const CalendarCard = ({
         info: n('event') + n('class'),
         done: n('done'),
     };
-    const cardclass = pinned
-        ? `compass-cal-card compass-cal-card-${align} compass-cal-card-pinned`
-        : `compass-cal-card compass-cal-card-${align}`;
+    const cardclass = pinned ? 'compass-cal-card compass-cal-card-pinned' : 'compass-cal-card';
 
     return (
         <div id={id} className={cardclass} role="dialog" aria-label={title}>
-            <span className="compass-cal-arrow" aria-hidden="true" />
+            <span className="compass-cal-caret" aria-hidden="true" />
             <div className="compass-cal-cardhead">
                 <div>
                     <p className="compass-cal-cardtitle">{title}</p>

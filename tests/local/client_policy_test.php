@@ -261,4 +261,96 @@ final class client_policy_test extends advanced_testcase {
             $this->source('str.ts')
         );
     }
+
+    /**
+     * The row opens on its home position, five past days before today (three on a narrow block), and
+     * steps whole weeks; the server's window keeps its ten past days.
+     *
+     * ADR-014 amendment 12 (the scroll notes' D6 and D7): home is the first day wholly in view, today
+     * minus five; Today scrolls back to it; an arrow, Page Up and Page Down move 7 × floor(days in view /
+     * 7), 14 on the Dashboard; Home and End reach the window's ends. A day every 50 px (60 in the ring
+     * style), the arrows' inset 32 px, a 44 px target round a 36 px disc. The window stays strip::PAST_DAYS,
+     * the Late period's reach, and nothing on the server changes.
+     *
+     * Changes that must make it fail: another home, a step that splits a week, the keys bound to the row
+     * in view rather than the window, the server's window shortened.
+     *
+     * @return void
+     */
+    public function test_the_row_opens_home_and_steps_whole_weeks(): void {
+        $calendar = $this->source('calendar.ts');
+        $this->assertStringContainsString('const HOME_PAST = 5;', $calendar);
+        $this->assertStringContainsString('const NARROW_HOME_PAST = 3;', $calendar);
+        $this->assertStringContainsString('Math.max(0, todayindex - (narrow ? NARROW_HOME_PAST : HOME_PAST));', $calendar);
+        $this->assertStringContainsString(
+            'export const stepOf = (whole: number): number => 7 * Math.max(1, Math.floor(whole / 7));',
+            $calendar
+        );
+        $geometry = [
+            'export const DAY_PITCH_PX = 50;', 'export const RING_PITCH_PX = 60;', 'export const EDGE_INSET_PX = 32;',
+            'const TARGET_PX = 44;', 'const DISC_PX = 36;',
+        ];
+        foreach ($geometry as $constant) {
+            $this->assertStringContainsString($constant, $calendar);
+        }
+
+        $strip = $this->source('CalendarStrip.tsx');
+        $this->assertStringContainsString('const home = homeIndex(todayindex, narrow);', $strip);
+        $this->assertStringContainsString('const stepdays = stepOf(row.whole);', $strip);
+        $home = $this->slice($strip, 'const goHome = ', "\n    };\n");
+        $this->assertStringContainsString('scrollRow(home * row.pitch, true);', $home, 'Today returns home');
+        $keys = $this->slice($strip, 'const keyDay = (', "\n    };\n");
+        $bindings = [
+            "event.key === 'PageDown') {\n            target = index + stepdays;",
+            "event.key === 'PageUp') {\n            target = index - stepdays;",
+            "event.key === 'Home') {\n            target = 0;",
+            "event.key === 'End') {\n            target = days.length - 1;",
+        ];
+        foreach ($bindings as $binding) {
+            $this->assertStringContainsString($binding, $keys);
+        }
+        $this->assertSame(10, \block_compass\local\calendar\strip::PAST_DAYS, 'the window keeps the Late period\'s reach');
+    }
+
+    /**
+     * The row is placed before paint and never on a frame, read again when the tab comes back, measured
+     * from either direction, and fades only on a side it can scroll to.
+     *
+     * The scroll notes' risks 2, 3 and 5: a hidden tab runs no frame and delivers no scroll event, so the
+     * home position is set in a layout effect and the row is read again on visibilitychange; scrollLeft is
+     * negative right to left in Chrome and Firefox, so every read is an absolute value and every write
+     * mirrored; a resize keeps the first day in view. Amendment 12: the fades follow the scroll position.
+     *
+     * Changes that must make it fail: the placement on a frame or after paint, the tab's return ignored,
+     * a signed scrollLeft, a fade on a side the row cannot move to.
+     *
+     * @return void
+     */
+    public function test_the_row_is_placed_before_paint_and_read_in_either_direction(): void {
+        $strip = $this->source('CalendarStrip.tsx');
+        $placement = $this->slice($strip, "    useLayoutEffect(() => {\n", "\n    });\n");
+        $this->assertStringContainsString('scrollRow(start * row.pitch, false);', $placement, 'home, without animation');
+        $this->assertStringContainsString(
+            'scrollRow(anchor.current * row.pitch, false);',
+            $placement,
+            'a resize keeps the first day'
+        );
+        $this->assertStringNotContainsString('requestAnimationFrame', $placement, 'never placed on a frame');
+        $this->assertStringContainsString("document.addEventListener('visibilitychange', onvisible);", $strip);
+        $this->assertStringContainsString(
+            'const scrollOf = (element: HTMLElement): number => Math.abs(element.scrollLeft);',
+            $strip
+        );
+        $this->assertSame(2, substr_count($strip, 'isRtl(el) ? -left : left'), 'both writes mirrored right to left');
+        // Every read of the position goes through scrollOf(): one read of scrollLeft, the absolute one.
+        $this->assertSame(1, preg_match_all('/\.scrollLeft\b(?!\s*=[^=])/', $strip), 'a signed scrollLeft is read');
+        $this->assertStringContainsString(
+            '{scrolls && !rowview.atstart && <span className="compass-cal-fade compass-cal-fade-start" aria-hidden="true" />}',
+            $strip
+        );
+        $this->assertStringContainsString(
+            '{scrolls && !rowview.atend && <span className="compass-cal-fade compass-cal-fade-end" aria-hidden="true" />}',
+            $strip
+        );
+    }
 }

@@ -49,12 +49,18 @@ the cards always paint first.
   its days, and Today and Tomorrow also open that day's card. A closed strip asks only for these
   counts, never for the whole strip; closing an open strip asks nothing. A count made before the
   strip was opened that day has no *Late* period yet and says so.
+- **Scrolling.** The row holds the whole window and scrolls with a trackpad, touch or the
+  keyboard (arrows, Page Up and Down, Home and End), asking the server nothing. It opens with five
+  past days before today (three on a narrow block); two arrows over its ends move two weeks at a
+  time, *Today* returns, and the month follows the days in view. A map under the row shows the
+  whole window, today and the most relevant day ahead: press it to jump, drag it to move. Under
+  each day, one mark per kind of item present, at most four, then "+N" more kinds.
 - **Relevance.** Graded work, starred courses and work due today or tomorrow weigh more than a
   plain event; work that is late weighs little and closed work is not shown. Each user can
   switch the weighting off and see days by count alone; `calendar_relevance` sets the starting
   value.
-- **A day card.** Hovering a day, focusing it or clicking it opens a card listing the day's
-  items, with the buttons core's Timeline offers, such as "Add submission". A click
+- **A day card.** Hovering a day wholly in view, focusing it or clicking it opens a card listing
+  the day's items, with the buttons core's Timeline offers, such as "Add submission". A click
   pins the card as a dialog; Escape closes it. On a narrow block it opens as a bottom sheet.
 
   ![A day card open over the course cards: the day's items with core's action buttons](docs/screenshots/calendar-day-card.png)
