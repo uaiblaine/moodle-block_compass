@@ -196,6 +196,11 @@ day, and Today returns. The header is the month name between the arrows: "Octobe
 title. A link, "Open the calendar", leads to core's month view for any wider range. One request
 covers the whole window (at most 72 days), so navigation inside it costs nothing.
 
+*Amended by amendment 12 (2026-10-15):* the row scrolls across the whole window and opens with five
+past days (three on a narrow block); the arrows float over the row's ends, move 14 days and are
+disabled at each end; Home and End reach the window's ends. The window keeps its 10 past days, now
+for the reach of the Late period.
+
 ### 4. What a day holds, and what weighs
 
 Each item is one of these kinds. The mark carries the kind by shape as well as colour.
@@ -465,6 +470,11 @@ per-user layers.
   One payload serves all three.
 - **Where it shows** (`calendar_where`): the Dashboard and the block's page (ADR-012), the
   Dashboard only, or the page only.
+
+*Amended by amendment 12 (2026-10-15):* a day opens on hover only when it is wholly in view; the card
+is the scroller's sibling, placed under its day and clamped to the strip, and a pinned card closes when
+its day leaves the view; a day every 50 px, a 36 px disc in a 44 px target (ring style 60 px); one mark
+per kind present, in four slots.
 
 ### 10. Settings, preference, budgets, privacy
 
@@ -961,6 +971,129 @@ with. The decision text above is kept as the maintainer reviewed it.
       fail at the transport: a test step wraps `XMLHttpRequest` to send `get_strip` to a missing
       script, so nothing in the plugin knows about it. It checks that the way back appears only
       then and that Try again brings the row, then opens a day as before, with axe in both modes.
+
+12. **The strip scrolls (the maintainer's decisions of 2026-10-14, rounds 1 to 3), version
+    2026042002.** Accepted (2026-10-15). The design is `docs/mockup-calendar-strip/Scroll.dc.html`
+    (`html/scroll.html`) and its record `scroll-notes.md` (D1 to D12). Client and stylesheet only:
+    the server, the payload, the `calendarstrip` cache, the budgets, the closed line and the
+    preference do not change.
+    - **One native scroller holds the whole window** (D1; `js/esm/src/CalendarStrip.tsx:1923`,
+      `styles.css:1108`): `overflow-x: auto`, `scroll-snap-type: x mandatory` with each column
+      `scroll-snap-align: start`, `overscroll-behavior-x: contain`, no drag code on the row and no
+      wheel hijack. The payload already carries every day (decision 3), so a scroll asks nothing.
+      Offset paging (`homeOffset()`, `rowLength()`, `STEP_DAYS`, the 21/15/7-day grids) is gone.
+      Every day of the window is rendered and in the accessibility tree; the list is named for its
+      span ("Days from 4 October to 30 November", `cal_days`).
+    - **Spacing** (round 1, request 3; round 2, request 2): a day every 50 px, a 36 px disc
+      (`span.compass-cal-disc`, which now carries the heat, today, soon, off, open and pinned
+      classes) inside a 44 px round button that is the target and carries the focus ring (WCAG
+      2.5.5); the ring style a day every 60 px, a 48 px ring, 12 px clear between rings; the pulse
+      style a 30 px disc. Below 640 px of block width a half day peeks: the pitch shows 7½ days
+      (5½ rings): a 38 px column on a 390 px phone's 332 px block. The geometry is `calendar.ts` `fit()`
+      (`:208`), set inline as custom properties of the days box, so no length property needs
+      `min()` or `clamp()`.
+    - **Home** (decision 3, as amended; D6): the first day wholly in view is today minus five,
+      three on a narrow block (`homeIndex()`, `calendar.ts:238`), placed in a layout effect before
+      paint, never on a frame, which a hidden tab does not run (`CalendarStrip.tsx:1115`); the row
+      is read again on `visibilitychange` (`:1178`). A resize keeps the first day in view. The
+      window keeps `strip::PAST_DAYS` = 10, now the reach of the Late period rather than "the left
+      half of the widest row". *Today* returns home and is `aria-disabled` there (`:1521`). A period
+      of the closed line opens the strip scrolled to its days (amendment 11, as amended): Late at the
+      window's start, another period at home when its day is wholly in view from there, else with its
+      day first (`periodPlan()`, `:1089`).
+    - **The arrows** (round 1, request 1; D2): two 30 px round buttons float over the row's ends,
+      over the scroller's 32 px padding and scroll padding, so a snapped row starts its first whole
+      day just past the start arrow and the window's end day is never stuck under a disabled one
+      (`:2044`, `styles.css:1173`). A press moves `stepOf()` days, 7 × floor(days in view / 7), 14
+      on the Dashboard (`calendar.ts:248`); presses during the animation add up. At each end the
+      arrow is `aria-disabled` (core's 0.65 look) and its handler refuses (`page()`, `:1501`). They
+      are pointer conveniences: `tabindex="-1"`, but named ("Earlier days", "Later days") for voice
+      control, never `aria-hidden`; they take the pointer, so nothing under them hovers.
+    - **Hover only on a day wholly in view** (round 2, request 5; D3): its column inside the
+      scroller less the 32 px inset at each end (`whollyInView()`, `calendar.ts:261`; 4 px on a
+      narrow block). A partly hidden day neither opens nor prefetches on hover, and moving onto it
+      closes an unpinned card (`enterDay()`, `:1540`); the hover timer asks again when it fires. A
+      press or a keyboard focus on a peeking day scrolls it wholly into view first, by the least
+      (`leastScroll()`, `calendar.ts:277`), then pins or opens it (`pressDay()`, `focusDay()`).
+    - **Which scrolls close a card** (D4): a user's scroll (trackpad, touch, shift and the wheel, the
+      map) closes a hovered card, and a pinned one once its day is no longer wholly in view by the
+      same test, the keyboard going back to the day's button when it was in the card
+      (`userScrolled()`, `:987`). The strip's own scrolls (the arrows, Today, a reveal, a period, the
+      map's release) are flagged until `scrollend`, or 150 ms after their last scroll event where it
+      never comes (Safari reached it late), and close nothing; the arrows and Today close the card
+      themselves, as the old `shift()` did.
+    - **The card is the scroller's sibling** (D5): a scroller clips its children on both axes
+      (`overflow-x: auto` computes a visible `overflow-y` to `auto`), so `CalendarCard` is rendered
+      once after the scroller, inside `.compass-cal-daysbox`, and placed under its day: its inline
+      start is the day's centre less half its width, clamped to the strip, its caret at the day's
+      centre (`paint()`, `:819`). `alignOf()` and its classes are gone. It stays inside the strip, so
+      the tokens, the dark override and the hover intent hold; the narrow block's bottom sheet keeps
+      the stylesheet's fixed place.
+    - **The keyboard** (D7): one tab stop for the whole window; Left and Right a day (mirrored right
+      to left), Page Up and Page Down a step, Home and End the window's first and last day
+      (`keyDay()`, `:1625`). Focus moves with `preventScroll`, and the strip scrolls itself by the
+      least that shows the day: no `scrollIntoView`, whose block axis would move the page. The tab
+      stop is the last focused day while it is in view, else today, else the first day in view, so
+      tabbing in never needs the browser's own scroll. The deferred `wantfocus` hop is gone.
+    - **The month follows the days wholly in view** (D9; `monthLabel()`, `:285`): the header's
+      label, with a 15.5rem minimum width so Today does not move, short month names in a narrow
+      block's span (`cal_monthshort_01` to `_12`, "Oct – Nov 2026"). The polite live region says it
+      once the scroll settles, when it is not the month last said (`announce()`, `:885`); the
+      label itself is no longer a live region.
+    - **The map** (amendment 10's track, as amended; D8, D10, D11): under the row, a 2 px line of the
+      whole window in a 24 px hit area, with a thumb for the days in view, today's tick, the needle's
+      tick and, while a tier 1 card is pointed at, a dot under each of its days (`:2093`,
+      `styles.css:1216`). It is a pointer scrubber (mouse, pen, touch): a press on the line centres
+      the thumb there and the row follows at once; a press on the thumb grabs it; snap is off while
+      it drags (`.compass-cal-nosnap`) and one smooth scroll lands on the nearest day, or the
+      window's end, at release (`mapDown()`, `mapUp()`, `:1727`, `:1758`); `touch-action: pan-y`
+      leaves the page's vertical scroll alone. It is `aria-hidden` and out of the tab order: the row
+      does everything it does by keyboard (WCAG 2.1.1), a press on the line and the arrows are the
+      single-pointer alternatives to the drag (2.5.7), and a slider would be a second tab stop with a
+      second model of the same position. The native scrollbar is hidden wherever the map shows; a
+      narrow block has no arrows and no map and keeps the platform's thin scrollbar.
+    - **When the whole window fits** (D8): nothing scrolls, and no arrows, map, fades or scrollbar
+      show (`scrolls`, `:788`).
+    - **Fades** (amendment 10, as amended): only on a side the row can still scroll to, read from the
+      measured position; opaque under the arrow, so a peeking day reads as beyond it.
+    - **Marks** (round 3; decision 9, as amended): a mark says a kind is present, never how many, so
+      a kind gets one mark however many items it holds. Four slots; the kinds by priority, Studying
+      Graded › Late, still open › To do › Event › Done (graded due soon is the Graded kind, its mark
+      ringed), Teaching grading (ringed when due soon) › class deadlines › events; with more than four
+      kinds, which only happens when all five studying kinds meet, the first three and "+N", N the
+      further kinds (`marks()`, `calendar.ts:609`; `MARK_PRIORITY`, `:590`). This replaces one mark
+      per item and its "+N items"; the old per-item list is `itemKinds()` (`:574`), which the ring's
+      arcs (one per item, up to six), the pulse bar's height and the card's count still use. The
+      day's sentence names every kind with its count in the same order (`dayLabel()`, `:1788`).
+    - **Motion and Behat** (risks 1 and 8): every programmatic scroll is `behavior: 'smooth'` unless
+      reduced motion is asked for, then instant; the placement is always instant. The strip's own
+      scroll holds Moodle's pending counter (`pending.ts`) from the call until it settles and that is
+      rendered (`scrollRow()`, `:919`; the release effect, `:1163`), so a Behat step never clicks
+      mid-animation.
+    - **Right to left** (risk 2): `scrollLeft` is negative in Chrome and Firefox; every read goes
+      through `Math.abs`, every write is mirrored, the map's pointer is measured from the inline
+      start, and the arrows, fades, thumb and ticks are placed with logical properties.
+    - **Deviations from the mockup.** The pulse style keeps its marks hidden, as built (the notes say
+      it draws them; the as-built `display: none` stands, and the bars carry the signal). The card's
+      chips keep the legend's order. On a narrow block the target is the column's width (38 × 44 px on a
+      phone); the disc shrinks only where the column is narrower than 36 px, and the column never
+      goes below 24 px.
+    - **Guards.** `accessibility_rules_test` (`test_the_strip_arrows_are_named_pointer_conveniences`,
+      `test_the_window_map_is_a_hidden_pointer_scrubber`, `test_the_strip_scrolls_itself_and_never_the_page`,
+      `test_hover_opens_only_a_day_wholly_in_view`, `test_a_day_marks_each_kind_once_in_four_slots`)
+      and `client_policy_test` (`test_the_row_opens_home_and_steps_whole_weeks`,
+      `test_the_row_is_placed_before_paint_and_read_in_either_direction`) read the sources, as no
+      JavaScript runner exists; one mutation gate per guard (`mutations/gates.conf`, section "The
+      strip scrolls"). The Behat scenario checks the narrow strip on the Dashboard (Behat puts the
+      block in its drawer: no arrows and no map, End moves the keyboard to the window's last day,
+      Today returns home) and the wide strip on the block's own page (both arrows and the map, End
+      disabling Later days, Earlier days stepping back, Today returning home).
+    - **Residuals.** A day focused by a script without `preventScroll` (Behat's "I set the focus
+      on" on a day out of view) is scrolled by the browser, which reads as the viewer's scroll and
+      closes the card that focus opened; the scenario focuses a day in view. In a hidden tab a smooth
+      scroll does not advance until the tab is shown; the flag and the pending hold end on their
+      timer, and the row is read again when the tab comes back. Fewer days at a glance on the
+      Dashboard (14 whole days instead of 21) is the trade asked for; the map and its ticks soften it.
 
 ## Consequences
 

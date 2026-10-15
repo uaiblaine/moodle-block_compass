@@ -511,8 +511,9 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
-     * The strip's dates are written from the language file: twelve months, seven weekdays in two
-     * lengths, and templates that use exactly the placeholders the client fills, in both languages.
+     * The strip's dates are written from the language file: twelve months and seven weekdays, each in
+     * two lengths (the short months for a narrow block's month span), and templates that use exactly the
+     * placeholders the client fills, in both languages.
      *
      * The time templates differ between the languages only in which one the client picks:
      * cal_format_clock is 12 in English, as core's own strftimetime ('%I:%M %p', lang/en/langconfig.php),
@@ -531,7 +532,12 @@ final class block_compass_test extends advanced_testcase {
             'cal_format_time24' => ['hour', 'minute'],
         ];
         $clock = ['en' => '12', 'pt_br' => '24'];
-        $lists = ['cal_month_%02d' => range(1, 12), 'cal_weekday_%d' => range(0, 6), 'cal_weekdayshort_%d' => range(0, 6)];
+        $lists = [
+            'cal_month_%02d' => range(1, 12),
+            'cal_monthshort_%02d' => range(1, 12),
+            'cal_weekday_%d' => range(0, 6),
+            'cal_weekdayshort_%d' => range(0, 6),
+        ];
         foreach (['en', 'pt_br'] as $lang) {
             $string = [];
             include($root . '/lang/' . $lang . '/block_compass.php');
@@ -548,7 +554,7 @@ final class block_compass_test extends advanced_testcase {
                 $this->assertCount(count($numbers), array_unique($set), "{$lang}: {$pattern} names are distinct");
                 $names = array_merge($names, $set);
             }
-            $this->assertCount(26, $names, $lang);
+            $this->assertCount(38, $names, $lang);
             foreach ($vocabulary as $key => $placeholders) {
                 preg_match_all('/\{\$a->(\w+)\}/', $string[$key], $found);
                 $used = array_values(array_unique($found[1]));

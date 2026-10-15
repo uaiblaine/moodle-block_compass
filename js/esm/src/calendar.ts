@@ -146,15 +146,144 @@ export const windowDays = (firstday: string, today: string): string[] => {
     return days;
 };
 
+/** The row's pitch in the dots and pulse styles, in CSS px: a 44 px column and a 6 px gap (ADR-014 amendment 12). */
+export const DAY_PITCH_PX = 50;
+
+/** The ring style's pitch: a 48 px column, the 36 px disc and its arcs, and 12 px clear between two rings. */
+export const RING_PITCH_PX = 60;
+
+/** The gap between two columns, in the dots and pulse styles and in the ring style. */
+const DAY_GAP_PX = 6;
+const RING_GAP_PX = 12;
+
 /**
- * The visible row's first index when the strip opens: today in the middle, so past days fill only
- * the left half (decision 3), and never before the window's first day.
+ * The scroller's padding and scroll padding at each end on a wide block: the 30 px arrow and its 2 px
+ * margin, so a snapped row starts its first whole day just past the start arrow, and the window's end
+ * day is never stuck under a disabled one. A narrow block has no arrows and keeps 4 px.
+ */
+export const EDGE_INSET_PX = 32;
+const NARROW_INSET_PX = 4;
+
+/** How many days a narrow row shows: a half-day peek invites the swipe (5.5 in the ring style). */
+const NARROW_SHOWN = 7.5;
+const NARROW_SHOWN_RING = 5.5;
+
+/** A day's target: a 44 px round button (WCAG 2.5.5) around the disc, narrower only when its column is. */
+const TARGET_PX = 44;
+
+/** The disc inside the target; the pulse style's discs are smaller, under its bars. */
+const DISC_PX = 36;
+const PULSE_DISC_PX = 30;
+
+/** Past days before today at the home position: five on a wide block, three on a narrow one (decision 3, as amended). */
+const HOME_PAST = 5;
+const NARROW_HOME_PAST = 3;
+
+/** A day shows at most this many marks; with more kinds, the last slot is a "+N" of the kinds left out. */
+export const MARK_SLOTS = 4;
+
+/** The row's geometry for a width and a style, in CSS px. */
+export type RowFit = {
+    // The distance from one day's column to the next.
+    pitch: number,
+    gap: number,
+    column: number,
+    // The scroller's padding at each end, where the arrows sit.
+    inset: number,
+    target: number,
+    disc: number,
+    // How many days are wholly in view at once.
+    whole: number,
+};
+
+/**
+ * The row's geometry: a fixed pitch on a wide block (50 px, 60 px in the ring style), and on a narrow
+ * block the pitch that shows seven and a half days (five and a half rings).
+ *
+ * @param {number} width The scroller's width in CSS px, 0 while unmeasured.
+ * @param {boolean} narrow Whether the block is under 640 px.
+ * @param {string} style dots, ring or pulse.
+ * @returns {object} The geometry; see RowFit.
+ */
+export const fit = (width: number, narrow: boolean, style: string): RowFit => {
+    const gap = style === 'ring' ? RING_GAP_PX : DAY_GAP_PX;
+    const inset = narrow ? NARROW_INSET_PX : EDGE_INSET_PX;
+    let pitch = style === 'ring' ? RING_PITCH_PX : DAY_PITCH_PX;
+    if (narrow && width > 0) {
+        pitch = Math.max(gap + 24, Math.floor((width - 2 * inset + gap) / (style === 'ring' ? NARROW_SHOWN_RING : NARROW_SHOWN)));
+    }
+    const column = pitch - gap;
+    const whole = width > 0 ? Math.max(1, Math.floor((width - 2 * inset + gap) / pitch)) : 1;
+
+    return {
+        pitch,
+        gap,
+        column,
+        inset,
+        target: Math.min(TARGET_PX, column),
+        disc: Math.min(style === 'pulse' ? PULSE_DISC_PX : DISC_PX, column),
+        whole,
+    };
+};
+
+/**
+ * The home position: the index of the first day wholly in view when the strip opens and when Today is
+ * pressed, five past days before today (three on a narrow block), never before the window's first day.
+ * The window keeps its ten past days (strip::PAST_DAYS), the reach of the Late period.
  *
  * @param {number} todayindex Today's index in the window.
- * @param {number} shown How many days the row shows.
- * @returns {number} The home offset, which is also the earliest the arrows reach.
+ * @param {boolean} narrow Whether the block is under 640 px.
+ * @returns {number} The index.
  */
-export const homeOffset = (todayindex: number, shown: number): number => Math.max(0, todayindex - Math.floor(shown / 2));
+export const homeIndex = (todayindex: number, narrow: boolean): number =>
+    Math.max(0, todayindex - (narrow ? NARROW_HOME_PAST : HOME_PAST));
+
+/**
+ * How many days an arrow, Page Up or Page Down moves: whole weeks of the days wholly in view, so each
+ * weekday keeps its column; 14 on the Dashboard, never fewer than 7.
+ *
+ * @param {number} whole How many days are wholly in view.
+ * @returns {number} The step.
+ */
+export const stepOf = (whole: number): number => 7 * Math.max(1, Math.floor(whole / 7));
+
+/**
+ * Whether a day lies wholly in view: its column inside the scroller's box less the inset at each end,
+ * where the arrows sit. One test governs hovering a day open and keeping a pinned one (decision 9, as
+ * amended); half a pixel absorbs the rounding of a fractional scroll.
+ *
+ * @param {number} index The day's index in the window.
+ * @param {object} row The geometry; see RowFit.
+ * @param {number} scroll The scroll position from the row's inline start, positive.
+ * @param {number} width The scroller's width.
+ * @returns {boolean} Whether the day is wholly in view.
+ */
+export const whollyInView = (index: number, row: RowFit, scroll: number, width: number): boolean => {
+    const start = row.inset + index * row.pitch - scroll;
+
+    return start >= row.inset - 0.5 && start + row.column <= width - row.inset + 0.5;
+};
+
+/**
+ * The scroll position that shows a day wholly by moving the least: the day first when it lies before
+ * the view, last when after it. Both are snap points; the caller clamps to the scroller's range.
+ *
+ * @param {number} index The day's index in the window.
+ * @param {object} row The geometry; see RowFit.
+ * @param {number} scroll The scroll position now.
+ * @param {number} width The scroller's width.
+ * @returns {number} The scroll position.
+ */
+export const leastScroll = (index: number, row: RowFit, scroll: number, width: number): number => {
+    if (whollyInView(index, row, scroll, width)) {
+        return scroll;
+    }
+    if (row.inset + index * row.pitch - scroll < row.inset) {
+        return index * row.pitch;
+    }
+
+    return Math.max(0, (index - row.whole + 1) * row.pitch);
+};
 
 /** The closed strip's periods, in the order the line names them (strip::PERIODS). */
 export const PERIOD_KEYS: PeriodKey[] = ['late', 'today', 'tomorrow', 'week', 'later'];
@@ -435,13 +564,14 @@ export const step = (value: number, relevance: boolean): number => {
 };
 
 /**
- * The kinds of one day's items in drawing order, one entry per item, for its dots or ring segments.
+ * The kinds of one day's items in drawing order, one entry per item: the ring's segments, the pulse
+ * bar's height and the card's count.
  *
  * @param {object} day The day's counters.
  * @param {string[]} kinds The kinds shown, in drawing order.
  * @returns {string[]} One kind per item.
  */
-export const marks = (day: DayCounts, kinds: CalendarKind[]): CalendarKind[] => {
+export const itemKinds = (day: DayCounts, kinds: CalendarKind[]): CalendarKind[] => {
     const list: CalendarKind[] = [];
     kinds.forEach((kind) => {
         for (let at = 0; at < (day.counts[kind] ?? 0); at++) {
@@ -450,6 +580,45 @@ export const marks = (day: DayCounts, kinds: CalendarKind[]): CalendarKind[] => 
     });
 
     return list;
+};
+
+/**
+ * The marks' kinds by priority, one group per mark: a group's first kind present is drawn, so graded
+ * work is one kind whose mark is ringed when any of it is due soon (decision 9, as amended in round 3).
+ * Studying: Graded, Late still open, To do, Event, Done; Teaching: grading, class deadlines, events.
+ */
+const MARK_PRIORITY: Record<CalendarView, CalendarKind[][]> = {
+    learning: [['gradedsoon', 'graded'], ['late'], ['todo'], ['event'], ['done']],
+    teaching: [['gradesoon', 'grade'], ['class'], ['event']],
+};
+
+/** A day's marks: one kind per mark, never repeated, and how many further kinds a "+N" stands for. */
+export type DayMarks = {kinds: CalendarKind[], more: number};
+
+/**
+ * A day's marks: which kinds are present, never how many of each. Every kind gets a mark while they fit
+ * the MARK_SLOTS slots; with more, the first three by priority, and the last slot counts the kinds left
+ * out, so "+2" reads as two more kinds. The day's sentence names every kind with its count in the same
+ * order.
+ *
+ * @param {object} day The day's counters.
+ * @param {string[]} kinds The kinds the filter shows.
+ * @param {string} view learning or teaching.
+ * @returns {object} The marks; see DayMarks.
+ */
+export const marks = (day: DayCounts, kinds: CalendarKind[], view: CalendarView): DayMarks => {
+    const present: CalendarKind[] = [];
+    MARK_PRIORITY[view].forEach((group) => {
+        const shown = group.find((kind) => kinds.includes(kind) && (day.counts[kind] ?? 0) > 0);
+        if (shown) {
+            present.push(shown);
+        }
+    });
+    if (present.length <= MARK_SLOTS) {
+        return {kinds: present, more: 0};
+    }
+
+    return {kinds: present.slice(0, MARK_SLOTS - 1), more: present.length - (MARK_SLOTS - 1)};
 };
 
 /**
@@ -469,6 +638,13 @@ export const sortItems = (items: DayItem[], view: CalendarView): DayItem[] => {
 const MONTH_KEYS = [
     'cal_month_01', 'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05', 'cal_month_06',
     'cal_month_07', 'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12',
+];
+
+/** The short month names' string keys, January first, for a narrow block's month span. */
+const MONTH_SHORT_KEYS = [
+    'cal_monthshort_01', 'cal_monthshort_02', 'cal_monthshort_03', 'cal_monthshort_04', 'cal_monthshort_05',
+    'cal_monthshort_06', 'cal_monthshort_07', 'cal_monthshort_08', 'cal_monthshort_09', 'cal_monthshort_10',
+    'cal_monthshort_11', 'cal_monthshort_12',
 ];
 
 /** The weekday names' string keys, Sunday first: the index is getUTCDay()'s, 0 to 6. */
@@ -610,6 +786,16 @@ export const timeParts = (time: number, timezone: string): TimeParts => {
  * @returns {string} The name.
  */
 export const monthName = (strings: Record<string, string>, month: number): string => strings[MONTH_KEYS[month - 1]] ?? '';
+
+/**
+ * A month's short name in the site language: "Oct", "out".
+ *
+ * @param {object} strings The strip's strings.
+ * @param {number} month 1 to 12.
+ * @returns {string} The short name.
+ */
+export const monthShort = (strings: Record<string, string>, month: number): string =>
+    strings[MONTH_SHORT_KEYS[month - 1]] ?? '';
 
 /**
  * A month and its year: "October 2026", "outubro de 2026".
