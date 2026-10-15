@@ -54,16 +54,32 @@ final class calendar_cache_test extends advanced_testcase {
         $entry = calendar_cache::entry(['views' => []], ['courses' => []], 42, '2026-10-03', 'America/Sao_Paulo', $now);
 
         $tz = 'America/Sao_Paulo';
-        $this->assertTrue(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL - 1, 'core'));
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 43, $now, 'core'), 'another sign-in');
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-04', $tz, 42, $now, 'core'), 'the day turned');
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', 'UTC', 42, $now, 'core'), 'another timezone');
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL, 'core'), 'too old');
+        $this->assertTrue(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL - 1, 'core', 'en'));
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 43, $now, 'core', 'en'), 'another sign-in');
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-04', $tz, 42, $now, 'core', 'en'), 'the day turned');
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', 'UTC', 42, $now, 'core', 'en'), 'another timezone');
+        $this->assertFalse(
+            calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now + calendar_cache::TTL, 'core', 'en'),
+            'too old'
+        );
 
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'tracker'), 'another grading source');
+        $this->assertFalse(
+            calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'tracker', 'en'),
+            'another grading source'
+        );
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'core', 'pt_br'), 'another language');
+
+        unset($entry['lang']);
+        $this->assertFalse(
+            calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'core', 'en'),
+            'an entry with no language'
+        );
 
         unset($entry['sets']);
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'core'), 'an entry of another shape');
+        $this->assertFalse(
+            calendar_cache::is_fresh($entry, '2026-10-03', $tz, 42, $now, 'core', 'en'),
+            'an entry of another shape'
+        );
     }
 
     /**
@@ -99,6 +115,44 @@ final class calendar_cache_test extends advanced_testcase {
         $first['grading'] = 'tracker';
         calendar_cache::set($userid, $first);
         $this->assertFalse(strip::counts($userid, $now + 180, 100, $tz)['grading'], 'counts follow the rebuilt entry');
+    }
+
+    /**
+     * An entry, and the days opened in it, built in one language are rebuilt when the language changes.
+     *
+     * The payload and the days hold localised text, so serving them after the user switched language
+     * would show the old one until the TTL ran out. The control: the same language reuses the entry
+     * and its day. The language is forced through $SESSION->forcelang, which current_language()
+     * returns without asking whether the pack is installed.
+     *
+     * @return void
+     */
+    public function test_an_entry_built_in_another_language_is_rebuilt(): void {
+        global $SESSION;
+        $this->resetAfterTest();
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $SESSION->forcelang = 'en';
+        $tz = \core_date::get_user_timezone_object();
+        $now = time();
+        $userid = (int) $user->id;
+
+        $first = strip::entry($userid, $now, 100, $tz);
+        $this->assertSame('en', $first['lang'], 'the entry records the language it was built in');
+        calendar_cache::set_day($userid, $first, calendar_cache::day_key('learning', $first['payload']['today']), ['items' => []]);
+
+        $again = strip::entry($userid, $now + 60, 100, $tz);
+        $this->assertSame($now, $again['built'], 'control: same language, served');
+        $this->assertArrayHasKey('learning_' . $first['payload']['today'], $again['days']);
+
+        $SESSION->forcelang = 'pt_br';
+        $rebuilt = strip::entry($userid, $now + 120, 100, $tz);
+        $this->assertSame($now + 120, $rebuilt['built'], 'another language, rebuilt');
+        $this->assertSame('pt_br', $rebuilt['lang']);
+        $this->assertSame([], $rebuilt['days'], 'the days opened in the old language are dropped');
+
+        $this->assertSame($now + 120, strip::entry($userid, $now + 180, 100, $tz)['built'], 'the rebuild is served in turn');
     }
 
     /**

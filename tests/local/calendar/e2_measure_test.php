@@ -355,11 +355,15 @@ final class e2_measure_test extends advanced_testcase {
     private function assert_cache_conditions(int $userid, int $now, int $signin, \DateTimeZone $tz, array $window): void {
         $entry = calendar_cache::entry([], [], $signin, $window['firstday'], $tz->getName(), $now);
         $ttl = calendar_cache::TTL;
-        $this->assertTrue(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + $ttl - 1, 'core'));
-        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin + 1, $now, 'core'));
-        $this->assertFalse(calendar_cache::is_fresh($entry, '2000-01-01', $tz->getName(), $signin, $now, 'core'));
-        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], 'UTC', $signin, $now, 'core'));
-        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + $ttl, 'core'));
+        $this->assertTrue(
+            calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + $ttl - 1, 'core', 'en')
+        );
+        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin + 1, $now, 'core', 'en'));
+        $this->assertFalse(calendar_cache::is_fresh($entry, '2000-01-01', $tz->getName(), $signin, $now, 'core', 'en'));
+        $this->assertFalse(calendar_cache::is_fresh($entry, $window['firstday'], 'UTC', $signin, $now, 'core', 'en'));
+        $this->assertFalse(
+            calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now + $ttl, 'core', 'en')
+        );
 
         $this->new_request();
         $meter = budget::start();

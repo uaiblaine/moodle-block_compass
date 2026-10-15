@@ -523,3 +523,10 @@ three mutation gates (`observer_user_deleted_inventory`, `observer_user_deleted_
 
 - `lib/moodlelib.php` (5.2): `delete_user()` (3603) calls `enrol_user_delete()` (3664) and
   deletes the `user_enrolments` rows (3688) before it triggers `user_deleted` (3771–3786).
+
+## Amendment (2026-10-15): localised text in a cache
+
+None of the four layers above stores localised text (raw names, ids and numbers; the formatting
+happens at read time), so none is keyed by language. A cache that does store it, as the
+`calendarstrip` entry does (ADR-014 decision 8), must record `current_language()` and treat
+another language as a miss.

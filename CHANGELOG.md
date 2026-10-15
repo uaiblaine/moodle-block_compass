@@ -77,6 +77,8 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
   grader first. With `block_feedback_tracker` installed, the courses it tracks are counted from
   its own ledger and the closed line shows the submissions waiting too (`calendar_grading`);
   the two plugins define "waiting" differently.
+- The calendar strip's cached entry records the language it was built in and is rebuilt when the
+  user's language changes, so the days off, item names and action labels follow the interface.
 - Weekends are hatched; with `block_feedback_tracker` installed, its academic calendar marks
   weekends, holidays and recesses.
 - A future count that may still shrink reads "up to N" until the day is opened.
