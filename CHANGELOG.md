@@ -10,7 +10,7 @@ namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Mo
 `v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
 [`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100502) - unreleased
+## v5.3-r1 (2026100503) - unreleased
 
 First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
@@ -26,6 +26,10 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   `block_feedback_tracker` installed, the teaching view counts the submissions waiting from that
   plugin's ledger where it tracks the course (`calendar_grading`), and core's count reads the
   assignments' index. Details under v5.2-r1 below.
+- The calendar strip scrolls across the whole window (2026100503, the same work as v5.2-r1's
+  2026042002): one native scroller with a day every 50 px, five past days at home (three on a
+  narrow block), two arrows over its ends, a map under the row that scrubs, hover only on a day
+  wholly in view, and one mark per kind in four slots. Details under v5.2-r1 below.
 
 ### Changed
 
@@ -55,7 +59,7 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   (the 5.2 `.js.map` files are gone), and `js/esm/src/swizzle.json` closes every component to
   theme overrides, because the page loads the bundle, which contains them all.
 
-## v5.2-r1 (2026042001) - unreleased
+## v5.2-r1 (2026042002) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
@@ -96,6 +100,15 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 - A row of days above the first tier, from ten days ago to the end of next month, each day
   coloured by what it holds, on the Dashboard, the Compass page or both.
+- The row scrolls across the whole window with a trackpad, touch or the keyboard, and scrolling
+  asks the server nothing. It opens with five past days before today (three on a narrow block),
+  a day every 50 px. Two arrows over the row's ends move two weeks at a time and are disabled at
+  each end; *Today* returns; the month follows the days in view. A map under the row shows the
+  whole window, today and the most relevant day ahead: press it to jump, drag it to move. A day
+  opens on hover only when it is wholly in view, and a day partly hidden scrolls into view when it
+  is pressed or focused.
+- Under each day, one mark per kind of item present, never repeated: four at most, then "+N"
+  for the further kinds. The day's sentence names every kind with its count in the same order.
 - The strip opens and closes from its heading, and each user's choice is remembered.
   Closed, it is one line of plain counts by period: *Late, still open*, *Today*, *Tomorrow*,
   *This week* and *Later*; a period opens the strip on its days. Closed costs one small count
@@ -156,5 +169,5 @@ php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
 
-A site that installed `2026042000` from `MOODLE_502_STABLE` upgrades to `2026042001` in place;
-on `MOODLE_503_STABLE`, `2026100500` and `2026100501` upgrade to `2026100502` in place.
+A site that installed `2026042000` or `2026042001` from `MOODLE_502_STABLE` upgrades to `2026042002` in place;
+on `MOODLE_503_STABLE`, `2026100500` to `2026100502` upgrade to `2026100503` in place.

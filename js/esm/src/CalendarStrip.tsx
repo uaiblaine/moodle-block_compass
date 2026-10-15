@@ -29,17 +29,25 @@
  * own, so a failed strip never blanks the cards; a request that failed is asked again by its own Try
  * again, or by tier 1's.
  *
- * The row opens centred on today, so past days only fill the left half; the arrows move seven
- * days and never before that first position nor past the window's end, and Today returns to it
- * (decision 3). Twenty-one days, fifteen for the ring style, which needs more room per day, and
- * seven below 640 px of block width, where a day opens as a bottom sheet (decision 9).
+ * The row is one native horizontal scroller holding the whole window, which the payload already
+ * carries, so a scroll costs no request; it snaps per day, and nothing hijacks the wheel or drags it
+ * (ADR-014 amendment 12). It opens on its home position, five past days before today (three on a
+ * narrow block), placed before paint and never on a frame, which a hidden tab does not run. Two
+ * arrows float over the row's ends and move whole weeks, Today returns home, and the month follows
+ * the days wholly in view. Under the row, the window's map is a pointer scrubber (aria-hidden: the row
+ * does all of it by keyboard). Below 640 px of block width a half day peeks, there are no arrows and no
+ * map, and a day opens as a bottom sheet.
  *
- * A day opens after 120 ms of pointing, 40 ms when moving from an open day, and closes 200 ms
- * after the pointer leaves the strip and its card; the card is a DOM child of the day's column, so
- * the pointer entering it never leaves the strip. A click pins it, Escape closes it, focus opens
- * it as hovering does, and the days are one tab stop moved with the arrow keys. Days fetched are
- * kept for the page, keyed by view and date; only the day after a pointed day is prefetched, and
- * only when it holds something; answers are matched by sequence number, never cancelled.
+ * A day opens after 120 ms of pointing, 40 ms when moving from an open day, and only when it is wholly
+ * in view; a press or keyboard focus on a peeking day scrolls it into view first. It closes 200 ms after
+ * the pointer leaves the strip and its card, which is rendered once beside the scroller (a scroller
+ * clips its children on both axes) and placed under its day. A user's scroll closes a hovered day, and
+ * a pinned one once its day leaves the view; the strip's own scrolls close nothing and hold Moodle's
+ * pending counter until they settle, so Behat never clicks mid-animation. A click pins a day, Escape
+ * closes it, focus opens it as hovering does, and the window is one tab stop moved with the arrow keys,
+ * Page Up and Down, Home and End. Days fetched are kept for the page, keyed by view and date; only the
+ * day after a pointed day is prefetched, and only when it holds something; answers are matched by
+ * sequence number, never cancelled.
  *
  * Its strings are the calendar props' own, read as strings.*, never the block's labels: the
  * strip's props do not exist on a site with it off.
@@ -49,17 +57,18 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useId, useMemo, useRef, useState} from 'react';
-import type {FocusEvent, HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode} from 'react';
+import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import type {CSSProperties, FocusEvent, HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode} from 'react';
 import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
 import CalendarLine, {summaryOf} from './CalendarLine';
 import RetryNotice from './RetryNotice';
 import {
-    BOUND_KINDS, addDays, countsOf, dateParts, dayOff, daysBetween, fromPayload, homeOffset, kindsOf, longDay, marks, monthName,
-    monthYear, periodSpan, score, settle, shortWeekday, shownKinds, step, windowDays,
+    BOUND_KINDS, addDays, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit, fromPayload, homeIndex, itemKinds, kindsOf,
+    leastScroll, longDay, marks, monthName, monthShort, monthYear, periodSpan, score, settle, shortWeekday, shownKinds, step,
+    stepOf, whollyInView, windowDays,
 } from './calendar';
-import type {DayCounts, DayOff} from './calendar';
+import type {DayCounts, DayOff, RowFit} from './calendar';
 import {sectionTag} from './heading';
 import {notify} from './notify';
 import {getDay, getStrip, getStripCounts, setCalendarPreference} from './repository';
@@ -69,7 +78,7 @@ import type {
     BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, PeriodKey, StripCounts, StripPayload,
 } from './types';
 
-/** Below this width of the block, in CSS px, the row shows a week and a day opens as a bottom sheet. */
+/** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
 const NARROW_PX = 640;
 
 /** Pointing at a day this long opens it. */
@@ -81,21 +90,15 @@ const MOVE_DELAY_MS = 40;
 /** The card closes this long after the pointer has left the strip and the card. */
 const CLOSE_DELAY_MS = 200;
 
-/** The arrows move the row this many days, or the row's length when it shows fewer. */
-const STEP_DAYS = 7;
+/** A scroll position this close to an end, or to home, counts as there (fractional scrolling). */
+const EDGE_TOLERANCE_PX = 2;
 
 /**
- * The room one ring day needs, in CSS px: the disc, its arcs and a gap that keeps neighbours apart.
- * The ring style shows as many days as the row can hold at this pitch (see rowLength()).
+ * The strip's own scroll is over when scrollend fires, or, where it does not (Safari reached it late),
+ * this long after its last scroll event, or this long after the call when no scroll event came at all.
  */
-const RING_PITCH_PX = 56;
-
-/** The ring style never shows fewer days than this, however narrow the block, nor more than RING_MAX. */
-const RING_MIN = 5;
-const RING_MAX = 15;
-
-/** A day draws at most this many dots, then +N. */
-const DOTS_MAX = 4;
+const SCROLL_QUIET_MS = 150;
+const SCROLL_START_MS = 600;
 
 /** A day's ring has at most this many segments. */
 const SEGMENTS_MAX = 6;
@@ -115,31 +118,81 @@ type CalendarStripProps = {
     onOpenCourses: (courseids: number[]) => void,
 };
 
-/**
- * How many days the row shows.
- *
- * The dots and pulse styles show a week when narrow and three weeks otherwise. The ring style
- * needs room around every disc, so it shows as many days as fit at RING_PITCH_PX, always an odd
- * count so that today keeps its centre, between RING_MIN and RING_MAX.
- *
- * @param {number} width The block's width in CSS px, 0 while unmeasured.
- * @param {boolean} narrow Whether the block is under NARROW_PX.
- * @param {string} style dots, ring or pulse.
- * @returns {number} 5 to 15 for the ring style, else 7 or 21.
- */
-const rowLength = (width: number, narrow: boolean, style: string): number => {
-    if (style === 'ring') {
-        if (width <= 0) {
-            return RING_MAX;
-        }
-        const fits = Math.floor(width / RING_PITCH_PX);
-        const odd = fits % 2 === 0 ? fits - 1 : fits;
-
-        return Math.min(RING_MAX, Math.max(RING_MIN, odd));
-    }
-
-    return narrow ? 7 : 21;
+/** What the scroll position says, kept in state only when it changes: the rest is painted directly. */
+type RowView = {
+    // The first day wholly in view, or -1 before the row has been measured.
+    first: number,
+    atstart: boolean,
+    atend: boolean,
+    athome: boolean,
+    // The scroller's measured width, 0 before it has been.
+    rowwidth: number,
 };
+
+/**
+ * Nothing, the native listeners' placeholder until the first render hands them the strip's handlers.
+ *
+ * @returns {void}
+ */
+const nothing = (): void => undefined;
+
+/**
+ * Whether two reads of the row say the same, so an unchanged scroll renders nothing.
+ *
+ * @param {object} a One read; see RowView.
+ * @param {object} b The other.
+ * @returns {boolean} Whether they match.
+ */
+const sameView = (a: RowView, b: RowView): boolean => a.first === b.first && a.atstart === b.atstart
+    && a.atend === b.atend && a.athome === b.athome && a.rowwidth === b.rowwidth;
+
+/**
+ * The row's geometry as inline custom properties of the box holding the scroller, its fades, its arrows
+ * and the map, which all read the inset.
+ *
+ * @param {object} row The geometry; see RowFit.
+ * @returns {object} The style.
+ */
+const rowStyle = (row: RowFit): CSSProperties => ({
+    '--block_compass-cal-col': `${row.column}px`,
+    '--block_compass-cal-gap': `${row.gap}px`,
+    '--block_compass-cal-inset': `${row.inset}px`,
+    '--block_compass-cal-hit': `${row.target}px`,
+    '--block_compass-cal-disc': `${row.disc}px`,
+} as CSSProperties);
+
+/**
+ * A fraction as a CSS percentage, for the map's marks.
+ *
+ * @param {number} fraction 0 to 1.
+ * @returns {string} The percentage.
+ */
+const percent = (fraction: number): string => `${(fraction * 100).toFixed(3)}%`;
+
+/**
+ * The scroll position from the row's inline start: scrollLeft is negative in right-to-left in Chrome and
+ * Firefox (and Safari since 2023), counted from the right edge.
+ *
+ * @param {object} element The scroller.
+ * @returns {number} The position, positive.
+ */
+const scrollOf = (element: HTMLElement): number => Math.abs(element.scrollLeft);
+
+/**
+ * Whether the row runs right to left.
+ *
+ * @param {object} element The scroller.
+ * @returns {boolean} Whether it does.
+ */
+const isRtl = (element: HTMLElement): boolean => window.getComputedStyle(element).direction === 'rtl';
+
+/**
+ * Whether the viewer asked for reduced motion: the strip's own scrolls then jump.
+ *
+ * @returns {boolean} Whether they did.
+ */
+const reducedMotion = (): boolean =>
+    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** What decides the drawn view: the strip payload, or the closed strip's counts, which say the same. */
 type ViewFacts = {haslearning: boolean, hasteaching: boolean};
@@ -187,17 +240,20 @@ const dayUrl = (base: string, from: number, index: number): string => {
  * fills in (decision 2). The header above it is the strip's own, with its toggle, from the first paint.
  *
  * @param {object} calendar The calendar props.
- * @param {number} shown How many days the row will show.
+ * @param {object} row The row's geometry; see RowFit.
+ * @param {number} rowwidth The width the row will have, 0 while unmeasured.
  * @param {boolean} narrow Whether the block is under NARROW_PX.
  * @returns {object} The rendered skeleton.
  */
-const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
+const skeleton = (calendar: CalendarConfig, row: RowFit, rowwidth: number, narrow: boolean) => {
+    const count = Math.min(40, Math.ceil((rowwidth > 0 ? rowwidth : 800) / row.pitch) + 1);
+
     return (
         <div className="compass-cal-waiting">
             <span className="visually-hidden">{calendar.strings.cal_loading}</span>
-            <div className="compass-cal-daysbox" aria-hidden="true">
-                <div className={`compass-cal-days compass-cal-days-${shown}`}>
-                    {Array.from({length: shown}, (unused, at) => (
+            <div className="compass-cal-daysbox" aria-hidden="true" style={rowStyle(row)}>
+                <div className="compass-cal-days compass-cal-days-waiting">
+                    {Array.from({length: count}, (unused, at) => (
                         <div className="compass-cal-col" key={at}>
                             <span className="compass-cal-sk compass-cal-sk-disc" />
                             <span className="compass-cal-dots" />
@@ -205,8 +261,8 @@ const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
                         </div>
                     ))}
                 </div>
-                {/* The track's line, so the row below does not move when the strip fills in. */}
-                {!narrow && <div className="compass-cal-track" />}
+                {/* The map's line, so the row below does not move when the strip fills in. */}
+                {!narrow && <div className="compass-cal-map"><span className="compass-cal-mapline" /></div>}
             </div>
             <div className="compass-cal-foot">
                 <p className="compass-cal-note small">{calendar.strings.cal_waiting}</p>
@@ -216,22 +272,35 @@ const skeleton = (calendar: CalendarConfig, shown: number, narrow: boolean) => {
 };
 
 /**
- * The header's month: "October 2026", or "October – November 2026" when the row spans two, in the
- * site language's words (cal_format_monthyear, cal_monthspan).
+ * The header's month: "October 2026", or "October – November 2026" when the days wholly in view span
+ * two, in the site language's words (cal_format_monthyear, cal_monthspan). A narrow block shortens a
+ * span's names ("Oct – Nov 2026"), or Today wraps.
  *
- * @param {string[]} visible The row's days, Y-m-d.
+ * @param {string} from The first day wholly in view, Y-m-d.
+ * @param {string} to The last, Y-m-d.
  * @param {object} strings The strip's strings.
+ * @param {boolean} short Whether a span uses the short month names.
  * @returns {string} The label.
  */
-const monthLabel = (visible: string[], strings: Record<string, string>): string => {
-    const start = dateParts(visible[0]);
-    const end = dateParts(visible[visible.length - 1]);
+const monthLabel = (from: string, to: string, strings: Record<string, string>, short: boolean): string => {
+    const start = dateParts(from);
+    const end = dateParts(to);
     if (start.month === end.month && start.year === end.year) {
         return monthYear(strings, start.month, start.year);
     }
-    const from = start.year === end.year ? monthName(strings, start.month) : monthYear(strings, start.month, start.year);
+    /**
+     * A month's name in the span: short on a narrow block.
+     *
+     * @param {number} month 1 to 12.
+     * @returns {string} The name.
+     */
+    const name = (month: number): string => (short ? monthShort(strings, month) : monthName(strings, month));
+    const fromname = start.year === end.year
+        ? name(start.month)
+        : fillObject(strings.cal_format_monthyear, {month: name(start.month), year: String(start.year)});
+    const toname = fillObject(strings.cal_format_monthyear, {month: name(end.month), year: String(end.year)});
 
-    return fillObject(strings.cal_monthspan, {from, to: monthYear(strings, end.month, end.year)});
+    return fillObject(strings.cal_monthspan, {from: fromname, to: toname});
 };
 
 /**
@@ -257,36 +326,22 @@ const needleOf = (ahead: string[], scoreOf: (date: string) => number): string =>
 };
 
 /**
- * The day holding the row's one tab stop: the one the keyboard last moved to while it is in the
- * row, else today when it is, else the row's first day.
+ * The day holding the window's one tab stop: the one the keyboard last moved to while it is in view or
+ * holds focus, else today when it is in view, else the first day in view. Tabbing in then never needs
+ * the browser's own scroll, which would read as the viewer's and close the day it opens.
  *
- * @param {string[]} visible The row's days.
+ * @param {string[]} inview The days wholly in view.
  * @param {string|null} focusdate The day the keyboard last moved to.
+ * @param {boolean} focused Whether that day's button holds focus now.
  * @param {string} today Y-m-d.
  * @returns {string} The day.
  */
-const tabstopOf = (visible: string[], focusdate: string | null, today: string): string => {
-    if (focusdate !== null && visible.includes(focusdate)) {
+const tabstopOf = (inview: string[], focusdate: string | null, focused: boolean, today: string): string => {
+    if (focusdate !== null && (focused || inview.includes(focusdate))) {
         return focusdate;
     }
 
-    return visible.includes(today) ? today : visible[0];
-};
-
-/**
- * Where a day's card sits: aligned to the row's start or end for the first and last four days,
- * centred under the others.
- *
- * @param {number} at The day's index in the row.
- * @param {number} length The row's length.
- * @returns {string} start, center or end.
- */
-const alignOf = (at: number, length: number): 'start' | 'center' | 'end' => {
-    if (at <= 3) {
-        return 'start';
-    }
-
-    return at >= length - 4 ? 'end' : 'center';
+    return inview.includes(today) ? today : inview[0];
 };
 
 /** What a day's disc is, for its classes. */
@@ -304,13 +359,14 @@ type DayLook = {
 };
 
 /**
- * A day disc's classes: its heat step and every state it is in.
+ * A day disc's classes: its heat step and every state it is in. The disc is a span inside the day's
+ * 44 px round button, which is the target and carries the focus ring.
  *
  * @param {object} look The day's state; see DayLook.
  * @returns {string} The class list.
  */
-const dayClass = (look: DayLook): string => [
-    'compass-cal-day',
+const discClass = (look: DayLook): string => [
+    'compass-cal-disc',
     `compass-cal-heat-${look.level}`,
     look.today ? 'compass-cal-today' : '',
     look.past ? 'compass-cal-past' : '',
@@ -369,23 +425,6 @@ const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): st
 ].filter(Boolean).join(' ');
 
 /**
- * Where today's mark sits on the track under the row, as percentages of the row's width; null when
- * today is not in the row (the mockup's cc-track-mark, which shows only then).
- *
- * @param {string[]} visible The row's days.
- * @param {string} today Y-m-d.
- * @returns {object|null} start (from the row's inline start) and width, CSS percentages.
- */
-const trackOf = (visible: string[], today: string): {start: string, width: string} | null => {
-    const at = visible.indexOf(today);
-    if (at < 0) {
-        return null;
-    }
-
-    return {start: `${((at / visible.length) * 100).toFixed(3)}%`, width: `${(100 / visible.length).toFixed(3)}%`};
-};
-
-/**
  * The strip.
  *
  * @param {object} props The block config, the calendar props, the turn (0 until tier 1 has
@@ -413,8 +452,12 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const [view, setView] = useState<CalendarView>(calendar.state.view);
     const [filter, setFilter] = useState<CalendarFilter>(calendar.state.filter);
     const [relevance, setRelevance] = useState(calendar.state.relevance);
-    // The row's first index in the window, or null for its home position.
-    const [offset, setOffset] = useState<number | null>(null);
+    // What the scroll position says; see RowView.
+    const [rowview, setRowview] = useState<RowView>({first: -1, atstart: true, atend: false, athome: true, rowwidth: 0});
+    // Whether the map's thumb is being dragged.
+    const [dragging, setDragging] = useState(false);
+    // Bumped when the strip's own scroll settles, so the effect after that render lets the pending hold go.
+    const [settled, setSettled] = useState(0);
     const [hover, setHover] = useState<string | null>(null);
     const [pinned, setPinned] = useState<string | null>(null);
     // The day holding the row's one tab stop, once the keyboard has moved it.
@@ -446,10 +489,35 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const opentimer = useRef<number | undefined>(undefined);
     const closetimer = useRef<number | undefined>(undefined);
     const buttons = useRef(new Map<string, HTMLButtonElement>());
-    // A day to focus once it is rendered, after the keyboard moved past the row's edge or a period
-    // opened the strip; wantquiet says the focus must not open it.
-    const wantfocus = useRef<string | null>(null);
-    const wantquiet = useRef(false);
+    // The row's scroller, the box the card is placed in, the row's own box and the map's thumb.
+    const scroller = useRef<HTMLDivElement>(null);
+    const daysbox = useRef<HTMLDivElement>(null);
+    const rowbox = useRef<HTMLDivElement>(null);
+    const thumb = useRef<HTMLSpanElement>(null);
+    // The scroller, payload and geometry the row was last placed for: a new scroller (the strip opened)
+    // or a new payload goes home; a new pitch or inset keeps the first day in view (a resize).
+    const placed = useRef<{el: HTMLDivElement | null, payload: StripPayload | null, pitch: number, inset: number}>(
+        {el: null, payload: null, pitch: 0, inset: 0}
+    );
+    // The first day wholly in view, as last read.
+    const anchor = useRef(0);
+    // Up while the strip scrolls itself (arrows, Today, a reveal, a period, the map's release): such a
+    // scroll closes no card. Cleared on scrollend, or by its timer where scrollend never comes.
+    const selfscroll = useRef(false);
+    const selftimer = useRef<number | undefined>(undefined);
+    // Where the strip's own scroll is going, so a second press of an arrow mid-animation steps on from there.
+    const scrolltarget = useRef(0);
+    // Moodle's pending counter, held while the strip's own scroll runs (see pending.ts).
+    const scrollhold = useRef<(() => void) | null>(null);
+    // The viewer's scroll settles this long after its last event where scrollend never comes.
+    const usertimer = useRef<number | undefined>(undefined);
+    const tick = useRef(0);
+    // The map's drag: where the thumb was grabbed and how wide it is, both fractions of the map.
+    const drag = useRef<{grab: number, span: number} | null>(null);
+    // The month the live region last said, so a scroll that settles in the same month says nothing.
+    const spoken = useRef('');
+    // The scroller scrollend is listened on.
+    const listened = useRef<HTMLDivElement | null>(null);
     // Set before the strip moves focus itself, so the focus does not open the day it lands on.
     const quietfocus = useRef(false);
     // The toggle, which holds the keyboard while a pressed period's row loads: the period's button
@@ -479,8 +547,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     useEffect(() => () => release.current?.(), []);
 
     const narrow = width > 0 && width < NARROW_PX;
-    const shown = rowLength(width, narrow, calendar.style);
-    const stepdays = Math.min(STEP_DAYS, shown);
+    // The row's geometry from the scroller's measured width, the block's until it has been measured.
+    const rowwidth = rowview.rowwidth > 0 ? rowview.rowwidth : width;
+    const row = fit(rowwidth, narrow, calendar.style);
+    const stepdays = stepOf(row.whole);
     // The closed line's counts: summed from the payload once the strip has been open, else the service's.
     const linecounts = useMemo(
         () => (payload ? countsOf(payload, calendar.grading) : counts),
@@ -603,24 +673,6 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         window.clearTimeout(closetimer.current);
     }, []);
 
-    // A day the keyboard moved to beyond the row's edge, or the first day of the period that opened
-    // the strip, takes focus once the row has moved; the period's without opening.
-    useEffect(() => {
-        if (wantfocus.current === null) {
-            return;
-        }
-        const button = buttons.current.get(wantfocus.current);
-        if (button) {
-            wantfocus.current = null;
-            if (wantquiet.current) {
-                wantquiet.current = false;
-                // A button that already holds focus fires no focus event, which would leave the flag up.
-                quietfocus.current = document.activeElement !== button;
-            }
-            button.focus();
-        }
-    });
-
     const days = useMemo(() => (payload ? windowDays(payload.firstday, payload.today) : []), [payload]);
     const counted = useMemo((): Map<string, DayCounts> => {
         const map = new Map<string, DayCounts>();
@@ -707,37 +759,6 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         }
     };
 
-    // The period that opened the strip, once the row is there: its days lit, the row moved to show
-    // them, the keyboard on its first day holding work (the last, for the past), quietly; Today and
-    // Tomorrow also pin that day's card, which asks for the day only now, after the strip answered.
-    useEffect(() => {
-        const key = periodtarget.current;
-        if (key === null || !open || !payload || !payload.enabled) {
-            return;
-        }
-        periodtarget.current = null;
-        const which = drawnView(payload, view);
-        const [from, to] = periodSpan(key, payload.firstday, payload.today, days[days.length - 1]);
-        const held = payload.views[which].days
-            .filter((day) => day.date >= from && day.date <= to && kindsOf(which).some((kind) => (day[kind] ?? 0) > 0))
-            .map((day) => day.date);
-        let target = from < payload.firstday ? payload.firstday : from;
-        if (held.length > 0) {
-            target = key === 'late' ? held[held.length - 1] : held[0];
-        }
-        const home = homeOffset(daysBetween(payload.firstday, payload.today), shown);
-        const index = daysBetween(payload.firstday, target);
-        setLitspan([from, to]);
-        setOffset(index >= home && index < home + shown ? null : index);
-        wantfocus.current = target;
-        wantquiet.current = true;
-        if (key === 'today' || key === 'tomorrow') {
-            setPinned(target);
-            setHover(target);
-            ensure(target, which, false);
-        }
-    });
-
     /**
      * Remember the strip as the viewer left it. A failed write keeps the choice on this page.
      *
@@ -759,6 +780,412 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         setHover(null);
         setPinned(null);
     };
+
+    const todayindex = payload ? daysBetween(payload.firstday, payload.today) : 0;
+    const home = homeIndex(todayindex, narrow);
+    // Whether the window is longer than the row's box. When it all fits nothing scrolls, and the arrows,
+    // the map, the fades and the scrollbar go (amendment 12).
+    const scrolls = days.length > 0 && 2 * row.inset + days.length * row.pitch - row.gap > rowwidth + 1;
+
+    /**
+     * The month of the days wholly in view from a first day.
+     *
+     * @param {number} first The first day's index.
+     * @returns {string} The label, empty without a payload.
+     */
+    const labelAt = (first: number): string => {
+        if (days.length === 0) {
+            return '';
+        }
+        const from = Math.min(days.length - 1, Math.max(0, first));
+
+        return monthLabel(days[from], days[Math.min(days.length - 1, from + row.whole - 1)], strings, narrow);
+    };
+
+    // What the scroll handlers, the timers and the native listeners read: the render's geometry and the
+    // open and pinned days, fresh however old the closure that reads them.
+    const geo = useRef({row, home, count: 0, narrow, openindex: -1, labelAt});
+    geo.current = {row, home, count: days.length, narrow, openindex: openday === null ? -1 : days.indexOf(openday), labelAt};
+    const live = useRef({hover, pinned, litspan});
+    live.current = {hover, pinned, litspan};
+
+    /**
+     * Paint what follows every pixel of the scroll without a render: the map's thumb, and the open card
+     * under its day, clamped to the strip, its caret at the day's centre (ADR-014 amendment 12). On a
+     * narrow block the card is the bottom sheet and keeps the stylesheet's place.
+     *
+     * @returns {void}
+     */
+    const paint = (): void => {
+        const el = scroller.current;
+        const {row: now, count, openindex} = geo.current;
+        if (!el || count === 0) {
+            return;
+        }
+        const scroll = scrollOf(el);
+        if (thumb.current) {
+            const span = Math.min(count, Math.max(0, el.clientWidth - 2 * now.inset) / now.pitch);
+            thumb.current.style.insetInlineStart = percent(Math.min(1, scroll / now.pitch / count));
+            thumb.current.style.width = percent(span / count);
+        }
+        const box = daysbox.current;
+        const card = box ? box.querySelector<HTMLElement>('.compass-cal-card') : null;
+        if (!box || !card) {
+            return;
+        }
+        const caret = card.querySelector<HTMLElement>('.compass-cal-caret');
+        if (geo.current.narrow || openindex < 0 || !rowbox.current) {
+            card.style.removeProperty('inset-inline-start');
+            card.style.removeProperty('top');
+            caret?.style.removeProperty('inset-inline-start');
+
+            return;
+        }
+        const cardwidth = card.offsetWidth;
+        const centre = now.inset + openindex * now.pitch + now.column / 2 - scroll;
+        const start = Math.max(0, Math.min(box.clientWidth - cardwidth, centre - cardwidth / 2));
+        card.style.insetInlineStart = `${Math.round(start)}px`;
+        card.style.top = `${rowbox.current.offsetTop + rowbox.current.offsetHeight + 4}px`;
+        // The caret under the day's centre, kept off the card's rounded corners.
+        const caretat = Math.max(12, Math.min(cardwidth - 25, centre - start - 6.5));
+        caret?.style.setProperty('inset-inline-start', `${Math.round(caretat)}px`);
+    };
+
+    /**
+     * Read the scroll position into state, only what changed, and paint. The arrows' and Today's state
+     * come from the measured position, never from a computed target.
+     *
+     * @returns {void}
+     */
+    const read = (): void => {
+        const el = scroller.current;
+        const {row: now, home: homeat, count} = geo.current;
+        if (!el || count === 0) {
+            return;
+        }
+        const scroll = scrollOf(el);
+        const max = Math.max(0, el.scrollWidth - el.clientWidth);
+        const next: RowView = {
+            first: Math.min(count - 1, Math.max(0, Math.round(scroll / now.pitch))),
+            atstart: scroll <= EDGE_TOLERANCE_PX,
+            atend: scroll >= max - EDGE_TOLERANCE_PX,
+            athome: Math.abs(scroll - Math.min(max, homeat * now.pitch)) <= EDGE_TOLERANCE_PX,
+            rowwidth: el.clientWidth,
+        };
+        anchor.current = next.first;
+        setRowview((current) => (sameView(current, next) ? current : next));
+        paint();
+    };
+
+    /**
+     * Say the month once the scroll has settled, when it is not the month last said.
+     *
+     * @returns {void}
+     */
+    const announce = (): void => {
+        const label = geo.current.labelAt(anchor.current);
+        if (label !== '' && label !== spoken.current) {
+            spoken.current = label;
+            setSummary(label);
+        }
+    };
+
+    /**
+     * The strip's own scroll is over: read where it landed, and let the pending hold go once that is
+     * rendered (the effect on settled).
+     *
+     * @returns {void}
+     */
+    const endSelfScroll = (): void => {
+        window.clearTimeout(selftimer.current);
+        if (!selfscroll.current) {
+            return;
+        }
+        selfscroll.current = false;
+        read();
+        announce();
+        setSettled((current) => current + 1);
+    };
+
+    /**
+     * Scroll the row itself, never the page (no scrollIntoView, whose block axis would move it): smoothly
+     * unless reduced motion is asked for or the caller places the row. Flagged until it settles, so it
+     * closes no card, and Moodle's pending counter is held until then.
+     *
+     * @param {number} target The scroll position from the row's inline start; clamped to the row.
+     * @param {boolean} smooth Whether it animates.
+     * @returns {void}
+     */
+    const scrollRow = (target: number, smooth: boolean): void => {
+        const el = scroller.current;
+        if (!el) {
+            return;
+        }
+        const left = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, target));
+        if (Math.abs(scrollOf(el) - left) < 1) {
+            return;
+        }
+        selfscroll.current = true;
+        scrolltarget.current = left;
+        if (scrollhold.current === null) {
+            scrollhold.current = hold(`block_compass/calendar-scroll-${cardid}`);
+        }
+        window.clearTimeout(selftimer.current);
+        selftimer.current = window.setTimeout(endSelfScroll, SCROLL_START_MS);
+        el.scrollTo({left: isRtl(el) ? -left : left, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto'});
+    };
+
+    /**
+     * Whether a day is wholly in view now (decision 9, as amended).
+     *
+     * @param {number} index The day's index in the window.
+     * @returns {boolean} Whether it is.
+     */
+    const isWhole = (index: number): boolean => {
+        const el = scroller.current;
+
+        return !!el && whollyInView(index, row, scrollOf(el), el.clientWidth);
+    };
+
+    /**
+     * Show a day wholly, scrolling the least; nothing when it already is.
+     *
+     * @param {number} index The day's index in the window.
+     * @returns {void}
+     */
+    const reveal = (index: number): void => {
+        const el = scroller.current;
+        if (!el || index < 0 || isWhole(index)) {
+            return;
+        }
+        scrollRow(leastScroll(index, row, scrollOf(el), el.clientWidth), true);
+    };
+
+    /**
+     * Focus a day without opening it and without scrolling anything.
+     *
+     * @param {string} date Y-m-d.
+     * @returns {void}
+     */
+    const focusQuietly = (date: string): void => {
+        const button = buttons.current.get(date);
+        // A button that already holds focus fires no focus event, which would leave the flag up
+        // for the next real one.
+        if (button && document.activeElement !== button) {
+            quietfocus.current = true;
+            button.focus({preventScroll: true});
+        }
+    };
+
+    /**
+     * The viewer scrolled (a trackpad, touch, shift and the wheel, the map): a hovered day closes, and a
+     * pinned one once its day is no longer wholly in view, the keyboard going back to the day when it was
+     * in the card. The strip's own scrolls never come here.
+     *
+     * @returns {void}
+     */
+    const userScrolled = (): void => {
+        const el = scroller.current;
+        const now = live.current;
+        window.clearTimeout(opentimer.current);
+        if (now.litspan !== null) {
+            setLitspan(null);
+        }
+        if (now.pinned === null) {
+            if (now.hover !== null) {
+                setHover(null);
+            }
+
+            return;
+        }
+        const index = geo.current.openindex;
+        if (!el || index < 0 || whollyInView(index, geo.current.row, scrollOf(el), el.clientWidth)) {
+            return;
+        }
+        const active = document.activeElement;
+        const incard = active instanceof HTMLElement && active.closest('.compass-cal-card') !== null;
+        const day = now.pinned;
+        closeAll();
+        if (incard) {
+            focusQuietly(day);
+        }
+    };
+
+    /**
+     * The viewer's scroll settled.
+     *
+     * @returns {void}
+     */
+    const userSettled = (): void => {
+        window.clearTimeout(usertimer.current);
+        read();
+        announce();
+    };
+
+    /**
+     * The scroller scrolled: the strip's own scroll re-arms its end, the viewer's closes what it must; the
+     * map and the card follow at once, the state on the next frame.
+     *
+     * @returns {void}
+     */
+    const scrolled = (): void => {
+        if (selfscroll.current) {
+            window.clearTimeout(selftimer.current);
+            selftimer.current = window.setTimeout(endSelfScroll, SCROLL_QUIET_MS);
+        } else {
+            userScrolled();
+            window.clearTimeout(usertimer.current);
+            usertimer.current = window.setTimeout(userSettled, SCROLL_QUIET_MS);
+        }
+        paint();
+        if (tick.current === 0) {
+            tick.current = window.requestAnimationFrame(() => {
+                tick.current = 0;
+                read();
+            });
+        }
+    };
+
+    /**
+     * The scroller's scroll has ended (scrollend): the strip's own scroll is over, or the viewer's settled.
+     *
+     * @returns {void}
+     */
+    const scrollEnded = (): void => {
+        if (selfscroll.current) {
+            endSelfScroll();
+        } else {
+            userSettled();
+        }
+    };
+
+    /**
+     * The tab came back: a hidden tab runs no frame and delivers no scroll event, so the row is read again.
+     *
+     * @returns {void}
+     */
+    const cameBack = (): void => {
+        if (document.visibilityState === 'visible') {
+            window.cancelAnimationFrame(tick.current);
+            tick.current = 0;
+            read();
+        }
+    };
+
+    // The native listeners' way to the latest closures.
+    const api = useRef({scrollEnded: nothing, cameBack: nothing});
+    api.current = {scrollEnded, cameBack};
+    const onscrollend = useRef((): void => api.current.scrollEnded());
+
+    /**
+     * What a period opens the strip on: its days, the day the keyboard lands on (its first day holding
+     * work, the last for the past), and the first day in view: the window's start for Late, home when the
+     * day is wholly in view from there, else the day itself.
+     *
+     * @param {string} key The period.
+     * @param {number} boxwidth The scroller's width.
+     * @returns {object|null} The plan, null without a payload.
+     */
+    const periodPlan = (key: PeriodKey, boxwidth: number) => {
+        if (!payload) {
+            return null;
+        }
+        const which = drawnView(payload, view);
+        const [from, to] = periodSpan(key, payload.firstday, payload.today, days[days.length - 1]);
+        const held = payload.views[which].days
+            .filter((day) => day.date >= from && day.date <= to && kindsOf(which).some((kind) => (day[kind] ?? 0) > 0))
+            .map((day) => day.date);
+        let target = from < payload.firstday ? payload.firstday : from;
+        if (held.length > 0) {
+            target = key === 'late' ? held[held.length - 1] : held[0];
+        }
+        const index = daysBetween(payload.firstday, target);
+        let start = home;
+        if (key === 'late') {
+            start = 0;
+        } else if (!whollyInView(index, row, home * row.pitch, boxwidth)) {
+            start = index;
+        }
+
+        return {which, from, to, target, start};
+    };
+
+    // Place the row before paint, never on a frame (a hidden tab runs none): home, or a period's days, for
+    // a new scroller or a new payload; the same first day after a resize. Then read where it is.
+    useLayoutEffect(() => {
+        const el = scroller.current;
+        if (listened.current !== el) {
+            listened.current?.removeEventListener('scrollend', onscrollend.current);
+            el?.addEventListener('scrollend', onscrollend.current);
+            listened.current = el;
+        }
+        if (!el || !payload || days.length === 0) {
+            return;
+        }
+        const was = placed.current;
+        if (was.el !== el || was.payload !== payload) {
+            const plan = periodtarget.current === null ? null : periodPlan(periodtarget.current, el.clientWidth);
+            const start = plan ? plan.start : home;
+            placed.current = {el, payload, pitch: row.pitch, inset: row.inset};
+            anchor.current = start;
+            spoken.current = labelAt(start);
+            scrollRow(start * row.pitch, false);
+        } else if (was.pitch !== row.pitch || was.inset !== row.inset) {
+            placed.current = {...was, pitch: row.pitch, inset: row.inset};
+            scrollRow(anchor.current * row.pitch, false);
+        }
+        read();
+    });
+
+    // The period that opened the strip, once the row is there and placed: its days lit, the keyboard on
+    // its day, quietly; Today and Tomorrow also pin that day's card, which asks for the day only now,
+    // after the strip answered.
+    useEffect(() => {
+        const key = periodtarget.current;
+        const el = scroller.current;
+        if (key === null || !open || !payload || !payload.enabled || !el) {
+            return;
+        }
+        periodtarget.current = null;
+        const plan = periodPlan(key, el.clientWidth);
+        if (!plan) {
+            return;
+        }
+        setLitspan([plan.from, plan.to]);
+        focusQuietly(plan.target);
+        if (key === 'today' || key === 'tomorrow') {
+            setPinned(plan.target);
+            setHover(plan.target);
+            ensure(plan.target, plan.which, false);
+        }
+    });
+
+    // The strip's own scroll has settled and that is rendered: Behat may read the page again.
+    useEffect(() => {
+        if (!selfscroll.current && scrollhold.current !== null) {
+            scrollhold.current();
+            scrollhold.current = null;
+        }
+    }, [settled]);
+
+    useEffect(() => {
+        /**
+         * Hand the tab's return to the latest closure.
+         *
+         * @returns {void}
+         */
+        const onvisible = (): void => api.current.cameBack();
+        document.addEventListener('visibilitychange', onvisible);
+
+        return () => {
+            document.removeEventListener('visibilitychange', onvisible);
+            listened.current?.removeEventListener('scrollend', onscrollend.current);
+            window.clearTimeout(selftimer.current);
+            window.clearTimeout(usertimer.current);
+            window.cancelAnimationFrame(tick.current);
+            scrollhold.current?.();
+        };
+    }, []);
 
     /**
      * Open or close the strip, and remember it at once. The write is optimistic: if it fails while it
@@ -1021,7 +1448,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         setAttempt((current) => current + 1);
                     }}
                 />
-            ) : skeleton(calendar, shown, narrow),
+            ) : skeleton(calendar, row, rowwidth, narrow),
             null
         );
     }
@@ -1036,18 +1463,21 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const countsOfDay = (date: string): DayCounts => counted.get(date) ?? empty;
 
     const kinds = shownKinds(drawn, filter);
-    const todayindex = daysBetween(payload.firstday, payload.today);
-    const home = homeOffset(todayindex, shown);
-    const last = Math.max(home, days.length - shown);
-    const first = Math.min(last, Math.max(home, offset ?? home));
-    const visible = days.slice(first, first + shown);
+    // The days wholly in view, as last read: the month, the tab stop and the legend's holiday key.
+    const first = rowview.first < 0 ? Math.min(home, days.length - 1) : rowview.first;
+    const last = Math.min(days.length - 1, first + row.whole - 1);
+    const inview = days.slice(first, last + 1);
 
     const needle = needleOf(days.slice(todayindex), (date) => score(countsOfDay(date), drawn, filter, relevance));
     // The needle's name: its tooltip, and the end of its day's sentence.
     const needletitle = drawn === 'teaching' ? strings.cal_legend_needle_teaching : strings.cal_legend_needle_learning;
-    const monthlabel = monthLabel(visible, strings);
-    const tabstop = tabstopOf(visible, focusdate, payload.today);
+    const monthlabel = monthLabel(days[first], days[last], strings, narrow);
+    const focusbutton = focusdate === null ? undefined : buttons.current.get(focusdate);
+    const tabstop = tabstopOf(inview, focusdate, !!focusbutton && document.activeElement === focusbutton, payload.today);
     const bydate = new Map(payload.views[drawn].days.map((entry) => [entry.date, entry]));
+    // The arrows and the map show only on a wide block whose window is longer than its row (amendment 12).
+    const arrows = !narrow && scrolls;
+    const map = !narrow && scrolls;
 
     /**
      * Open a day as hovering does.
@@ -1062,25 +1492,52 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     };
 
     /**
-     * Move the row, closing the open day and the lit period.
+     * An arrow: a step of whole weeks back or forward, closing the open day and the lit period; nothing
+     * at the window's end that way, where the arrow says aria-disabled.
      *
-     * @param {number|null} to The new first index, or null for home.
+     * @param {number} direction -1 for earlier days, 1 for later.
      * @returns {void}
      */
-    const shift = (to: number | null): void => {
+    const page = (direction: number): void => {
+        const el = scroller.current;
+        if (!el) {
+            return;
+        }
+        // From where the strip's own scroll is going, when one is under way, so presses add up.
+        const scroll = selfscroll.current ? scrolltarget.current : scrollOf(el);
+        if (direction < 0 ? scroll <= EDGE_TOLERANCE_PX : scroll >= el.scrollWidth - el.clientWidth - EDGE_TOLERANCE_PX) {
+            return;
+        }
         closeAll();
         setLitspan(null);
-        setOffset(to === null ? null : Math.min(last, Math.max(home, to)));
+        scrollRow((Math.round(scroll / row.pitch) + direction * stepdays) * row.pitch, true);
     };
 
     /**
-     * The pointer entered a day: open it after the hover intent's delay. Touch opens by tapping.
+     * Today: back to the home position, closing the open day and the lit period.
+     *
+     * @returns {void}
+     */
+    const goHome = (): void => {
+        if (rowview.athome) {
+            return;
+        }
+        closeAll();
+        setLitspan(null);
+        scrollRow(home * row.pitch, true);
+    };
+
+    /**
+     * The pointer entered a day: open it after the hover intent's delay, only while it is wholly in view.
+     * A day partly under an arrow, a fade or an edge neither opens nor prefetches, and moving onto it
+     * closes an unpinned day (decision 9, as amended). Touch opens by tapping.
      *
      * @param {string} date Y-m-d.
+     * @param {number} index The day's index in the window.
      * @param {object} event The pointer event.
      * @returns {void}
      */
-    const enterDay = (date: string, event: PointerEvent<HTMLButtonElement>): void => {
+    const enterDay = (date: string, index: number, event: PointerEvent<HTMLButtonElement>): void => {
         if (event.pointerType !== 'mouse') {
             return;
         }
@@ -1089,26 +1546,40 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             return;
         }
         window.clearTimeout(opentimer.current);
+        if (!isWhole(index)) {
+            if (hover !== null) {
+                setHover(null);
+            }
+
+            return;
+        }
         if (hover === date) {
             return;
         }
-        opentimer.current = window.setTimeout(() => openDay(date, true), hover === null ? OPEN_DELAY_MS : MOVE_DELAY_MS);
+        opentimer.current = window.setTimeout(() => {
+            if (isWhole(index)) {
+                openDay(date, true);
+            }
+        }, hover === null ? OPEN_DELAY_MS : MOVE_DELAY_MS);
     };
 
     /**
-     * A day took focus: it holds the tab stop, and it opens as hovering would, unless the strip
-     * moved focus itself, a day is pinned, or the row is the narrow one (a tap opens the sheet).
+     * A day took focus: it holds the tab stop, comes wholly into view, and opens as hovering would,
+     * unless the strip moved focus itself, a day is pinned, or the row is the narrow one (a tap opens
+     * the sheet).
      *
      * @param {string} date Y-m-d.
+     * @param {number} index The day's index in the window.
      * @returns {void}
      */
-    const focusDay = (date: string): void => {
+    const focusDay = (date: string, index: number): void => {
         setFocusdate(date);
         if (quietfocus.current) {
             quietfocus.current = false;
 
             return;
         }
+        reveal(index);
         if (pinned !== null || narrow) {
             return;
         }
@@ -1117,12 +1588,14 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     };
 
     /**
-     * A day was pressed: pin it, or unpin it when it was the pinned one.
+     * A day was pressed: pin it, or unpin it when it was the pinned one. A peeking day scrolls wholly
+     * into view first.
      *
      * @param {string} date Y-m-d.
+     * @param {number} index The day's index in the window.
      * @returns {void}
      */
-    const pressDay = (date: string): void => {
+    const pressDay = (date: string, index: number): void => {
         window.clearTimeout(opentimer.current);
         setLitspan(null);
         if (pinned === date) {
@@ -1133,63 +1606,49 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
 
             return;
         }
+        reveal(index);
         setPinned(date);
         setHover(date);
         ensure(date, drawn, pointer.current !== 'touch');
     };
 
     /**
-     * Focus a day without opening it.
-     *
-     * @param {string} date Y-m-d.
-     * @returns {void}
-     */
-    const focusQuietly = (date: string): void => {
-        const button = buttons.current.get(date);
-        // A button that already holds focus fires no focus event, which would leave the flag up
-        // for the next real one.
-        if (button && document.activeElement !== button) {
-            quietfocus.current = true;
-            button.focus();
-        }
-    };
-
-    /**
-     * The arrow keys, Home and End move the tab stop across the days; past the row's edge the row
-     * moves a week and the next day takes focus once it is drawn.
+     * The keys move the window's one tab stop: Left and Right a day (mirrored right to left), Page Up and
+     * Page Down a step, Home and End the window's first and last day. Focus moves without the browser's
+     * scroll, and the row then scrolls itself by the least that shows the day.
      *
      * @param {string} date The focused day.
+     * @param {number} index Its index in the window.
      * @param {object} event The key event.
      * @returns {void}
      */
-    const keyDay = (date: string, event: KeyboardEvent<HTMLButtonElement>): void => {
-        const at = visible.indexOf(date);
-        let target = -1;
+    const keyDay = (date: string, index: number, event: KeyboardEvent<HTMLButtonElement>): void => {
+        const el = scroller.current;
+        const forward = el && isRtl(el) ? -1 : 1;
+        let target = index;
         if (event.key === 'ArrowRight') {
-            target = at + 1;
+            target = index + forward;
         } else if (event.key === 'ArrowLeft') {
-            target = at - 1;
+            target = index - forward;
+        } else if (event.key === 'PageDown') {
+            target = index + stepdays;
+        } else if (event.key === 'PageUp') {
+            target = index - stepdays;
         } else if (event.key === 'Home') {
             target = 0;
         } else if (event.key === 'End') {
-            target = visible.length - 1;
+            target = days.length - 1;
         } else {
             return;
         }
         event.preventDefault();
         pointer.current = 'keyboard';
-        if (target >= 0 && target < visible.length) {
-            buttons.current.get(visible[target])?.focus();
-
+        target = Math.max(0, Math.min(days.length - 1, target));
+        if (target === index) {
             return;
         }
-        const moved = target < 0 ? first - stepdays : first + stepdays;
-        if ((target < 0 && first <= home) || (target >= visible.length && first >= last)) {
-            return;
-        }
-        wantfocus.current = addDays(date, target < 0 ? -1 : 1);
-        setHover(null);
-        setOffset(Math.min(last, Math.max(home, moved)));
+        buttons.current.get(days[target])?.focus({preventScroll: true});
+        reveal(target);
     };
 
     /**
@@ -1225,6 +1684,93 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             window.clearTimeout(opentimer.current);
             setHover(null);
         }
+    };
+
+    /**
+     * Where the pointer is along the map, from its inline start.
+     *
+     * @param {object} event The pointer event.
+     * @returns {number} 0 to 1.
+     */
+    const mapAt = (event: PointerEvent<HTMLDivElement>): number => {
+        const box = event.currentTarget.getBoundingClientRect();
+        const el = scroller.current;
+        const x = el && isRtl(el) ? box.right - event.clientX : event.clientX - box.left;
+
+        return box.width > 0 ? Math.max(0, Math.min(1, x / box.width)) : 0;
+    };
+
+    /**
+     * Move the row with the map's thumb: the scroll follows the pointer at once, snap off.
+     *
+     * @param {number} at Where the pointer is along the map, 0 to 1.
+     * @returns {void}
+     */
+    const scrubTo = (at: number): void => {
+        const el = scroller.current;
+        const grip = drag.current;
+        if (!el || !grip) {
+            return;
+        }
+        const start = Math.max(0, Math.min(1 - grip.span, at - grip.grab));
+        const left = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, start * days.length * row.pitch));
+        el.scrollLeft = isRtl(el) ? -left : left;
+    };
+
+    /**
+     * A press on the map: on the thumb it grabs it where pressed; on the line it centres the thumb on the
+     * pointer and the row follows at once (a single-pointer jump, WCAG 2.5.7). Any open day closes.
+     *
+     * @param {object} event The pointer event.
+     * @returns {void}
+     */
+    const mapDown = (event: PointerEvent<HTMLDivElement>): void => {
+        const el = scroller.current;
+        if (!el || (event.pointerType === 'mouse' && event.button !== 0)) {
+            return;
+        }
+        const at = mapAt(event);
+        const thumbstart = scrollOf(el) / row.pitch / days.length;
+        const span = Math.min(days.length, Math.max(0, el.clientWidth - 2 * row.inset) / row.pitch) / days.length;
+        const onthumb = at >= thumbstart - 0.01 && at <= thumbstart + span + 0.01;
+        drag.current = {grab: onthumb ? at - thumbstart : span / 2, span};
+        try {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        } catch (e) {
+            // A synthetic pointer has no capture; the drag still follows the moves over the map.
+        }
+        // Panorama's lesson: mandatory snap fights a scroll set pixel by pixel, so it is off until the release.
+        el.classList.add('compass-cal-nosnap');
+        closeAll();
+        setLitspan(null);
+        setDragging(true);
+        if (!onthumb) {
+            scrubTo(at);
+        }
+        event.preventDefault();
+    };
+
+    /**
+     * The drag ends: snap comes back, and one smooth scroll lands on the nearest day, or on the window's end.
+     *
+     * @returns {void}
+     */
+    const mapUp = (): void => {
+        const el = scroller.current;
+        if (drag.current === null) {
+            return;
+        }
+        drag.current = null;
+        setDragging(false);
+        if (!el) {
+            return;
+        }
+        el.classList.remove('compass-cal-nosnap');
+        // The nearest snap point, the window's end among them: a release near the end reaches it.
+        const scroll = scrollOf(el);
+        const max = el.scrollWidth - el.clientWidth;
+        const nearest = Math.round(scroll / row.pitch) * row.pitch;
+        scrollRow(Math.abs(max - scroll) < Math.abs(nearest - scroll) ? max : nearest, true);
     };
 
     /**
@@ -1270,11 +1816,13 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         if (n('graded') > 0) {
             parts.push(phrase('cal_count_graded', 'graded'));
         }
-        if (n('todo') > 0) {
-            parts.push(phrase('cal_count_todo', 'todo'));
-        }
+        // In the marks' priority (calendar.ts, marks()), so the kinds a "+N" hides are named in the same
+        // order right after the shown ones: graded, late, to do, then grading, class deadlines, events, done.
         if (n('late') > 0) {
             parts.push(fillCount(strings, 'cal_count_late', n('late')));
+        }
+        if (n('todo') > 0) {
+            parts.push(phrase('cal_count_todo', 'todo'));
         }
         if (n('gradesoon') > 0) {
             parts.push(fill(istoday ? strings.cal_count_gradesoon_today : strings.cal_count_gradesoon_tomorrow,
@@ -1328,12 +1876,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         ));
     };
 
-
-    const atstart = first <= home;
-    const atend = first >= last;
-    const track = trackOf(visible, payload.today);
-    // The legend names a day off only while one is in the row; the weekend whenever the site has one.
-    const holidayshown = visible.some((date) => dayOff(date, payload.weekend, specials.get(date)).mark === 'holiday');
+    // The legend names a day off only while one is in view; the weekend whenever the site has one.
+    const holidayshown = inview.some((date) => dayOff(date, payload.weekend, specials.get(date)).mark === 'holiday');
     // The legend's keys for the days off, the same in both views.
     const daysoffkeys = (
         <>
@@ -1345,210 +1889,261 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             )}
         </>
     );
-    const athome = offset === null || first === home;
+    // The map's marks, as fractions of the window: today, the needle, and the days holding the course a
+    // tier 1 card is pointed at (D11), so the lit days out of view say where they are.
+    const needleindex = needle === '' ? -1 : days.indexOf(needle);
+    const pointeddays = pointedCourse === null ? [] : days.filter((date) => !!bydate.get(date)?.courseids.includes(pointedCourse));
 
     const nav = (
         <div className="compass-cal-nav">
-            {/* Never the disabled attribute: a focused arrow that reaches the edge would drop
-                the keyboard to the body. aria-disabled, and the handler refuses. */}
-            <button
-                type="button"
-                className="compass-cal-iconbtn"
-                aria-label={strings.cal_prev}
-                aria-disabled={atstart || undefined}
-                onClick={() => {
-                    if (!atstart) {
-                        shift(first - stepdays);
-                    }
-                }}
-            >
-                {/* Core's chevrons, the ltr one or the rtl one shown by core's own direction
-                    classes, as a course section's chevron is (Group.tsx). */}
-                <span
-                    className="compass-cal-chevron icon-no-margin dir-rtl-hide"
-                    aria-hidden="true"
-                    dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
-                />
-                <span
-                    className="compass-cal-chevron icon-no-margin dir-ltr-hide"
-                    aria-hidden="true"
-                    dangerouslySetInnerHTML={{__html: calendar.icons.next}}
-                />
-            </button>
-            <p className="compass-cal-month" aria-live="polite">{monthlabel}</p>
-            <button
-                type="button"
-                className="compass-cal-iconbtn"
-                aria-label={strings.cal_next}
-                aria-disabled={atend || undefined}
-                onClick={() => {
-                    if (!atend) {
-                        shift(first + stepdays);
-                    }
-                }}
-            >
-                <span
-                    className="compass-cal-chevron icon-no-margin dir-rtl-hide"
-                    aria-hidden="true"
-                    dangerouslySetInnerHTML={{__html: calendar.icons.next}}
-                />
-                <span
-                    className="compass-cal-chevron icon-no-margin dir-ltr-hide"
-                    aria-hidden="true"
-                    dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
-                />
-            </button>
+            {/* The month of the days wholly in view; the polite region below says it once a scroll settles. */}
+            <p className="compass-cal-month">{monthlabel}</p>
+            {/* Never the disabled attribute: a focused control that reaches home would drop the keyboard
+                to the body. aria-disabled, and the handler refuses. */}
             <button
                 type="button"
                 className="compass-cal-todaybtn"
-                aria-disabled={athome || undefined}
-                onClick={() => {
-                    if (!athome) {
-                        shift(null);
-                    }
-                }}
+                aria-disabled={rowview.athome || undefined}
+                onClick={goHome}
             >
                 {strings.cal_today}
             </button>
         </div>
     );
 
-    const row = (
-        <>
-            <div className="compass-cal-daysbox">
-                {/* The row's edges fade where more days lie beyond them: the arrows can still move
-                    that way. The fades take no pointer, and a focused or open day rises above them. */}
-                {!narrow && !atstart && <span className="compass-cal-fade compass-cal-fade-start" aria-hidden="true" />}
-                {!narrow && !atend && <span className="compass-cal-fade compass-cal-fade-end" aria-hidden="true" />}
-                <div
-                    className={`compass-cal-days compass-cal-days-${shown}`}
-                    role="list"
-                    aria-label={fill(strings.cal_days, String(shown))}
-                >
-                    {visible.map((date, at) => {
-                        const day = countsOfDay(date);
-                        const list = marks(day, kinds);
-                        const level = step(score(day, drawn, filter, relevance), relevance);
-                        const ymd = dateParts(date);
-                        const off = dayOff(date, payload.weekend, specials.get(date));
-                        const nothing = kindsOf(drawn).every((kind) => (day.counts[kind] ?? 0) === 0);
-                        const istoday = date === payload.today;
-                        const isopen = openday === date;
-                        // Pointing at a card: the days holding its course match, the others dim. A period
-                        // that opened the strip: its days holding work match, the days outside it dim.
-                        let lighting = '';
-                        if (pointedCourse !== null) {
-                            const holds = !!bydate.get(date)?.courseids.includes(pointedCourse);
-                            lighting = holds ? 'compass-cal-col-match' : 'compass-cal-col-dim';
-                        } else if (litspan !== null) {
-                            const inside = date >= litspan[0] && date <= litspan[1];
-                            if (!inside) {
-                                lighting = 'compass-cal-col-dim';
-                            } else if (!nothing) {
-                                lighting = 'compass-cal-col-match';
-                            }
-                        }
-                        const dayclass = dayClass({
-                            level,
-                            today: istoday,
-                            past: date < payload.today,
-                            off: off.mark !== '' && nothing,
-                            holiday: off.mark === 'holiday',
-                            soon: !istoday && list.some((kind) => kind === 'gradedsoon' || kind === 'gradesoon'),
-                            open: isopen,
-                            pinned: pinned === date,
-                        });
-                        // The weekday label carries the mark only when the disc cannot show it.
-                        const labelmark = nothing && !istoday ? '' : off.mark;
+    const openindex = openday === null ? -1 : days.indexOf(openday);
+    const openingdate = openindex < 0 ? null : days[openindex];
 
-                        return (
-                            <div key={date} role="listitem" className={columnClass(istoday, labelmark, lighting)}>
-                                {date === needle && <span className="compass-cal-needle" aria-hidden="true" title={needletitle} />}
-                                {calendar.style === 'pulse' && (
-                                    <span className="compass-cal-barbox" aria-hidden="true">
-                                        {/* Late work, still open, turns its day's bar to the danger colour (the
-                                            mockup's cc-barover), over the heat's colour. */}
-                                        <span
-                                            className={list.includes('late')
-                                                ? `compass-cal-bar compass-cal-barover compass-cal-heat-${level}`
-                                                : `compass-cal-bar compass-cal-heat-${level}`}
-                                            style={{height: `${list.length ? 10 + Math.min(list.length, 5) * 8 : 4}px`}}
-                                        />
-                                    </span>
-                                )}
-                                <button
-                                    type="button"
-                                    ref={(node) => {
-                                        if (node) {
-                                            buttons.current.set(date, node);
-                                        } else {
-                                            buttons.current.delete(date);
-                                        }
-                                    }}
-                                    className={dayclass}
-                                    tabIndex={date === tabstop ? 0 : -1}
-                                    aria-label={dayLabel(date, day, off)}
-                                    aria-haspopup="dialog"
-                                    aria-expanded={isopen}
-                                    aria-controls={isopen ? cardid : undefined}
-                                    onPointerDown={(event) => {
-                                        pointer.current = event.pointerType;
-                                    }}
-                                    onPointerEnter={(event) => enterDay(date, event)}
-                                    onFocus={() => focusDay(date)}
-                                    onClick={() => pressDay(date)}
-                                    onKeyDown={(event) => keyDay(date, event)}
-                                >
-                                    {calendar.style === 'ring' && (
-                                        <svg className="compass-cal-ring" viewBox="0 0 60 60" aria-hidden="true" focusable="false">
-                                            {segments(list)}
-                                        </svg>
+    const rowpart = (
+        <>
+            <div className="compass-cal-daysbox" ref={daysbox} style={rowStyle(row)}>
+                <div className="compass-cal-rowbox" ref={rowbox}>
+                    <div
+                        ref={scroller}
+                        className="compass-cal-days"
+                        role="list"
+                        aria-label={fillObject(strings.cal_days, {
+                            from: dayMonth(strings, dateParts(days[0])),
+                            to: dayMonth(strings, dateParts(days[days.length - 1])),
+                        })}
+                        onScroll={scrolled}
+                    >
+                        {days.map((date, index) => {
+                            const day = countsOfDay(date);
+                            const items = itemKinds(day, kinds);
+                            const mark = marks(day, kinds, drawn);
+                            const level = step(score(day, drawn, filter, relevance), relevance);
+                            const ymd = dateParts(date);
+                            const off = dayOff(date, payload.weekend, specials.get(date));
+                            const nothing = kindsOf(drawn).every((kind) => (day.counts[kind] ?? 0) === 0);
+                            const istoday = date === payload.today;
+                            const isopen = openday === date;
+                            // Pointing at a card: the days holding its course match, the others dim. A period
+                            // that opened the strip: its days holding work match, the days outside it dim.
+                            let lighting = '';
+                            if (pointedCourse !== null) {
+                                const holds = !!bydate.get(date)?.courseids.includes(pointedCourse);
+                                lighting = holds ? 'compass-cal-col-match' : 'compass-cal-col-dim';
+                            } else if (litspan !== null) {
+                                const inside = date >= litspan[0] && date <= litspan[1];
+                                if (!inside) {
+                                    lighting = 'compass-cal-col-dim';
+                                } else if (!nothing) {
+                                    lighting = 'compass-cal-col-match';
+                                }
+                            }
+                            const discclass = discClass({
+                                level,
+                                today: istoday,
+                                past: date < payload.today,
+                                off: off.mark !== '' && nothing,
+                                holiday: off.mark === 'holiday',
+                                soon: !istoday && items.some((kind) => kind === 'gradedsoon' || kind === 'gradesoon'),
+                                open: isopen,
+                                pinned: pinned === date,
+                            });
+                            // The weekday label carries the mark only when the disc cannot show it.
+                            const labelmark = nothing && !istoday ? '' : off.mark;
+
+                            return (
+                                <div key={date} role="listitem" className={columnClass(istoday, labelmark, lighting)}>
+                                    {date === needle && (
+                                        <span className="compass-cal-needle" aria-hidden="true" title={needletitle} />
                                     )}
-                                    <span className="compass-cal-num">{ymd.day}</span>
-                                </button>
-                                <span className="compass-cal-dots" aria-hidden="true">
-                                    {list.slice(0, DOTS_MAX).map((kind, index) => (
-                                        <span key={index} className={`compass-cal-dot compass-cal-dot-${kind}`} />
-                                    ))}
-                                    {list.length > DOTS_MAX && (
-                                        <span className="compass-cal-more">{`+${list.length - DOTS_MAX}`}</span>
+                                    {calendar.style === 'pulse' && (
+                                        <span className="compass-cal-barbox" aria-hidden="true">
+                                            {/* Late work, still open, turns its day's bar to the danger colour (the
+                                                mockup's cc-barover), over the heat's colour. */}
+                                            <span
+                                                className={items.includes('late')
+                                                    ? `compass-cal-bar compass-cal-barover compass-cal-heat-${level}`
+                                                    : `compass-cal-bar compass-cal-heat-${level}`}
+                                                style={{height: `${items.length ? 10 + Math.min(items.length, 5) * 8 : 4}px`}}
+                                            />
+                                        </span>
                                     )}
-                                </span>
-                                <span className="compass-cal-wd" aria-hidden="true">{shortWeekday(strings, ymd)}</span>
-                                {isopen && (
-                                    <CalendarCard
-                                        id={cardid}
-                                        date={date}
-                                        today={payload.today}
-                                        view={drawn}
-                                        filter={filter}
-                                        counts={day}
-                                        off={off}
-                                        entry={entries[`${drawn}:${date}`]}
-                                        align={alignOf(at, visible.length)}
-                                        pinned={pinned === date || narrow}
-                                        dayurl={dayUrl(calendar.dayurl, payload.from, daysBetween(payload.firstday, date))}
-                                        config={config}
-                                        calendar={calendar}
-                                        onClose={() => {
-                                            closeAll();
-                                            focusQuietly(date);
+                                    {/* The 44 px round target, which carries the focus ring, around the 36 px disc. */}
+                                    <button
+                                        type="button"
+                                        ref={(node) => {
+                                            if (node) {
+                                                buttons.current.set(date, node);
+                                            } else {
+                                                buttons.current.delete(date);
+                                            }
                                         }}
-                                        onRetry={() => ensure(date, drawn, false)}
-                                    />
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-                {/* Where today sits in the row, under it (the mockup's track); hidden on a narrow block,
-                    as the mockup hides it on a phone. */}
-                {!narrow && (
-                    <div className="compass-cal-track" aria-hidden="true">
-                        {track && (
-                            <span className="compass-cal-trackmark" style={{insetInlineStart: track.start, width: track.width}} />
-                        )}
+                                        className="compass-cal-day"
+                                        tabIndex={date === tabstop ? 0 : -1}
+                                        aria-label={dayLabel(date, day, off)}
+                                        aria-haspopup="dialog"
+                                        aria-expanded={isopen}
+                                        aria-controls={isopen ? cardid : undefined}
+                                        onPointerDown={(event) => {
+                                            pointer.current = event.pointerType;
+                                        }}
+                                        onPointerEnter={(event) => enterDay(date, index, event)}
+                                        onFocus={() => focusDay(date, index)}
+                                        onClick={() => pressDay(date, index)}
+                                        onKeyDown={(event) => keyDay(date, index, event)}
+                                    >
+                                        <span className={discclass}>
+                                            {calendar.style === 'ring' && (
+                                                <svg
+                                                    className="compass-cal-ring"
+                                                    viewBox="0 0 60 60"
+                                                    aria-hidden="true"
+                                                    focusable="false"
+                                                >
+                                                    {segments(items)}
+                                                </svg>
+                                            )}
+                                            <span className="compass-cal-num">{ymd.day}</span>
+                                        </span>
+                                    </button>
+                                    {/* One mark per kind present, never repeated, in MARK_SLOTS slots (calendar.ts). */}
+                                    <span className="compass-cal-dots" aria-hidden="true">
+                                        {mark.kinds.map((kind) => (
+                                            <span key={kind} className={`compass-cal-dot compass-cal-dot-${kind}`} />
+                                        ))}
+                                        {mark.more > 0 && <span className="compass-cal-more">{`+${mark.more}`}</span>}
+                                    </span>
+                                    <span className="compass-cal-wd" aria-hidden="true">{shortWeekday(strings, ymd)}</span>
+                                </div>
+                            );
+                        })}
                     </div>
+                    {/* The row's ends fade only on a side it can still scroll to. They take no pointer. */}
+                    {scrolls && !rowview.atstart && <span className="compass-cal-fade compass-cal-fade-start" aria-hidden="true" />}
+                    {scrolls && !rowview.atend && <span className="compass-cal-fade compass-cal-fade-end" aria-hidden="true" />}
+                    {/* The arrows float over the row's ends and take the pointer, so nothing under them hovers.
+                        Pointer conveniences: out of the tab order (the row's keys do all they do), but named,
+                        so voice control reaches them; aria-disabled at each end, never the attribute. */}
+                    {arrows && (
+                        <button
+                            type="button"
+                            className="compass-cal-edge compass-cal-edge-prev"
+                            tabIndex={-1}
+                            aria-label={strings.cal_prev}
+                            title={strings.cal_prev}
+                            aria-disabled={rowview.atstart || undefined}
+                            onClick={() => page(-1)}
+                        >
+                            {/* Core's chevrons, the ltr one or the rtl one shown by core's own direction
+                                classes, as a course section's chevron is (Group.tsx). */}
+                            <span
+                                className="compass-cal-chevron icon-no-margin dir-rtl-hide"
+                                aria-hidden="true"
+                                dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                            />
+                            <span
+                                className="compass-cal-chevron icon-no-margin dir-ltr-hide"
+                                aria-hidden="true"
+                                dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                            />
+                        </button>
+                    )}
+                    {arrows && (
+                        <button
+                            type="button"
+                            className="compass-cal-edge compass-cal-edge-next"
+                            tabIndex={-1}
+                            aria-label={strings.cal_next}
+                            title={strings.cal_next}
+                            aria-disabled={rowview.atend || undefined}
+                            onClick={() => page(1)}
+                        >
+                            <span
+                                className="compass-cal-chevron icon-no-margin dir-rtl-hide"
+                                aria-hidden="true"
+                                dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                            />
+                            <span
+                                className="compass-cal-chevron icon-no-margin dir-ltr-hide"
+                                aria-hidden="true"
+                                dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                            />
+                        </button>
+                    )}
+                </div>
+                {/* The window's map, a pointer scrubber: a press on the line jumps there, the thumb drags,
+                    and the release lands on a day. aria-hidden and out of the tab order: the row does all
+                    of it by keyboard, and the arrows are the named single-pointer alternative. */}
+                {map && (
+                    <div
+                        className={dragging ? 'compass-cal-map compass-cal-map-drag' : 'compass-cal-map'}
+                        aria-hidden="true"
+                        onPointerDown={mapDown}
+                        onPointerMove={(event) => {
+                            if (drag.current !== null) {
+                                scrubTo(mapAt(event));
+                            }
+                        }}
+                        onPointerUp={mapUp}
+                        onPointerCancel={mapUp}
+                    >
+                        <span className="compass-cal-mapline">
+                            {pointeddays.map((date) => (
+                                <span
+                                    key={date}
+                                    className="compass-cal-mapdot"
+                                    style={{insetInlineStart: percent((days.indexOf(date) + 0.5) / days.length)}}
+                                />
+                            ))}
+                            <span className="compass-cal-thumb" ref={thumb} />
+                            <span
+                                className="compass-cal-maptoday"
+                                style={{insetInlineStart: percent((todayindex + 0.5) / days.length)}}
+                            />
+                            {needleindex >= 0 && (
+                                <span
+                                    className="compass-cal-mapneedle"
+                                    style={{insetInlineStart: percent((needleindex + 0.5) / days.length)}}
+                                />
+                            )}
+                        </span>
+                    </div>
+                )}
+                {/* The open day's card, once, beside the scroller: inside it the scroller would clip it. */}
+                {openingdate !== null && (
+                    <CalendarCard
+                        id={cardid}
+                        date={openingdate}
+                        today={payload.today}
+                        view={drawn}
+                        filter={filter}
+                        counts={countsOfDay(openingdate)}
+                        off={dayOff(openingdate, payload.weekend, specials.get(openingdate))}
+                        entry={entries[`${drawn}:${openingdate}`]}
+                        pinned={pinned === openingdate || narrow}
+                        dayurl={dayUrl(calendar.dayurl, payload.from, openindex)}
+                        config={config}
+                        calendar={calendar}
+                        onClose={() => {
+                            closeAll();
+                            focusQuietly(openingdate);
+                        }}
+                        onRetry={() => ensure(openingdate, drawn, false)}
+                    />
                 )}
             </div>
             <div className="compass-cal-foot">
@@ -1609,7 +2204,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      */
     const enterStrip = (): void => window.clearTimeout(closetimer.current);
 
-    return frame(nav, true, row, null, {
+    return frame(nav, true, rowpart, null, {
         onPointerEnter: enterStrip,
         onPointerLeave: leaveStrip,
         onKeyDown: keyStrip,
