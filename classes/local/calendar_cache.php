@@ -47,7 +47,10 @@ use core_cache\cache;
  *   amendment 11), which leaves out the past, the days off and, without block_feedback_tracker's
  *   ledger, the grading count; {@see calendar\strip::complete()} adds them when the strip opens. An
  *   entry without the key is whole;
- * - deferred: the grading candidates such a pass left uncounted, as facts (no objects), empty otherwise.
+ * - deferred: the grading candidates such a pass left uncounted, as facts (no objects), empty otherwise;
+ * - lang: current_language() when it was built. The payload and the opened days hold localised text
+ *   (days-off labels, item names through the multilang filters, core's action names, times), so an
+ *   entry built in another language is a miss, rebuilt whole.
  *
  * An entry is served only when is_fresh() holds; anything else is rebuilt and replaces it whole,
  * days included. A miss is false, never an empty array.
@@ -83,12 +86,13 @@ final class calendar_cache {
     }
 
     /**
-     * Whether an entry may be served: the four hit conditions of ADR-014 decision 8 and the grading
-     * source, all of them.
+     * Whether an entry may be served: the four hit conditions of ADR-014 decision 8, the grading
+     * source and the language, all of them.
      *
      * The same sign-in, the same first day of the window (the day has not turned), the same
-     * timezone, younger than TTL, and built under the grading source in force now (an admin flipping
-     * the setting, or the ledger plugin appearing, would otherwise sum a count built the other way).
+     * timezone, younger than TTL, built under the grading source in force now (an admin flipping
+     * the setting, or the ledger plugin appearing, would otherwise sum a count built the other way)
+     * and in the language in force now (the entry holds localised text).
      * The values are compared after a cast, because a store that
      * serialises may hand an integer back as a string.
      *
@@ -98,6 +102,7 @@ final class calendar_cache {
      * @param int $signin The sign-in marker now, $USER->currentlogin.
      * @param int $now Unix time to treat as now.
      * @param string $grading The grading source now: tracker or core.
+     * @param string $lang The language now, current_language().
      * @return bool
      */
     public static function is_fresh(
@@ -106,9 +111,10 @@ final class calendar_cache {
         string $timezone,
         int $signin,
         int $now,
-        string $grading
+        string $grading,
+        string $lang
     ): bool {
-        $keys = ['payload', 'sets', 'signin', 'firstday', 'timezone', 'built', 'grading'];
+        $keys = ['payload', 'sets', 'signin', 'firstday', 'timezone', 'built', 'grading', 'lang'];
         foreach ($keys as $key) {
             if (!isset($entry[$key])) {
                 return false;
@@ -119,7 +125,8 @@ final class calendar_cache {
             && (string) $entry['firstday'] === $firstday
             && (string) $entry['timezone'] === $timezone
             && $now - (int) $entry['built'] < self::TTL
-            && (string) $entry['grading'] === $grading;
+            && (string) $entry['grading'] === $grading
+            && (string) $entry['lang'] === $lang;
     }
 
     /**
@@ -136,6 +143,7 @@ final class calendar_cache {
      * @param array|null $deferred Null for a whole payload; for a counts pass, the grading candidates
      *     it left uncounted (an empty array when it counted them).
      * @param string $grading The grading source the build counted under: tracker or core.
+     * @param string $lang The language the build was made in, current_language().
      * @return array The entry.
      */
     public static function entry(
@@ -147,7 +155,8 @@ final class calendar_cache {
         int $built,
         ?array $stamp = null,
         ?array $deferred = null,
-        string $grading = 'core'
+        string $grading = 'core',
+        string $lang = 'en'
     ): array {
         return [
             'payload' => $payload,
@@ -161,6 +170,7 @@ final class calendar_cache {
             'past' => $deferred === null,
             'deferred' => $deferred ?? [],
             'grading' => $grading,
+            'lang' => $lang,
         ];
     }
 

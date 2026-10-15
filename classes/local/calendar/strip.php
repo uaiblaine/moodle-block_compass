@@ -190,7 +190,9 @@ final class strip {
         $window = self::window($now, $tz);
         $entry = calendar_cache::get($userid);
         $source = self::grading_source_name();
-        if ($entry !== false && calendar_cache::is_fresh($entry, $window['firstday'], $tz->getName(), $signin, $now, $source)) {
+        $lang = current_language();
+        $tzname = $tz->getName();
+        if ($entry !== false && calendar_cache::is_fresh($entry, $window['firstday'], $tzname, $signin, $now, $source, $lang)) {
             return $whole && !calendar_cache::is_complete($entry) ? self::complete($userid, $entry, $now, $tz) : $entry;
         }
 
@@ -237,7 +239,8 @@ final class strip {
             $now,
             $built['stamp'],
             $built['deferred'],
-            $built['grading']
+            $built['grading'],
+            current_language()
         );
         calendar_cache::set($userid, $entry);
 
