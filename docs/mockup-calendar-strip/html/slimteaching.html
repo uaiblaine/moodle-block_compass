@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass slim strip, teaching line</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#68717a;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;--cc-warn:#f0ad4e;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-control:#6a737b;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 62%,var(--cc-surface));
+  --cc-h4:color-mix(in oklab,var(--cc-warn) 92%,var(--cc-surface));
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root.cc-dark,.cc-root .cc-dark{
+  --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#99a1a9;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;--cc-control:#99a1a9;
+  --cc-accent:color-mix(in oklab,#0f6cbf 35%,#eceef0);--cc-on-accent:#0b1a29;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-h3:color-mix(in oklab,var(--cc-warn) 80%,var(--cc-surface));
+  --cc-h4:color-mix(in oklab,var(--cc-warn) 92%,var(--cc-surface));
+  --cc-ink:#f3f4f6;--cc-on-ink:#111417;
+  color:var(--cc-text);
+}
+.cc-root *{box-sizing:border-box}
+.cc-root button{font:inherit;color:inherit}
+.cc-root :focus-visible{outline:2px solid var(--cc-accent);outline-offset:2px}
+.cc-root a{color:var(--cc-accent)}
+
+/* Canvas furniture */
+.panel{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:16px;padding:26px 28px}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0 0 4px}
+.h{margin:0 0 6px;font-size:21px;font-weight:600;letter-spacing:-.01em}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.p b{color:var(--cc-text)}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:2px 8px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2);white-space:nowrap}
+.tag--rec{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.tag--before{border-style:dashed;color:var(--cc-danger)}
+.tag--alt{border-style:dashed}
+.notes{margin:0;padding-left:18px;font-size:13.5px;color:var(--cc-text-2);line-height:1.55;display:flex;flex-direction:column;gap:6px}
+.notes b{color:var(--cc-text);font-weight:600}
+.notes code,.p code,td code,.cap code{font-size:12.5px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:4px;padding:0 4px}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}
+table.t th{text-align:left;font-weight:600;color:var(--cc-muted);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--cc-line);vertical-align:bottom}
+table.t td{padding:9px 10px;border-bottom:1px solid var(--cc-line);color:var(--cc-text-2);vertical-align:top}
+table.t td b{color:var(--cc-text);font-weight:600}
+pre.code{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:14px 16px;white-space:pre-wrap;color:var(--cc-text)}
+.sec{display:flex;flex-direction:column;gap:16px}
+.frames{display:flex;flex-direction:column;gap:22px}
+.frames--row{flex-direction:row;flex-wrap:wrap;align-items:flex-start;gap:28px}
+.fr{display:flex;flex-direction:column;gap:8px;margin:0}
+.fr-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px}
+.fr-meta b{font-weight:600}
+.fr-w{font-size:12px;color:var(--cc-muted)}
+.cap{font-size:12.5px;color:var(--cc-muted);margin:0 2px;line-height:1.5;max-width:1030px}
+.sr{font-size:12.5px;margin:0 2px;line-height:1.5;max-width:1030px;color:var(--cc-text-2);border-left:3px solid var(--cc-accent);padding:2px 0 2px 10px}
+.sr b{color:var(--cc-text);font-weight:600;margin-right:6px}
+.meas{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--cc-muted)}
+
+/* The block around the strip: Moodle's card, its body padding outside the measured width */
+.blk-c{width:fit-content;background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:14px;padding:14px 16px 4px;color:var(--cc-text)}
+.blk-c--tips{padding-top:46px}
+
+/* The strip, closed, in the built block's numbers (styles.css 1024-1900, 1 rem = 16 px). */
+.cal{position:relative;padding-bottom:12px;font-variant-numeric:tabular-nums}
+.cal-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px 12px}
+.cal-title{display:inline-flex;margin:0;font-size:16px}
+.cal-toggle{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 12px 0 4px;border:0;border-radius:9.6px;background:transparent;color:var(--cc-text);font-size:16px;font-weight:600;cursor:pointer;white-space:nowrap}
+.cal-toggle:hover{background:var(--cc-surface-2)}
+.cal-chev{color:var(--cc-accent);display:inline-flex;width:16px;justify-content:center}
+.cal-lead{margin:0;color:var(--cc-text);font-size:13px;font-weight:600}
+.cal-line{display:contents}
+.cal-periods{display:flex;flex-wrap:wrap;align-items:stretch;gap:6px;margin:0;padding:0;list-style:none}
+.cal-period{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:104px;min-height:56px;padding:4px 12px 5px 10px;border:0;border-radius:9.6px;background:transparent;color:var(--cc-text);text-align:start;cursor:pointer;transition:background-color 120ms}
+.cal-period:hover,.cal-period.is-hover{background:var(--cc-surface-2)}
+.cal-plabel{color:var(--cc-muted);font-size:12.48px;line-height:1.2;white-space:nowrap}
+.cal-period--today .cal-plabel{color:var(--cc-text);font-weight:700}
+.cal-pchip{display:inline-grid;place-items:center;min-width:34px;height:28px;padding:0 9px;border-radius:14px;color:var(--cc-text);font-size:16px;font-weight:700}
+.cal-pchip.h0{min-width:0;padding:0 2px}
+.cal-pchip.h1{background:var(--cc-h1)}.cal-pchip.h2{background:var(--cc-h2)}.cal-pchip.h3{background:var(--cc-h3)}.cal-pchip.h4{background:var(--cc-h4)}
+.cal-period:not(.cal-period--today) .cal-pchip.h3,.cal-period:not(.cal-period--today) .cal-pchip.h4{color:#212529}
+.cal-period--today .cal-pchip{min-width:34px;padding:0 9px;background:var(--cc-ink);color:var(--cc-on-ink)}
+.cal-period--today .cal-pchip.h2{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h2)}
+.cal-period--today .cal-pchip.h3{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-h3)}
+.cal-period--past .cal-pchip{color:var(--cc-danger)}
+.cal-period--zero .cal-pchip{color:var(--cc-muted);font-weight:600}
+.cal-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-inline-start:auto}
+.cal-seg{display:inline-flex;padding:3px;border:1px solid var(--cc-line);border-radius:9.6px;background:var(--cc-surface-2)}
+.cal-segbtn{position:relative;display:inline-flex;align-items:center;padding:5.6px 12px;border:0;border-radius:7.2px;background:transparent;color:var(--cc-muted);font-size:13px;cursor:pointer;white-space:nowrap;transition:background-color 120ms,color 120ms}
+.cal-segbtn[aria-pressed="true"]{background:var(--cc-surface);color:var(--cc-accent);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+.cal-cdark .cal-segbtn[aria-pressed="true"]{color:var(--cc-text)}
+.cal-glyph{display:inline-flex;align-items:center}
+.cal-segbtn .cal-glyph{margin-right:8px}
+.cal-link{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid var(--cc-control);border-radius:9.6px;background:var(--cc-surface);color:var(--cc-accent)}
+.cc-root .cal-link{color:var(--cc-accent)}
+
+/* Proposed (round 2): the icon switch beside the title, the grading cell first, one row. */
+.cal--after .cal-head{flex-wrap:nowrap}
+.cal--after .cal-line{display:flex;align-items:stretch;gap:6px;min-width:0}
+.cal--after .cal-period{min-width:64px;padding:4px 10px 5px 8px}
+.cal--after .cal-title{margin-right:-4px}
+.cal-seg--icons .cal-segbtn{display:grid;place-items:center;width:36px;height:36px;padding:0}
+.cal-seg--icons .cal-segbtn .cal-glyph{margin:0}
+.cal-queue .cal-pchip{min-width:0;padding:0 2px;background:transparent}
+.cal-qdiv{flex:none;width:1px;margin:10px 4px 10px 2px;background:var(--cc-line-2)}
+.cal-periods--after{flex-wrap:nowrap}
+.is-focus{outline:2px solid var(--cc-accent);outline-offset:2px}
+.cal-segbtn.is-hover:not([aria-pressed="true"]){background:color-mix(in oklab,var(--cc-surface) 60%,var(--cc-surface-2));color:var(--cc-text)}
+
+/* The tooltip: the button's own child, aria-hidden (the button's aria-label is the name), drawn in
+   core's tooltip look (ink fill, text on ink), shown on hover and on keyboard focus. */
+.tip{position:absolute;bottom:calc(100% + 9px);left:50%;transform:translateX(-50%);z-index:5;padding:4px 8px;border-radius:6px;background:var(--cc-ink);color:var(--cc-on-ink);font-size:12.5px;font-weight:400;line-height:1.35;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 150ms}
+.tip::after{content:"";position:absolute;top:100%;left:50%;margin-left:-5px;border:5px solid transparent;border-top-color:var(--cc-ink)}
+.cal-segbtn:hover .tip,.cal-segbtn:focus-visible .tip,.is-tip .tip{opacity:1}
+
+/* The line cannot fit (a long language, a narrow column above 640 px): it moves under the title
+   whole; the switch and the link stay on the first row. */
+.cal--twoline .cal-head{flex-wrap:wrap}
+.cal--twoline .cal-line{order:3;flex-basis:100%}
+.cal--twoline .cal-controls{order:2}
+
+/* Narrow (under 640 px, the phone): row 1 the title, the switch and the link; the grading cell its
+   own full-width row; the five periods the grid the student's phone line already is. */
+.cal--narrow .cal-head{flex-wrap:wrap;gap:6px 8px}
+.cal--narrow .cal-line{order:3;flex-basis:100%;display:flex;flex-direction:column;gap:2px}
+.cal--narrow .cal-controls{order:2}
+.cal--narrow .cal-periods{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px}
+.cal--narrow .cal-period{align-items:center;min-width:0;min-height:62px;padding:4px}
+.cal--narrow .cal-plabel{font-size:11.5px}
+.cal--narrow .cal-queue{align-items:flex-start;width:100%;min-height:56px;padding:4px 10px}
+.cal--narrow .cal-qdiv{width:auto;height:1px;margin:2px 4px}
+/* Considered and set aside on the phone: a 3 x 2 grid, and six across. */
+.cal--grid32 .cal-line{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px}
+.cal--grid32 .cal-periods{display:contents}
+.cal--grid32 .cal-qdiv{display:none}
+.cal--grid32 .cal-queue{align-items:center;min-height:62px;padding:4px;box-shadow:inset -1px 0 0 var(--cc-line-2)}
+.cal--six .cal-line{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}
+.cal--six .cal-periods{display:contents}
+.cal--six .cal-qdiv{display:none}
+.cal--six .cal-queue{align-items:center;min-height:62px;padding:4px 2px;box-shadow:inset -1px 0 0 var(--cc-line-2)}
+.cal--six .cal-period{padding:4px 2px}
+.cal--six .cal-plabel{font-size:11px}
+
+/* Phone */
+.phone{flex:none;width:390px;position:relative;overflow:hidden;border-radius:28px;border:1px solid var(--cc-line-2);background:var(--cc-page);display:flex;flex-direction:column;padding-bottom:16px}
+.phone--small{transform-origin:top left}
+.ph-bar{height:52px;background:var(--cc-surface);border-bottom:1px solid var(--cc-line);display:flex;align-items:center;justify-content:space-between;padding:0 16px;flex:none;font-weight:700;color:var(--cc-text)}
+.ph-page{padding:12px}
+.ph-page .blk-c{width:auto;padding:10px 12px 2px}
+
+/* The open strip after a press on the grading cell (reduced to what the picture needs). */
+.os{width:1034px}
+.os-head{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.os-month{margin:0;min-width:248px;font-size:18px;font-weight:600}
+.os-today{height:38px;padding:0 12px;border:1px solid var(--cc-control);border-radius:9.6px;background:var(--cc-surface);font-size:13px}
+.os-days{display:grid;grid-template-columns:repeat(14,50px);margin-top:14px;padding-bottom:8px}
+.os-col{display:flex;flex-direction:column;align-items:center;gap:5px;transition:opacity 180ms}
+.os-col.dim{opacity:.26}
+.os-wd{font-size:12px;color:var(--cc-muted)}
+.os-day{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:600;color:var(--cc-text)}
+.os-day.h1{background:var(--cc-h1)}.os-day.h2{background:var(--cc-h2)}.os-day.h3{background:var(--cc-h3)}
+.os-day.past{color:var(--cc-muted)}
+.os-day.today{background:var(--cc-ink);color:var(--cc-on-ink)}
+.os-day.lit{box-shadow:0 0 0 1.5px var(--cc-surface),0 0 0 3px var(--cc-accent)}
+.os-dots{display:flex;gap:3px;height:8px;align-items:center}
+.mk--grade{width:7px;height:7px;background:var(--cc-accent);border-radius:1px;transform:rotate(45deg);display:inline-block}
+.mk--class{width:7px;height:7px;border:1.5px solid var(--cc-text-2);border-radius:1.5px;display:inline-block}
+
+/* Anatomy */
+.num{width:22px;height:22px;border-radius:50%;background:var(--cc-ink);color:var(--cc-on-ink);font-size:11.5px;font-weight:700;display:inline-grid;place-items:center;flex:none}
+.anat{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px}
+
+@media (prefers-reduced-motion: reduce){
+  .cc-root *{animation:none!important;transition:none!important}
+}
+</style>
+
+<style>
+.dcx-tweaks{position:fixed;right:16px;bottom:16px;z-index:9999;background:#fff;color:#1d2125;border:1px solid #d5dade;
+  border-radius:12px;padding:10px 12px;font:13px system-ui,sans-serif;box-shadow:0 10px 30px -12px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;min-width:190px}
+.dcx-tweaks b{font-weight:600}
+.dcx-tweaks label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dcx-tweaks a{color:#0f6cbf}
+</style>
+</head>
+<body>
+<div id="dcx-root"></div>
+<script type="module">
+import { h, render, Component as PreactComponent } from 'https://cdn.jsdelivr.net/npm/preact@10.24.3/dist/preact.module.js';
+import htm from 'https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.module.js';
+const html = htm.bind(h);
+class DCLogic extends PreactComponent {}
+
+class Component extends DCLogic {
+  strs(lang) {
+    const all = {
+      pt_br: {
+        region: 'Calendário', learn: 'Estudando', teach: 'Ensinando', views: 'Mostrar a faixa para',
+        open: 'Abrir o calendário', periods: 'O seu calendário, por período', tograde: 'A avaliar',
+        dashboard: 'Painel', month: 'outubro de 2026', today: 'Hoje',
+        fall: 'Tudo', ftodo: 'A fazer', fevents: 'Eventos',
+        lead: (n) => n === 1 ? '1 envio aguardando avaliação' : n + ' envios aguardando avaliação',
+        subs: (n) => n === 1 ? '1 envio' : n + ' envios',
+        gradeLabel: (items) => 'A avaliar: ' + items + '. Abre a faixa nos dias com avaliações.',
+        gradeNone: 'A avaliar: nenhum envio aguardando. Abre a faixa.',
+        items: (n) => n === 0 ? 'nada em aberto' : (n === 1 ? '1 item' : n + ' itens'),
+        opens: 'Abre a faixa nestes dias.', opensPast: 'Abre a faixa nos dias passados.',
+        teachLong: ['Avaliação atrasada', 'Hoje', 'Amanhã', 'Esta semana', 'Depois'],
+        learnLong: ['Atrasadas, ainda abertas', 'Hoje', 'Amanhã', 'Esta semana', 'Depois'],
+        teachShort: ['Atrasada', 'Hoje', 'Amanhã', 'Semana', 'Depois'],
+        learnShort: ['Atrasadas', 'Hoje', 'Amanhã', 'Semana', 'Depois'],
+        wd: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'],
+        sr: 'Leitor de tela'
+      },
+      en: {
+        region: 'Calendar', learn: 'Studying', teach: 'Teaching', views: 'Show the strip for',
+        open: 'Open the calendar', periods: 'Your calendar, by period', tograde: 'To grade',
+        dashboard: 'Dashboard', month: 'October 2026', today: 'Today',
+        fall: 'Everything', ftodo: 'To do', fevents: 'Events',
+        lead: (n) => n === 1 ? '1 submission waiting to grade' : n + ' submissions waiting to grade',
+        subs: (n) => n === 1 ? '1 submission' : n + ' submissions',
+        gradeLabel: (items) => 'To grade: ' + items + '. Opens the strip on the days with grading work.',
+        gradeNone: 'To grade: nothing waiting. Opens the strip.',
+        items: (n) => n === 0 ? 'nothing open' : (n === 1 ? '1 item' : n + ' items'),
+        opens: 'Opens the strip on these days.', opensPast: 'Opens the strip on the past days.',
+        teachLong: ['Grading overdue', 'Today', 'Tomorrow', 'This week', 'Later'],
+        learnLong: ['Late, still open', 'Today', 'Tomorrow', 'This week', 'Later'],
+        teachShort: ['Overdue', 'Today', 'Tomorrow', 'Week', 'Later'],
+        learnShort: ['Late', 'Today', 'Tomorrow', 'Week', 'Later'],
+        wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        sr: 'Screen reader'
+      }
+    };
+    return all[lang] || all.pt_br;
+  }
+
+  data(name) {
+    // [count, heat step] per period: late, today, tomorrow, this week, later; and the waiting count.
+    const sets = {
+      shot: { waiting: 0, p: [[0, 0], [1, 0], [1, 2], [0, 0], [0, 0]] },
+      busy: { waiting: 3, p: [[1, 0], [2, 3], [2, 2], [4, 3], [6, 1]] },
+      student: { waiting: 0, p: [[2, 0], [3, 2], [1, 1], [8, 3], [18, 2]] }
+    };
+    return sets[name];
+  }
+
+  // One closed line, as a frame: o.mode before|after, o.view teach|learn, o.set shot|busy|student.
+  line(s, o) {
+    const teach = o.view === 'teach';
+    const after = o.mode === 'after';
+    const d = this.data(o.set);
+    const narrow = !!o.narrow;
+    const longs = teach ? s.teachLong : s.learnLong;
+    const shorts = teach ? s.teachShort : s.learnShort;
+    const keys = ['late', 'today', 'tomorrow', 'week', 'later'];
+    const periods = d.p.map((pair, i) => {
+      const n = pair[0];
+      const key = keys[i];
+      const long = longs[i];
+      // The built rule: a name over 14 characters, or a narrow block, draws the short twin.
+      const label = (narrow || long.length > 14) ? shorts[i] : long;
+      const level = key === 'late' ? 0 : pair[1];
+      const cls = ['cal-period',
+        key === 'today' ? 'cal-period--today' : '',
+        key === 'late' ? 'cal-period--past' : '',
+        n === 0 ? 'cal-period--zero' : ''].filter(Boolean).join(' ');
+      return {
+        cls: cls,
+        chipCls: 'cal-pchip h' + level,
+        label: label,
+        title: label === long ? '' : long,
+        n: n,
+        sentence: long + ': ' + s.items(n) + '. ' + (key === 'late' ? s.opensPast : s.opens)
+      };
+    });
+    const focus = o.focus || '';
+    const segCls = (which) => ['cal-segbtn',
+      focus === which ? 'is-focus' : '',
+      o.hover === which ? 'is-hover' : '',
+      o.tip === which ? 'is-tip' : ''].filter(Boolean).join(' ');
+    const grading = after && teach && !o.noGrading;
+    const waiting = d.waiting;
+    const w = o.w;
+    const phone = w === 'phone';
+    const cls = ['cal',
+      after ? 'cal--after' : 'cal--before',
+      narrow ? 'cal--narrow' : '',
+      o.twoline ? 'cal--twoline' : '',
+      o.alt ? 'cal--' + o.alt : ''].filter(Boolean).join(' ');
+    return {
+      id: o.id,
+      tag: o.tag,
+      tagCls: 'tag ' + (o.tagCls || (after ? 'tag--rec' : 'tag--before')),
+      title: o.title,
+      wlabel: phone ? '390 px phone, strip ' + (o.stripw || '') : 'strip ' + w + ' px',
+      phone: phone,
+      shellCls: phone ? 'phone' + (o.dark ? ' cc-dark' : '') : '',
+      shellStyle: '',
+      pageCls: phone ? 'ph-page' : '',
+      blockCls: 'blk-c' + (o.tips ? ' blk-c--tips' : '') + (o.dark && !phone ? ' cc-dark' : ''),
+      cls: cls,
+      wcss: phone ? 'auto' : w + 'px',
+      iconSwitch: after && !o.noSwitch,
+      textSwitch: !after && !o.noSwitch,
+      lead: (!after && teach) ? s.lead(waiting) : '',
+      isLearn: !teach,
+      isTeach: teach,
+      learnCls: segCls('learn'),
+      teachCls: segCls('teach'),
+      grading: grading,
+      gradeCls: 'cal-period cal-queue' + (waiting === 0 ? ' cal-period--zero' : '') + (focus === 'grade' ? ' is-focus' : ''),
+      gradeSentence: waiting === 0 ? s.gradeNone : s.gradeLabel(s.subs(waiting)),
+      gradeTitle: s.lead(waiting),
+      waiting: waiting,
+      periodsCls: 'cal-periods' + (after ? ' cal-periods--after' : ''),
+      periods: periods,
+      cap: o.cap || '',
+      sr: o.sr || '',
+      srLabel: s.sr
+    };
+  }
+
+  renderVals() {
+    const lang = this.props.lang ?? 'pt_br';
+    const dark = this.props.dark ?? false;
+    const s = this.strs(lang);
+    const L = (o) => this.line(s, o);
+    const gradeSr = (n) => (n === 0 ? s.gradeNone : s.gradeLabel(s.subs(n)));
+
+    const sections = [
+      {
+        kicker: '1 · Before and after · about 1000 px',
+        title: 'The screenshot, rebuilt, and the same width proposed',
+        text: 'The before is drawn with the built CSS (the head wraps; the controls group takes margin-inline-start: auto), so it wraps where the block wraps: the switch and the link drop to a row of their own and sit right, under nothing. After: the sentence becomes the first cell, the switch shrinks to two icons beside the title, and the whole line is one row with room to spare.',
+        framesCls: 'frames',
+        frames: [
+          L({ id: 'b1000', mode: 'before', view: 'teach', set: 'shot', w: 1000, tag: 'Before', title: 'Teaching, closed, as built', cap: 'Two rows: the second holds only the text switch (about 240 px) and the link, pushed to the right edge.' }),
+          L({ id: 'a1000', mode: 'after', view: 'teach', set: 'shot', w: 1000, tag: 'After', title: 'Teaching, closed, proposed', cap: 'One row. The grading cell reads "' + s.tograde + ' 0", muted as a zero period is; the divider keeps it apart from the dates.' })
+        ]
+      },
+      {
+        kicker: '2 · Before and after · 784 px, the Dashboard block',
+        title: 'At the Dashboard\'s width the before takes three rows; the after keeps one',
+        text: 'At 784 px the built line wraps twice: title and sentence, then the periods, then the switch and the link alone at the right. The proposal fits title, switch, six cells and the link in one row in Portuguese, the longer of the two languages here.',
+        framesCls: 'frames',
+        frames: [
+          L({ id: 'b784', mode: 'before', view: 'teach', set: 'shot', w: 784, tag: 'Before', title: 'Teaching, closed, as built' }),
+          L({ id: 'a784', mode: 'after', view: 'teach', set: 'shot', w: 784, tag: 'After', title: 'Teaching, closed, proposed' })
+        ]
+      },
+      {
+        kicker: '3 · One row, teacher and student · 1034 and 784 px',
+        title: 'The two views share the row: same height, same start, same end',
+        text: 'A viewer with both views sees the same skeleton in both: title, icon switch, cells, link. The student line simply has no grading cell and no divider. Cells, toggle (44 px), switch group (44 px) and link (40 px) are centred on one 56 px row, so switching views changes the numbers, never the line\'s height.',
+        framesCls: 'frames',
+        frames: [
+          L({ id: 'a1034t', mode: 'after', view: 'teach', set: 'busy', w: 1034, tag: 'After', title: 'Teaching, 3 waiting', cap: 'A queue of three: the number plain and bold, with no disc. The disc means "the heat of the busiest day", which a queue has none of; a late grading item is already the Overdue period\'s job.' }),
+          L({ id: 'a1034s', mode: 'after', view: 'learn', set: 'student', w: 1034, tag: 'After', title: 'Studying, same viewer' }),
+          L({ id: 'a784t', mode: 'after', view: 'teach', set: 'busy', w: 784, tag: 'After', title: 'Teaching, 784 px' }),
+          L({ id: 'a784s', mode: 'after', view: 'learn', set: 'student', w: 784, tag: 'After', title: 'Studying, 784 px' }),
+          L({ id: 'a784o', mode: 'after', view: 'learn', set: 'student', w: 784, noSwitch: true, tag: 'After', tagCls: 'tag--alt', title: 'A student with one view: no switch', cap: 'Without both views the switch is absent, as built; the cells follow the title directly.' })
+        ]
+      },
+      {
+        kicker: '4 · Tooltips and keyboard focus · 784 px',
+        title: 'Named icons, a tooltip on hover and on focus, and the grading cell\'s sentence',
+        text: 'The icons carry the switch\'s state (pressed) and their names in aria-label; the tooltip shows the same word to the eye, on pointer hover and on keyboard focus, and Esc hides it. The grading cell is focused like a period, and its accessible name is a full sentence that begins with its visible label.',
+        framesCls: 'frames',
+        frames: [
+          L({ id: 'tiphover', mode: 'after', view: 'teach', set: 'busy', w: 784, hover: 'learn', tip: 'learn', tips: true, tag: 'Hover', tagCls: 'tag--alt', title: 'Pointer over the unpressed icon', cap: 'The unpressed button lightens on hover; the tooltip, above it in core\'s look, names it. The tooltip is a child of the button, so moving the pointer onto it keeps it open (WCAG 1.4.13, hoverable).', sr: '' }),
+          L({ id: 'tipfocus', mode: 'after', view: 'teach', set: 'busy', w: 784, focus: 'teach', tip: 'teach', tips: true, tag: 'Keyboard', tagCls: 'tag--alt', title: 'Tab reaches the pressed icon', sr: (lang === 'en' ? 'Teaching, toggle button, pressed. Group: ' : 'Ensinando, botão de alternância, pressionado. Grupo: ') + s.views + '.' }),
+          L({ id: 'gradefocus', mode: 'after', view: 'teach', set: 'busy', w: 784, focus: 'grade', tag: 'Keyboard', tagCls: 'tag--alt', title: 'Tab reaches the grading cell', sr: gradeSr(3) + (lang === 'en' ? ' Button.' : ' Botão.') }),
+          L({ id: 'gradezero', mode: 'after', view: 'teach', set: 'shot', w: 784, focus: 'grade', tag: 'Keyboard', tagCls: 'tag--alt', title: 'The grading cell at zero', sr: gradeSr(0) + (lang === 'en' ? ' Button.' : ' Botão.') })
+        ]
+      },
+      {
+        kicker: '5 · Phone, 390 px · decided: the grading cell on its own row',
+        title: 'The queue gets a row; the dates keep the grid the student already has',
+        text: 'Under 640 px the line is narrow, as built: row 1 holds the title, the icon switch and the link (242 px of the strip\'s 338); the five periods are the five-column grid of the built phone line. The grading cell takes a full-width row of its own above them, its label over its number at the row\'s start, and a hairline replaces the vertical divider. Teacher and student phones then share the same period grid; the teacher\'s is 65 px taller (the 56 px cell and its hairline): 189 px against 124, measured.',
+        framesCls: 'frames frames--row',
+        frames: [
+          L({ id: 'ph-t', mode: 'after', view: 'teach', set: 'busy', w: 'phone', stripw: '338 px', narrow: true, tag: 'Decided', title: 'Teaching' }),
+          L({ id: 'ph-s', mode: 'after', view: 'learn', set: 'student', w: 'phone', stripw: '338 px', narrow: true, tag: 'Decided', title: 'Studying' }),
+          L({ id: 'ph-td', mode: 'after', view: 'teach', set: 'shot', w: 'phone', stripw: '338 px', narrow: true, dark: true, focus: 'teach', tip: 'teach', tag: 'Dark', title: 'Teaching, dark, focus on the icon' })
+        ],
+        after: 'Set aside (drawn below): a 3 × 2 grid gives each cell 111 px and room for whole labels, but breaks the dates in the middle (Tomorrow starts the second row), puts the queue and the dates in one grid, and differs from the student\'s five-across. Six across fits at 338 px only with 11 px labels in 55 px cells, and breaks first in a longer language.'
+      },
+      {
+        kicker: '5b · Phone alternatives, set aside',
+        title: '3 × 2, and six across',
+        text: 'Kept for the record, with the same data as the decided teaching phone.',
+        framesCls: 'frames frames--row',
+        frames: [
+          L({ id: 'ph-32', mode: 'after', view: 'teach', set: 'busy', w: 'phone', stripw: '338 px', narrow: true, alt: 'grid32', tag: 'Set aside', tagCls: 'tag--alt', title: '3 × 2 grid' }),
+          L({ id: 'ph-6', mode: 'after', view: 'teach', set: 'busy', w: 'phone', stripw: '338 px', narrow: true, alt: 'six', tag: 'Set aside', tagCls: 'tag--alt', title: 'Six across' })
+        ]
+      },
+      {
+        kicker: '6 · Dark · 784 px',
+        title: 'The same line on the dark theme',
+        text: 'Nothing new to paint: the divider is the line colour, the tooltip is the ink (light in dark mode, as core\'s tooltip uses the emphasis colour), the grading number the body text.',
+        framesCls: 'frames',
+        frames: [
+          L({ id: 'd784t', mode: 'after', view: 'teach', set: 'busy', w: 784, dark: true, focus: 'learn', tip: 'learn', tips: true, tag: 'Dark', title: 'Teaching, focus on Studying' }),
+          L({ id: 'd784s', mode: 'after', view: 'learn', set: 'student', w: 784, dark: true, tag: 'Dark', title: 'Studying' })
+        ]
+      },
+      {
+        kicker: '7 · When the line cannot fit · 700 px',
+        title: 'The cells move under the title as one piece; nothing is left alone on a row',
+        text: 'Between 640 px (narrow) and the width the line needs (743 px for the teaching line in Portuguese, 722 px in English, measured here; 661 and 629 px for the studying line), the six cells move as a whole to a second row and the switch and link stay on the first, the link at its end. The strip decides from its own measure, read before paint as it reads narrow today: one row when the line\'s natural width fits the head, otherwise this. No @container (stylelint), no lone control on a row.',
+        framesCls: 'frames',
+        frames: [
+          L({ id: 'two700', mode: 'after', view: 'teach', set: 'busy', w: 700, twoline: true, tag: 'Fallback', tagCls: 'tag--alt', title: 'Teaching, 700 px' }),
+          L({ id: 'two700s', mode: 'after', view: 'learn', set: 'student', w: 700, twoline: true, tag: 'Fallback', tagCls: 'tag--alt', title: 'Studying, 700 px', cap: 'The student\'s line, five cells, would fit in one row at 700 px; the rule is per view, from the measure, so a student keeps one row here. Drawn two-line only to show the shape.' })
+        ]
+      }
+    ];
+
+    // 8 to 21 October 2026, today the 13th: grading work on the 9th, 12th, 13th and 16th.
+    const grading = { 9: true, 12: true, 13: true, 16: true };
+    const klass = { 8: true, 14: true, 15: true, 19: true, 20: true };
+    const heat = { 9: 1, 12: 2, 13: 2, 14: 1, 15: 1, 16: 3, 19: 1, 20: 2 };
+    const days = [];
+    for (let n = 8; n <= 21; n++) {
+      const wd = (n + 3) % 7; // 4 October 2026 was a Sunday.
+      const lit = !!grading[n];
+      const cls = ['os-day',
+        n < 13 ? 'past' : '',
+        n === 13 ? 'today' : (heat[n] && n > 13 ? 'h' + heat[n] : ''),
+        lit ? 'lit' : ''].filter(Boolean).join(' ');
+      days.push({ n: n, wd: s.wd[wd], cls: cls, colCls: 'os-col' + (lit ? '' : ' dim'), grade: lit, klass: !!klass[n] });
+    }
+
+    const strings = [
+      { key: 'cal_tograde', en: 'To grade', pt: 'A avaliar' },
+      { key: 'cal_tograde_label', en: '{$a->period}: {$a->items}. Opens the strip on the days with grading work.', pt: '{$a->period}: {$a->items}. Abre a faixa nos dias com avaliações.' },
+      { key: 'cal_tograde_none', en: '{$a}: nothing waiting. Opens the strip.', pt: '{$a}: nenhum envio aguardando. Abre a faixa.' },
+      { key: 'cal_submissions', en: '{$a} submissions', pt: '{$a} envios' },
+      { key: 'cal_submissions_one', en: '{$a} submission', pt: '{$a} envio' }
+    ];
+
+    const outline = [
+      '<div class="compass-cal-head">',
+      '  <h3><button aria-expanded="false" aria-controls="…">' + s.region + '</button></h3>',
+      '  <div role="group" aria-label="' + s.views + '"',
+      '       class="compass-cal-seg compass-cal-seg-icons">',
+      '    <button aria-pressed="false" aria-label="' + s.learn + '">',
+      '      <span aria-hidden="true">(mortarboard)</span>',
+      '      <span class="compass-cal-tip" aria-hidden="true">' + s.learn + '</span>',
+      '    </button>',
+      '    <button aria-pressed="true" aria-label="' + s.teach + '">…</button>',
+      '  </div>',
+      '  <div class="compass-cal-line">',
+      '    <button class="compass-cal-period compass-cal-queue"',
+      '      aria-label="' + gradeSr(3) + '">',
+      '      <span aria-hidden="true">' + s.tograde + '</span>',
+      '      <span aria-hidden="true">3</span>',
+      '    </button>',
+      '    <span class="compass-cal-qdiv" aria-hidden="true"></span>',
+      '    <ul aria-label="' + s.periods + '">… five periods, as built …</ul>',
+      '  </div>',
+      '  <div class="compass-cal-controls"><a aria-label="' + s.open + '">…</a></div>',
+      '</div>'
+    ].join('\n');
+
+    return {
+      themeCls: dark ? 'cc-dark' : '',
+      s: s,
+      sections: sections,
+      days: days,
+      strings: strings,
+      outline: outline
+    };
+  }
+}
+
+Component.prototype.render = function () {
+  const v = this.renderVals();
+  return html`
+<div class=${`cc-root ${v.themeCls}`} style="width: 1440px; padding: 40px; display: flex; flex-direction: column; gap: 28px">
+
+  <section class="panel" style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px">
+    <div>
+      <p class="kicker">Slim strip · round 2 (2026-10-16) · design proposal · not built</p>
+      <h1 style="margin: 0 0 8px; font-size: 28px; font-weight: 600; letter-spacing: -.01em">The teaching line, closed: one row, the queue as a cell</h1>
+      <p class="p">The maintainer's screenshot of the closed Teaching line at about 1000 px: the title, the sentence "0 envios aguardando avaliação", the five period cells, and then the Studying / Teaching switch and the calendar link wrapped onto a <b>second row</b>, pushed right, aligned with nothing. The sentence costs about 190 px and the text switch about 240 px; the line needed about 1180 px.</p>
+      <p class="p" style="margin-top: 10px"><b>Approved for this mockup:</b> the waiting count becomes a <b>sixth cell</b> in the periods' grammar ("${v.s.tograde}" over its number), first, behind a thin divider because it is a queue and not a date; pressing it opens the strip on the days with grading work. The closed line's switch becomes <b>icons only</b> beside the title, each named and with a tooltip on hover and on focus; the open strip keeps the text switch. The calendar link stays at the line's end.</p>
+    </div>
+    <div>
+      <ul class="notes">
+        <li><b>1. Before and after, 1000 px.</b> The screenshot rebuilt in the built block's CSS, then the proposal at the same width.</li>
+        <li><b>2. Before and after, 784 px</b> (the Dashboard's block).</li>
+        <li><b>3. One row, teacher and student</b>, at 784 and 1034 px, the same height.</li>
+        <li><b>4. Tooltips and keyboard focus</b>: the icon switch hovered and focused, the grading cell focused with its sentence.</li>
+        <li><b>5. Phone, 390 px</b>: the grading cell on its own row (chosen), with the 3 × 2 grid and six across set aside.</li>
+        <li><b>6. Dark</b>, <b>7. when the line cannot fit</b>, <b>8. what the grading cell's press opens</b>, <b>9. anatomy, accessibility and strings.</b></li>
+        <li>Tweaks: <b>lang</b> (pt_br, en) and <b>dark</b>. Every frame is drawn in the built block's numbers (<code>styles.css</code>), in Noto Sans, which is wider than the system fonts Boost uses, so a fit here is a fit there.</li>
+      </ul>
+    </div>
+  </section>
+
+  ${(v.sections || []).map((sec, __i0) => html`
+  <section class="panel sec">
+    <div>
+      <p class="kicker">${sec.kicker}</p>
+      <h2 class="h">${sec.title}</h2>
+      <p class="p" style="max-width: 1100px">${sec.text}</p>
+    </div>
+    <div class=${sec.framesCls}>
+      ${(sec.frames || []).map((f, __i1) => html`
+      <figure class="fr" data-frame=${f.id}>
+        <div class="fr-meta"><span class=${f.tagCls}>${f.tag}</span><b>${f.title}</b><span class="fr-w">${f.wlabel}</span></div>
+        <div class=${f.shellCls} style=${f.shellStyle}>
+          ${(f.phone) ? html`<div class="ph-bar"><span>${v.s.dashboard}</span><span class="fr-w">9:41</span></div>` : null}
+          <div class=${f.pageCls}>
+          <div class=${f.blockCls}>
+            <section class=${f.cls} style=${`width: ${f.wcss}`} aria-label=${v.s.region}>
+              <div class="cal-head">
+                <h3 class="cal-title">
+                  <button type="button" class="cal-toggle" aria-expanded="false">
+                    <span class="cal-chev" aria-hidden="true"><svg width="9" height="14" viewBox="0 0 320 512" fill="currentColor"><path d="M278.6 233.4a32 32 0 0 1 0 45.3l-160 160a32 32 0 0 1-45.3-45.3L210.7 256 73.4 118.6a32 32 0 0 1 45.3-45.3l160 160z"></path></svg></span>
+                    ${v.s.region}
+                  </button>
+                </h3>
+                ${(f.iconSwitch) ? html`
+                  <div class="cal-seg cal-seg--icons" role="group" aria-label=${v.s.views}>
+                    <button type="button" class=${f.learnCls} aria-pressed=${f.isLearn} aria-label=${v.s.learn}>
+                      <span class="cal-glyph" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4 2 9l10 5 10-5-10-5z"></path><path d="M6 11v4.5c0 1.4 2.7 2.8 6 2.8s6-1.4 6-2.8V11"></path><path d="M21 9.5V15"></path></svg></span>
+                      <span class="tip" aria-hidden="true">${v.s.learn}</span>
+                    </button>
+                    <button type="button" class=${f.teachCls} aria-pressed=${f.isTeach} aria-label=${v.s.teach}>
+                      <span class="cal-glyph" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H15"></path><rect x="9" y="3" width="6" height="3.5" rx="1"></rect><path d="m9 13.5 2 2 4-4.5"></path></svg></span>
+                      <span class="tip" aria-hidden="true">${v.s.teach}</span>
+                    </button>
+                  </div>
+                ` : null}
+                ${(f.lead) ? html`<p class="cal-lead">${f.lead}</p>` : null}
+                <div class="cal-line">
+                  ${(f.grading) ? html`
+                    <button type="button" class=${f.gradeCls} aria-label=${f.gradeSentence} title=${f.gradeTitle}>
+                      <span class="cal-plabel" aria-hidden="true">${v.s.tograde}</span>
+                      <span class="cal-pchip h0" aria-hidden="true">${f.waiting}</span>
+                    </button>
+                    <span class="cal-qdiv" aria-hidden="true"></span>
+                  ` : null}
+                  <ul class=${f.periodsCls} aria-label=${v.s.periods}>
+                    ${(f.periods || []).map((p, __i2) => html`
+                    <li style="display: contents">
+                      <button type="button" class=${p.cls} aria-label=${p.sentence} title=${p.title}>
+                        <span class="cal-plabel" aria-hidden="true">${p.label}</span>
+                        <span class=${p.chipCls} aria-hidden="true">${p.n}</span>
+                      </button>
+                    </li>
+                    `)}
+                  </ul>
+                </div>
+                <div class="cal-controls">
+                  ${(f.textSwitch) ? html`
+                    <div class="cal-seg" role="group" aria-label=${v.s.views}>
+                      <button type="button" class="cal-segbtn" aria-pressed=${f.isLearn}><span class="cal-glyph" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4 2 9l10 5 10-5-10-5z"></path><path d="M6 11v4.5c0 1.4 2.7 2.8 6 2.8s6-1.4 6-2.8V11"></path><path d="M21 9.5V15"></path></svg></span>${v.s.learn}</button>
+                      <button type="button" class="cal-segbtn" aria-pressed=${f.isTeach}><span class="cal-glyph" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H15"></path><rect x="9" y="3" width="6" height="3.5" rx="1"></rect><path d="m9 13.5 2 2 4-4.5"></path></svg></span>${v.s.teach}</button>
+                    </div>
+                  ` : null}
+                  <a class="cal-link" href="#" aria-label=${v.s.open} title=${v.s.open}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg></a>
+                </div>
+              </div>
+            </section>
+          </div>
+          </div>
+        </div>
+        ${(f.cap) ? html`<p class="cap">${f.cap}</p>` : null}
+        ${(f.sr) ? html`<p class="sr"><b>${f.srLabel}</b>${f.sr}</p>` : null}
+      </figure>
+      `)}
+    </div>
+    ${(sec.after) ? html`<p class="p" style="max-width: 1100px">${sec.after}</p>` : null}
+  </section>
+  `)}
+
+  <section class="panel sec">
+    <div>
+      <p class="kicker">8 · What the grading cell's press opens · 1034 px</p>
+      <h2 class="h">Open, on the days with grading work; the open strip keeps the text switch</h2>
+      <p class="p" style="max-width: 1100px">The press writes <code>open: true</code>, as a period press does, and lights the days whose teaching <code>waiting</code> is above zero (the open payload already carries it per day, <code>StripDay.waiting</code>): those days ringed, the others dimmed, the row scrolled to the earliest of them, no card pinned because several days answer. The keyboard stays on the toggle, as after a period press. Open, the header is the one built: month, Today, the text switch, the filter, the link.</p>
+    </div>
+    <div class="blk-c" style="padding-bottom: 12px">
+      <section class="cal os" aria-label=${v.s.region}>
+        <div class="os-head">
+          <h3 class="cal-title"><button type="button" class="cal-toggle" aria-expanded="true"><span class="cal-chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 320 512" fill="currentColor"><path d="M137.4 374.6a32 32 0 0 0 45.3 0l128-128a32 32 0 0 0-45.3-45.3L160 306.7 54.6 201.4a32 32 0 0 0-45.3 45.3l128 128z"></path></svg></span>${v.s.region}</button></h3>
+          <p class="os-month">${v.s.month}</p>
+          <button type="button" class="os-today">${v.s.today}</button>
+          <div class="cal-controls">
+            <div class="cal-seg" role="group" aria-label=${v.s.views}>
+              <button type="button" class="cal-segbtn" aria-pressed="false"><span class="cal-glyph" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M12 4 2 9l10 5 10-5-10-5z"></path><path d="M6 11v4.5c0 1.4 2.7 2.8 6 2.8s6-1.4 6-2.8V11"></path><path d="M21 9.5V15"></path></svg></span>${v.s.learn}</button>
+              <button type="button" class="cal-segbtn" aria-pressed="true"><span class="cal-glyph" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M9 4.5H6.5A1.5 1.5 0 0 0 5 6v13.5A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H15"></path><rect x="9" y="3" width="6" height="3.5" rx="1"></rect><path d="m9 13.5 2 2 4-4.5"></path></svg></span>${v.s.teach}</button>
+            </div>
+            <div class="cal-seg" role="group" aria-label="Filter">
+              <button type="button" class="cal-segbtn" aria-pressed="true">${v.s.fall}</button>
+              <button type="button" class="cal-segbtn" aria-pressed="false">${v.s.ftodo}</button>
+              <button type="button" class="cal-segbtn" aria-pressed="false">${v.s.fevents}</button>
+            </div>
+            <a class="cal-link" href="#" aria-label=${v.s.open} title=${v.s.open}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg></a>
+          </div>
+        </div>
+        <div class="os-days">
+          ${(v.days || []).map((d, __i0) => html`
+          <div class=${d.colCls}>
+            <span class="os-wd">${d.wd}</span>
+            <span class=${d.cls}>${d.n}</span>
+            <span class="os-dots">${(d.grade) ? html`<i class="mk--grade"></i>` : null}${(d.klass) ? html`<i class="mk--class"></i>` : null}</span>
+          </div>
+          `)}
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="panel sec">
+    <div>
+      <p class="kicker">9 · Anatomy, accessibility, strings</p>
+      <h2 class="h">What each part is, what it says, and the words it needs</h2>
+    </div>
+    <div class="anat">
+      <div>
+        <table class="t">
+          <thead><tr><th style="width: 34px">#</th><th>Part</th><th>Markup and name</th></tr></thead>
+          <tbody>
+            <tr><td><span class="num">1</span></td><td><b>Toggle</b>, in the heading</td><td><code>button</code> with <code>aria-expanded</code> and <code>aria-controls</code>, as built. First in the tab order.</td></tr>
+            <tr><td><span class="num">2</span></td><td><b>Icon switch</b>, closed line only</td><td><code>div role="group"</code> named "${v.s.views}"; two <code>button aria-pressed</code>, each <code>aria-label</code> "${v.s.learn}" / "${v.s.teach}" (core's <code>i/course</code> and <code>i/grades</code> glyphs, <code>fa-graduation-cap</code> and <code>fa-clipboard-check</code> on 5.2). A 36 px target inside a 44 px group. Tooltip on hover and on keyboard focus.</td></tr>
+            <tr><td><span class="num">3</span></td><td><b>Grading cell</b>, teaching with block_feedback_tracker only</td><td>A <code>button</code> before the periods' list, outside it: it is not a period. Visible "${v.s.tograde}" + number, both <code>aria-hidden</code>; the name is the sentence, which starts with the visible label (WCAG 2.5.3).</td></tr>
+            <tr><td><span class="num">4</span></td><td><b>Divider</b></td><td><code>span aria-hidden="true"</code>, 1 px, the line colour; vertical on a wide line, horizontal on the phone.</td></tr>
+            <tr><td><span class="num">5</span></td><td><b>Periods</b></td><td>Unchanged as built: <code>ul</code> "${v.s.periods}", a button per period. Their floor drops from 104 to 64 px (<code>min-width: 4rem</code>) so six cells fit beside the title and the switch.</td></tr>
+            <tr><td><span class="num">6</span></td><td><b>Calendar link</b></td><td>Unchanged: the icon link at the line's end, <code>margin-inline-start: auto</code>.</td></tr>
+          </tbody>
+        </table>
+        <p class="p" style="margin-top: 14px"><b>Tab order</b>: toggle, ${v.s.learn}, ${v.s.teach}, ${v.s.tograde}, the five periods, the link. The switch comes before the counts it changes, so a keyboard user picks the view and then reads it.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px">
+        <pre class="code">${v.outline}</pre>
+        <table class="t">
+          <thead><tr><th>New string</th><th>en</th><th>pt_br</th></tr></thead>
+          <tbody>
+            ${(v.strings || []).map((r, __i0) => html`
+            <tr><td><code>${r.key}</code></td><td>${r.en}</td><td>${r.pt}</td></tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+`;
+};
+const TWEAKS = {"lang": {"editor": "enum", "options": ["pt_br", "en"], "default": "pt_br", "section": "Language"}, "dark": {"editor": "boolean", "default": false, "section": "Theme"}};
+class Shell extends PreactComponent {
+  constructor(props) { super(props); this.state = {"lang": "pt_br", "dark": false}; }
+  render() {
+    const rows = Object.entries(TWEAKS).map(([key, t]) => {
+      const set = (value) => this.setState({ [key]: value });
+      if (t.editor === 'boolean') {
+        return html`<label>${key} <input type="checkbox" checked=${!!this.state[key]} onChange=${(e) => set(e.target.checked)} /></label>`;
+      }
+      if (t.editor === 'enum') {
+        return html`<label>${key} <select value=${this.state[key]} onChange=${(e) => set(e.target.value)}>
+          ${t.options.map((o) => html`<option value=${o}>${o}</option>`)}</select></label>`;
+      }
+      if (t.editor === 'range' || t.editor === 'int') {
+        return html`<label>${key} <input type="number" min=${t.min} max=${t.max} step=${t.step || 1} value=${this.state[key]}
+          onChange=${(e) => set(Number(e.target.value))} style="width: 80px" /></label>`;
+      }
+      return null;
+    });
+    return html`<${Component} ...${this.state} />${rows.length ? html`<aside class="dcx-tweaks" aria-label="Mockup tweaks">
+      <b>Tweaks</b>${rows}<a href="index.html">All artboards</a></aside>` : html`<aside class="dcx-tweaks"><a href="index.html">All artboards</a></aside>`}`;
+  }
+}
+render(html`<${Shell} />`, document.getElementById('dcx-root'));
+</script>
+</body>
+</html>

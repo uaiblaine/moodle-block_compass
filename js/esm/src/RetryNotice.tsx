@@ -77,7 +77,7 @@ const RetryNotice = ({message, retrying, config, onRetry}: RetryNoticeProps) => 
 
     return (
         <div className="alert alert-warning compass-error compass-retry" role="alert">
-            <span>{message}</span>
+            <span className="compass-retry-message">{message}</span>
             <span className="compass-retry-actions">
                 <button
                     type="button"

@@ -10,7 +10,7 @@ namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Mo
 `v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
 [`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100503) - unreleased
+## v5.3-r1 (2026100504) - unreleased
 
 First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
@@ -30,6 +30,11 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   2026042002): one native scroller with a day every 50 px, five past days at home (three on a
   narrow block), two arrows over its ends, a map under the row that scrubs, hover only on a day
   wholly in view, and one mark per kind in four slots. Details under v5.2-r1 below.
+- The calendar strip's visual pass and contrast (2026100504, the same work as v5.2-r1's
+  2026042004): short action verbs with core's whole name in the title and the accessible name,
+  two-line clamps and ellipses with their whole text in a title, the teaching line's grading cell
+  and icon switch, and every fill paired with a text colour that keeps 4.5:1 in both colour modes,
+  the lighting's dim included. Details under v5.2-r1 below.
 
 ### Changed
 
@@ -59,7 +64,7 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   (the 5.2 `.js.map` files are gone), and `js/esm/src/swizzle.json` closes every component to
   theme overrides, because the page loads the bundle, which contains them all.
 
-## v5.2-r1 (2026042002) - unreleased
+## v5.2-r1 (2026042004) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
@@ -133,6 +138,27 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - Month, weekday and time names come from the language pack.
 - Pointing at a first-tier card lights its days on the strip; opening a day outlines its cards.
 - Only activities the user can see are counted; hidden and completed courses are left out.
+- Long text keeps its layout in every language: a day's action button shows a short verb
+  (*Attempt*/*Responder* for a quiz, *Answer*/*Responder*, *Submit*/*Enviar*, *Start*/*Iniciar*,
+  *Grade*/*Avaliar*, *View*/*Ver*, or *Open*/*Abrir* for a workshop or a long name of another
+  activity) instead of core's name ("Tentar responder o questionário agora"), with core's name as its
+  tooltip and after the verb in its accessible name; the grading action says *Avaliar* in Portuguese,
+  not core's *Nota*; item names and a list row's date stop at two lines and pills, chips, course short
+  names and a holiday's note at one, each with its whole text as a tooltip; the header keeps the month
+  beside the toggle when the switches wrap; a failure notice moves its two controls under the message
+  instead of breaking them.
+- The closed teaching line leads with a *To grade* cell (with `block_feedback_tracker`'s ledger):
+  pressing it opens the strip on the days with grading work, and pointing at it outlines the cards of
+  the courses where submissions wait. The Studying/Teaching switch shows two icons beside the title,
+  each with its name and a tooltip on hover and keyboard focus (Escape hides it); a narrow block and
+  the open strip keep the words. The line stays on one row when it fits; otherwise its cells move to a
+  second row whole and the periods show their short names (*Late*/*Atrasadas*). On a phone the grading
+  cell has a row of its own above the five periods.
+- Every number on the strip reads in light and dark mode: today's day and period keep their dark disc
+  and its text when nothing is due and under the pointer, a past day's number is legible on a busy day
+  in dark mode, and pointing at a course card quiets the other days and periods by lowering their
+  colour instead of fading them, so their numbers stay readable; a disabled *Today* or arrow is greyed
+  rather than faded.
 
 **The Compass page**
 
@@ -169,5 +195,5 @@ php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
 
-A site that installed `2026042000` or `2026042001` from `MOODLE_502_STABLE` upgrades to `2026042002` in place;
-on `MOODLE_503_STABLE`, `2026100500` to `2026100502` upgrade to `2026100503` in place.
+A site that installed `2026042000` to `2026042003` from `MOODLE_502_STABLE` upgrades to `2026042004` in place;
+on `MOODLE_503_STABLE`, `2026100500` to `2026100503` upgrade to `2026100504` in place.

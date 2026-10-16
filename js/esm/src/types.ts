@@ -243,8 +243,8 @@ export type CalendarKind = 'gradedsoon' | 'graded' | 'todo' | 'late' | 'event' |
 /**
  * One day of one view, as block_compass_get_strip lists it: only days with an item travel.
  *
- * The kind counters are the view's (the learning kinds or the teaching ones); waiting is the
- * teaching view's alone.
+ * The kind counters are the view's (the learning kinds or the teaching ones); waiting and
+ * waitingcourseids (the courses of that day's grading work alone) are the teaching view's.
  */
 export type StripDay = Partial<Record<CalendarKind, number>> & {
     date: string,
@@ -253,6 +253,7 @@ export type StripDay = Partial<Record<CalendarKind, number>> & {
     step: number,
     countstep: number,
     courseids: number[],
+    waitingcourseids?: number[],
 };
 
 /** One view of the strip payload. */
@@ -293,6 +294,12 @@ export type StripPayload = {
 /** A period of the closed strip (amendment 11): late, today, tomorrow, the rest of the week, later. */
 export type PeriodKey = 'late' | 'today' | 'tomorrow' | 'week' | 'later';
 
+/**
+ * What a press on the closed line opens the strip on: a period's days, or, from the teaching view's
+ * grading cell, the days with grading work.
+ */
+export type LineTarget = PeriodKey | 'grading';
+
 /** One period's plain count, the heat of its busiest day and the courses it counts. */
 export type Period = {
     key: PeriodKey,
@@ -302,10 +309,14 @@ export type Period = {
     courseids: number[],
 };
 
-/** One view of the closed strip: its periods in order, the unknown ones absent, and the waiting lead. */
+/**
+ * One view of the closed strip: its periods in order, the unknown ones absent, the submissions waiting
+ * and the courses they wait in (both empty unless grading is counted).
+ */
 export type PeriodView = {
     periods: Period[],
     waiting: number,
+    waitingcourseids: number[],
 };
 
 /**

@@ -38,7 +38,7 @@ import {
   sortItems,
   timeParts
 } from "./calendar";
-import { fill, fillCount } from "./str";
+import { fill, fillCount, fillObject } from "./str";
 const relative = /* @__PURE__ */ __name((strings, date, today) => {
   const away = daysBetween(today, date);
   if (away === 0) {
@@ -55,103 +55,187 @@ const relative = /* @__PURE__ */ __name((strings, date, today) => {
 const pillsOf = /* @__PURE__ */ __name((item, strings, istoday, timezone, stars) => {
   const list = [];
   if (item.kind === "gradedsoon") {
-    list.push(
-      /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-accent", children: istoday ? strings.cal_pill_gradedtoday : strings.cal_pill_gradedtomorrow }, "kind", false, {
-        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 120,
-        columnNumber: 13
-      })
-    );
-  } else if (item.kind === "graded") {
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-soft", children: strings.cal_pill_graded }, "kind", false, {
+    const text = istoday ? strings.cal_pill_gradedtoday : strings.cal_pill_gradedtomorrow;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-accent", title: text, children: text }, "kind", false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 125,
+      lineNumber: 121,
+      columnNumber: 19
+    }));
+  } else if (item.kind === "graded") {
+    const text = strings.cal_pill_graded;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-soft", title: text, children: text }, "kind", false, {
+      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+      lineNumber: 124,
       columnNumber: 19
     }));
   } else if (item.kind === "late") {
     const text = item.lateuntil > 0 ? fill(strings.cal_pill_lateuntil, dayMonth(strings, timeParts(item.lateuntil, timezone))) : strings.cal_pill_late;
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-late", children: text }, "kind", false, {
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-late", title: text, children: text }, "kind", false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 130,
+      lineNumber: 129,
       columnNumber: 19
     }));
   } else if (item.kind === "gradesoon") {
-    list.push(
-      /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-accent", children: istoday ? strings.cal_pill_gradetoday : strings.cal_pill_gradetomorrow }, "kind", false, {
-        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 133,
-        columnNumber: 13
-      })
-    );
+    const text = istoday ? strings.cal_pill_gradetoday : strings.cal_pill_gradetomorrow;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-accent", title: text, children: text }, "kind", false, {
+      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+      lineNumber: 132,
+      columnNumber: 19
+    }));
   } else if (item.kind === "class") {
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", children: strings.cal_pill_class }, "kind", false, {
+    const text = strings.cal_pill_class;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", title: text, children: text }, "kind", false, {
+      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+      lineNumber: 135,
+      columnNumber: 19
+    }));
+  } else if (item.kind === "done") {
+    const text = strings.cal_pill_done;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", title: text, children: text }, "kind", false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
       lineNumber: 138,
       columnNumber: 19
     }));
-  } else if (item.kind === "done") {
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", children: strings.cal_pill_done }, "kind", false, {
-      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 140,
-      columnNumber: 19
-    }));
   } else if (item.kind === "event") {
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", children: strings.cal_pill_event }, "kind", false, {
+    const text = strings.cal_pill_event;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", title: text, children: text }, "kind", false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 142,
+      lineNumber: 141,
       columnNumber: 19
     }));
   }
   const waiting = item.action ? item.action.itemcount : 0;
   if ((item.kind === "grade" || item.kind === "gradesoon") && waiting > 0) {
-    list.push(
-      /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-soft", children: fillCount(strings, "cal_pill_waiting", waiting) }, "waiting", false, {
-        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 147,
-        columnNumber: 13
-      })
-    );
+    const text = fillCount(strings, "cal_pill_waiting", waiting);
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill compass-cal-pill-soft", title: text, children: text }, "waiting", false, {
+      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+      lineNumber: 146,
+      columnNumber: 19
+    }));
   }
   if (item.criterion && OPEN_KINDS.includes(item.kind)) {
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", children: strings.cal_pill_criterion }, "criterion", false, {
+    const text = strings.cal_pill_criterion;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", title: text, children: text }, "criterion", false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 153,
+      lineNumber: 150,
       columnNumber: 19
     }));
   }
   if (stars && item.starred && OPEN_KINDS.includes(item.kind) && item.kind !== "late") {
-    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", children: strings.cal_pill_starred }, "starred", false, {
+    const text = strings.cal_pill_starred;
+    list.push(/* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pill", title: text, children: text }, "starred", false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 158,
+      lineNumber: 156,
       columnNumber: 19
     }));
   }
   return list;
 }, "pillsOf");
-const actionOf = /* @__PURE__ */ __name((item, strings) => {
+const ACTION_VERBS = {
+  assign: "cal_act_submit",
+  choice: "cal_act_answer",
+  feedback: "cal_act_answer",
+  lesson: "cal_act_start",
+  questionnaire: "cal_act_answer",
+  quiz: "cal_act_attempt",
+  survey: "cal_act_answer",
+  workshop: "cal_act_open"
+};
+const ACTION_BUDGET = 16;
+const actionLabel = /* @__PURE__ */ __name((item, strings) => {
   if (!item.action) {
-    return /* @__PURE__ */ jsxDEV("a", { className: "btn btn-sm btn-outline-secondary compass-cal-action", href: item.viewurl, children: strings.cal_view }, void 0, false, {
-      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 174,
-      columnNumber: 16
-    });
+    return { text: strings.cal_view, name: strings.cal_view, title: strings.cal_view };
+  }
+  if (item.kind === "grade" || item.kind === "gradesoon") {
+    return { text: strings.cal_act_grade, name: strings.cal_act_grade, title: strings.cal_act_grade };
+  }
+  if (item.kind === "class") {
+    return { text: strings.cal_view, name: strings.cal_view, title: strings.cal_view };
+  }
+  const full = item.action.name;
+  let text = full;
+  if (ACTION_VERBS[item.modulename]) {
+    text = strings[ACTION_VERBS[item.modulename]];
+  } else if (full.length > ACTION_BUDGET) {
+    text = strings.cal_act_open;
+  }
+  if (text === full) {
+    return { text, name: full, title: full };
+  }
+  return { text, name: fillObject(strings.cal_act_label, { action: text, name: full }), title: full };
+}, "actionLabel");
+const actionOf = /* @__PURE__ */ __name((item, strings) => {
+  const label = actionLabel(item, strings);
+  if (!item.action) {
+    return /* @__PURE__ */ jsxDEV(
+      "a",
+      {
+        className: "btn btn-sm btn-outline-secondary compass-cal-action",
+        href: item.viewurl,
+        "aria-label": label.name,
+        title: label.title,
+        children: label.text
+      },
+      void 0,
+      false,
+      {
+        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+        lineNumber: 241,
+        columnNumber: 13
+      }
+    );
   }
   if (!item.action.actionable) {
-    return /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-action compass-cal-action-off small", children: item.action.name }, void 0, false, {
+    return /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-action compass-cal-action-off small", title: label.title, children: [
+      /* @__PURE__ */ jsxDEV("span", { "aria-hidden": "true", children: label.text }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+        lineNumber: 248,
+        columnNumber: 17
+      }),
+      /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: label.name }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+        lineNumber: 249,
+        columnNumber: 17
+      })
+    ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 177,
-      columnNumber: 16
+      lineNumber: 247,
+      columnNumber: 13
     });
   }
-  return OPEN_KINDS.includes(item.kind) ? /* @__PURE__ */ jsxDEV("a", { className: "btn btn-sm btn-primary compass-cal-action", href: item.action.url, children: item.action.name }, void 0, false, {
-    fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-    lineNumber: 181,
-    columnNumber: 11
-  }) : /* @__PURE__ */ jsxDEV("a", { className: "btn btn-sm btn-outline-secondary compass-cal-action", href: item.action.url, children: item.action.name }, void 0, false, {
-    fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-    lineNumber: 182,
-    columnNumber: 11
-  });
+  return OPEN_KINDS.includes(item.kind) ? /* @__PURE__ */ jsxDEV(
+    "a",
+    {
+      className: "btn btn-sm btn-primary compass-cal-action",
+      href: item.action.url,
+      "aria-label": label.name,
+      title: label.title,
+      children: label.text
+    },
+    void 0,
+    false,
+    {
+      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+      lineNumber: 256,
+      columnNumber: 13
+    }
+  ) : /* @__PURE__ */ jsxDEV(
+    "a",
+    {
+      className: "btn btn-sm btn-outline-secondary compass-cal-action",
+      href: item.action.url,
+      "aria-label": label.name,
+      title: label.title,
+      children: label.text
+    },
+    void 0,
+    false,
+    {
+      fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+      lineNumber: 260,
+      columnNumber: 13
+    }
+  );
 }, "actionOf");
 const chipsOf = /* @__PURE__ */ __name((n, strings) => {
   const chips = [
@@ -175,28 +259,28 @@ const DayType = /* @__PURE__ */ __name(({ off, strings }) => {
   if (off.special && off.special.label !== "") {
     return /* @__PURE__ */ jsxDEV("span", { className: off.mark === "holiday" ? "compass-cal-daytype compass-cal-daytype-holiday" : "compass-cal-daytype", children: [
       off.special.label,
-      off.special.note !== "" && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-daytype-note", children: off.special.note }, void 0, false, {
+      off.special.note !== "" && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-daytype-note", title: off.special.note, children: off.special.note }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 239,
-        columnNumber: 45
+        lineNumber: 320,
+        columnNumber: 21
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 237,
+      lineNumber: 317,
       columnNumber: 13
     });
   }
   if (off.mark === "holiday") {
     return /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-daytype compass-cal-daytype-holiday", children: strings.cal_legend_holiday }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 244,
+      lineNumber: 326,
       columnNumber: 16
     });
   }
   if (off.mark === "weekend") {
     return /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-daytype compass-cal-daytype-weekend", children: strings.cal_legend_weekend }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 247,
+      lineNumber: 329,
       columnNumber: 16
     });
   }
@@ -207,99 +291,99 @@ const CardBody = /* @__PURE__ */ __name(({ entry, items, count, strings, timezon
     return /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-cardload", "aria-busy": "true", children: [
       /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: strings.cal_loadingday }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 276,
+        lineNumber: 358,
         columnNumber: 17
       }),
       [0, 1, 2].slice(0, Math.max(1, Math.min(3, count))).map((row) => /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-skrow", "aria-hidden": "true", children: [
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-icon" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-          lineNumber: 279,
+          lineNumber: 361,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-line" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-          lineNumber: 280,
+          lineNumber: 362,
           columnNumber: 25
         })
       ] }, row, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 278,
+        lineNumber: 360,
         columnNumber: 21
       }))
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 275,
+      lineNumber: 357,
       columnNumber: 13
     });
   }
   if (entry.status === "error") {
     return /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-cardbody", children: /* @__PURE__ */ jsxDEV(RetryNotice, { message: strings.cal_dayerror, retrying: false, config, onRetry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 289,
+      lineNumber: 371,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 288,
+      lineNumber: 370,
       columnNumber: 13
     });
   }
   if (!items.length) {
     return /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-empty", children: empty }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 294,
+      lineNumber: 376,
       columnNumber: 16
     });
   }
   return /* @__PURE__ */ jsxDEV("ul", { className: "compass-cal-items", children: items.map((item) => /* @__PURE__ */ jsxDEV("li", { className: item.kind === "done" ? "compass-cal-item compass-cal-item-done" : "compass-cal-item", children: [
     /* @__PURE__ */ jsxDEV("span", { className: `activityiconcontainer ${item.purpose} compass-cal-icon`, "data-purpose": item.purpose, children: item.iconurl && /* @__PURE__ */ jsxDEV("img", { className: "activityicon", src: item.iconurl, alt: "" }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 302,
+      lineNumber: 384,
       columnNumber: 42
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 301,
+      lineNumber: 383,
       columnNumber: 21
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-itembody", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-itemmeta", children: [
         /* @__PURE__ */ jsxDEV("span", { children: clockTime(strings, timeParts(item.timestart, timezone)) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-          lineNumber: 306,
+          lineNumber: 388,
           columnNumber: 29
         }),
-        item.courseshortname && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-course", children: item.courseshortname }, void 0, false, {
+        item.courseshortname && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-course", title: item.courseshortname, children: item.courseshortname }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-          lineNumber: 307,
-          columnNumber: 54
+          lineNumber: 390,
+          columnNumber: 33
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 305,
+        lineNumber: 387,
         columnNumber: 25
       }),
-      /* @__PURE__ */ jsxDEV("a", { className: "compass-cal-itemtitle", href: item.viewurl, children: item.name }, void 0, false, {
+      /* @__PURE__ */ jsxDEV("a", { className: "compass-cal-itemtitle compass-clamp", href: item.viewurl, title: item.name, children: item.name }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 309,
+        lineNumber: 393,
         columnNumber: 25
       }),
       /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-pills", children: pillsOf(item, strings, istoday, timezone, config.favouritesenabled) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 310,
+        lineNumber: 394,
         columnNumber: 25
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 304,
+      lineNumber: 386,
       columnNumber: 21
     }),
     actionOf(item, strings)
   ] }, item.id, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-    lineNumber: 300,
+    lineNumber: 382,
     columnNumber: 17
   })) }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-    lineNumber: 298,
+    lineNumber: 380,
     columnNumber: 9
   });
 }, "CardBody");
@@ -338,96 +422,100 @@ const CalendarCard = /* @__PURE__ */ __name(({
   return /* @__PURE__ */ jsxDEV("div", { id, className: cardclass, role: "dialog", "aria-label": title, children: [
     /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-caret", "aria-hidden": "true" }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 358,
+      lineNumber: 442,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-cardhead", children: [
       /* @__PURE__ */ jsxDEV("div", { children: [
         /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-cardtitle", children: title }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-          lineNumber: 361,
+          lineNumber: 445,
           columnNumber: 21
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-cardsub", children: [
           /* @__PURE__ */ jsxDEV("span", { className: istoday ? "compass-cal-rel compass-cal-rel-today" : "compass-cal-rel", children: relative(strings, date, today) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-            lineNumber: 363,
+            lineNumber: 447,
             columnNumber: 25
           }),
           /* @__PURE__ */ jsxDEV("span", { children: fillCount(strings, "cal_items", count) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-            lineNumber: 366,
+            lineNumber: 450,
             columnNumber: 25
           }),
           /* @__PURE__ */ jsxDEV(DayType, { off, strings }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-            lineNumber: 367,
+            lineNumber: 451,
             columnNumber: 25
           })
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-          lineNumber: 362,
+          lineNumber: 446,
           columnNumber: 21
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 360,
+        lineNumber: 444,
         columnNumber: 17
       }),
       pinned && /* @__PURE__ */ jsxDEV("button", { type: "button", className: "compass-cal-close", "aria-label": strings.cal_close, onClick: onClose, children: /* @__PURE__ */ jsxDEV("span", { "aria-hidden": "true", children: "\xD7" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 372,
+        lineNumber: 456,
         columnNumber: 25
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 371,
+        lineNumber: 455,
         columnNumber: 21
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 359,
+      lineNumber: 443,
       columnNumber: 13
     }),
     count > 0 && /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-sumbar", "aria-hidden": "true", children: [
       sum.late > 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sum-late", style: { flexGrow: sum.late } }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 378,
+        lineNumber: 462,
         columnNumber: 38
       }),
       sum.open > 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sum-open", style: { flexGrow: sum.open } }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 379,
+        lineNumber: 463,
         columnNumber: 38
       }),
       sum.info > 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sum-info", style: { flexGrow: sum.info } }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 380,
+        lineNumber: 464,
         columnNumber: 38
       }),
       sum.done > 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sum-done", style: { flexGrow: sum.done } }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 381,
+        lineNumber: 465,
         columnNumber: 38
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 377,
+      lineNumber: 461,
       columnNumber: 17
     }),
     chips.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-chips", children: chips.map((chip) => /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-chip", children: [
       /* @__PURE__ */ jsxDEV("span", { className: `compass-cal-dot compass-cal-dot-${chip.kind}`, "aria-hidden": "true" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 388,
+        lineNumber: 472,
         columnNumber: 29
       }),
-      chip.text
+      /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-chiptext", title: chip.text, children: chip.text }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
+        lineNumber: 473,
+        columnNumber: 29
+      })
     ] }, chip.kind, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 387,
+      lineNumber: 471,
       columnNumber: 25
     })) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 385,
+      lineNumber: 469,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV(
@@ -447,34 +535,34 @@ const CalendarCard = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 394,
+        lineNumber: 478,
         columnNumber: 13
       }
     ),
     ready && ready.truncated && /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-cardnote small", children: fill(strings.cal_truncatedday, String(calendar.daylimit)) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 406,
+      lineNumber: 490,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-cardfoot", children: [
       /* @__PURE__ */ jsxDEV("span", { children: pinned ? strings.cal_hint_pinned : strings.cal_hint_hover }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 409,
+        lineNumber: 493,
         columnNumber: 17
       }),
       /* @__PURE__ */ jsxDEV("a", { href: dayurl, children: strings.cal_openday }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-        lineNumber: 410,
+        lineNumber: 494,
         columnNumber: 17
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-      lineNumber: 408,
+      lineNumber: 492,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarCard.tsx",
-    lineNumber: 357,
+    lineNumber: 441,
     columnNumber: 9
   });
 }, "CalendarCard");

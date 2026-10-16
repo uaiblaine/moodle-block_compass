@@ -111,7 +111,7 @@ const Row = /* @__PURE__ */ __name(({ row, config, now, lang, detail, waiting, o
           lineNumber: 125,
           columnNumber: 13
         }),
-        meta !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-row-meta small text-muted", children: meta }, void 0, false, {
+        meta !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-row-meta compass-clamp small text-muted", title: meta, children: meta }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Row.tsx",
           lineNumber: 126,
           columnNumber: 31

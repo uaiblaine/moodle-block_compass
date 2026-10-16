@@ -47,7 +47,9 @@ Feature: The calendar strip above the Compass cards shows what falls due, day by
     # Focus opens a day as hovering does (ADR-014 decision 9); the card is a dialog beside the row (amendment 12).
     When I set the focus on the "//section[contains(@class, 'compass-cal')]//button[contains(@aria-label, 'tomorrow')]" "xpath_element"
     Then I should see "Essay due" in the "//div[@role='dialog'][contains(@class, 'compass-cal-card')]" "xpath_element"
-    And I should see "Add submission" in the "//div[@role='dialog'][contains(@class, 'compass-cal-card')]" "xpath_element"
+    # The action shows the plugin's short verb; core's own name stays in its accessible name (label in name).
+    And I should see "Submit" in the "//div[@role='dialog'][contains(@class, 'compass-cal-card')]" "xpath_element"
+    And "//div[@role='dialog'][contains(@class, 'compass-cal-card')]//a[contains(@aria-label, 'Submit: Add submission')]" "xpath_element" should exist
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
     When I press the escape key
     Then "//div[@role='dialog'][contains(@class, 'compass-cal-card')]" "xpath_element" should not exist
