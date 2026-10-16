@@ -65,6 +65,8 @@ class block implements renderable, templatable {
      * @var string[]
      */
     public const CALENDAR_STRINGS = [
+        'cal_act_answer', 'cal_act_attempt', 'cal_act_grade', 'cal_act_label', 'cal_act_open', 'cal_act_start',
+        'cal_act_submit',
         'cal_am', 'cal_bounded', 'cal_close', 'cal_count_class', 'cal_count_class_one', 'cal_count_done',
         'cal_count_done_one', 'cal_count_event', 'cal_count_event_one', 'cal_count_grade', 'cal_count_graded',
         'cal_count_graded_one', 'cal_count_gradedsoon_today', 'cal_count_gradedsoon_today_one',
@@ -92,9 +94,10 @@ class block implements renderable, templatable {
         'cal_pill_gradetoday', 'cal_pill_gradetomorrow', 'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_starred',
         'cal_pill_waiting', 'cal_pill_waiting_one', 'cal_pm', 'cal_prefererror', 'cal_prev', 'cal_region',
         'cal_rel_future', 'cal_rel_past', 'cal_rel_today', 'cal_rel_tomorrow', 'cal_rel_yesterday', 'cal_relevance',
-        'cal_summary', 'cal_summary_late', 'cal_summary_later', 'cal_summary_overdue', 'cal_summary_today',
-        'cal_summary_tomorrow', 'cal_summary_week', 'cal_today', 'cal_toggleerror', 'cal_truncated',
-        'cal_truncatedday', 'cal_upto', 'cal_view', 'cal_view_learning', 'cal_view_teaching', 'cal_views',
+        'cal_submissions', 'cal_submissions_one', 'cal_summary', 'cal_summary_late', 'cal_summary_later',
+        'cal_summary_overdue', 'cal_summary_today', 'cal_summary_tomorrow', 'cal_summary_week', 'cal_today',
+        'cal_toggleerror', 'cal_tograde', 'cal_tograde_label', 'cal_tograde_none', 'cal_truncated', 'cal_truncatedday',
+        'cal_upto', 'cal_view', 'cal_view_learning', 'cal_view_teaching', 'cal_views',
         'cal_waiting', 'cal_waitinglead', 'cal_waitinglead_one', 'cal_weekday_0', 'cal_weekday_1', 'cal_weekday_2',
         'cal_weekday_3', 'cal_weekday_4', 'cal_weekday_5', 'cal_weekday_6', 'cal_weekdayshort_0',
         'cal_weekdayshort_1', 'cal_weekdayshort_2', 'cal_weekdayshort_3', 'cal_weekdayshort_4',

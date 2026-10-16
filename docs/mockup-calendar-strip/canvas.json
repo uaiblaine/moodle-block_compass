@@ -55,6 +55,13 @@
       "h": 12000,
       "title": "The strip scrolls: arrows over the row's ends, a map that scrubs, five past days (second round, 2026-10-14)",
       "is_interactive": true
+    },
+    "SlimTeaching.dc.html": {
+      "x": 0,
+      "y": 8260,
+      "w": 1440,
+      "h": 7000,
+      "title": "Slim strip, round 2: the teaching line in one row (grading cell, icon switch; 2026-10-16)"
     }
   },
   "order": [
@@ -63,6 +70,7 @@
     "Mobile.dc.html",
     "Settings.dc.html",
     "Slim.dc.html",
+    "SlimTeaching.dc.html",
     "Scroll.dc.html"
   ],
   "notes": {

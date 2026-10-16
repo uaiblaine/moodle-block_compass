@@ -109,7 +109,7 @@ class get_strip_counts extends external_api {
      * @return array
      */
     private static function empty_result(): array {
-        $view = ['periods' => [], 'waiting' => 0];
+        $view = ['periods' => [], 'waiting' => 0, 'waitingcourseids' => []];
 
         return [
             'enabled' => false,
@@ -129,7 +129,7 @@ class get_strip_counts extends external_api {
      * One view's periods with exactly the fields the structure names.
      *
      * @param array $view From strip::periods().
-     * @return array periods and waiting.
+     * @return array periods, waiting and waitingcourseids.
      */
     private static function view_result(array $view): array {
         $periods = [];
@@ -143,7 +143,11 @@ class get_strip_counts extends external_api {
             ];
         }
 
-        return ['periods' => $periods, 'waiting' => (int) $view['waiting']];
+        return [
+            'periods' => $periods,
+            'waiting' => (int) $view['waiting'],
+            'waitingcourseids' => array_map('intval', $view['waitingcourseids']),
+        ];
     }
 
     /**
@@ -167,6 +171,10 @@ class get_strip_counts extends external_api {
                 'The periods in order; late is absent when it is not known or not counted'
             ),
             'waiting' => new external_value(PARAM_INT, 'Submissions waiting over the window; 0 unless grading is counted'),
+            'waitingcourseids' => new external_multiple_structure(
+                new external_value(PARAM_INT, 'Course id'),
+                'Courses with submissions waiting over the window; empty unless grading is counted'
+            ),
         ]);
     }
 

@@ -523,8 +523,9 @@ final class day {
      *
      * The rows are the counted statement's over the day's bounds and collect()'s teaching items,
      * the same rules the strip's teaching view counted, plus the events of both views. Kinds:
-     * grade and gradesoon carry core's "Grade" action (mod_assign_core_calendar_provide_event_action():
-     * the gradeverb string, the grader URL, the count waiting); class carries a View action to the
+     * grade and gradesoon carry a Grade action (mod_assign_core_calendar_provide_event_action()'s grader
+     * URL and count waiting, named with this plugin's cal_act_grade verb rather than core's gradeverb,
+     * which Portuguese reads as "Nota", a noun); class carries a View action to the
      * activity; an event carries none. Names come from one statement over the kept ids, since the
      * strip's statement does not carry them.
      *
@@ -644,7 +645,7 @@ final class day {
         $action = null;
         if ($item['kind'] === 'grade' || $item['kind'] === 'gradesoon') {
             $action = [
-                'name' => get_string('gradeverb'),
+                'name' => get_string('cal_act_grade', 'block_compass'),
                 'url' => (new url('/mod/assign/view.php', ['id' => (int) $row->cmid, 'action' => 'grader']))->out(false),
                 'itemcount' => (int) $item['waiting'],
                 'actionable' => true,

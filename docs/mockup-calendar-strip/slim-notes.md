@@ -322,3 +322,218 @@ writes sentence case, never uppercase.
 - `canvas.json`: the strip canvas index with the Slim board (1440 × 6780).
 - `build_standalone.py`: the folder's script. It skips an artboard listed in `canvas.json` but
   absent from the folder.
+
+## Round 2 (2026-10-16): teaching line
+
+A design only, drawn in `SlimTeaching.dc.html` (1440 × 7000, its own board on the canvas;
+`html/slimteaching.html` is its standalone render). Labels as above: **Verified** means read in
+the source or measured in Chrome on 2026-10-15, with the file or the frame; **Estimate** says what
+it is inferred from.
+
+### What the maintainer saw
+
+The closed Teaching line at about 1000 px, in Portuguese: the title, the lead "0 envios aguardando
+avaliação", the five periods, and then the Studying / Teaching switch and the calendar link on a
+second row, pushed to the right edge and aligned with nothing.
+
+**Verified, the cause.** The board rebuilds that line in the built block's numbers
+(`styles.css`: `.compass-cal-head` wraps, `.compass-cal-controls` takes
+`margin-inline-start: auto`, a period's floor is `min-width: 6.5rem`). It wraps where the block
+wraps: two rows at 1000 px (frame `b1000`, head 105 px tall) and three at 784 px (frame `b784`,
+157 px: title and lead, then the periods, then the switch and the link). The lead costs about
+190 px and the text switch about 240 px.
+
+### Decided for this mockup (approved recommendation)
+
+1. **The waiting count is a sixth cell**, in the periods' grammar: the label "A avaliar" / "To
+   grade" over its number. It comes first, before the periods, behind a thin vertical divider,
+   because it is a queue and not a date. Zero shows "0" muted, as a zero period does. It exists
+   only where today's lead exists: the teaching view with block_feedback_tracker's ledger as the
+   grading source (`counts.grading`, `CalendarLine.tsx`).
+2. **Pressing it opens the strip on the days with grading work**, as a period press opens the
+   strip on its days (board, panel 8).
+3. **The closed line's switch shows icons only**, beside the title: core's `i/course` and
+   `i/grades` glyphs (`fa-graduation-cap` and `fa-clipboard-check` on 5.2, verified in
+   `public/lib/classes/output/icon_system_fontawesome.php:215`, `:252`; the block already renders
+   them, `classes/output/block.php:282-283`). Each has an accessible name and a tooltip. The open
+   strip keeps the text switch, as built.
+4. **The calendar link stays at the line's end.**
+
+### Decided in this round (designer's calls, for the maintainer to confirm)
+
+- **The grading number has no disc.** A period's disc is the heat of its busiest day; a queue has
+  no day and so no heat. The number is the body text, bold; late grading work is already the
+  Overdue period's job (its number is the danger colour, as built).
+- **A period's floor drops from 104 to 64 px** (`min-width: 4rem`, padding `4px 10px 5px 8px`),
+  for both views. That is what lets six cells, the title, the switch and the link share one row
+  at 784 px. Cells size to their label above the floor.
+- **One row, or a whole second row: never a lone control.** Between 640 px (narrow, as built) and
+  the width the line needs, the cells move to a second row as one piece, and the switch and the
+  link stay on the first row (board, panel 7). The strip decides from its own measure, read before
+  paint as it reads `narrow` today (`NARROW_PX`, `CalendarStrip.tsx:82`). The rule: one row when
+  the line's natural width fits the head. Container queries are not an option (fleet stylelint
+  forbids `@container`).
+- **Phone (under 640 px): the grading cell gets its own row.** Row 1 holds the title, the icon
+  switch and the link. Row 2 is the grading cell, full width, its label over its number at the
+  row's start. A hairline replaces the vertical divider. Then come the five periods in the
+  five-column grid of the built phone line. Teacher and student phones share the same period grid;
+  the teacher's line is one row taller. Set aside, both drawn in panel 5b:
+  - **3 × 2 grid.** It breaks the dates in the middle (Tomorrow starts the second row), mixes the
+    queue into the dates' grid, and differs from the student's five-across.
+  - **Six across.** It fits at 338 px only with 11 px labels in 55 px cells, and breaks first in a
+    longer language.
+- **The zero press still opens the strip**, at its home position. Nothing is lit, because no day
+  has grading work. Its sentence says so (below).
+
+### Measured (Chrome, Noto Sans, which is wider than Boost's system fonts)
+
+All verified on the board's frames. "Natural width" is the line's width without the free space
+before the link.
+
+| Frame | Rows | Head height | Natural width | Free before the link |
+|---|---|---|---|---|
+| Teaching, before, 1000 px | 2 | 105 px | - | - |
+| Teaching, before, 784 px | 3 | 157 px | - | - |
+| Teaching, after, 784 px, pt_br | 1 | 56 px | 743 px | 41 px |
+| Teaching, after, 784 px, en | 1 | 56 px | 722 px | 62 px |
+| Studying, after, 784 px, pt_br / en | 1 | 56 px | 661 / 629 px | 123 / 155 px |
+| Teaching and studying, after, 1034 px | 1 | 56 px | as above | 291 px (teaching, pt_br) |
+| Phone, teaching / studying (strip 338 px) | 3 / 2 | 177 / 112 px | row 1: 242 px | - |
+
+- **The two views have the same height.** Teacher and student lines are both 56 px at 784 and
+  1034 px: the cells' 56 px sets the row; the toggle (44), the switch group (44) and the link (40)
+  centre on it. Switching views changes the numbers, never the line's height.
+- **No overflow.** No control lies outside its head, and no label is clipped, in any frame in
+  either language. The page shows no console error.
+- **Cell widths in pt_br at 784 px:** 68 / 70 / 64 / 67 / 92 / 64 px for "A avaliar", Atrasada,
+  Hoje, Amanhã, Esta semana and Depois. The title is 122 px; the icon switch 80 px.
+
+### Accessibility
+
+- **Icon buttons: label in name.** Each icon button has `aria-label` set to the view's name
+  (`cal_view_learning` / `cal_view_teaching`, the strings the text switch shows), keeps
+  `aria-pressed`, and stays in the `role="group"` named by `cal_views`. The glyph is
+  `aria-hidden`. The tooltip shows the same word, so what is seen is what is spoken (WCAG 2.5.3).
+- **The tooltip shows on hover and on keyboard focus** (`:hover`, `:focus-visible`). Esc hides
+  it. It is a child of the button with `aria-hidden="true"`, painted in core's tooltip look (ink
+  fill, text on ink; light in dark mode). Because it is the button's child, moving the pointer
+  onto it keeps it open. That meets WCAG 1.4.13: dismissible, hoverable, persistent. No `title`
+  attribute, which would draw a second, native tooltip on hover.
+- **Why not core's Bootstrap tooltip.** Verified on 5.2 (`theme/boost/amd/src/loader.js:234-256`):
+  - `enableTooltips()` binds only the `[data-bs-toggle="tooltip"]` nodes present at load, or nodes
+    passed through `filterContentUpdated`. A React button mounted later gets none unless the
+    component creates the instance itself, through `amd.ts`, and disposes of it.
+  - Bootstrap's tooltip sets `aria-describedby` to itself on show
+    (`theme/boost/amd/src/bootstrap/tooltip.js:207`). A name and a description that are the same
+    word risk being announced twice. Whether a given screen reader drops the duplicate is not
+    measured here (**estimate**).
+  - The own tooltip avoids both. The calendar link's `title` tooltip (hover only) could take the
+    same treatment later; that is out of this round.
+- **The grading cell's name is a sentence that starts with its visible label:**
+  - "A avaliar: 3 envios. Abre a faixa nos dias com avaliações." / "To grade: 3 submissions.
+    Opens the strip on the days with grading work."
+  - At zero: "A avaliar: nenhum envio aguardando. Abre a faixa." / "To grade: nothing waiting.
+    Opens the strip."
+
+  Both visible spans are `aria-hidden`, as a period's are. The cell is a `button` before the
+  periods' `ul`, not an item of it: it is not a period, so the list keeps saying "Your calendar,
+  by period" with five items. Its `title` carries the whole lead ("3 envios aguardando
+  avaliação", `cal_waitinglead`), as a shortened period's `title` carries its whole name. The
+  divider is `aria-hidden`.
+- **Tab order:**
+  1. the toggle;
+  2. Studying;
+  3. Teaching;
+  4. To grade;
+  5. the five periods;
+  6. the link.
+
+  The switch comes before the counts it changes.
+- **Focus after a press.** The grading cell, like a period, leaves focus on the toggle as the
+  strip opens (`openPeriod()`, `CalendarStrip.tsx:1222-1226`).
+- **The live region keeps its summary,** led by the waiting count (`summaryOf()`, unchanged:
+  "Calendário: 3 envios aguardando avaliação, 1 com avaliação atrasada, …").
+- **Touch.** A phone has no hover and no keyboard focus, so the icons show no name there. The
+  pressed state and the content that changes are the cues. The open strip names both views in
+  text. This is a known cost of icon-only, and an open question below.
+
+### New lang strings (en and pt_br, alphabetical in both files)
+
+| Key | en | pt_br |
+|---|---|---|
+| `cal_submissions` | `{$a} submissions` | `{$a} envios` |
+| `cal_submissions_one` | `{$a} submission` | `{$a} envio` |
+| `cal_tograde` | `To grade` | `A avaliar` |
+| `cal_tograde_label` | `{$a->period}: {$a->items}. Opens the strip on the days with grading work.` | `{$a->period}: {$a->items}. Abre a faixa nos dias com avaliações.` |
+| `cal_tograde_none` | `{$a}: nothing waiting. Opens the strip.` | `{$a}: nenhum envio aguardando. Abre a faixa.` |
+
+- The two `cal_submissions` strings follow `fillCount()`'s `_one` convention, as `cal_items` does.
+- No new string for the switch: the icons reuse `cal_view_learning`, `cal_view_teaching` and
+  `cal_views`.
+- `cal_waitinglead` and `_one` stay: the live summary and the grading cell's `title` use them.
+- "A avaliar" (9 characters) is under `PERIOD_BUDGET` (14), so it needs no `_short` twin.
+
+### What changes, if built
+
+- `CalendarLine.tsx`:
+  - the lead paragraph becomes the grading button and the divider, inside a new
+    `compass-cal-line` wrapper around the periods' list;
+  - the press calls `onPeriod('grading')`, or a sibling callback.
+- `CalendarStrip.tsx`:
+  - `controls()` splits. The switch renders after the heading while closed, as icons with
+    `aria-label` and the tooltip child. While open it renders text, where it is today;
+  - `periodtarget` and `periodPlan()` learn a `grading` target: the days whose `StripDay.waiting`
+    is above zero (`types.ts:248-250`), scrolled to the earliest, none pinned;
+  - a measured `oneline` flag beside `narrow`, for the two-row fallback.
+- `types.ts`, `PeriodKey`: a `grading` target, or a separate type for it.
+- **Lighting tier 1 cards from the grading cell** needs the course ids of the waiting rows. Today
+  `PeriodView` carries only `waiting` (`types.ts:304-308`). That means a `waitingcourseids` from
+  `strip::periods()` and from `calendar.ts`'s `countsOf()`, its twin. Without it, the cell lights
+  nothing. **Estimate:** no extra read, because the counts pass already holds the grading rows.
+- `styles.css`:
+  - `.compass-cal-period` `min-width: 4rem`;
+  - the icon segment (36 px buttons in a 44 px group);
+  - `.compass-cal-qdiv`;
+  - `.compass-cal-tip`, shown on `:hover` and `:focus-visible` and hidden by an Esc state;
+  - the one-line and two-line head rules;
+  - the narrow column order.
+
+  No `@container`, no `!important`; transitions of at least 100 ms.
+- Lang: the five strings above, in both files.
+- Tests:
+  - an `accessibility_rules_test` rule that every icon-only control in the strip has an
+    `aria-label`;
+  - Behat: the grading cell opens the strip, with axe in both views and on a narrow window;
+  - a mutation gate on the `counts.grading` guard of the cell.
+
+### Open questions for the maintainer
+
+1. **Icon-only on touch.** Keep icons on the phone? Or show the text switch on its own row there,
+   at the cost of one more row for a viewer with both views?
+2. **Lighting tier 1 cards from the grading cell** (`waitingcourseids`): wanted in this round, or
+   later?
+3. **The two-row fallback by measure:** build it, or accept that a line too wide for its block
+   wraps as the browser decides? The measured margin at 784 px is 41 px in Portuguese.
+
+### The maintainer's answers (2026-10-16), as built
+
+All recommendations approved; built in version 2026042004 (ADR-014 amendment 13).
+
+1. **Icon-only on touch:** no. On a narrow block the switch keeps its words, on a row of its own;
+   the closed line shows icons only above 640 px.
+2. **Lighting tier 1 cards from the grading cell:** yes, through `waitingcourseids`, recorded per
+   teaching day as each grading item is counted. No extra read, measured.
+3. **The two-row fallback by measure:** built (ResizeObserver and a layout effect, no
+   `@container`). The same measure picks the periods' short names, replacing the 14-character
+   budget.
+
+Also approved: a quiz's action says *Attempt* in English (core's word) and stays *Responder* in
+Portuguese; a workshop says *Open*; the server names the Grade action with `cal_act_grade`.
+
+### Files (round 2)
+
+- `SlimTeaching.dc.html`: the board.
+- `html/slimteaching.html`, `html/index.html`: the standalone render, rebuilt with
+  `python3 -I build_standalone.py`.
+- `canvas.json`: the board at (0, 8260), 1440 × 7000, after `Slim.dc.html` in the order.
+- `README.md`: its row in the artboard table.

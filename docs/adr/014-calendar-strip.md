@@ -1095,6 +1095,145 @@ with. The decision text above is kept as the maintainer reviewed it.
       timer, and the row is read again when the tab comes back. Fewer days at a glance on the
       Dashboard (14 whole days instead of 21) is the trade asked for; the map and its ticks soften it.
 
+13. **The visual system: text that runs long, and the teaching line (the maintainer's review of
+    2026-10-15 and the approval of round 2 on 2026-10-16), version 2026042004.** Accepted
+    (2026-10-16). The design is `docs/mockup-calendar-strip/SlimTeaching.dc.html`
+    (`html/slimteaching.html`) and its record, `slim-notes.md` "Round 2 (2026-10-16): teaching line";
+    round 1 was reviewed on the built block. One server change (the Grade verb) and one payload
+    member (`waitingcourseids`); the budgets, the cache definition and the preference do not change.
+    - **Round 1, text that runs long has one system** (a Portuguese label is often twice its English
+      one). A name or line that can run long stops at two lines (`.compass-clamp`: the day card's item
+      name, a tier 3 row's date) or at one with an ellipsis (pills, chips, a course short name, a
+      holiday's note, the day's action), and carries its whole text in `title`
+      (`accessibility_rules_test` reads every ellipsis rule's class and every clamp). The header packs
+      the toggle and the month at its start and pushes its controls to its end, on their own line
+      when they wrap; a failure notice wraps and keeps Try again and Reload page whole.
+    - **A day's action is a short verb of this plugin's** (`CalendarCard.tsx` `ACTION_VERBS`,
+      `actionLabel()`): Submit (assign), Answer (choice, feedback, questionnaire, survey), Attempt
+      (quiz: core's own word in English, "Attempt quiz now"; Responder in Portuguese, a string of its
+      own, `cal_act_attempt`), Start (lesson), Open (workshop, and any other module whose name of
+      core's is over 16 characters), Grade and View for the teaching kinds; each at most 12
+      characters in both languages, core's whole name its `title` and after the verb in its
+      accessible name (`cal_act_label`, "{$a->action}: {$a->name}", WCAG 2.5.3). Buttons are bounded
+      (4.5 to 8.5 rem, one line).
+    - **The Grade action's name is this plugin's verb on the server too** (`day.php`
+      `export_teaching()`): `cal_act_grade` rather than core's `gradeverb`, which Portuguese reads
+      "Nota", a noun. The entry records its language (amendment 11) and the version bump purges the
+      caches on upgrade, so no opened day keeps "Nota".
+    - **The teaching line's waiting count is a cell** (round 2, decision 1; `CalendarLine.tsx`
+      `GradingCell`): "To grade" / "A avaliar" over the submissions waiting, plain and bold with no
+      disc (a queue has no busiest day), muted at zero, first and before an `aria-hidden` divider,
+      a button outside the periods' list. It exists only where the lead did: the teaching view with
+      `block_feedback_tracker`'s ledger as the grading source (`counts.grading`). Its name is a
+      sentence that starts with its label (`cal_tograde_label`, `cal_tograde_none` at zero, with
+      `cal_submissions`), its `title` the whole lead (`cal_waitinglead`, which the live summary keeps).
+      A press opens the strip on the days whose teaching `waiting` is above zero (`periodPlan()`, the
+      `grading` target, `LineTarget` in `types.ts`): those days ringed, the others dimmed, the
+      keyboard on the earliest, no card pinned; with none, home and today, nothing lit.
+    - **Pointing at the cell lights the courses of the grading work** (round 2, open question 2):
+      `waitingcourseids`, recorded per teaching day by `strip::add()` as each grading item is counted
+      (a day's `courseids` hold every kind, the convenient fact a class deadline would have lit) and
+      summed by `strip::periods()` and its twin `calendar.ts` `periodsOf()`; `get_strip` ships it per
+      teaching day, `get_strip_counts` per view. No read: measured through the budget tests on
+      PostgreSQL with it in place, `get_strip_counts` 11 cold and 11 warm (budget 11), 6 to complete
+      on opening, `get_strip` 15 cold and 15 warm (budget 61), `get_day` 11 teaching and 34 learning,
+      the same as amendments 5 and 11 recorded.
+    - **The closed switch is two icons beside the title** (round 2, decision 3; `CalendarStrip.tsx`
+      `viewSwitch()`): core's glyphs, each button named by its view (`cal_view_learning`,
+      `cal_view_teaching`) and keeping `aria-pressed`, with a tooltip of the component's own: an
+      `aria-hidden` child in core's tooltip look, shown on `:hover` and `:focus-visible`, put off by
+      Escape anywhere and back when the pointer or the keyboard returns to the switch (WCAG 1.4.13),
+      with no `title`. Not core's Bootstrap tooltip, whose loader binds only the nodes present at
+      load (`theme/boost/amd/src/loader.js`). On a narrow block the switch keeps its words on a row
+      of its own, its two views halves of it, as touch has no hover (open question 1); the open strip
+      keeps the text switch where it was.
+    - **One row, or the cells on a row of their own, by measure** (round 2, open question 3): no
+      container query (the fleet's stylelint forbids `@container`). On one row the closed head
+      neither wraps nor shrinks, so a layout effect sums its children's widths and gaps, before
+      paint, as the line's natural width at the periods' whole names; over the head's width the
+      strip sets `.compass-cal-tworow`, the cells move under the title as one piece and the switch
+      and the link stay on the first row. The kept need decides when one row fits again; a change of
+      what the line draws re-measures from one row; a ResizeObserver on the head and the line
+      re-renders on a size change the block's width does not carry. The same flag picks the
+      periods' names: a `_short` twin only when the line does not fit or the block is narrow
+      (`compact`), replacing round 1's 14-character budget; every twin is inside its whole name.
+      A period's floor drops from 6.5 to 4 rem.
+    - **The phone** (round 2): the title and the link on the first row, the text switch on the
+      second, the grading cell a full-width row over a hairline, then the five periods' grid. The
+      notes (grading counted only when open, Late not yet known, the course bound) follow the header
+      rather than sit in it, so a sentence never widens the line.
+    - **Guards.** `accessibility_rules_test`
+      (`test_the_closed_line_switch_is_named_icons_with_their_own_tooltip`,
+      `test_the_grading_cell_leads_the_teaching_line_with_the_ledger_only`,
+      `test_the_closed_line_measures_whether_it_fits_without_a_container_query`,
+      `test_a_period_shows_its_short_twin_only_when_the_line_does_not_fit`, and round 1's), `counts_test`
+      (`test_the_waiting_courses_are_the_grading_works_own`), `strip_test`
+      (`test_a_teaching_day_records_the_courses_of_its_grading_work`), `day_test`
+      (`test_the_grade_action_says_this_plugins_verb_in_portuguese`, built in pt_br because English
+      cannot tell `gradeverb` from `cal_act_grade`); one mutation gate per guard
+      (`mutations/gates.conf`, sections "Visual pass").
+    - **Residuals.** The measure reads the rendered fonts: a web font that arrives late re-measures
+      through the observer, one frame after it paints. The calendar link keeps its `title` tooltip,
+      hover only (out of this round). The Behat smoke scenarios do not yet press the grading cell
+      (the record asked for one, with axe in both views and on a narrow window); that waits for the
+      next Behat round.
+    - **Contrast: a fill and its text are one pair** (the maintainer's decisions of 2026-10-16, after
+      a contrast audit of 88 rendered states on m502b: two users, two languages, the Dashboard and the
+      block's page, light and dark, the strip open and closed, nothing, a card or a tooltip pointed at).
+      The audit found one defect class: a filled background whose text colour a later or equally
+      specific colour-only rule replaced. Today's ink chip at zero took zero's muted colour (1.19:1
+      light, 1.22:1 dark); today's empty ink disc under the pointer took the hover's soft fill under
+      its ink-coloured number (1.05:1, 1.18:1); a past day's number on the second heat step was the
+      theme's muted, 4.12:1 in dark mode; and the lighting's dim faded whole columns and periods with
+      opacity (0.26 and 0.3), taking every dimmed number to between 1.43:1 and 2.36:1 (892 text nodes
+      under their floor, 536 axe `color-contrast` nodes). Decided and done, version unchanged
+      (2026042004: no cache, service or string moves):
+      1. **The rule** (`styles.css`, beside the calendar's tokens, and this repository's
+         `CLAUDE.md`): every rule that fills a background declares its paired foreground, at equal
+         or higher specificity than any colour-only rule that could match the same element and after
+         it, or that rule carries a `:not()` guard for the fill. A text colour never guesses its
+         background: each background family has its own foreground tokens,
+         `--block_compass-cal-fg-on-ink` (was `-onink`), `-fg-on-heat-1` to `-4` (the body text on
+         the first two steps, `--bs-dark` on the two strongest, now the heat rules' own `color`, so the
+         chip's base rule no longer sets one), `-fg-late`, `-muted-on-surface`, `-muted-on-heat-1`
+         and `-muted-on-heat-2` (the theme's muted, and in dark mode the body colour 85 % into the
+         second step, 4.74:1).
+      2. **The guards**: zero's and late's colours reach no chip of today's period
+         (`:not(.compass-cal-period-today)`, on the disc-less chip only); the hover's soft fill, a past
+         day's colours and a day off's hatch never reach today's disc (`:not(.compass-cal-today)`);
+         the pulse style's plain disc and every hover fill declare their text. Today at zero keeps
+         its ink disc and its text, as today's day does.
+      3. **The dim lowers the fills, never the text.** No opacity: `.compass-cal-col-dim` and
+         `.compass-cal-period-dim` remap the tokens in their own scope. The heat steps become
+         `--block_compass-cal-heat-N-dim` (22 % of the step into the surface), the ink
+         `--block_compass-cal-ink-dim` (12 %, a pale disc with the body-coloured number,
+         `-fg-on-ink-dim`), the text and every numeral `--block_compass-cal-fg-dim` (the body
+         colour 75 % into the surface), the marks and the soon ring `--block_compass-cal-mark-dim`
+         (the theme's muted, 3:1 and over), and a dimmed day's number loses its weight. The
+         match days are unchanged. A disabled Today or arrow recedes the same way, by the muted text
+         and the hairline border, not opacity 0.65 (4.29:1 in dark mode; amendment 10's fade is
+         superseded).
+      4. **Measured after, on m502b** (the same 88 states and scripts): no text under its floor
+         (1,868 nodes before, `aria-hidden` numbers included); axe `color-contrast` 0 nodes (536
+         before); the lowest dimmed number 4.89:1 (dark, fourth step), today's dimmed disc 11.25:1
+         light and 9.19:1 dark, a past day on the second step 4.73:1 dark; synthetic states: today at
+         zero on the closed line 21:1 light and 16.2:1 dark (11.25:1 and 9.19:1 dimmed), today's
+         empty disc under the pointer 21:1 and 16.2:1. The heat fills' edges against the surface
+         (1.02:1 to 1.47:1) stay as they were: the fill is decorative, the number and the day's
+         sentence carry the state.
+      5. **Guards**: `contrast_rules_test` reads the stylesheet. A concrete list of pairs, each a
+         colour-only rule that can reach today's ink and must carry its guard (named without its
+         `:not()` parts, so a dropped guard fails on the guard), or a rule the filled one must
+         outweigh; every filled rule declares a `color`; no opacity on a dim scope or on the strip's
+         text-bearing elements, and both dim scopes remap the fills and the text; and a contrast
+         matrix computed in PHP from the stylesheet's own tokens, light and dark, Boost's blue and
+         the institution's navy (the method is in the test's docblock: Boost 5.2's measured
+         theme tokens, the literal fallbacks otherwise, premultiplied OKLab mixing, sRGB
+         compositing, WCAG 2 luminance), 4.5:1 for every text pair in every scope it can be painted
+         in and 3:1 for the marks, with the dim still visible (each dimmed fill at most half as far
+         from the surface, the dimmed text quieter by a ratio over 1.15). Sixteen mutation gates
+         (`mutations/gates.conf`, "Contrast pairs").
+
 ## Consequences
 
 **Positive**

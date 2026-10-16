@@ -46,8 +46,9 @@ use core_calendar\local\event\entities\action_event_interface;
  * - views: learning and teaching, each {days, needle}. days maps Y-m-d to one counter per kind
  *   of the view (LEARNING_KINDS or TEACHING_KINDS), weight (float), step and countstep (0 to 4)
  *   and courseids (int[], the courses with a shown item that day); a teaching day also carries
- *   waiting, the submissions waiting to be graded that day. needle is the day from today on with
- *   the highest weight, or null;
+ *   waiting, the submissions waiting to be graded that day, and waitingcourseids (int[], the courses
+ *   of that grading work alone, which the closed line's grading cell lights). needle is the day from
+ *   today on with the highest weight, or null;
  * - haslearning: the user is graded in a course of the set; hasteaching: the user has a course
  *   of the set where they are not graded, or grading work. The client offers the switch only
  *   when both hold; the teaching view's days are empty when hasteaching is false;
@@ -405,6 +406,10 @@ final class strip {
         foreach ($days as $date => $day) {
             $ids = array_map('intval', $day['courseids']);
             $days[$date]['courseids'] = $ids ? array_combine($ids, $ids) : [];
+            if (array_key_exists('waiting', $day)) {
+                $ids = array_map('intval', $day['waitingcourseids'] ?? []);
+                $days[$date]['waitingcourseids'] = $ids ? array_combine($ids, $ids) : [];
+            }
             unset($days[$date]['step'], $days[$date]['countstep']);
         }
 
@@ -421,7 +426,9 @@ final class strip {
      * grading work in the teaching view, left out when grading is not counted. The other periods
      * count every kind the view shows, done excluded, and in the teaching view grading work only
      * when the ledger is the source. The waiting lead is the window's submissions waiting, with the
-     * ledger only. js/esm/src/calendar.ts, periodsOf(), sums an open strip's payload the same way for
+     * ledger only, and waitingcourseids the courses of that waiting work (the days' own
+     * waitingcourseids, never their courseids, which hold every kind). js/esm/src/calendar.ts,
+     * periodsOf(), sums an open strip's payload the same way for
      * the line a closed strip shows after it was open.
      *
      * @param array $days Y-m-d => counters, the payload's view.
@@ -430,7 +437,7 @@ final class strip {
      * @param bool $past Whether the past part is known.
      * @param bool $grading Whether grading work is counted: the ledger is the source.
      * @return array periods (each key, count, step, countstep and courseids, in PERIODS order, the
-     *     unknown ones left out) and waiting (0 without the ledger).
+     *     unknown ones left out), waiting (0 without the ledger) and waitingcourseids (empty without it).
      */
     public static function periods(array $days, string $view, string $today, bool $past, bool $grading): array {
         $base = new \DateTimeImmutable($today . ' 00:00:00', new \DateTimeZone('UTC'));
@@ -454,6 +461,7 @@ final class strip {
             $periods[$key] = ['key' => $key, 'count' => 0, 'step' => 0, 'countstep' => 0, 'courseids' => []];
         }
         $waiting = 0;
+        $waitingcourseids = [];
         foreach ($days as $date => $day) {
             $date = (string) $date;
             if ($date < $today) {
@@ -467,6 +475,9 @@ final class strip {
             }
             if ($grading && $view === 'teaching') {
                 $waiting += (int) ($day['waiting'] ?? 0);
+                foreach ($day['waitingcourseids'] ?? [] as $courseid) {
+                    $waitingcourseids[(int) $courseid] = (int) $courseid;
+                }
             }
             if (!isset($periods[$key])) {
                 continue;
@@ -489,7 +500,7 @@ final class strip {
             $periods[$key]['courseids'] = array_values($period['courseids']);
         }
 
-        return ['periods' => array_values($periods), 'waiting' => $waiting];
+        return ['periods' => array_values($periods), 'waiting' => $waiting, 'waitingcourseids' => array_values($waitingcourseids)];
     }
 
     /**
@@ -1783,12 +1794,17 @@ final class strip {
             $days[$day] = array_fill_keys($kinds, 0) + ['weight' => 0.0, 'courseids' => []];
             if ($view === 'teaching') {
                 $days[$day]['waiting'] = 0;
+                $days[$day]['waitingcourseids'] = [];
             }
         }
         $days[$day][$kind]++;
         $days[$day]['weight'] += $weight;
         if ($view === 'teaching') {
             $days[$day]['waiting'] += $waiting;
+            // The grading cell's courses are the ones whose own item waits, not every course of the day.
+            if ($waiting > 0 && $courseid > 0 && $courseid !== (int) SITEID) {
+                $days[$day]['waitingcourseids'][$courseid] = $courseid;
+            }
         }
         if ($courseid > 0 && $courseid !== (int) SITEID && $kind !== 'done') {
             $days[$day]['courseids'][$courseid] = $courseid;
@@ -1812,6 +1828,9 @@ final class strip {
         $best = 0.0;
         foreach ($days as $day => $data) {
             $days[$day]['courseids'] = array_values($data['courseids']);
+            if ($view === 'teaching') {
+                $days[$day]['waitingcourseids'] = array_values($data['waitingcourseids'] ?? []);
+            }
             $days[$day]['step'] = self::step($data['weight']);
             $shown = 0;
             foreach ($kinds as $kind) {

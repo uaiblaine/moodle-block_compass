@@ -309,7 +309,8 @@ const TEACHING_COUNTED_CORE: CalendarKind[] = ['class', 'event'];
  * @param {string} today Y-m-d.
  * @param {boolean} past Whether the past part is known.
  * @param {boolean} grading Whether grading work is counted (the ledger is the source).
- * @returns {object} The periods, in order, the unknown ones absent, and the waiting lead.
+ * @returns {object} The periods, in order, the unknown ones absent, the submissions waiting and the
+ *     courses they wait in (the days' waitingcourseids, never their courseids, which hold every kind).
  */
 export const periodsOf = (days: StripDay[], view: CalendarView, today: string, past: boolean, grading: boolean): PeriodView => {
     const tomorrow = addDays(today, 1);
@@ -327,6 +328,7 @@ export const periodsOf = (days: StripDay[], view: CalendarView, today: string, p
         }
     });
     let waiting = 0;
+    const waitingcourseids: number[] = [];
     days.forEach((day) => {
         let key: PeriodKey = 'later';
         if (day.date < today) {
@@ -340,6 +342,11 @@ export const periodsOf = (days: StripDay[], view: CalendarView, today: string, p
         }
         if (grading && view === 'teaching') {
             waiting += day.waiting ?? 0;
+            (day.waitingcourseids ?? []).forEach((id) => {
+                if (!waitingcourseids.includes(id)) {
+                    waitingcourseids.push(id);
+                }
+            });
         }
         const period = periods.get(key);
         if (!period) {
@@ -359,7 +366,7 @@ export const periodsOf = (days: StripDay[], view: CalendarView, today: string, p
         });
     });
 
-    return {periods: Array.from(periods.values()), waiting};
+    return {periods: Array.from(periods.values()), waiting, waitingcourseids};
 };
 
 /**

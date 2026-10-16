@@ -241,7 +241,7 @@ final class get_day_test extends advanced_testcase {
         $teaching = array_column($this->call($date, 'teaching')['items'], null, 'kind');
         $this->assertSame((int) $teach->id, $teaching['grade']['courseid']);
         $this->assertSame(2, $teaching['grade']['action']['itemcount']);
-        $this->assertSame(get_string('gradeverb'), $teaching['grade']['action']['name']);
+        $this->assertSame(get_string('cal_act_grade', 'block_compass'), $teaching['grade']['action']['name']);
         $learning = array_column($this->call($date, 'learning')['items'], null, 'kind');
         $this->assertSame((int) $learn->id, $learning['graded']['courseid']);
         $this->assertSame([], array_diff(array_keys($learning), ['graded', 'event']));

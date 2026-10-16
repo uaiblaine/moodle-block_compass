@@ -1,0 +1,1 @@
+s/        return \{text: strings\.cal_act_grade, name: strings\.cal_act_grade, title: strings\.cal_act_grade\};/        return {text: item.action.name, name: item.action.name, title: item.action.name};/;
