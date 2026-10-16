@@ -21,8 +21,12 @@
  * come from a JSON file named by COMPASS_SESSIONS ({"demo.student": "MoodleSession...=...", ...}),
  * written by running session.php once per user, and kept out of the repository.
  *
- *   COMPASS_SESSIONS=/path/sessions.json COMPASS_BASE=http://localhost:9502 \
+ *   COMPASS_SESSIONS=/path/sessions.json COMPASS_BASE=http://localhost:8503 \
  *       node capture.mjs [shot ...]
+ *
+ * The strip opens and closes from its heading and the choice is a user preference, so every shot
+ * states the state it needs and presses the heading's toggle when the user is in the other one.
+ * Wait for the strip's data (the closed line's counts, or the open row's days), never a fixed sleep.
  *
  * With no shot named, every shot runs except ring and pulse, which need the site's calendar_style
  * set to that style first (finish.py composes styles-ring.png and styles-pulse.png into
@@ -39,7 +43,7 @@ import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const BASE = process.env.COMPASS_BASE || 'http://localhost:9502';
+const BASE = process.env.COMPASS_BASE || 'http://localhost:8503';
 const OUT = process.env.COMPASS_OUT || join(here, '..');
 const SESSIONS = JSON.parse(readFileSync(process.env.COMPASS_SESSIONS, 'utf8'));
 const DESKTOP = 1200;
@@ -51,7 +55,12 @@ const tomorrow = (() => {
 })();
 // The strip and the reload control at its top-right corner, which a crop of the strip alone would cut.
 const STRIP = ['section.compass-cal', '.block_compass button[aria-label="Reload courses"]'];
-const DAY = (label) => `.compass-cal-daysbox button[aria-label*="${label}"]`;
+const DAY = (label) => `.compass-cal-days button[aria-label*="${label}"]`;
+// The open strip's data is there when its days exist; the closed one's when its counts have replaced the skeleton.
+const OPEN_READY = `document.querySelector('.compass-cal-days .compass-cal-day') &&
+    !document.querySelector('section.compass-cal[aria-busy="true"]')`;
+const LINE_READY = `document.querySelector('.compass-cal-periods:not([aria-busy]) .compass-cal-period') &&
+    !document.querySelector('section.compass-cal[aria-busy="true"]')`;
 
 /**
  * Open a page as a user and wait for the block: cards first, then the strip (ADR-014 decision 2).
@@ -59,11 +68,12 @@ const DAY = (label) => `.compass-cal-daysbox button[aria-label*="${label}"]`;
  * @param {object} browser From launch().
  * @param {string} user A key of the sessions file.
  * @param {string} path Site-relative URL.
- * @param {object} options width, height, mobile, strip (wait for the strip), dark.
+ * @param {object} options width, height, mobile, strip ('open', 'closed' or false: the state the strip
+ *     is put in, and waited for), dark.
  * @returns {Promise<object>} The page.
  */
 const open = async(browser, user, path, options = {}) => {
-    const {width = DESKTOP, height = 1000, mobile = false, strip = true, dark = false} = options;
+    const {width = DESKTOP, height = 1000, mobile = false, strip = 'open', dark = false} = options;
     const page = await browser.newPage();
     await page.viewport(width, height, mobile);
     await page.cookie(BASE, SESSIONS[user]);
@@ -76,10 +86,28 @@ const open = async(browser, user, path, options = {}) => {
     }
     await page.until(`document.querySelector('.block_compass .compass-card, .compass-page .compass-card')`);
     if (strip) {
-        await page.until(`document.querySelector('.compass-cal-daysbox button')`);
+        await setStrip(page, strip === 'open');
     }
     await settle(page);
     return page;
+};
+
+/**
+ * Put the strip in the open or the closed state by its heading's toggle, then wait for that state's data.
+ * The choice is remembered per user, so the press is made only when the user is in the other state.
+ *
+ * @param {object} page The page.
+ * @param {boolean} wantOpen Whether the row of days (true) or the line of counts (false) is wanted.
+ */
+const setStrip = async(page, wantOpen) => {
+    await page.until(`document.querySelector('.compass-cal-toggle')`);
+    const isOpen = await page.eval(`document.querySelector('.compass-cal-toggle').getAttribute('aria-expanded') === 'true'`);
+    if (isOpen !== wantOpen) {
+        await page.click('.compass-cal-toggle');
+    }
+    await page.until(wantOpen ? OPEN_READY : LINE_READY, 30000);
+    await sleep(400);
+    await page.until(wantOpen ? OPEN_READY : LINE_READY, 30000);
 };
 
 /**
@@ -106,6 +134,43 @@ const pinDay = async(page, label) => {
     await sleep(900);
 };
 
+/**
+ * Switch the strip to the Teaching view with its icon-only switch, unless it is already drawn.
+ *
+ * @param {object} page The page.
+ */
+const teachingView = async(page) => {
+    // Icon-only (an aria-label) in a block wide enough for the switch's text, text otherwise.
+    const teaching = `[...document.querySelectorAll('.compass-cal-segbtn')]
+        .find((b) => (b.getAttribute('aria-label') || b.textContent).trim() === 'Teaching')`;
+    await page.until(`${teaching}`);
+    if (!(await page.eval(`${teaching}.getAttribute('aria-pressed') === 'true'`))) {
+        await page.eval(`${teaching}.setAttribute('data-capture', 'teaching')`);
+        await page.click('[data-capture="teaching"]');
+        await sleep(1500);
+        await page.until(`!document.querySelector('section.compass-cal[aria-busy="true"]')`, 30000);
+        await sleep(600);
+    }
+};
+
+/**
+ * The accessible-name part of the first upcoming day whose label mentions submissions to grade, in the
+ * open Teaching view; tomorrow when none does.
+ *
+ * @param {object} page The page.
+ * @returns {Promise<string>} Part of a day button's name.
+ */
+const gradingDay = async(page) => {
+    const label = await page.eval(`(() => {
+        const days = [...document.querySelectorAll('.compass-cal-days button')];
+        const hit = days.find((b) => /grad|submission/i.test(b.getAttribute('aria-label')));
+        return hit ? hit.getAttribute('aria-label') : '';
+    })()`);
+    // The day's label starts with its date ("Tomorrow, 17 October, ..." or "17 October ..."): pick "17 October".
+    const match = /(\d{1,2} [A-Z][a-z]+)/.exec(label);
+    return match ? match[1] : tomorrow;
+};
+
 const save = (name, png) => {
     writeFileSync(join(OUT, name), png);
     // eslint-disable-next-line no-console
@@ -122,7 +187,7 @@ const SHOTS = {
         save('dashboard.png', await page.shot(await page.box('.block_compass', 12)));
     },
 
-    // The strip alone, nothing hovered: heat, marks, weekend and holiday hatches, today, the needle, legend.
+    // The open strip alone, nothing hovered: the scroller at home, floating arrows, the scrubber map, one mark per kind.
     async strip(browser) {
         const page = await open(browser, 'demo.student', '/my/');
         await page.mouseAway();
@@ -137,18 +202,45 @@ const SHOTS = {
         save('calendar-day-card.png', await page.shot(await page.box([...STRIP, '.compass-cal-card'], 12)));
     },
 
-    // The teacher's Teaching view, tomorrow pinned: grading counts and class deadlines.
+    // The teacher's Teaching view open, a day holding submissions to grade pinned: grading counts and class deadlines.
     async teaching(browser) {
         const page = await open(browser, 'demo.teacher', '/my/');
         await page.fit(DESKTOP);
-        const teaching = `[...document.querySelectorAll('.compass-cal-segbtn')].find((b) => /Teaching/.test(b.textContent))`;
-        if (!(await page.eval(`${teaching}?.getAttribute('aria-pressed') === 'true'`))) {
-            await page.eval(`${teaching}.setAttribute('data-capture', 'teaching')`);
-            await page.click('[data-capture="teaching"]');
-            await sleep(2500);
-        }
-        await pinDay(page, tomorrow);
+        await teachingView(page);
+        const day = await gradingDay(page);
+        await pinDay(page, day);
         save('calendar-teaching.png', await page.shot(await page.box([...STRIP, '.compass-cal-card'], 12)));
+    },
+
+    // The closed line for the student: Late, Today, Tomorrow, This week and Later.
+    async line(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {strip: 'closed'});
+        await page.mouseAway();
+        save('calendar-line.png', await page.shot(await page.box(STRIP, 12)));
+    },
+
+    // The closed line for the teacher: the To grade cell first when block_feedback_tracker is installed, then the periods.
+    async lineteaching(browser) {
+        const page = await open(browser, 'demo.teacher', '/my/', {strip: 'closed'});
+        await teachingView(page);
+        await page.until(LINE_READY, 30000);
+        await sleep(600);
+        if (!(await page.eval(`!!document.querySelector('.compass-cal-queue')`))) {
+            // Without block_feedback_tracker (m503) the line has no To grade cell: the picture shows the line as it is.
+            // eslint-disable-next-line no-console
+            console.log('NOTE calendar-line-teaching.png: no To grade cell (block_feedback_tracker is not installed)');
+        }
+        await page.mouseAway();
+        save('calendar-line-teaching.png', await page.shot(await page.box(STRIP, 12)));
+    },
+
+    // Pointing at a first-tier card: the days that do not hold its course dim, their numbers stay legible.
+    async dim(browser) {
+        const page = await open(browser, 'demo.student', '/my/');
+        await page.fit(DESKTOP);
+        await page.hover('.block_compass .compass-card');
+        await sleep(900);
+        save('calendar-dim.png', await page.shot(await page.box([...STRIP, '.block_compass .compass-card'], 12)));
     },
 
     // The ring style (calendar_style = ring on the site), for calendar-styles.png.
@@ -208,9 +300,10 @@ const SHOTS = {
         save('page.png', await page.shot(await page.box(['#page-header', '#region-main'], 12)));
     },
 
-    // A phone: seven days, a tap opens tomorrow as a bottom sheet; the screen as the phone shows it.
+    // A phone: three past days, a tap opens tomorrow as a bottom sheet; the screen as the phone shows it.
     async mobile(browser) {
         const page = await open(browser, 'demo.student', '/my/', {width: 390, height: 844, mobile: true});
+        // Three past days at home, a half-day peek of the next one at the row's edge.
         const top = await page.eval(`document.querySelector('section.compass-cal').getBoundingClientRect().top + scrollY`);
         await page.eval(`scrollTo(0, ${Math.max(0, top - 70)})`);
         await sleep(500);
@@ -235,12 +328,14 @@ const SHOTS = {
         }
         // The settings page's own column, from the section heading to its last setting.
         const column = await page.box('#region-main', 0);
-        const rows = await page.box(['[data-capture="calendar"]', '#admin-calendar_relevance'], 16);
+        // The last of the section's settings: calendar_grading exists only with block_feedback_tracker.
+        const last = await page.eval(`document.querySelector('#admin-calendar_grading') ? '#admin-calendar_grading' : '#admin-calendar_start'`);
+        const rows = await page.box(['[data-capture="calendar"]', last], 16);
         save('settings.png', await page.shot({x: column.x, y: rows.y, width: column.width, height: rows.height}));
     },
 };
 
-const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'dark', 'explore', 'page', 'mobile', 'settings'];
+const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'lineteaching', 'dim', 'dark', 'explore', 'page', 'mobile', 'settings'];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT;
 const browser = await launch();
 try {
