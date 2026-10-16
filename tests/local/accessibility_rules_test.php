@@ -653,6 +653,8 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A course name is at most two lines, and the whole name rides in a title attribute.
      *
+     * So is every other text that can run long in a narrow column: a day's item name in the
+     * calendar card and a tier 3 row's date ("Aberto semana passada" stood in three lines).
      * A name of several lines breaks the layout. The clamp is Boost's own .clamp-2 pattern under
      * this plugin's .compass-clamp, and every element carrying that class also carries a title,
      * so hovering a clamped name shows it in full. axe reads neither: nothing in a scenario
@@ -675,12 +677,14 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertMatchesRegularExpression('/\boverflow\s*:\s*hidden\b/', $body, 'the third line is cut, not shown');
 
         $clamped = 0;
+        $where = [];
         foreach ($this->reactsources() as $file => $contents) {
             foreach (self::all_tags($contents) as $tag) {
                 if (!preg_match('/\bcompass-clamp\b/', $tag)) {
                     continue;
                 }
                 $clamped++;
+                $where[] = basename($file);
                 $this->assertMatchesRegularExpression(
                     '/\btitle=\{/',
                     $tag,
@@ -689,8 +693,10 @@ final class accessibility_rules_test extends basic_testcase {
             }
         }
         // Vacuity guard: the three places a course name is drawn - the tier 1 card title, the tier 3
-        // row name and the tier 3 card title.
-        $this->assertGreaterThanOrEqual(3, $clamped, 'fewer than three clamped names: has a component stopped clamping?');
+        // row name and the tier 3 card title - and the day card's item name and the row's date.
+        $this->assertGreaterThanOrEqual(5, $clamped, 'fewer than five clamped texts: has a component stopped clamping?');
+        $this->assertContains('CalendarCard.tsx', $where, 'the day card\'s item name is not clamped');
+        $this->assertSame(2, count(array_keys($where, 'Row.tsx')), 'the row\'s name and its date are clamped');
     }
 
     /**
@@ -1911,5 +1917,435 @@ final class accessibility_rules_test extends basic_testcase {
             }
         }
         $this->assertSame(1, $nowrap, 'the marks\' slot wraps');
+    }
+
+    /**
+     * The language file of one language, read as the plugin ships it.
+     *
+     * @param string $lang en or pt_br.
+     * @return array Key => string.
+     */
+    private function langstrings(string $lang): array {
+        $string = [];
+        include(dirname(__DIR__, 2) . '/lang/' . $lang . '/block_compass.php');
+
+        return $string;
+    }
+
+    /**
+     * Every text the stylesheet cuts with an ellipsis carries its whole text in a title.
+     *
+     * An ellipsis hides the end of a text, and the title is how a sighted reader gets it back: the day
+     * card's course short name, its pills, its chips and its action, read from the stylesheet, so a new
+     * ellipsis rule brings its class into this check by itself. The class is a rule's last class; each
+     * element of the React sources carrying it must write a title attribute. Vacuity guard: the four
+     * classes the visual pass of 2026-10-15 cut, and at least one element each.
+     *
+     * @return void
+     */
+    public function test_every_ellipsis_carries_its_whole_text_in_a_title(): void {
+        $classes = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            if (!preg_match('/(?<![\w-])text-overflow\s*:\s*ellipsis\b/', $body)) {
+                continue;
+            }
+            foreach (explode(',', $selector) as $one) {
+                if (preg_match_all('/\.(compass-[\w-]+)/', $one, $found)) {
+                    $classes[] = end($found[1]);
+                }
+            }
+        }
+        $classes = array_values(array_unique($classes));
+        foreach (['compass-cal-course', 'compass-cal-pill', 'compass-cal-chiptext', 'compass-cal-action'] as $expected) {
+            $this->assertContains($expected, $classes, "vacuity: no ellipsis rule for .{$expected}");
+        }
+        foreach ($classes as $class) {
+            $seen = 0;
+            foreach ($this->reactsources() as $file => $contents) {
+                foreach (self::all_tags($contents) as $tag) {
+                    if (!preg_match('/className=[^>]*(?<![\w-])' . preg_quote($class, '/') . '(?![\w-])/', $tag)) {
+                        continue;
+                    }
+                    $seen++;
+                    $this->assertMatchesRegularExpression(
+                        '/\stitle=\{/',
+                        $tag,
+                        "{$file}: .{$class} is cut with an ellipsis but carries no title: " . trim($tag)
+                    );
+                }
+            }
+            $this->assertGreaterThan(0, $seen, "vacuity: no element renders .{$class}");
+        }
+    }
+
+    /**
+     * A day's action shows a short verb of this plugin's, and its accessible name starts with it.
+     *
+     * Core's action names run to "Tentar responder o questionário agora", which squeezed the item's
+     * title to three letters; CalendarCard.tsx's actionLabel() shows a verb from ACTION_VERBS (by
+     * module) or the teaching kinds' Grade and View, keeps core's whole name as the title, and names
+     * the link cal_act_label, "{$a->action}: {$a->name}": the visible verb first, so the visible
+     * label is inside the accessible name (WCAG 2.5.3). Read here: the verbs exist, fit the twelve-
+     * character budget in both languages, the label template leads with the verb in both, and every
+     * action element is drawn from the label. Vacuity guard: the map holds quiz and assign, the two
+     * modules whose names broke the card, and four action elements are drawn.
+     *
+     * @return void
+     */
+    public function test_a_day_action_shows_a_short_verb_inside_its_accessible_name(): void {
+        $card = $this->reactsources()['js/esm/src/CalendarCard.tsx'];
+        $this->assertSame(1, preg_match('/const ACTION_VERBS: Record<string, string> = \{(.*?)\};/s', $card, $map));
+        preg_match_all("/^\s*(\w+): '(cal_act_\w+)',$/m", $map[1], $entries, PREG_SET_ORDER);
+        $verbs = [];
+        foreach ($entries as $entry) {
+            $verbs[$entry[1]] = $entry[2];
+        }
+        $this->assertSame('cal_act_attempt', $verbs['quiz'] ?? null, 'a quiz says Attempt, not "Attempt quiz now"');
+        $this->assertSame('cal_act_submit', $verbs['assign'] ?? null, 'an assignment says Submit, not "Add submission"');
+        foreach (['choice', 'questionnaire', 'survey'] as $module) {
+            $this->assertSame('cal_act_answer', $verbs[$module] ?? null, "a {$module} says Answer");
+        }
+        $this->assertSame('cal_act_open', $verbs['workshop'] ?? null, 'a workshop says Open');
+        // Core's own word for a quiz in English; Portuguese keeps Responder, the word for answering.
+        $this->assertSame('Attempt', $this->langstrings('en')['cal_act_attempt']);
+        $this->assertSame($this->langstrings('pt_br')['cal_act_answer'], $this->langstrings('pt_br')['cal_act_attempt']);
+
+        $keys = array_values(array_unique(array_merge(array_values($verbs), ['cal_act_grade', 'cal_act_open', 'cal_view'])));
+        foreach (['en', 'pt_br'] as $lang) {
+            $strings = $this->langstrings($lang);
+            foreach ($keys as $key) {
+                $this->assertArrayHasKey($key, $strings, "{$lang}: {$key}");
+                $this->assertLessThanOrEqual(12, \core_text::strlen($strings[$key]), "{$lang}: {$key} is over the verb budget");
+            }
+            $this->assertStringStartsWith('{$a->action}', $strings['cal_act_label'], "{$lang}: the label leads with the verb");
+            $this->assertStringContainsString('{$a->name}', $strings['cal_act_label'], "{$lang}: the label carries core's name");
+        }
+
+        // The label: the verb, and core's name after it whenever the two differ.
+        $this->assertStringContainsString(
+            'return {text, name: fillObject(strings.cal_act_label, {action: text, name: full}), title: full};',
+            $card
+        );
+        $this->assertStringContainsString(
+            "if (item.kind === 'grade' || item.kind === 'gradesoon') {\n"
+                . "        return {text: strings.cal_act_grade, name: strings.cal_act_grade, title: strings.cal_act_grade};",
+            $card
+        );
+        $this->assertStringContainsString(
+            "} else if (full.length > ACTION_BUDGET) {\n        text = strings.cal_act_open;",
+            $card
+        );
+
+        $drawn = 0;
+        foreach (self::all_tags($card) as $tag) {
+            if (!preg_match('/className="[^"]*(?<![\w-])compass-cal-action(?![\w-])/', $tag)) {
+                continue;
+            }
+            $drawn++;
+            $this->assertStringContainsString('title={label.title}', $tag, 'an action without core\'s name as its title');
+            if (str_starts_with($tag, '<a')) {
+                $this->assertStringContainsString('aria-label={label.name}', $tag, 'a link not named by its label');
+                $this->assertStringContainsString($tag . '{label.text}</a>', $card, 'a link not showing its verb');
+            }
+        }
+        $this->assertSame(4, $drawn, 'the View link, the inactive name and the two actionable links');
+        $this->assertStringContainsString('<span className="visually-hidden">{label.name}</span>', $card);
+    }
+
+    /**
+     * The closed line shows a period's short name only when the line does not fit, and the short name
+     * is inside the whole one.
+     *
+     * "Atrasadas, ainda abertas" pushed the calendar link onto a second line at 784 px. The periods show
+     * their short twins when the block is narrow or when CalendarStrip's measure says the line does not
+     * fit its head at their whole names (compact), never by a count of characters. The whole name stays
+     * the button's title and leads its accessible name (cal_period_label), and the twin is a part of the
+     * whole name in both languages, case aside (WCAG 2.5.3). Vacuity guard: six pairs.
+     *
+     * @return void
+     */
+    public function test_a_period_shows_its_short_twin_only_when_the_line_does_not_fit(): void {
+        $line = $this->reactsources()['js/esm/src/CalendarLine.tsx'];
+        $strip = $this->reactsources()['js/esm/src/CalendarStrip.tsx'];
+        $this->assertStringContainsString('const shown = compact ? short : name;', $line);
+        $this->assertStringNotContainsString('PERIOD_BUDGET', $line, 'a character budget instead of the measure');
+        $this->assertStringContainsString('compact={narrow || !fits}', $strip);
+        $this->assertStringContainsString('title={shown === name ? undefined : name}', $line);
+        $this->assertStringContainsString('<span className="compass-cal-plabel" aria-hidden="true">{shown}</span>', $line);
+
+        foreach (['en', 'pt_br'] as $lang) {
+            $strings = $this->langstrings($lang);
+            $pairs = 0;
+            foreach ($strings as $key => $short) {
+                if (!preg_match('/^(cal_period_\w+)_short$/', $key, $match)) {
+                    continue;
+                }
+                $pairs++;
+                $whole = $strings[$match[1]];
+                $this->assertNotFalse(
+                    \core_text::strpos(\core_text::strtolower($whole), \core_text::strtolower($short)),
+                    "{$lang}: {$key} is not inside its whole name"
+                );
+            }
+            $this->assertSame(6, $pairs, "{$lang}: the six periods' short names");
+            $this->assertStringStartsWith('{$a->period}', $strings['cal_period_label'], "{$lang}: the name leads the label");
+            $this->assertStringStartsWith('{$a->period}', $strings['cal_period_label_past'], "{$lang}: the name leads the label");
+        }
+    }
+
+    /**
+     * Whether the closed line fits is measured, with no container query, and a line that does not fit
+     * moves its cells to a row of their own.
+     *
+     * The fleet's stylelint forbids @container, so CalendarStrip measures before paint: on one row the
+     * head neither wraps nor shrinks (styles.css), the sum of its children is the line's natural width,
+     * and over the head's width the strip sets the two-row class, under which the cells take the second
+     * row whole and the switch and the link stay on the first. A ResizeObserver re-measures a size
+     * change the block's width does not carry. Read here: no @container, the observer, the two guards of
+     * the measure, the class only on a wide closed line, and the rules each state needs; the period's
+     * floor of 4 rem that lets six cells share one row at 784 px. Vacuity guard: every rule is found.
+     *
+     * @return void
+     */
+    public function test_the_closed_line_measures_whether_it_fits_without_a_container_query(): void {
+        $this->assertStringNotContainsString('@container', $this->css());
+        $strip = $this->reactsources()['js/esm/src/CalendarStrip.tsx'];
+        $this->assertStringContainsString('sizer.current = new ResizeObserver(() => setResized((count) => count + 1));', $strip);
+        $this->assertStringContainsString(
+            "            if (measured.current.need > room) {\n                setFits(false);",
+            $strip,
+            'a line over its head must move to two rows'
+        );
+        $this->assertStringContainsString(
+            "        } else if (measured.current.need > 0 && measured.current.need <= room) {\n            setFits(true);",
+            $strip,
+            'a head grown wide enough must bring the line back to one row'
+        );
+        $this->assertStringContainsString("!open && !narrow && !fits ? 'compass-cal-tworow' : '',", $strip);
+
+        // Selector => declarations, the selector's whitespace normalised, a repeated selector's bodies joined.
+        $rules = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            $selector = preg_replace('/\s+/', ' ', $selector);
+            $rules[$selector] = ($rules[$selector] ?? '') . $body;
+        }
+        $expected = [
+            '.block_compass .compass-cal-closed:not(.compass-cal-narrow):not(.compass-cal-tworow) .compass-cal-head'
+                => '/\bflex-wrap\s*:\s*nowrap\b/',
+            '.block_compass .compass-cal-closed .compass-cal-title, .block_compass .compass-cal-closed .compass-cal-seg, '
+                . '.block_compass .compass-cal-closed .compass-cal-line' => '/\bflex\s*:\s*none\b/',
+            '.block_compass .compass-cal-tworow .compass-cal-line' => '/\bflex-basis\s*:\s*100%.*\border\s*:\s*3\b/s',
+            '.block_compass .compass-cal-period, .block_compass .compass-cal-psk' => '/\bmin-width\s*:\s*4rem\b/',
+        ];
+        foreach ($expected as $selector => $declaration) {
+            $this->assertArrayHasKey($selector, $rules, "no rule for {$selector}");
+            $this->assertMatchesRegularExpression($declaration, $rules[$selector], $selector);
+        }
+    }
+
+    /**
+     * The closed line's view switch is two named icons with a tooltip of their own; the narrow block and
+     * the open strip keep the words.
+     *
+     * Beside the title the switch shows core's two glyphs. Each button is named by its view
+     * (aria-label, the word the text switch shows), keeps aria-pressed, and carries the word in a child
+     * tooltip that is aria-hidden and has no title (a title would draw a second, native tooltip), shown
+     * on :hover and :focus-visible and put off by Escape (WCAG 1.4.13). Not core's Bootstrap tooltip:
+     * its loader binds only the nodes present at load. On a narrow block, where touch has no hover, and
+     * in the open strip, the switch keeps its text. Vacuity guard: both branches and the rule are found.
+     *
+     * @return void
+     */
+    public function test_the_closed_line_switch_is_named_icons_with_their_own_tooltip(): void {
+        $strip = $this->reactsources()['js/esm/src/CalendarStrip.tsx'];
+        $this->assertStringContainsString('{!open && viewSwitch(!narrow)}', $strip, 'closed: icons, text when narrow');
+        $this->assertStringContainsString('{open && viewSwitch(false)}', $strip, 'open: the text switch');
+        $this->assertStringNotContainsString('data-bs-toggle', $strip);
+
+        $this->assertSame(1, preg_match('/const viewSwitch = .*?\n    };\n/s', $strip, $body));
+        $buttons = $this->tags($body[0], 'button');
+        $this->assertCount(2, $buttons, 'the text switch\'s button and the icon switch\'s');
+        [$text, $icon] = $buttons;
+        $this->assertStringNotContainsString('aria-label', $text, 'the text button is named by its word');
+        $this->assertStringContainsString('aria-label={name}', $icon, 'an icon button without a name');
+        $this->assertStringContainsString('aria-pressed={drawn === which}', $icon);
+        $this->assertDoesNotMatchRegularExpression('/\stitle=/', $icon, 'a title draws a second, native tooltip');
+        $this->assertStringContainsString('<span className="compass-cal-tip" aria-hidden="true">{name}</span>', $body[0]);
+        $this->assertStringContainsString(
+            "            if (event.key === 'Escape') {\n                setTipsoff(true);",
+            $strip,
+            'Escape must put the tooltips off'
+        );
+
+        $shown = null;
+        $base = null;
+        foreach ($this->rules() as [$selector, $rule]) {
+            if (str_contains($selector, ':hover .compass-cal-tip')) {
+                $shown = $selector;
+                $this->assertMatchesRegularExpression('/\bopacity\s*:\s*1\b/', $rule);
+            }
+            if ($selector === '.block_compass .compass-cal-tip') {
+                $base = $rule;
+            }
+        }
+        $this->assertNotNull($shown, 'no rule shows the tooltip');
+        $this->assertNotNull($base, 'no base tooltip rule');
+        $this->assertMatchesRegularExpression('/\bopacity\s*:\s*0\b/', $base, 'the tooltip shows without a hover');
+        $this->assertStringContainsString(
+            '.compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip',
+            $shown
+        );
+        $this->assertStringContainsString(
+            '.compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip',
+            $shown,
+            'a keyboard user never sees the name'
+        );
+    }
+
+    /**
+     * The teaching line leads with a grading cell, only where the ledger counts grading, named by a
+     * sentence that starts with its label, and lighting the courses of its own waiting work.
+     *
+     * The waiting count is a cell of the periods' grammar ("To grade" over its number) before the
+     * periods' list and a divider, not an item of the list; it exists only in the teaching view with
+     * block_feedback_tracker's ledger as the source (counts.grading). Pressing it opens the strip on the
+     * days whose waiting is above zero; pointing at it outlines the cards of waitingcourseids, the
+     * courses of the grading work (strip::periods() and its twin calendar.ts periodsOf()), never every
+     * course of those days. Vacuity guard: the cell, the sentence strings and the plan are found.
+     *
+     * @return void
+     */
+    public function test_the_grading_cell_leads_the_teaching_line_with_the_ledger_only(): void {
+        $line = $this->reactsources()['js/esm/src/CalendarLine.tsx'];
+        $this->assertStringContainsString("const grading = view === 'teaching' && counts.grading;", $line);
+        $at = strpos($line, "{grading && (\n                <GradingCell");
+        $this->assertNotFalse($at, 'the grading cell is not drawn behind its guard');
+        $list = strpos($line, '<ul className="compass-cal-periods" aria-label={strings.cal_periods}>');
+        $this->assertNotFalse($list);
+        $this->assertLessThan($list, $at, 'the grading cell comes first, outside the periods\' list');
+        $this->assertStringContainsString('courseids={data.waitingcourseids}', $line);
+
+        $this->assertSame(1, preg_match('/const GradingCell = .*?\n};\n/s', $line, $cell));
+        $buttons = $this->tags($cell[0], 'button');
+        $this->assertCount(1, $buttons);
+        $attributes = [
+            'aria-label={label}',
+            "title={fillCount(strings, 'cal_waitinglead', waiting)}",
+            "onClick={() => onPeriod('grading')}",
+            'onPointerEnter={() => onPoint(courseids)}',
+            'onFocus={() => onPoint(courseids)}',
+        ];
+        foreach ($attributes as $attribute) {
+            $this->assertStringContainsString($attribute, $buttons[0]);
+        }
+        $this->assertStringContainsString('fillObject(strings.cal_tograde_label, {', $cell[0]);
+        $this->assertStringContainsString('fill(strings.cal_tograde_none, strings.cal_tograde)', $cell[0]);
+        $this->assertStringContainsString(
+            '<span className="compass-cal-plabel" aria-hidden="true">{strings.cal_tograde}</span>',
+            $cell[0]
+        );
+        $this->assertStringContainsString('<span className="compass-cal-qdiv" aria-hidden="true" />', $cell[0]);
+        foreach (['en', 'pt_br'] as $lang) {
+            $strings = $this->langstrings($lang);
+            $this->assertStringStartsWith('{$a->period}', $strings['cal_tograde_label'], "{$lang}: the label leads the sentence");
+            $this->assertStringStartsWith('{$a}', $strings['cal_tograde_none'], "{$lang}: the label leads the sentence");
+        }
+
+        $this->assertStringContainsString(
+            '(day.waitingcourseids ?? []).forEach((id) => {',
+            $this->reactsources()['js/esm/src/calendar.ts'],
+            'the browser\'s twin sums the grading work\'s own courses'
+        );
+        $this->assertStringContainsString(
+            'const only = payload.views[which].days.filter((day) => (day.waiting ?? 0) > 0).map((day) => day.date);',
+            $this->reactsources()['js/esm/src/CalendarStrip.tsx'],
+            'the press opens on the days with grading work'
+        );
+    }
+
+    /**
+     * The strip's header packs the toggle and the month on the left and pushes its controls to the end.
+     *
+     * With the header spread by space-between, a teacher's two switches wrapped and left the month
+     * floating mid-line with Today at the far end. The header now packs from the start, and the
+     * controls take the remaining room with an automatic start margin, on the first line or on their
+     * own. Vacuity guard: both rules found.
+     *
+     * @return void
+     */
+    public function test_the_strip_header_pushes_its_controls_to_the_end(): void {
+        $head = null;
+        $controls = null;
+        foreach ($this->rules() as [$selector, $body]) {
+            if ($selector === '.block_compass .compass-cal-head') {
+                $head = $body;
+            }
+            if ($selector === '.block_compass .compass-cal-controls') {
+                $controls = $body;
+            }
+        }
+        $this->assertNotNull($head, 'no base .compass-cal-head rule');
+        $this->assertNotNull($controls, 'no .compass-cal-controls rule of its own');
+        $this->assertMatchesRegularExpression('/\bjustify-content\s*:\s*flex-start\b/', $head);
+        $this->assertMatchesRegularExpression('/\bmargin-inline-start\s*:\s*auto\b/', $controls);
+    }
+
+    /**
+     * A day's action is bounded both ways and never wraps.
+     *
+     * Every row's button lines up and none takes the title's room: a minimum and a maximum width, one
+     * line, an ellipsis past the maximum (with core's name in the title, the ellipsis rule above).
+     * Vacuity guard: the rule is found.
+     *
+     * @return void
+     */
+    public function test_a_day_action_is_bounded_and_one_line(): void {
+        $body = null;
+        foreach ($this->rules() as [$selector, $rulebody]) {
+            if ($selector === '.block_compass .compass-cal-action') {
+                $body = $rulebody;
+            }
+        }
+        $this->assertNotNull($body, 'no .compass-cal-action rule');
+        $declarations = [
+            'min-width\s*:\s*4\.5rem',
+            'max-width\s*:\s*8\.5rem',
+            'white-space\s*:\s*nowrap',
+            'overflow\s*:\s*hidden',
+            'text-overflow\s*:\s*ellipsis',
+        ];
+        foreach ($declarations as $declaration) {
+            $this->assertMatchesRegularExpression('/(?<![\w-])' . $declaration . '\b/', $body, $declaration);
+        }
+    }
+
+    /**
+     * A failure notice wraps, and its two controls never break inside.
+     *
+     * In the day card on a phone, "Try again" and "Reload page" each stood in two lines beside the
+     * message. The notice wraps, the message keeps a basis of its own, and the controls stay whole on
+     * one line, moving under the message when the column is too narrow. Vacuity guard: the three
+     * rules are found, and RetryNotice.tsx renders the message's class.
+     *
+     * @return void
+     */
+    public function test_a_failure_notice_wraps_its_controls_whole(): void {
+        $notice = '.block_compass .compass-error:not([hidden])';
+        $message = '.block_compass .compass-retry-message';
+        $actions = '.block_compass .compass-retry-actions';
+        $found = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            if (in_array($selector, [$notice, $message, $actions], true)) {
+                $found[$selector] = $body;
+            }
+        }
+        $this->assertCount(3, $found, 'the notice, its message and its controls');
+        $this->assertMatchesRegularExpression('/\bflex-wrap\s*:\s*wrap\b/', $found[$notice]);
+        $this->assertMatchesRegularExpression('/\bflex\s*:\s*1 1 \d/', $found[$message]);
+        $this->assertMatchesRegularExpression('/\bwhite-space\s*:\s*nowrap\b/', $found[$actions]);
+        $this->assertStringContainsString(
+            '<span className="compass-retry-message">{message}</span>',
+            $this->reactsources()['js/esm/src/RetryNotice.tsx']
+        );
     }
 }

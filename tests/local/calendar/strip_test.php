@@ -184,6 +184,39 @@ final class strip_test extends advanced_testcase {
     }
 
     /**
+     * A teaching day records the courses of its grading work apart from its other courses.
+     *
+     * The grading cell of the closed line lights the cards of the courses with submissions waiting
+     * (waitingcourseids), not every course with an item that day: here the same day holds course A's
+     * grading work and course B's class deadline, so courseids names both and waitingcourseids A
+     * alone. That is what add() records as each item is counted, with no read of its own.
+     *
+     * @return void
+     */
+    public function test_a_teaching_day_records_the_courses_of_its_grading_work(): void {
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $grading = $gen->create_course();
+        $class = $gen->create_course();
+        $gen->enrol_user($teacher->id, $grading->id, 'editingteacher');
+        $gen->enrol_user($teacher->id, $class->id, 'editingteacher');
+        $busy = $gen->create_module('assign', ['course' => $grading->id, 'gradingduedate' => $now + 2 * DAYSECS]);
+        $gen->create_module('assign', ['course' => $class->id, 'duedate' => $now + 2 * DAYSECS]);
+        $student = $gen->create_user();
+        $gen->enrol_user($student->id, $grading->id, 'student');
+        $this->submission((int) $busy->id, (int) $student->id, $now - HOURSECS);
+
+        $this->setUser($teacher);
+        $tz = \core_date::get_user_timezone_object();
+        $day = strip::build((int) $teacher->id, $now, $tz)['views']['teaching']['days'][strip::local_day($now + 2 * DAYSECS, $tz)];
+        $this->assertSame(1, $day['grade']);
+        $this->assertSame(1, $day['class']);
+        $this->assertEqualsCanonicalizing([(int) $grading->id, (int) $class->id], $day['courseids'], 'control: both courses');
+        $this->assertSame([(int) $grading->id], $day['waitingcourseids']);
+    }
+
+    /**
      * Grading due today or tomorrow is gradesoon and weighs two more.
      *
      * @return void

@@ -134,6 +134,34 @@ final class counts_test extends advanced_testcase {
     }
 
     /**
+     * The grading cell's courses are the days' own waitingcourseids, with the ledger only.
+     *
+     * Each day holds a course with grading work and one with only a class deadline or an event (4 on
+     * the 14th, 5 on the 25th): the union of the days' courseids, the convenient fact, would light
+     * them too. A course waiting on two days is listed once, in the order the days first name it;
+     * without the ledger nothing waits, so nothing is listed.
+     *
+     * @return void
+     */
+    public function test_the_waiting_courses_are_the_grading_works_own(): void {
+        $days = [
+            '2026-10-12' => $this->teaching(['grade' => 1], 4, [3], [3]),
+            '2026-10-14' => $this->teaching(['gradesoon' => 1, 'class' => 1], 2, [3, 4], [3]),
+            '2026-10-20' => $this->teaching(['grade' => 1], 1, [6], [6]),
+            '2026-10-25' => $this->teaching(['event' => 1], 0, [5]),
+        ];
+
+        $ledger = strip::periods($days, 'teaching', '2026-10-14', false, true);
+        $this->assertSame(7, $ledger['waiting']);
+        $this->assertSame([3, 6], $ledger['waitingcourseids']);
+        $this->assertSame([3, 4], $ledger['periods'][1]['courseids'], 'control: the day itself holds course 4');
+
+        $core = strip::periods($days, 'teaching', '2026-10-14', false, false);
+        $this->assertSame([], $core['waitingcourseids']);
+        $this->assertSame([], strip::periods($days, 'learning', '2026-10-14', true, true)['waitingcourseids']);
+    }
+
+    /**
      * The counts pass leaves the past out; the open strip completes the entry into the whole build.
      *
      * A learner with an assignment due two days ago (late, still open: only core's vault says so)
@@ -287,11 +315,18 @@ final class counts_test extends advanced_testcase {
      * @param array $counts Kind => count; the others are 0.
      * @param int $waiting Submissions waiting that day.
      * @param int[] $courseids The day's courses.
+     * @param int[] $waitingcourseids The courses of the day's grading work.
      * @return array The day.
      */
-    private function teaching(array $counts, int $waiting, array $courseids): array {
-        return $counts + array_fill_keys(strip::TEACHING_KINDS, 0)
-            + ['weight' => 1.0, 'courseids' => $courseids, 'waiting' => $waiting, 'step' => 1, 'countstep' => 1];
+    private function teaching(array $counts, int $waiting, array $courseids, array $waitingcourseids = []): array {
+        return $counts + array_fill_keys(strip::TEACHING_KINDS, 0) + [
+            'weight' => 1.0,
+            'courseids' => $courseids,
+            'waiting' => $waiting,
+            'step' => 1,
+            'countstep' => 1,
+            'waitingcourseids' => $waitingcourseids,
+        ];
     }
 
     /**

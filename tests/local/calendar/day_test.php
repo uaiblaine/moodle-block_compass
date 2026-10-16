@@ -69,8 +69,8 @@ final class day_test extends advanced_testcase {
     }
 
     /**
-     * The teaching day: grading work with core's Grade action and the count waiting, the class's
-     * deadline with a View action, and no learner item.
+     * The teaching day: grading work with a Grade action (this plugin's verb, core's grader URL) and the
+     * count waiting, the class's deadline with a View action, and no learner item.
      *
      * The same day of the learning view, the control, holds the user's own deadline in the course
      * where they are graded, and neither teaching item.
@@ -118,7 +118,7 @@ final class day_test extends advanced_testcase {
             $bykind[$item['kind']] = $item;
         }
         $this->assertEqualsCanonicalizing(['grade', 'class'], array_keys($bykind));
-        $this->assertSame(get_string('gradeverb'), $bykind['grade']['action']['name']);
+        $this->assertSame(get_string('cal_act_grade', 'block_compass'), $bykind['grade']['action']['name']);
         $this->assertSame(2, $bykind['grade']['action']['itemcount']);
         $this->assertStringContainsString('action=grader', $bykind['grade']['action']['url']);
         $this->assertSame((int) $teach->id, $bykind['grade']['courseid']);
@@ -575,6 +575,66 @@ final class day_test extends advanced_testcase {
         $grade = array_values(array_filter($after['items'], fn(array $item): bool => $item['kind'] === 'grade'));
         $this->assertCount(1, $grade);
         $this->assertSame(2, $grade[0]['action']['itemcount']);
+    }
+
+    /**
+     * In Portuguese the Grade action says this plugin's verb, Avaliar, never core's gradeverb ("Nota").
+     *
+     * English cannot tell the two apart (both read "Grade"), so the day is built in pt_br: a
+     * langconfig of its own makes the plugin's lang/pt_br file count where no Portuguese pack is
+     * installed (core's string manager reads a plugin's own translation only for a language it knows),
+     * and the plugin's file is read for the expected word. The control: core's gradeverb in that same
+     * language is another word, so the assertion can see the difference.
+     *
+     * @return void
+     */
+    public function test_the_grade_action_says_this_plugins_verb_in_portuguese(): void {
+        global $CFG, $PAGE, $SESSION;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $teacher = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $at = $this->noon_in_three_days();
+        $grading = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $at]);
+        $student = $gen->create_user();
+        $gen->enrol_user($student->id, $course->id, 'student');
+        $this->submission((int) $grading->id, (int) $student->id, $now - HOURSECS);
+
+        $string = [];
+        include($CFG->dirroot . '/blocks/compass/lang/pt_br/block_compass.php');
+        $avaliar = $string['cal_act_grade'];
+        $pack = $CFG->langotherroot . '/pt_br';
+        $made = !is_dir($pack);
+        if ($made) {
+            make_writable_directory($pack);
+            file_put_contents(
+                $pack . '/langconfig.php',
+                "<?php\n\$string['parentlanguage'] = '';\n\$string['thislanguage'] = 'Português - Brasil';\n"
+            );
+        }
+        try {
+            get_string_manager()->reset_caches();
+            $SESSION->forcelang = 'pt_br';
+            $this->assertSame($avaliar, get_string('cal_act_grade', 'block_compass'), 'the plugin\'s pt_br file is read');
+            $this->assertNotSame($avaliar, get_string('gradeverb'), 'control: core\'s word differs');
+
+            $this->setUser($teacher);
+            $SESSION->forcelang = 'pt_br';
+            $PAGE->set_context(\core\context\system::instance());
+            $tz = \core_date::get_user_timezone_object();
+            $date = strip::local_day($at, $tz);
+            $day = day::get((int) $teacher->id, $date, 'teaching', $now, 1700000000, $tz, $PAGE->get_renderer('core'));
+            $bykind = array_column($day['items'], null, 'kind');
+            $this->assertSame($avaliar, $bykind['grade']['action']['name']);
+        } finally {
+            unset($SESSION->forcelang);
+            if ($made) {
+                remove_dir($pack);
+            }
+            get_string_manager()->reset_caches();
+        }
     }
 
     /**

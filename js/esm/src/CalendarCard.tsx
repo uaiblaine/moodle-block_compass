@@ -44,7 +44,7 @@ import {
     OPEN_KINDS, clockTime, dateParts, dayMonth, daysBetween, itemKinds, longDay, shownKinds, sortItems, timeParts,
 } from './calendar';
 import type {DayCounts, DayOff} from './calendar';
-import {fill, fillCount} from './str';
+import {fill, fillCount, fillObject} from './str';
 import type {BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarView, DayItem} from './types';
 
 /** What the client holds of one day: asked, failed, or answered. */
@@ -97,7 +97,8 @@ const relative = (strings: Record<string, string>, date: string, today: string):
  * The pills of one item: its kind first, then what weighs on it.
  *
  * Each pill's classes are a literal of their own, so the stylesheet's rules and the badge rule's
- * reader see every combination written out.
+ * reader see every combination written out. A pill is one line, cut with an ellipsis when the column
+ * is narrower than its words, and carries its whole text as its title.
  *
  * @param {object} item The item.
  * @param {object} strings The strip's strings.
@@ -116,70 +117,149 @@ const pillsOf = (
 ): ReactNode[] => {
     const list: ReactNode[] = [];
     if (item.kind === 'gradedsoon') {
-        list.push(
-            <span key="kind" className="compass-cal-pill compass-cal-pill-accent">
-                {istoday ? strings.cal_pill_gradedtoday : strings.cal_pill_gradedtomorrow}
-            </span>
-        );
+        const text = istoday ? strings.cal_pill_gradedtoday : strings.cal_pill_gradedtomorrow;
+        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-accent" title={text}>{text}</span>);
     } else if (item.kind === 'graded') {
-        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-soft">{strings.cal_pill_graded}</span>);
+        const text = strings.cal_pill_graded;
+        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-soft" title={text}>{text}</span>);
     } else if (item.kind === 'late') {
         const text = item.lateuntil > 0
             ? fill(strings.cal_pill_lateuntil, dayMonth(strings, timeParts(item.lateuntil, timezone)))
             : strings.cal_pill_late;
-        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-late">{text}</span>);
+        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-late" title={text}>{text}</span>);
     } else if (item.kind === 'gradesoon') {
-        list.push(
-            <span key="kind" className="compass-cal-pill compass-cal-pill-accent">
-                {istoday ? strings.cal_pill_gradetoday : strings.cal_pill_gradetomorrow}
-            </span>
-        );
+        const text = istoday ? strings.cal_pill_gradetoday : strings.cal_pill_gradetomorrow;
+        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-accent" title={text}>{text}</span>);
     } else if (item.kind === 'class') {
-        list.push(<span key="kind" className="compass-cal-pill">{strings.cal_pill_class}</span>);
+        const text = strings.cal_pill_class;
+        list.push(<span key="kind" className="compass-cal-pill" title={text}>{text}</span>);
     } else if (item.kind === 'done') {
-        list.push(<span key="kind" className="compass-cal-pill">{strings.cal_pill_done}</span>);
+        const text = strings.cal_pill_done;
+        list.push(<span key="kind" className="compass-cal-pill" title={text}>{text}</span>);
     } else if (item.kind === 'event') {
-        list.push(<span key="kind" className="compass-cal-pill">{strings.cal_pill_event}</span>);
+        const text = strings.cal_pill_event;
+        list.push(<span key="kind" className="compass-cal-pill" title={text}>{text}</span>);
     }
     const waiting = item.action ? item.action.itemcount : 0;
     if ((item.kind === 'grade' || item.kind === 'gradesoon') && waiting > 0) {
-        list.push(
-            <span key="waiting" className="compass-cal-pill compass-cal-pill-soft">
-                {fillCount(strings, 'cal_pill_waiting', waiting)}
-            </span>
-        );
+        const text = fillCount(strings, 'cal_pill_waiting', waiting);
+        list.push(<span key="waiting" className="compass-cal-pill compass-cal-pill-soft" title={text}>{text}</span>);
     }
     if (item.criterion && OPEN_KINDS.includes(item.kind)) {
-        list.push(<span key="criterion" className="compass-cal-pill">{strings.cal_pill_criterion}</span>);
+        const text = strings.cal_pill_criterion;
+        list.push(<span key="criterion" className="compass-cal-pill" title={text}>{text}</span>);
     }
     // A starred course weighs the item (decision 4), so an open item says why; late work already
     // says the loudest thing it can, as the mockup leaves it.
     if (stars && item.starred && OPEN_KINDS.includes(item.kind) && item.kind !== 'late') {
-        list.push(<span key="starred" className="compass-cal-pill">{strings.cal_pill_starred}</span>);
+        const text = strings.cal_pill_starred;
+        list.push(<span key="starred" className="compass-cal-pill" title={text}>{text}</span>);
     }
 
     return list;
 };
 
 /**
- * The item's action: core's own button when it can be taken now, its name as text when it
- * cannot, and a View link to the event when core gives none.
+ * The short verb an open learning item's action shows, by the activity's module: core's action names
+ * run from "View" to "Tentar responder o questionário agora" and "Veja o resumo do laboratório de
+ * avaliação", and a button that long squeezed the item's title to a few letters. Each verb is a
+ * string of this plugin's, at most twelve characters in both languages (accessibility_rules_test holds
+ * the budget); core's whole name stays the button's title and follows the verb in its accessible name.
+ * A quiz says Attempt, core's own word for it in English ("Attempt quiz now"), a separate string so
+ * Portuguese can keep Responder; a workshop says Open, as its phases' names vary. A module not listed
+ * here keeps core's name when it fits ACTION_BUDGET, and says Open otherwise.
+ */
+const ACTION_VERBS: Record<string, string> = {
+    assign: 'cal_act_submit',
+    choice: 'cal_act_answer',
+    feedback: 'cal_act_answer',
+    lesson: 'cal_act_start',
+    questionnaire: 'cal_act_answer',
+    quiz: 'cal_act_attempt',
+    survey: 'cal_act_answer',
+    workshop: 'cal_act_open',
+};
+
+/** Characters a name of core's may have and still be shown as it is ("Add entry", "Entrar na sessão"). */
+const ACTION_BUDGET = 16;
+
+/** What an action shows, what it is called and what its tooltip says. */
+type ActionLabel = {text: string, name: string, title: string};
+
+/**
+ * The label system of a day's action (styles.css, "The day's action"): a short visible verb, core's
+ * whole name as the tooltip, and an accessible name that starts with the visible verb (cal_act_label,
+ * "{$a->action}: {$a->name}"), so a speech-input user who says what they see reaches the control
+ * (WCAG 2.5.3, label in name).
+ *
+ * The teaching kinds say Grade and View, and nothing else; an item without core's action links to
+ * the event and says View.
+ *
+ * @param {object} item The item.
+ * @param {object} strings The strip's strings.
+ * @returns {object} text, name and title.
+ */
+const actionLabel = (item: DayItem, strings: Record<string, string>): ActionLabel => {
+    if (!item.action) {
+        return {text: strings.cal_view, name: strings.cal_view, title: strings.cal_view};
+    }
+    // The teaching kinds' actions are this plugin's own (day.php export_teaching()): Grade is named with
+    // cal_act_grade on the server too (core's gradeverb is "Nota", a noun, in Portuguese), and View with
+    // core's view string, so the verb is the whole label.
+    if (item.kind === 'grade' || item.kind === 'gradesoon') {
+        return {text: strings.cal_act_grade, name: strings.cal_act_grade, title: strings.cal_act_grade};
+    }
+    if (item.kind === 'class') {
+        return {text: strings.cal_view, name: strings.cal_view, title: strings.cal_view};
+    }
+    const full = item.action.name;
+    let text = full;
+    if (ACTION_VERBS[item.modulename]) {
+        text = strings[ACTION_VERBS[item.modulename]];
+    } else if (full.length > ACTION_BUDGET) {
+        text = strings.cal_act_open;
+    }
+    if (text === full) {
+        return {text, name: full, title: full};
+    }
+
+    return {text, name: fillObject(strings.cal_act_label, {action: text, name: full}), title: full};
+};
+
+/**
+ * The item's action: core's own link when it can be taken now, its name as text when it cannot, and
+ * a View link to the event when core gives none; every one labelled by actionLabel().
  *
  * @param {object} item The item.
  * @param {object} strings The strip's strings.
  * @returns {object} The rendered action.
  */
 const actionOf = (item: DayItem, strings: Record<string, string>): ReactNode => {
+    const label = actionLabel(item, strings);
     if (!item.action) {
-        return <a className="btn btn-sm btn-outline-secondary compass-cal-action" href={item.viewurl}>{strings.cal_view}</a>;
+        return (
+            <a className="btn btn-sm btn-outline-secondary compass-cal-action" href={item.viewurl}
+                aria-label={label.name} title={label.title}>{label.text}</a>
+        );
     }
     if (!item.action.actionable) {
-        return <span className="compass-cal-action compass-cal-action-off small">{item.action.name}</span>;
+        return (
+            <span className="compass-cal-action compass-cal-action-off small" title={label.title}>
+                <span aria-hidden="true">{label.text}</span>
+                <span className="visually-hidden">{label.name}</span>
+            </span>
+        );
     }
 
     return OPEN_KINDS.includes(item.kind)
-        ? <a className="btn btn-sm btn-primary compass-cal-action" href={item.action.url}>{item.action.name}</a>
-        : <a className="btn btn-sm btn-outline-secondary compass-cal-action" href={item.action.url}>{item.action.name}</a>;
+        ? (
+            <a className="btn btn-sm btn-primary compass-cal-action" href={item.action.url}
+                aria-label={label.name} title={label.title}>{label.text}</a>
+        )
+        : (
+            <a className="btn btn-sm btn-outline-secondary compass-cal-action" href={item.action.url}
+                aria-label={label.name} title={label.title}>{label.text}</a>
+        );
 };
 
 /**
@@ -236,7 +316,9 @@ const DayType = ({off, strings}: {off: DayOff, strings: Record<string, string>})
         return (
             <span className={off.mark === 'holiday' ? 'compass-cal-daytype compass-cal-daytype-holiday' : 'compass-cal-daytype'}>
                 {off.special.label}
-                {off.special.note !== '' && <span className="compass-cal-daytype-note">{off.special.note}</span>}
+                {off.special.note !== '' && (
+                    <span className="compass-cal-daytype-note" title={off.special.note}>{off.special.note}</span>
+                )}
             </span>
         );
     }
@@ -304,9 +386,11 @@ const CardBody = ({entry, items, count, strings, timezone, istoday, empty, confi
                     <div className="compass-cal-itembody">
                         <div className="compass-cal-itemmeta">
                             <span>{clockTime(strings, timeParts(item.timestart, timezone))}</span>
-                            {item.courseshortname && <span className="compass-cal-course">{item.courseshortname}</span>}
+                            {item.courseshortname && (
+                                <span className="compass-cal-course" title={item.courseshortname}>{item.courseshortname}</span>
+                            )}
                         </div>
-                        <a className="compass-cal-itemtitle" href={item.viewurl}>{item.name}</a>
+                        <a className="compass-cal-itemtitle compass-clamp" href={item.viewurl} title={item.name}>{item.name}</a>
                         <div className="compass-cal-pills">
                             {pillsOf(item, strings, istoday, timezone, config.favouritesenabled)}
                         </div>
@@ -386,7 +470,7 @@ const CalendarCard = ({
                     {chips.map((chip) => (
                         <span className="compass-cal-chip" key={chip.kind}>
                             <span className={`compass-cal-dot compass-cal-dot-${chip.kind}`} aria-hidden="true" />
-                            {chip.text}
+                            <span className="compass-cal-chiptext" title={chip.text}>{chip.text}</span>
                         </span>
                     ))}
                 </div>

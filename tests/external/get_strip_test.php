@@ -146,11 +146,16 @@ final class get_strip_test extends advanced_testcase {
         $this->assertSame([(int) $learn->id], $days[$date]['courseids']);
         $teaching = array_column($data['views']['teaching']['days'], null, 'date');
         $this->assertSame(
-            array_merge(['date'], strip::TEACHING_KINDS, ['waiting', 'weight', 'step', 'countstep', 'courseids']),
+            array_merge(
+                ['date'],
+                strip::TEACHING_KINDS,
+                ['waiting', 'weight', 'step', 'countstep', 'courseids', 'waitingcourseids']
+            ),
             array_keys($teaching[$date])
         );
         $this->assertSame(1, $teaching[$date]['class']);
         $this->assertSame([(int) $teach->id], $teaching[$date]['courseids']);
+        $this->assertSame([], $teaching[$date]['waitingcourseids'], 'a class deadline is no grading work');
         $this->assertSame($date, $data['views']['learning']['needle']);
 
         // The domain's payload is the control: same days, same counters, only the shape differs.

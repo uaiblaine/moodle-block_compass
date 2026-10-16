@@ -59,6 +59,9 @@ body[data-bs-theme="dark"] .block_compass,
        it is a mid-tone neither numeral colour reads on (3.64:1 dark, 3.2:1 light); at 80 % the dark
        numeral is 5.35:1 on Boost's warning. */
     --block_compass-cal-heat-3: color-mix(in oklab, var(--block_compass-cal-warn) 80%, var(--block_compass-surface));
+    /* A past day's numeral on the second heat step: the theme's muted is 4.14:1 on it in dark mode, so
+       it is the body colour drawn a little towards the fill (4.74:1). */
+    --block_compass-cal-muted-on-heat-2: color-mix(in oklab, var(--block_compass-cal-text) 85%, var(--block_compass-cal-heat-2));
     /* A pill's text is the body colour in dark mode for the brand text's reason: the primary's dark
        emphasis tint is 4.18:1 on its own subtle fill for a navy primary (the theme's), under the
        floor. On Boost's dark fills the body colour is 14.06:1 and 11.74:1. The fallbacks are the
@@ -124,11 +127,17 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 /* The way back from a failure: the message, then Try again and Reload page pushed to the end
    of the line; the amber is Bootstrap's own warning alert. */
+.block_compass .compass-retry-message {
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+
 .block_compass .compass-retry-actions {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
     margin-left: auto;
+    white-space: nowrap;
 }
 
 .block_compass .compass-group-retry {
@@ -393,9 +402,14 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
    under :not([hidden]), rather than with d-flex: Bootstrap's display utilities are !important
    and have the same specificity as Boost's [hidden] { display: none !important; }, so the
    utility, later in source order, would keep a hidden element visible. */
+/* A failure notice wraps: the message keeps a readable measure and the two controls move under it,
+   to the line's end, when the column is too narrow for both (the day card on a phone broke "Try
+   again" and "Reload page" into two lines each). */
 .block_compass .compass-error:not([hidden]) {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    gap: 0.5rem 0.75rem;
 }
 
 .block_compass .compass-ghost-count {
@@ -604,6 +618,9 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     background: var(--block_compass-surface);
 }
 
+/* The row's date: a column of its own, so the progress bars line up, and narrow enough that a phone's
+   first line still holds the image, the name and the date. A long date ("Aberto semana passada") stops
+   at two lines (.compass-clamp) with the whole text in its title. */
 .block_compass .compass-row .compass-row-meta {
     flex: 0 1 5.5rem;
     min-width: 0;
@@ -945,20 +962,54 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
    the only root the strip paints: the day card is a child of its day's column, never appended to
    body, so the dark values of every --bs-* token reach it by inheritance. Heat is the theme's
    warning mixed into the surface in four steps, the accent its primary, late work its danger; the
-   activity icons take core's --activity<purpose> properties. */
+   activity icons take core's --activity<purpose> properties.
+
+   A filled background and its text are one pair. Every rule that fills a background declares its
+   paired foreground, at equal or higher specificity than any colour-only rule that could match the
+   same element and after it; otherwise that colour-only rule carries a :not() guard for the fill
+   (today's ink above all). A text colour is never chosen without knowing its background: each
+   background family has its own foreground tokens below (-fg-on-<family>, -muted-on-<family>), and
+   contrast_rules_test computes every declared pair in light and dark mode, 4.5:1 for text and 3:1
+   for marks. A state that recedes (the lighting's dim) never fades the element with opacity, which
+   fades its text with it: it remaps the fill and foreground tokens in its own scope. */
 .block_compass {
     --block_compass-cal-warn: var(--bs-warning, #f0ad4e);
     --block_compass-cal-accent: var(--block_compass-brand-ink);
     --block_compass-cal-danger: var(--bs-danger, #ca3120);
     --block_compass-cal-ink: var(--bs-emphasis-color, #000);
-    --block_compass-cal-onink: var(--bs-body-bg, #fff);
     --block_compass-cal-soft: var(--bs-tertiary-bg, #f8f9fa);
     --block_compass-cal-text: var(--bs-body-color, #1d2125);
     --block_compass-cal-heat-1: color-mix(in oklab, var(--block_compass-cal-warn) 17%, var(--block_compass-surface));
     --block_compass-cal-heat-2: color-mix(in oklab, var(--block_compass-cal-warn) 36%, var(--block_compass-surface));
     --block_compass-cal-heat-3: color-mix(in oklab, var(--block_compass-cal-warn) 62%, var(--block_compass-surface));
     --block_compass-cal-heat-4: color-mix(in oklab, var(--block_compass-cal-warn) 92%, var(--block_compass-surface));
+    /* The foregrounds, per background family. The surface, the soft fill and the first two heat steps
+       take the body text (--block_compass-cal-text); the two strongest steps are mostly the warning
+       colour in either mode, so their numerals stay dark. A past day's numeral is the muted one of its
+       own fill; dark mode moves the second step's (the theme's muted is 4.14:1 there). */
+    --block_compass-cal-fg-on-ink: var(--bs-body-bg, #fff);
+    --block_compass-cal-fg-on-heat-1: var(--block_compass-cal-text);
+    --block_compass-cal-fg-on-heat-2: var(--block_compass-cal-text);
+    --block_compass-cal-fg-on-heat-3: var(--bs-dark, #212529);
+    --block_compass-cal-fg-on-heat-4: var(--bs-dark, #212529);
+    --block_compass-cal-fg-late: var(--bs-danger-text-emphasis, var(--block_compass-cal-danger));
+    --block_compass-cal-muted-on-surface: var(--block_compass-muted);
+    --block_compass-cal-muted-on-heat-1: var(--block_compass-muted);
+    --block_compass-cal-muted-on-heat-2: var(--block_compass-muted);
+    /* The dim a pointed card or a pressed period gives the other days and periods: every fill drawn a
+       quarter of the way from the surface, the ink a pale disc, numerals and marks drained to quieter
+       tokens that still read (text 4.5:1, marks 3:1, on every dimmed fill). Resolved here and swapped
+       in by .compass-cal-col-dim and .compass-cal-period-dim. */
+    --block_compass-cal-heat-1-dim: color-mix(in oklab, var(--block_compass-cal-heat-1) 22%, var(--block_compass-surface));
+    --block_compass-cal-heat-2-dim: color-mix(in oklab, var(--block_compass-cal-heat-2) 22%, var(--block_compass-surface));
+    --block_compass-cal-heat-3-dim: color-mix(in oklab, var(--block_compass-cal-heat-3) 22%, var(--block_compass-surface));
+    --block_compass-cal-heat-4-dim: color-mix(in oklab, var(--block_compass-cal-heat-4) 22%, var(--block_compass-surface));
+    --block_compass-cal-ink-dim: color-mix(in oklab, var(--block_compass-cal-ink) 12%, var(--block_compass-surface));
+    --block_compass-cal-fg-on-ink-dim: var(--block_compass-cal-text);
+    --block_compass-cal-fg-dim: color-mix(in oklab, var(--block_compass-cal-text) 75%, var(--block_compass-surface));
+    --block_compass-cal-mark-dim: var(--block_compass-muted);
     --block_compass-cal-ring: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-accent);
+    --block_compass-cal-ring-dim: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-mark-dim);
     /* The hatch of a weekend or a day off (the mockup's #d4d9de on white): the hairline darkened by
        a touch of text, so it reads on the surface in either mode. Decorative: a day's sentence says
        what the day is. A day off the institution marked is cross-hatched, a weekend hatched once. */
@@ -1003,13 +1054,15 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     outline-offset: 2px;
 }
 
-/* The header: the month and Today on the left; the view switch and the filter on the right,
-   wrapping under it when the block is narrow. The arrows float over the row's ends (amendment 12). */
+/* The header: the toggle, the month and Today packed on the left; the view switch, the filter and the
+   calendar link pushed to the line's end, and to the end of a line of their own when they wrap (a
+   teacher's two switches at 784 px), so the month never floats alone between the two groups. The
+   arrows float over the row's ends (amendment 12). */
 .block_compass .compass-cal-head {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 0.75rem;
 }
 
@@ -1019,6 +1072,10 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
+}
+
+.block_compass .compass-cal-controls {
+    margin-inline-start: auto;
 }
 
 /* The month of the days wholly in view; its minimum width keeps Today from moving as it changes. */
@@ -1047,13 +1104,15 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-todaybtn:hover {
     background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
 }
 
-/* Core's disabled button look, Bootstrap's --bs-btn-disabled-opacity (0.65): the same faded control
-   a disabled button is anywhere else on the page. */
+/* A disabled arrow or Today recedes by its colours, not by opacity (which took its text to 4.29:1 in
+   dark mode): the muted text and the hairline border. After the hover rules, which it outweighs. */
 .block_compass .compass-cal-todaybtn[aria-disabled="true"],
 .block_compass .compass-cal-edge[aria-disabled="true"] {
-    opacity: 0.65;
+    border-color: var(--block_compass-line);
+    color: var(--block_compass-cal-muted-on-surface);
     cursor: default;
 }
 
@@ -1199,11 +1258,13 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-edge:hover {
     background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
 }
 
 .block_compass .compass-cal-edge[aria-disabled="true"] {
     background: var(--block_compass-surface);
     box-shadow: none;
+    color: var(--block_compass-cal-muted-on-surface);
 }
 
 /* The pulse style's bars stand above the targets, so its arrows sit lower: the bar box and its gap. */
@@ -1339,69 +1400,88 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
-.block_compass .compass-cal-day:hover .compass-cal-disc.compass-cal-heat-0:not(.compass-cal-off) {
-    background: var(--block_compass-cal-soft);
-}
-
+/* A heat step's fill and its numeral, a pair (the disc, the closed line's chip; a pulse bar has no text). */
 .block_compass .compass-cal-heat-1 {
     background: var(--block_compass-cal-heat-1);
+    color: var(--block_compass-cal-fg-on-heat-1);
 }
 
 .block_compass .compass-cal-heat-2 {
     background: var(--block_compass-cal-heat-2);
+    color: var(--block_compass-cal-fg-on-heat-2);
 }
 
 .block_compass .compass-cal-heat-3 {
     background: var(--block_compass-cal-heat-3);
+    color: var(--block_compass-cal-fg-on-heat-3);
 }
 
 .block_compass .compass-cal-heat-4 {
     background: var(--block_compass-cal-heat-4);
+    color: var(--block_compass-cal-fg-on-heat-4);
 }
 
-/* The two strongest steps are mostly the warning colour in either mode, so their numerals stay dark,
-   on a past day too; never on today's ink, nor in the pulse style, whose discs are not filled. */
-.block_compass .compass-cal:not(.compass-cal-style-pulse) .compass-cal-disc.compass-cal-heat-3:not(.compass-cal-today),
-.block_compass .compass-cal:not(.compass-cal-style-pulse) .compass-cal-disc.compass-cal-heat-4:not(.compass-cal-today) {
-    color: var(--bs-dark, #212529);
-}
-
-.block_compass .compass-cal-disc.compass-cal-past {
-    color: var(--block_compass-muted);
-}
-
-.block_compass .compass-cal-disc.compass-cal-past.compass-cal-heat-0:not(.compass-cal-off) {
+/* A past day's numeral is the muted one of its own fill: the surface's under a pale soft disc, a heat
+   step's on the first two steps. The two strongest steps keep their dark numeral, on a past day too.
+   Never today's ink (the guard), though today is never past. */
+.block_compass .compass-cal-disc.compass-cal-past.compass-cal-heat-0:not(.compass-cal-off):not(.compass-cal-today) {
     background: color-mix(in oklab, var(--block_compass-cal-soft) 70%, transparent);
+    color: var(--block_compass-cal-muted-on-surface);
+}
+
+.block_compass .compass-cal-disc.compass-cal-past.compass-cal-heat-1:not(.compass-cal-today) {
+    color: var(--block_compass-cal-muted-on-heat-1);
+}
+
+.block_compass .compass-cal-disc.compass-cal-past.compass-cal-heat-2:not(.compass-cal-today) {
+    color: var(--block_compass-cal-muted-on-heat-2);
+}
+
+/* An empty day under the pointer: the soft fill and the body text, a past day's numeral brightening
+   with it. Never today's ink, whose text would stay on the ink's colour over the soft fill. */
+.block_compass .compass-cal-day:hover .compass-cal-disc.compass-cal-heat-0:not(.compass-cal-off):not(.compass-cal-today) {
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
 }
 
 /* An empty weekend or day off is hatched (the mockup's cc-off). Weighted above the past, hover and
    pulse rules, which would paint it over; today's ink still wins (the mockup's order). */
 .block_compass .compass-cal .compass-cal-disc.compass-cal-off:not(.compass-cal-today) {
     background: var(--block_compass-cal-hatch-weekend);
-    color: var(--block_compass-muted);
+    color: var(--block_compass-cal-muted-on-surface);
 }
 
 .block_compass .compass-cal .compass-cal-day:hover .compass-cal-disc.compass-cal-off:not(.compass-cal-today) {
     background: var(--block_compass-cal-hatch-weekend), var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-muted-on-surface);
 }
 
 .block_compass .compass-cal .compass-cal-disc.compass-cal-off.compass-cal-holiday:not(.compass-cal-today) {
     background: var(--block_compass-cal-hatch-holiday);
+    color: var(--block_compass-cal-muted-on-surface);
 }
 
 .block_compass .compass-cal .compass-cal-day:hover .compass-cal-disc.compass-cal-off.compass-cal-holiday:not(.compass-cal-today) {
     background: var(--block_compass-cal-hatch-holiday), var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-muted-on-surface);
 }
 
-/* Pulse bars carry the heat; the discs stay plain. Before the today rule, which wins over it. */
+/* Pulse bars carry the heat; the discs stay plain, so their numerals are the body text over the heat
+   steps' (the strongest steps' dark numeral is 1.5:1 on the dark surface). Before the today rule,
+   which wins over it. */
 .block_compass .compass-cal-style-pulse .compass-cal-disc {
     background: transparent;
+    color: var(--block_compass-cal-text);
     font-size: 0.875rem;
+}
+
+.block_compass .compass-cal-style-pulse .compass-cal-disc.compass-cal-past:not(.compass-cal-today) {
+    color: var(--block_compass-cal-muted-on-surface);
 }
 
 .block_compass .compass-cal-disc.compass-cal-today {
     background: var(--block_compass-cal-ink);
-    color: var(--block_compass-cal-onink);
+    color: var(--block_compass-cal-fg-on-ink);
     box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.55);
 }
 
@@ -1703,6 +1783,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-link:hover {
     background: var(--block_compass-cal-soft);
+    color: var(--block_compass-brand-text);
 }
 
 .block_compass .compass-cal-note {
@@ -1736,6 +1817,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-toggle:hover {
     background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
 }
 
 /* Core's chevron pair, shown and hidden by core's icons-collapse-expand rule, inline as a tier 3
@@ -1746,7 +1828,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-brand-text);
 }
 
-/* Closed, the strip is one band: the toggle, the waiting lead, the periods and the controls. */
+/* Closed, the strip is one band: the toggle, the icon switch, the line's cells and the calendar link. */
 .block_compass .compass-cal-closed {
     padding-bottom: 0.75rem;
 }
@@ -1756,20 +1838,119 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     gap: 0.5rem 0.75rem;
 }
 
-.block_compass .compass-cal-closed .compass-cal-controls {
-    margin-inline-start: auto;
+/* On one row (wide, and the line fits: CalendarStrip's measure) nothing in the head wraps or shrinks, so
+   the sum of its children's widths is the line's natural width, which the strip compares with the head's
+   own. Over it, .compass-cal-tworow moves the cells to a row of their own; no container query. */
+.block_compass .compass-cal-closed:not(.compass-cal-narrow):not(.compass-cal-tworow) .compass-cal-head {
+    flex-wrap: nowrap;
 }
 
-.block_compass .compass-cal-lead,
+.block_compass .compass-cal-closed .compass-cal-title,
+.block_compass .compass-cal-closed .compass-cal-seg,
+.block_compass .compass-cal-closed .compass-cal-line {
+    flex: none;
+}
+
+.block_compass .compass-cal-closed .compass-cal-toggle {
+    white-space: nowrap;
+}
+
+/* The cells, one piece: the grading cell and its divider, then the periods' list. */
+.block_compass .compass-cal-line {
+    display: flex;
+    align-items: stretch;
+    gap: 0.375rem;
+}
+
+.block_compass .compass-cal-closed:not(.compass-cal-narrow):not(.compass-cal-tworow) .compass-cal-periods {
+    flex-wrap: nowrap;
+}
+
+/* Two rows: the title, the switch and the link stay on the first; the cells take the second, whole. */
+.block_compass .compass-cal-tworow .compass-cal-line {
+    flex-basis: 100%;
+    order: 3;
+}
+
+.block_compass .compass-cal-tworow .compass-cal-controls {
+    order: 2;
+}
+
+/* The grading cell's divider: a queue is not a date. Drawn only (aria-hidden). */
+.block_compass .compass-cal-qdiv {
+    flex: none;
+    width: 1px;
+    margin: 0.625rem 0.25rem 0.625rem 0.125rem;
+    background: var(--block_compass-line);
+}
+
+/* The closed line's icon switch: 36 px buttons in the 44 px group, each with its tooltip. */
+.block_compass .compass-cal-seg-icons .compass-cal-segbtn {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+}
+
+/* The icon switch's tooltip, the button's own aria-hidden child (the button's aria-label is the name),
+   in core's tooltip look: ink fill, text on ink, lightened in dark mode by the ink tokens. Shown on hover
+   and on keyboard focus, never while Escape has put the switch's tooltips off; once shown it takes the
+   pointer, and its ::before bridges the gap to the button, so the pointer can move onto it (WCAG 1.4.13). */
+.block_compass .compass-cal-tip {
+    position: absolute;
+    bottom: calc(100% + 9px);
+    left: 50%;
+    z-index: 5;
+    padding: 4px 8px;
+    border-radius: 0.375rem;
+    background: var(--block_compass-cal-ink);
+    color: var(--block_compass-cal-fg-on-ink);
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.35;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%);
+    transition: opacity 150ms ease;
+}
+
+.block_compass .compass-cal-tip::before {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
+    height: 10px;
+}
+
+.block_compass .compass-cal-tip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border: 5px solid transparent;
+    border-top-color: var(--block_compass-cal-ink);
+}
+
+.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip,
+.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* The notes follow the header (CalendarLine.tsx LineNotes), so a sentence never widens the line. */
 .block_compass .compass-cal-linenote {
     margin: 0;
     color: var(--block_compass-muted);
     font-size: 0.8125rem;
 }
 
-.block_compass .compass-cal-lead {
-    color: var(--block_compass-cal-text);
-    font-weight: 600;
+.block_compass .compass-cal-closed > .compass-cal-linenote {
+    margin-top: 0.25rem;
 }
 
 .block_compass .compass-cal-periods {
@@ -1782,16 +1963,18 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     list-style: none;
 }
 
-/* A period: its label, then its plain count on the heat disc of its busiest day. */
+/* A period: its label, then its plain count on the heat disc of its busiest day. A cell sizes to its
+   label above a 4 rem floor, which lets six cells, the title, the switch and the link share one row at
+   784 px. */
 .block_compass .compass-cal-period,
 .block_compass .compass-cal-psk {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 3px;
-    min-width: 6.5rem;
+    min-width: 4rem;
     min-height: 3.5rem;
-    padding: 4px 12px 5px 10px;
+    padding: 4px 10px 5px 8px;
 }
 
 .block_compass .compass-cal-period {
@@ -1800,11 +1983,12 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     background: transparent;
     color: var(--block_compass-cal-text);
     text-align: start;
-    transition: background-color 120ms ease, opacity 180ms ease;
+    transition: background-color 120ms ease;
 }
 
 .block_compass .compass-cal-period:hover {
     background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
 }
 
 .block_compass .compass-cal-plabel {
@@ -1826,20 +2010,14 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     height: 1.75rem;
     padding: 0 0.5625rem;
     border-radius: 0.875rem;
-    color: var(--block_compass-cal-text);
     font-size: 1rem;
     font-weight: 700;
 }
 
+/* A chip without a disc keeps its period's text; one with a disc takes its heat step's pair. */
 .block_compass .compass-cal-pchip.compass-cal-heat-0 {
     min-width: 0;
     padding: 0 2px;
-}
-
-/* The two strongest steps keep a dark numeral, as a day's disc does. */
-.block_compass .compass-cal-period:not(.compass-cal-period-today) .compass-cal-pchip.compass-cal-heat-3,
-.block_compass .compass-cal-period:not(.compass-cal-period-today) .compass-cal-pchip.compass-cal-heat-4 {
-    color: var(--bs-dark, #212529);
 }
 
 /* Today's number is the ink disc, ringed by its heat from the second step, as today's day is. */
@@ -1847,7 +2025,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     min-width: 2.125rem;
     padding: 0 0.5625rem;
     background: var(--block_compass-cal-ink);
-    color: var(--block_compass-cal-onink);
+    color: var(--block_compass-cal-fg-on-ink);
 }
 
 .block_compass .compass-cal-period-today .compass-cal-pchip.compass-cal-heat-2 {
@@ -1862,20 +2040,35 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     box-shadow: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-heat-4);
 }
 
-/* Late work's number has no disc: it is the danger text, the theme's dark-aware emphasis of it. */
-.block_compass .compass-cal-period-past .compass-cal-pchip {
-    color: var(--bs-danger-text-emphasis, var(--block_compass-cal-danger));
+/* Late work's number has no disc: it is the danger text, the theme's dark-aware emphasis of it. A
+   count of zero is muted. Both are colour-only, so neither reaches today's ink chip (the guards): at
+   zero, today's number stays the ink disc with its own text, as today's day does. */
+.block_compass .compass-cal-period-past:not(.compass-cal-period-today) .compass-cal-pchip.compass-cal-heat-0 {
+    color: var(--block_compass-cal-fg-late);
 }
 
-.block_compass .compass-cal-period-zero .compass-cal-pchip {
-    color: var(--block_compass-muted);
+.block_compass .compass-cal-period-zero:not(.compass-cal-period-today) .compass-cal-pchip.compass-cal-heat-0 {
+    color: var(--block_compass-cal-muted-on-surface);
     font-weight: 600;
 }
 
 /* A tier 1 card pointed at: the periods holding its course are ringed, the others dimmed, as the
-   open row's days are; the ring carries the meaning, the dim only supports it. */
+   open row's days are; the ring carries the meaning, the dim only supports it. The dim swaps the
+   fills and their text for the quieter pairs declared with the tokens (never opacity, which faded
+   the numbers to 1.5:1), so every number still reads. */
 .block_compass .compass-cal-period.compass-cal-period-dim {
-    opacity: 0.3;
+    --block_compass-cal-heat-1: var(--block_compass-cal-heat-1-dim);
+    --block_compass-cal-heat-2: var(--block_compass-cal-heat-2-dim);
+    --block_compass-cal-heat-3: var(--block_compass-cal-heat-3-dim);
+    --block_compass-cal-heat-4: var(--block_compass-cal-heat-4-dim);
+    --block_compass-cal-ink: var(--block_compass-cal-ink-dim);
+    --block_compass-cal-fg-on-ink: var(--block_compass-cal-fg-on-ink-dim);
+    --block_compass-cal-text: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-1: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-2: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-3: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-4: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-late: var(--block_compass-cal-fg-dim);
 }
 
 .block_compass .compass-cal-period.compass-cal-period-match .compass-cal-pchip {
@@ -2035,7 +2228,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-cal-rel-today {
     border-color: var(--block_compass-cal-ink);
     background: var(--block_compass-cal-ink);
-    color: var(--block_compass-cal-onink);
+    color: var(--block_compass-cal-fg-on-ink);
 }
 
 /* What the day is, when it is not a working day: a quiet chip led by the day's hatch. */
@@ -2043,6 +2236,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
+    max-width: 100%;
+    white-space: nowrap;
     padding: 1px 0.5rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 1rem;
@@ -2062,8 +2257,12 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     background: var(--block_compass-cal-hatch-holiday);
 }
 
+/* The institution's note is free text: one line, cut with an ellipsis, whole in its title. */
 .block_compass .compass-cal-daytype-note {
+    min-width: 0;
+    overflow: hidden;
     color: var(--block_compass-muted);
+    text-overflow: ellipsis;
 }
 
 .block_compass .compass-cal-close {
@@ -2127,12 +2326,20 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
+    max-width: 100%;
     padding: 2px 0.55rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 1rem;
     background: var(--block_compass-cal-soft);
     color: var(--block_compass-cal-text);
     font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.block_compass .compass-cal-chiptext {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .block_compass .compass-cal-cardload {
@@ -2177,6 +2384,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-cal-item:hover {
     background: color-mix(in oklab, var(--block_compass-cal-soft) 85%, transparent);
+    color: var(--block_compass-cal-text);
 }
 
 .block_compass .compass-cal-item-done {
@@ -2243,14 +2451,12 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     white-space: nowrap;
 }
 
+/* The item's name: two lines at most through .compass-clamp, the whole name in its title. */
 .block_compass .compass-cal-itemtitle {
-    display: block;
-    overflow: hidden;
     color: var(--block_compass-cal-text);
     font-weight: 600;
+    line-height: 1.3;
     text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .block_compass .compass-cal-itemtitle:hover {
@@ -2265,7 +2471,10 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     margin-top: 0.3rem;
 }
 
+/* A pill is one line: cut with an ellipsis, its whole text in its title (CalendarCard.tsx pillsOf()). */
 .block_compass .compass-cal-pill {
+    max-width: 100%;
+    overflow: hidden;
     padding: 1px 0.375rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 0.375rem;
@@ -2273,6 +2482,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-cal-text);
     font-size: 0.6875rem;
     font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .block_compass .compass-cal-pill-accent {
@@ -2290,9 +2501,19 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-cal-pill-late {
     border-color: color-mix(in oklab, var(--block_compass-cal-warn) 45%, var(--block_compass-surface));
     background: color-mix(in oklab, var(--block_compass-cal-warn) 22%, var(--block_compass-surface));
+    color: var(--block_compass-cal-text);
 }
 
+/* The day's action: one short verb from this plugin's strings (CalendarCard.tsx actionLabel()), core's
+   whole name in the title and after the verb in the accessible name. The width is bounded both ways so
+   every row's button lines up and none takes the title's room; a verb that still does not fit is cut
+   with an ellipsis rather than wrapped. */
 .block_compass .compass-cal-action {
+    min-width: 4.5rem;
+    max-width: 8.5rem;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
@@ -2391,15 +2612,35 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     display: none;
 }
 
-/* Closed on a narrow block (the phone of the mockup): the band wraps into a block, the periods a
-   grid of equal cells with their short labels, each a 62 px target. */
+/* Closed on a narrow block (the phone of the mockup): the band wraps into a block. The title and the
+   calendar link share the first row; the text switch has its own, its two views halves of it (touch has
+   no hover for an icon's tooltip); then the cells: the grading cell a full-width row of its own over a
+   hairline, and the periods a grid of equal cells with their short labels, each a 62 px target. */
+.block_compass .compass-cal-closed.compass-cal-narrow .compass-cal-controls {
+    order: 1;
+}
+
+.block_compass .compass-cal-closed.compass-cal-narrow .compass-cal-seg {
+    flex: 1 1 100%;
+    order: 2;
+}
+
+.block_compass .compass-cal-closed.compass-cal-narrow .compass-cal-segbtn {
+    flex: 1 1 0;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-line {
+    flex: 1 1 100%;
+    flex-direction: column;
+    gap: 2px;
+    order: 3;
+}
+
 .block_compass .compass-cal-narrow .compass-cal-periods {
     display: grid;
     grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
-    flex-basis: 100%;
     gap: 2px;
-    order: 2;
 }
 
 .block_compass .compass-cal-narrow .compass-cal-period,
@@ -2410,14 +2651,21 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     padding: 4px;
 }
 
-.block_compass .compass-cal-narrow .compass-cal-plabel {
-    font-size: 0.72rem;
+.block_compass .compass-cal-narrow .compass-cal-queue {
+    align-items: flex-start;
+    width: 100%;
+    min-height: 3.5rem;
+    padding: 4px 10px;
 }
 
-.block_compass .compass-cal-narrow .compass-cal-lead,
-.block_compass .compass-cal-narrow .compass-cal-linenote {
-    flex-basis: 100%;
-    order: 3;
+.block_compass .compass-cal-narrow .compass-cal-qdiv {
+    width: auto;
+    height: 1px;
+    margin: 2px 4px;
+}
+
+.block_compass .compass-cal-narrow .compass-cal-plabel {
+    font-size: 0.72rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2432,10 +2680,33 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
  * Card and strip light each other (ADR-014 decision 9). Pointing at a tier 1 card rings the days
  * that hold its course and dims the rest; an open day outlines its courses' cards. The ring and
  * the outline carry the meaning, the dim only supports it, so colour is never the sole signal.
+ *
+ * The dim lowers the fills, never the text: no opacity (0.26 took a day's number to 1.5:1). In a
+ * dimmed column the heat and the ink are drawn towards the surface, the numbers and the weekday take
+ * the dim text (4.5:1 on every dimmed fill), the marks the muted colour (3:1), and the numbers lose
+ * their weight; today keeps its body-coloured number on a pale disc. The match days stay as they are.
  */
 .block_compass .compass-cal-col.compass-cal-col-dim {
-    opacity: 0.26;
-    transition: opacity 180ms;
+    --block_compass-cal-heat-1: var(--block_compass-cal-heat-1-dim);
+    --block_compass-cal-heat-2: var(--block_compass-cal-heat-2-dim);
+    --block_compass-cal-heat-3: var(--block_compass-cal-heat-3-dim);
+    --block_compass-cal-heat-4: var(--block_compass-cal-heat-4-dim);
+    --block_compass-cal-ink: var(--block_compass-cal-ink-dim);
+    --block_compass-cal-fg-on-ink: var(--block_compass-cal-fg-on-ink-dim);
+    --block_compass-cal-text: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-1: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-2: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-3: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-fg-on-heat-4: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-muted-on-heat-1: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-muted-on-heat-2: var(--block_compass-cal-fg-dim);
+    --block_compass-cal-accent: var(--block_compass-cal-mark-dim);
+    --block_compass-cal-danger: var(--block_compass-cal-mark-dim);
+    --block_compass-cal-ring: var(--block_compass-cal-ring-dim);
+}
+
+.block_compass .compass-cal-col.compass-cal-col-dim .compass-cal-disc:not(.compass-cal-today) {
+    font-weight: 400;
 }
 
 .block_compass .compass-cal-col.compass-cal-col-match .compass-cal-disc {
@@ -2453,10 +2724,6 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .block_compass .compass-cal-col.compass-cal-col-dim {
-        transition: none;
-    }
-
     .block_compass .compass-cal-col.compass-cal-col-match .compass-cal-disc {
         transform: none;
     }
