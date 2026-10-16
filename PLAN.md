@@ -6,7 +6,7 @@
 
 ## 1. Problema
 
-O `block_myoverview` organiza cursos por **tempo** (início/fim). Na Fundaseg a maioria dos
+O `block_myoverview` organiza cursos por **tempo** (início/fim). Na instituição para a qual foi desenhado, a maioria dos
 cursos não tem data de término nem regra de conclusão, então a classificação temporal
 degenera: tudo cai em "em andamento", o aluno escolhe "todos" com 96 cards por página e
 procura visualmente. Custo alto para o servidor (o web service de timeline carrega curso,

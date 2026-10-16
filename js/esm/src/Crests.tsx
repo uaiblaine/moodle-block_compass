@@ -14,7 +14,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * A course's institutional crests, as theme_boost_union_fundaseg's own course card draws them.
+ * A course's institutional crests, as the site theme's own course card draws them.
  *
  * A named list of images with the theme's alternative text, at most three, in two sizes: on a
  * card's cover, bottom-right, clear of the New badge (top-left) and the star (top-right); in a list

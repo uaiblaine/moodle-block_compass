@@ -24,7 +24,7 @@ only to **`docs/screenshots/tools/demo-credentials.txt`** (one `username passwor
 ignored by git, present only in the checkout that ran the seeder). Sign in at
 `http://localhost:9502/login/index.php`; while `auth_loginsteps` is enabled on the stack and asks
 for a CPF first, use `http://localhost:9502/login/index.php?nocpf=1`. The site theme is
-`boost_union_fundaseg`; the screenshots show Boost, which `session.php` puts in the session (any
+a Boost Union child theme; the screenshots show Boost, which `session.php` puts in the session (any
 session can do the same with `?theme=boost` while `allowthemechangeonurl` is on).
 
 Without a password, from a shell on the server:

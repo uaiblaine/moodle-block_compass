@@ -16,7 +16,7 @@
 /**
  * How many tracks tier 1's card grid gets, from the width the block has.
  *
- * The theme card's arithmetic (theme_boost_union_fundaseg, scss/category.scss): three tracks at
+ * The theme card's arithmetic (a Boost Union child theme's category.scss): three tracks at
  * its widest, two below 1200 px, one below 576 px, with a 16 px gap. Compass measures the block,
  * not the viewport, because the block may sit in a drawer or a narrow column, so the thresholds
  * are restated as track widths: the narrowest track the theme ever draws is its two-track one at

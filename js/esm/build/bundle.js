@@ -203,7 +203,7 @@ import{Fragment as ai,useCallback as sn,useEffect as ao,useRef as zo,useState as
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * A course's institutional crests, as theme_boost_union_fundaseg's own course card draws them.
+ * A course's institutional crests, as the site theme's own course card draws them.
  *
  * A named list of images with the theme's alternative text, at most three, in two sizes: on a
  * card's cover, bottom-right, clear of the New badge (top-left) and the star (top-right); in a list
@@ -550,7 +550,7 @@ import{Fragment as ai,useCallback as sn,useEffect as ao,useRef as zo,useState as
 /**
  * How many tracks tier 1's card grid gets, from the width the block has.
  *
- * The theme card's arithmetic (theme_boost_union_fundaseg, scss/category.scss): three tracks at
+ * The theme card's arithmetic (a Boost Union child theme's category.scss): three tracks at
  * its widest, two below 1200 px, one below 576 px, with a 16 px gap. Compass measures the block,
  * not the viewport, because the block may sit in a drawer or a narrow column, so the thresholds
  * are restated as track widths: the narrowest track the theme ever draws is its two-track one at

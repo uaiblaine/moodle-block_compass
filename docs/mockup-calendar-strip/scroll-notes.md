@@ -34,7 +34,7 @@ Labels used below:
 2. Smaller discs, so the dates breathe and the rings never touch.
 3. At most three marks under a day, then "+N", never overlapping. Today, a fifth item puts "+1"
    over the marks. Round 3 replaced this rule; see "Marks" under Spacing.
-4. Context only: the fundaseg theme will be discontinued, and work continues in the dimensions
+4. Context only: the institution's previous theme will be discontinued, and work continues in the dimensions
    plugins. No board draws theme crests, so nothing changes.
 5. Hover opens a day only when the day is wholly in view. Today, a day under a scroll arrow
    opens.

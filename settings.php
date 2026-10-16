@@ -117,8 +117,9 @@ if ($ADMIN->fulltree) {
         1
     ));
 
-    // The theme's crests: offered only while the theme is installed, the one place they come from.
-    if (\block_compass\local\theme_badges::theme_installed()) {
+    // The crests: offered only while some theme or plugin answers the course_badges hook, the one place
+    // they come from.
+    if (\block_compass\local\theme_badges::has_answerer()) {
         $settings->add(new admin_setting_configcheckbox(
             'block_compass/show_theme_badges',
             get_string('show_theme_badges', 'block_compass'),

@@ -696,7 +696,7 @@ Three stops, each a real one — the phase does not continue past a stop without
   override is one selector, `:root[data-bs-theme="dark"]`, anchored at the root because Boost
   Union sets the same attribute on its navbar alone. The fleet note is corrected.
 - **The driven pass** (2026-09-07, m502, the maintainer's own Dashboard — 12 enrolments, the
-  Fundaseg child of Boost Union, brand `#070093`), read through the browser's DOM rather than
+  institution's child theme of Boost Union, brand `#070093`), read through the browser's DOM rather than
   the eye, with the block's own controls driven by keyboard and script. Measured: the ladder
   renders `h3` (core) › `h4` ×3 › `h5` ×18 across both views; the archive control is
   27.5 × 24 px in the list and in the cards, the star 38 × 26; the summary and the row link

@@ -1,6 +1,6 @@
 import{jsx as s}from"react/jsx-runtime";var i=({badges:l,label:r,inline:a=!1})=>{if(!l||!l.length)return null;let t=l.map((e,o)=>s("li",{children:s("img",{src:e.url,alt:e.alt,loading:"lazy"})},`${o}-${e.url}`));return a?s("ul",{className:"compass-crests compass-crests-inline",role:"list","aria-label":r,children:t}):s("ul",{className:"compass-crests compass-crests-cover",role:"list","aria-label":r,children:t})},n=i;export{n as default};
 /**
- * A course's institutional crests, as theme_boost_union_fundaseg's own course card draws them.
+ * A course's institutional crests, as the site theme's own course card draws them.
  *
  * A named list of images with the theme's alternative text, at most three, in two sizes: on a
  * card's cover, bottom-right, clear of the New badge (top-left) and the star (top-right); in a list
