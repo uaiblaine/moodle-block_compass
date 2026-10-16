@@ -156,6 +156,9 @@ class get_strip extends external_api {
             $day['step'] = (int) $data['step'];
             $day['countstep'] = (int) $data['countstep'];
             $day['courseids'] = array_map('intval', $data['courseids']);
+            if ($teaching) {
+                $day['waitingcourseids'] = array_map('intval', $data['waitingcourseids'] ?? []);
+            }
             $days[] = $day;
         }
 
@@ -184,6 +187,12 @@ class get_strip extends external_api {
             new external_value(PARAM_INT, 'Course id'),
             'Courses with a shown item that day'
         );
+        if ($teaching) {
+            $day['waitingcourseids'] = new external_multiple_structure(
+                new external_value(PARAM_INT, 'Course id'),
+                'Courses with submissions waiting to be graded that day'
+            );
+        }
 
         return new external_single_structure([
             'days' => new external_multiple_structure(new external_single_structure($day), 'Days with items, by date'),

@@ -120,6 +120,7 @@ const periodsOf = /* @__PURE__ */ __name((days, view, today, past, grading) => {
     }
   });
   let waiting = 0;
+  const waitingcourseids = [];
   days.forEach((day) => {
     let key = "later";
     if (day.date < today) {
@@ -133,6 +134,11 @@ const periodsOf = /* @__PURE__ */ __name((days, view, today, past, grading) => {
     }
     if (grading && view === "teaching") {
       waiting += day.waiting ?? 0;
+      (day.waitingcourseids ?? []).forEach((id) => {
+        if (!waitingcourseids.includes(id)) {
+          waitingcourseids.push(id);
+        }
+      });
     }
     const period = periods.get(key);
     if (!period) {
@@ -151,7 +157,7 @@ const periodsOf = /* @__PURE__ */ __name((days, view, today, past, grading) => {
       }
     });
   });
-  return { periods: Array.from(periods.values()), waiting };
+  return { periods: Array.from(periods.values()), waiting, waitingcourseids };
 }, "periodsOf");
 const countsOf = /* @__PURE__ */ __name((payload, grading) => {
   const days = windowDays(payload.firstday, payload.today);

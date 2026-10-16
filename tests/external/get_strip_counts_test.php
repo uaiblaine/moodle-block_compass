@@ -124,7 +124,7 @@ final class get_strip_counts_test extends advanced_testcase {
         $data = $this->call();
         $clean = external_api::clean_returnvalue(get_strip_counts::execute_returns(), $data);
         $this->assertSame(self::TOP_KEYS, array_keys($clean));
-        $this->assertSame(['periods', 'waiting'], array_keys($clean['views']['learning']));
+        $this->assertSame(['periods', 'waiting', 'waitingcourseids'], array_keys($clean['views']['learning']));
         $period = $clean['views']['learning']['periods'][0];
         $this->assertSame(['key', 'count', 'step', 'countstep', 'courseids'], array_keys($period));
         $this->assertTrue($clean['enabled']);

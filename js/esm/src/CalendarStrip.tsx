@@ -61,7 +61,7 @@ import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'reac
 import type {CSSProperties, FocusEvent, HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode} from 'react';
 import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
-import CalendarLine, {summaryOf} from './CalendarLine';
+import CalendarLine, {LineNotes, summaryOf} from './CalendarLine';
 import RetryNotice from './RetryNotice';
 import {
     BOUND_KINDS, addDays, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit, fromPayload, homeIndex, itemKinds, kindsOf,
@@ -75,7 +75,7 @@ import {getDay, getStrip, getStripCounts, setCalendarPreference} from './reposit
 import {hold} from './pending';
 import {fill, fillCount, fillObject} from './str';
 import type {
-    BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, PeriodKey, StripCounts, StripPayload,
+    BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, LineTarget, StripCounts, StripPayload,
 } from './types';
 
 /** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
@@ -117,6 +117,13 @@ type CalendarStripProps = {
     // Told the course ids of the open day (empty when none is open), for the cards' outline.
     onOpenCourses: (courseids: number[]) => void,
 };
+
+/**
+ * The days a press on the closed line lit, until the row moves or a day is pressed: a period's span, its
+ * days holding work ringed and the days outside it dimmed; or, from the grading cell, only the days with
+ * grading work (only), every other day dimmed.
+ */
+type LitSpan = {from: string, to: string, only: string[] | null};
 
 /** What the scroll position says, kept in state only when it changes: the rest is painted directly. */
 type RowView = {
@@ -464,11 +471,19 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const [focusdate, setFocusdate] = useState<string | null>(null);
     // What the client holds of each day it asked for, keyed view:date.
     const [entries, setEntries] = useState<Record<string, DayEntry>>({});
-    // The first and last day of the period that opened the strip, lit until the row moves or a day
-    // is pressed; null otherwise.
-    const [litspan, setLitspan] = useState<[string, string] | null>(null);
-    // The courses of the period pointed at on the closed line, for the cards' outline; null for none.
+    // The days the press that opened the strip lit; null otherwise. See LitSpan.
+    const [litspan, setLitspan] = useState<LitSpan | null>(null);
+    // The courses of the cell pointed at on the closed line, for the cards' outline; null for none.
     const [periodcourses, setPeriodcourses] = useState<number[] | null>(null);
+    // Whether the closed line fits its head on one row at its periods' whole names, as last measured
+    // (see the measuring effect below); a line that does not moves its cells to a row of their own and
+    // shows the periods' short names.
+    const [fits, setFits] = useState(true);
+    // Bumped by the ResizeObserver, so a head or a line that changed size is measured again.
+    const [, setResized] = useState(0);
+    // Up after Escape, so the icon switch's tooltips hide until the pointer or the keyboard comes back
+    // to the switch (WCAG 1.4.13, dismissible).
+    const [tipsoff, setTipsoff] = useState(false);
     const stripseq = useRef(0);
     const countsseq = useRef(0);
     const dayseq = useRef(0);
@@ -478,8 +493,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const countsasked = useRef('');
     // Every preference write, numbered: a failed toggle is put back only while it is the last write.
     const writeseq = useRef(0);
-    // The period a press opened the strip on, until the row is there to show it.
-    const periodtarget = useRef<PeriodKey | null>(null);
+    // The period, or the grading cell, a press opened the strip on, until the row is there to show it.
+    const periodtarget = useRef<LineTarget | null>(null);
     // Whether the strip is open now, for an answer that lands after a toggle.
     const openref = useRef(open);
     openref.current = open;
@@ -523,6 +538,12 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     // The toggle, which holds the keyboard while a pressed period's row loads: the period's button
     // leaves the page with the closed line.
     const togglebutton = useRef<HTMLButtonElement>(null);
+    // The header, the elements the ResizeObserver watches, and the line's natural width as measured
+    // for what it drew (linekey below): what the head needs to hold the line on one row.
+    const headbox = useRef<HTMLDivElement>(null);
+    const sizer = useRef<ResizeObserver | null>(null);
+    const sized = useRef<Element[]>([]);
+    const measured = useRef({key: '', need: 0});
     // The pointer that last pressed a day: touch never prefetches (decision 9).
     const pointer = useRef('');
     const cardid = `${useId()}-day`;
@@ -559,6 +580,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const facts: ViewFacts | null = payload ?? linecounts;
     const drawn = drawnView(facts, view);
     const hasboth = !!facts && facts.haslearning && facts.hasteaching;
+    // What the closed line's natural width depends on: a change re-measures it from one row.
+    const linekey = [
+        drawn, hasboth, relevance, linecounts ? JSON.stringify(linecounts.views[drawn]) : 'loading', linecounts?.grading,
+    ].join('|');
 
     // The row, once the strip is open and tier 1 has settled, and again on Try again or on tier 1's
     // Try again while it has failed. A new payload starts a new memory of days.
@@ -1080,17 +1105,27 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     /**
      * What a period opens the strip on: its days, the day the keyboard lands on (its first day holding
      * work, the last for the past), and the first day in view: the window's start for Late, home when the
-     * day is wholly in view from there, else the day itself.
+     * day is wholly in view from there, else the day itself. The grading cell's: the days whose teaching
+     * waiting is above zero (only), the keyboard on the earliest, home unless that day is out of view
+     * from there; with none, home and today, nothing lit.
      *
-     * @param {string} key The period.
+     * @param {string} key The period, or grading.
      * @param {number} boxwidth The scroller's width.
      * @returns {object|null} The plan, null without a payload.
      */
-    const periodPlan = (key: PeriodKey, boxwidth: number) => {
+    const periodPlan = (key: LineTarget, boxwidth: number) => {
         if (!payload) {
             return null;
         }
         const which = drawnView(payload, view);
+        if (key === 'grading') {
+            const only = payload.views[which].days.filter((day) => (day.waiting ?? 0) > 0).map((day) => day.date);
+            const target = only.length > 0 ? only[0] : payload.today;
+            const index = daysBetween(payload.firstday, target);
+            const start = only.length > 0 && !whollyInView(index, row, home * row.pitch, boxwidth) ? index : home;
+
+            return {which, from: target, to: only.length > 0 ? only[only.length - 1] : target, target, start, only};
+        }
         const [from, to] = periodSpan(key, payload.firstday, payload.today, days[days.length - 1]);
         const held = payload.views[which].days
             .filter((day) => day.date >= from && day.date <= to && kindsOf(which).some((kind) => (day[kind] ?? 0) > 0))
@@ -1107,7 +1142,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             start = index;
         }
 
-        return {which, from, to, target, start};
+        return {which, from, to, target, start, only: null};
     };
 
     // Place the row before paint, never on a frame (a hidden tab runs none): home, or a period's days, for
@@ -1151,7 +1186,8 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         if (!plan) {
             return;
         }
-        setLitspan([plan.from, plan.to]);
+        // A grading press with no grading work lights nothing: no day would answer it.
+        setLitspan(plan.only !== null && plan.only.length === 0 ? null : {from: plan.from, to: plan.to, only: plan.only});
         focusQuietly(plan.target);
         if (key === 'today' || key === 'tomorrow') {
             setPinned(plan.target);
@@ -1184,8 +1220,71 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             window.clearTimeout(usertimer.current);
             window.cancelAnimationFrame(tick.current);
             scrollhold.current?.();
+            sizer.current?.disconnect();
         };
     }, []);
+
+    // Escape hides the icon switch's tooltips wherever the keyboard is, as a tooltip shown by hover must
+    // be dismissible without moving the pointer (WCAG 1.4.13); coming back to the switch shows them again.
+    useEffect(() => {
+        /**
+         * Hide the tooltips on Escape.
+         *
+         * @param {object} event The key event.
+         * @returns {void}
+         */
+        const onkey = (event: {key: string}): void => {
+            if (event.key === 'Escape') {
+                setTipsoff(true);
+            }
+        };
+        document.addEventListener('keydown', onkey);
+
+        return () => document.removeEventListener('keydown', onkey);
+    }, []);
+
+    // Whether the closed line fits its head on one row, measured before paint on every render, with no
+    // container query (the fleet's stylelint forbids @container). On one row nothing in the head wraps or
+    // shrinks (styles.css), so the sum of its children's widths and gaps is the line's natural width at
+    // the periods' whole names, kept as what the head needs; over the head's width, the cells move to a
+    // row of their own and the periods show their short names. Back on two rows, the kept need decides
+    // when one row fits again; a change of what the line draws (linekey) measures it from one row again.
+    // A ResizeObserver on the head and the line re-renders on a size change the block's width does not
+    // carry (the line's numbers, a web font arriving). A narrow block has its own layout and no measure.
+    useLayoutEffect(() => {
+        const head = headbox.current;
+        const line = head?.querySelector('.compass-cal-line') ?? null;
+        const watch = [head, line].filter((el): el is Element => el !== null);
+        if (typeof ResizeObserver !== 'undefined'
+            && (watch.length !== sized.current.length || watch.some((el, at) => el !== sized.current[at]))) {
+            sizer.current?.disconnect();
+            sizer.current = new ResizeObserver(() => setResized((count) => count + 1));
+            watch.forEach((el) => sizer.current?.observe(el));
+            sized.current = watch;
+        }
+        if (!head || !line || open || narrow) {
+            return;
+        }
+        if (measured.current.key !== linekey) {
+            measured.current = {key: linekey, need: 0};
+            if (!fits) {
+                setFits(true);
+                return;
+            }
+        }
+        const room = head.clientWidth;
+        if (fits) {
+            const gap = parseFloat(window.getComputedStyle(head).columnGap) || 0;
+            const children = Array.from(head.children);
+            const widths = children.reduce((sum, child) => sum + child.getBoundingClientRect().width, 0);
+            measured.current.need = Math.ceil(widths + gap * Math.max(0, children.length - 1));
+            if (measured.current.need > room) {
+                setFits(false);
+            }
+        } else if (measured.current.need > 0 && measured.current.need <= room) {
+            setFits(true);
+        }
+    });
 
     /**
      * Open or close the strip, and remember it at once. The write is optimistic: if it fails while it
@@ -1214,12 +1313,12 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     };
 
     /**
-     * A period of the closed line was pressed: open the strip on its days.
+     * A period, or the grading cell, of the closed line was pressed: open the strip on its days.
      *
-     * @param {string} key The period.
+     * @param {string} key The period, or grading.
      * @returns {void}
      */
-    const openPeriod = (key: PeriodKey): void => {
+    const openPeriod = (key: LineTarget): void => {
         periodtarget.current = key;
         togglebutton.current?.focus();
         setOpenRemembered(true);
@@ -1276,46 +1375,88 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         `compass-cal-style-${calendar.style}`,
         narrow ? 'compass-cal-narrow' : '',
         open ? 'compass-cal-isopen' : 'compass-cal-closed',
+        !open && !narrow && !fits ? 'compass-cal-tworow' : '',
     ].filter(Boolean).join(' ');
 
     /**
-     * The views switch, the filter (open only, with the row) and the calendar link, at the header's end.
+     * The studying and teaching switch, when the viewer has both. As text in the open strip and on a
+     * narrow block, where it has a row of its own and touch has no hover. As icons beside the title on
+     * the closed line: each button named by its view (cal_view_*, the word the text switch shows) and
+     * shown that word in a tooltip of the component's own, an aria-hidden child shown on :hover and
+     * :focus-visible and hidden by Escape (tipsoff), so it needs no binding of core's, whose tooltip
+     * loader binds only the nodes present at load, and no title, which would draw a second tooltip.
+     *
+     * @param {boolean} icons Whether the switch is drawn as icons.
+     * @returns {object|null} The rendered switch, or nothing.
+     */
+    const viewSwitch = (icons: boolean) => {
+        if (!hasboth) {
+            return null;
+        }
+        const views: [CalendarView, string, string][] = [
+            ['learning', strings.cal_view_learning, calendar.icons.learning],
+            ['teaching', strings.cal_view_teaching, calendar.icons.teaching],
+        ];
+        if (!icons) {
+            return (
+                <div className="compass-cal-seg" role="group" aria-label={strings.cal_views}>
+                    {views.map(([which, name, glyph]) => (
+                        <button
+                            key={which}
+                            type="button"
+                            className="compass-cal-segbtn"
+                            aria-pressed={drawn === which}
+                            onClick={() => chooseView(which)}
+                        >
+                            <span className="compass-cal-glyph" aria-hidden="true" dangerouslySetInnerHTML={{__html: glyph}} />
+                            {name}
+                        </button>
+                    ))}
+                </div>
+            );
+        }
+
+        return (
+            <div
+                className={tipsoff
+                    ? 'compass-cal-seg compass-cal-seg-icons compass-cal-tipsoff'
+                    : 'compass-cal-seg compass-cal-seg-icons'}
+                role="group"
+                aria-label={strings.cal_views}
+                onPointerEnter={() => setTipsoff(false)}
+                onFocus={() => setTipsoff(false)}
+            >
+                {views.map(([which, name, glyph]) => (
+                    <button
+                        key={which}
+                        type="button"
+                        className="compass-cal-segbtn"
+                        aria-pressed={drawn === which}
+                        aria-label={name}
+                        onClick={() => chooseView(which)}
+                    >
+                        <span
+                            className="compass-cal-glyph icon-no-margin"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: glyph}}
+                        />
+                        <span className="compass-cal-tip" aria-hidden="true">{name}</span>
+                    </button>
+                ))}
+            </div>
+        );
+    };
+
+    /**
+     * The views switch (open only: closed, it follows the title), the filter (open only, with the row)
+     * and the calendar link, at the header's end.
      *
      * @param {boolean} withfilter Whether the filter shows: the strip is open and its row is in.
      * @returns {object} The rendered controls.
      */
     const controls = (withfilter: boolean) => (
         <div className="compass-cal-controls">
-            {hasboth && (
-                <div className="compass-cal-seg" role="group" aria-label={strings.cal_views}>
-                    <button
-                        type="button"
-                        className="compass-cal-segbtn"
-                        aria-pressed={drawn === 'learning'}
-                        onClick={() => chooseView('learning')}
-                    >
-                        <span
-                            className="compass-cal-glyph"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.learning}}
-                        />
-                        {strings.cal_view_learning}
-                    </button>
-                    <button
-                        type="button"
-                        className="compass-cal-segbtn"
-                        aria-pressed={drawn === 'teaching'}
-                        onClick={() => chooseView('teaching')}
-                    >
-                        <span
-                            className="compass-cal-glyph"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: calendar.icons.teaching}}
-                        />
-                        {strings.cal_view_teaching}
-                    </button>
-                </div>
-            )}
+            {open && viewSwitch(false)}
             {withfilter && (
                 <div className="compass-cal-seg" role="group" aria-label={strings.cal_filters}>
                     {([['all', strings.cal_filter_all], ['todo', strings.cal_filter_todo], ['events', strings.cal_filter_events]] as
@@ -1345,14 +1486,15 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
 
     /**
      * The strip in every state: the same section and header, its toggle first, so a toggle keeps the
-     * keyboard on it across the shapes; then the state's own part of the header, the controls, the
+     * keyboard on it across the shapes; closed, the views switch beside it, before the counts it
+     * changes; then the state's own part of the header, the controls, the
      * row's region (empty and hidden while closed, so the toggle's aria-controls always names an
      * element) and the polite live region, there from the first paint.
      *
      * @param {object} middle The header's own part: the closed line, or the month and the arrows.
      * @param {boolean} withfilter Whether the filter shows.
      * @param {object|null} body The row's region's content.
-     * @param {object|null} after What follows the header while closed: the counts' notice.
+     * @param {object|null} after What follows the header while closed: the counts' notice, or the line's notes.
      * @param {object} handlers The section's pointer, key and focus handlers, open only.
      * @returns {object} The rendered strip.
      */
@@ -1364,7 +1506,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         handlers: HTMLAttributes<HTMLElement> = {}
     ) => (
         <section className={rootclass} aria-label={strings.cal_region} aria-busy={waiting || undefined} {...handlers}>
-            <div className="compass-cal-head">
+            <div className="compass-cal-head" ref={headbox}>
                 <Heading className="compass-cal-title h6 mb-0">
                     <button
                         type="button"
@@ -1394,6 +1536,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         {strings.cal_region}
                     </button>
                 </Heading>
+                {!open && viewSwitch(!narrow)}
                 {middle}
                 {controls(withfilter)}
             </div>
@@ -1414,7 +1557,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                 counts={linecounts}
                 view={drawn}
                 relevance={relevance}
-                narrow={narrow}
+                compact={narrow || !fits}
                 pointedCourse={pointedCourse}
                 onPeriod={openPeriod}
                 onPoint={setPeriodcourses}
@@ -1431,7 +1574,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         setCountsattempt((current) => current + 1);
                     }}
                 />
-            ) : null
+            ) : <LineNotes calendar={calendar} counts={linecounts} view={drawn} />
         );
     }
     if (!payload) {
@@ -1945,7 +2088,9 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                 const holds = !!bydate.get(date)?.courseids.includes(pointedCourse);
                                 lighting = holds ? 'compass-cal-col-match' : 'compass-cal-col-dim';
                             } else if (litspan !== null) {
-                                const inside = date >= litspan[0] && date <= litspan[1];
+                                const inside = litspan.only
+                                    ? litspan.only.includes(date)
+                                    : date >= litspan.from && date <= litspan.to;
                                 if (!inside) {
                                     lighting = 'compass-cal-col-dim';
                                 } else if (!nothing) {

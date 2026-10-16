@@ -272,6 +272,32 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
   costs the crests, never the first paint), and the listener, not the block, decides which
   courses the current user may see a crest for.
+- **Text that runs long has one system** (a Portuguese label is often twice its English one): a
+  name or line that can run long is clamped to two lines (`.compass-clamp`) or cut to one with an
+  ellipsis, and the element carries its whole text in `title` (`accessibility_rules_test` reads
+  every ellipsis rule's class and every clamp). A day's action shows a short verb of this plugin's
+  (`CalendarCard.tsx` `ACTION_VERBS` by module, Grade and View for the teaching kinds, core's name
+  when it fits 16 characters, else Open; every verb at most 12 characters in both languages), with
+  core's whole name as its `title` and after the verb in its accessible name (`cal_act_label`,
+  "{$a->action}: {$a->name}", WCAG 2.5.3); never core's HTML; the server names Grade with
+  `cal_act_grade`, never core's `gradeverb` ("Nota" in Portuguese). Action buttons are bounded (4.5 to
+  8.5 rem, one line); a failure notice wraps and keeps its two controls whole.
+- **The closed line** (ADR-014 amendment 13): the teaching view's grading cell exists only with the
+  ledger (`counts.grading`), outside the periods' list, named by a sentence that starts with its label,
+  lighting `waitingcourseids` (recorded per day by `strip::add()`, never the days' `courseids`); the
+  view switch is icons beside the title with an own `aria-hidden` tooltip (`:hover`, `:focus-visible`,
+  Escape), never core's Bootstrap tooltip and never a `title`, and keeps its words on a narrow block and
+  in the open strip. One row or the cells on a row of their own is measured in a layout effect (the
+  head's children summed while nothing wraps; a ResizeObserver; no `@container`), and the same flag
+  (`compact`) shows a period's `_short` twin, which is part of the whole name.
+- **A fill and its text are one pair** (ADR-014 amendment 13, contrast): every rule that fills a
+  background declares its paired foreground at equal or higher specificity than, and after, any
+  colour-only rule that could match the same element, or that rule carries a `:not()` guard for the
+  fill (today's ink first); a text colour comes from its background family's token
+  (`--block_compass-cal-fg-on-ink`, `-fg-on-heat-N`, `-muted-on-surface`, `-muted-on-heat-N`), never
+  a guess; a receding state (the lighting's dim, a disabled control) remaps fill and text tokens in
+  its scope and never uses opacity. `contrast_rules_test` holds the guard pairs and computes every
+  declared pair, light and dark, two brands: add a new fill there.
 - Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
   fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).

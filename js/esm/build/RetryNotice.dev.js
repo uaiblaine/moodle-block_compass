@@ -33,7 +33,7 @@ const RetryNotice = /* @__PURE__ */ __name(({ message, retrying, config, onRetry
     target?.focus();
   }, []);
   return /* @__PURE__ */ jsxDEV("div", { className: "alert alert-warning compass-error compass-retry", role: "alert", children: [
-    /* @__PURE__ */ jsxDEV("span", { children: message }, void 0, false, {
+    /* @__PURE__ */ jsxDEV("span", { className: "compass-retry-message", children: message }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/RetryNotice.tsx",
       lineNumber: 80,
       columnNumber: 13
