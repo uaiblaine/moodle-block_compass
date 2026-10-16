@@ -150,8 +150,9 @@ not supported: the client is React, which core builds and serves from 5.2 on.
 - PHP's `intl` extension, which Moodle itself requires.
 - Recommended: a shared in-memory cache store, Redis by preference (see *Cache stores*).
 - Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
-  `block_feedback_tracker` for the academic calendar of the strip; the Boost Union FUNDASEG
-  theme for the institutional crests on cards.
+  `block_feedback_tracker` for the academic calendar of the strip; a theme or plugin that answers
+  the block's `course_badges` hook for the institutional crests on cards (*Course crests*, under
+  *Configuration*).
 
 
 Installation
@@ -204,7 +205,7 @@ Configuration
 | `default_view` | list | The view of *All courses* for a user who never chose (list or cards). |
 | `hide_block_title` | off | Render the block without its title; the headings move one level up. |
 | `show_category` | on | The category line above the course name on cards. |
-| `show_theme_badges` | on | Institutional crests on cards; offered only while the Boost Union FUNDASEG theme is installed. |
+| `show_theme_badges` | on | Institutional crests on cards; offered only while a theme or plugin answers the `course_badges` hook. |
 | `enable_page` | off | The Compass page and its offer as a start page. |
 | `hide_page_title` | off | Hide the Compass page's heading from sight, keeping it for screen readers. |
 | `filter_fields` | none | Course custom fields offered as filter chips: *Dropdown menu* and *Checkbox* fields visible to everyone, at most 3. |
@@ -255,6 +256,33 @@ add a Redis store instance, then use *Edit mappings* on each Compass definition,
 store as the default application store. The block works without it, but every web node then
 rebuilds each user's caches in its own file store, and performance on a large site degrades
 severely. The settings page repeats this notice.
+
+**Course crests**
+
+Compass names no theme. To draw a course's institutional crests it dispatches its own hook,
+`\block_compass\hook\course_badges`, once per response with the ids of the courses it is
+about to draw, and any theme or plugin answers from its `db/hooks.php`:
+
+```php
+// db/hooks.php of the answering component.
+$callbacks = [
+    [
+        'hook' => \block_compass\hook\course_badges::class,
+        'callback' => \theme_example\hook_callbacks::class . '::course_badges',
+    ],
+];
+
+// classes/hook_callbacks.php: answer only for courses the current user may see.
+public static function course_badges(\block_compass\hook\course_badges $hook): void {
+    foreach (my_crests_for_the_viewer($hook->get_courseids()) as $courseid => $crests) {
+        $hook->add_badges($courseid, $crests); // A list of ['url' => string, 'alt' => string].
+    }
+}
+```
+
+The answering component decides which courses the current user may see a crest for; Compass
+keeps at most three a course and ignores an answer for a course it did not ask about. The
+contract is the hook class's docblock and ADR-013 decision 9, amended 2026-10-16.
 
 
 Capabilities
@@ -359,7 +387,7 @@ Credits
 -------
 
 The shape of a shell block rendered in the browser follows the sibling plugin
-`block_dimensions`; the three-tier reading of "my courses" was designed for Fundaseg.
+`block_dimensions`.
 
 
 License

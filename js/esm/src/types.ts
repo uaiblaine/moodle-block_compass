@@ -26,7 +26,7 @@
  */
 
 /**
- * One of a course's institutional crests, from theme_boost_union_fundaseg's callback.
+ * One of a course's institutional crests, from the block's course_badges hook.
  *
  * The URL carries the file's content hash and the alternative text is the theme's; Compass
  * builds neither. A course without crests carries no badges key at all.

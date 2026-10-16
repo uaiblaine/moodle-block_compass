@@ -170,7 +170,7 @@ the one page where no check is needed, because the page is the block.
     the theme's `removedprimarynavitems` (`lib/classes/output/theme_config.php:430,508`), which
     core Boost exposes no setting for; Boost Union does ("Hide nodes in primary navigation",
     `settings.php:3947-3989`, read in its own `config.php:233-234`) — and **it already applies on
-    `theme_boost_union_fundaseg`**: that theme's `config.php:35` is
+    a Boost Union child theme**: that theme's `config.php:35` is
     `require($CFG->dirroot . '/theme/boost_union/config.php')`, `find_theme_config()` loads a
     theme's config with a bare `include("$THEME->dir/config.php")` (`theme_config.php:2111`), so
     Boost Union's assignment lands on the same `$THEME` the constructor then copies the property
@@ -404,7 +404,7 @@ arriving later.
   `lib/classes/output/theme_config.php:430, 486-515, 508, 2097-2131`,
   `moodle-dev/deps/moodle-theme_boost_union-502/settings.php:3947-3989`, its `lib.php:38-42`,
   `config.php:59-62, 66-118, 233-234` and `layout/drawers.php`;
-  `theme_boost_union_fundaseg/config.php:35, 41-51`; `lib/classes/output/theme_config.php:2111,
+  the child theme's `config.php:35, 41-51`; `lib/classes/output/theme_config.php:2111,
   508, 511-515` (facts 7 and 15); the user-context header:
   `lib/classes/output/core_renderer.php:4151-4189, 4257, 4326`,
   `theme/boost/classes/output/core_renderer.php:91-129`, `lib/templates/context_header.mustache:47-74`,

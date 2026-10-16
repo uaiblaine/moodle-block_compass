@@ -2,8 +2,9 @@
 
 **Status:** Accepted (2026-10-07; the maintainer's decisions of 2026-10-06, recorded in
 `moodle-dev/docs/enrolment-status-matrix/decisions.md`, "Owner answers, 2026-10-06", and D6);
-amended 2026-10-08 (the maintainer's reversal of D6 for tier 1: a Starts-soon strip, the last
-section of this record)
+amended 2026-10-08 (the maintainer's reversal of D6 for tier 1: a Starts-soon strip) and
+2026-10-16 on `main` and `MOODLE_502_STABLE` (decision 9: the crests come from the block's own hook, not
+from a named theme); both amendments close this record
 **Date:** 2026-10-07
 **Phase:** Stage 5d of the fleet's enrolment-status work, in three stacked pull requests
 **Supersedes:** ADR-000 decision 14 **for tier 3** and, since the 2026-10-08 amendment, **for
@@ -129,7 +130,7 @@ waiting list* (list) — the theme's wording, families and Font Awesome icons. E
 whole literal class; the colours are Compass's own tokens chained to Bootstrap's subtle pairs,
 with the theme's measured pairs as fallbacks and the body colour as the dark text:
 
-| Pair | Boost 5.2, light | Boost 5.2, dark | theme_boost_union_fundaseg, light | fundaseg, dark | fallbacks, light / dark |
+| Pair | Boost 5.2, light | Boost 5.2, dark | institution child theme, light | institution child theme, dark | fallbacks, light / dark |
 |---|---|---|---|---|---|
 | scheduled | `#062b4c` on `#cfe2f2` 10.85 | `#dee2e6` on `#031626` 14.06 | `#03003b` on `#cdcce9` 12.57 | `#dee2e6` on `#01001d` 15.83 | 14.53 / 11.47 |
 | awaiting | `#60451f` on `#fcefdc` 7.82 | `#dee2e6` on `#302310` 11.74 | the same | the same | 7.82 / 10.43 |
@@ -176,9 +177,13 @@ since R4: tier 3's "No completion configured" never reached a teacher until this
 
 ### 9. The theme's crests, through its one public door
 
-With `theme_boost_union_fundaseg` installed, tier 1 cards and tier 3 cards and rows show the
+*Amended 2026-10-16: the crests come from the block's own hook; see the
+last section of this record. The text below is the original design, kept as the record of what
+the amendment replaced.*
+
+With a theme answering the hook installed (the institution's Boost Union child), tier 1 cards and tier 3 cards and rows show the
 course's institutional crests (at most three), read only through
-`component_callback('theme_boost_union_fundaseg', 'course_badges', [$courseids], [])` — one
+`component_callback('<theme component>', 'course_badges', [$courseids], [])` — one
 batched call per response, no `class_exists`, no dependency, never the theme's classes — which
 applies the theme's own viewer rule. A setting shown only while the theme is installed switches
 them, on for new installs and off on upgrade.
@@ -219,7 +224,7 @@ test of the theme's real answer runs only where the theme is installed (m502).
   5.2 checkout.
 - Tokens: `--bs-primary-bg-subtle`, `--bs-primary-text-emphasis`, `--bs-warning-bg-subtle`,
   `--bs-warning-text-emphasis`, `--bs-body-color` in the sheets m502 serves for `boost` and
-  `boost_union_fundaseg`; ratios by the WCAG formula.
+  the institution's Boost Union child theme; ratios by the WCAG formula.
 - Tests: `relationship_test` (both parity checks), `inventory_test` (the three populations and
   their order), `explore_test` (the Scheduled and the awaiting rows), `attention_test` (the
   situations statement, its bound and the drop pin), `get_attention_test` (the counts and the
@@ -289,3 +294,61 @@ test of the theme's real answer runs only where the theme is installed (m502).
   `get_attention_test::test_a_learner_whose_courses_start_later_gets_the_strip_soonest_first_and_capped`,
   `get_attention_test::test_the_starts_soon_strip_adds_no_read_to_the_first_paint`,
   `cards_test::test_a_starts_soon_card_carries_its_start_and_nothing_an_active_card_does`.
+
+## Amendment (2026-10-16, `main` and `MOODLE_502_STABLE`; first made on 2026-10-14 on `MOODLE_503_STABLE`): the crests through the block's own hook
+
+**Decided by** the maintainer on 2026-10-14 and 2026-10-16: the institution's previous theme is discontinued and its
+successor, `theme_dimensions`, answers the same question; no plugin is to name a
+theme again. **Amends** decision 9 on every branch (5.2 and 5.3). Decision 9's bounds, cleaning, setting, return structure and one-call-per-response
+rule stand.
+
+### Decision
+
+1. **A hook the block owns**, `\block_compass\hook\course_badges` (`classes/hook/course_badges.php`,
+   with core's `label` and `tags` attributes, so it shows on *Hooks overview*). Its input is
+   read-only: the course ids the block is about to draw, positive integers, each once
+   (`get_courseids()`). A listener answers with `add_badges(int $courseid, array $badges)`, a
+   list of `['url' => string, 'alt' => string]` in display order, the shape decision 9's callback
+   returned; `get_badges()` gives course id => badges. An answer for an id the block did not ask
+   for is dropped; two listeners answering the same course add up in core's call order.
+2. **`local\theme_badges::for_courses()` keeps its signature** and dispatches the hook through
+   `\core\di::get(\core\hook\manager::class)->dispatch()` instead of `component_callback()`.
+   The theme's name, the constant that held it and the component-list check are gone. The
+   dispatch catches `\Throwable`: core's `dispatch()` has none, and a listener's failure must cost
+   the response its crests, not its first paint (a `debugging()` line tells the developer).
+3. **The setting is offered while something answers**: `theme_badges::has_answerer()` asks the
+   hook manager for an enabled callback, replacing `theme_installed()`. A callback disabled
+   through `$CFG->hooks_callback_overrides` does not count.
+4. **The viewer rule is the answerer's.** The hook's docblock states it: answer only for courses
+   the current user may see, never trusting the list to be filtered for it. The block passes only
+   the ids it draws, already filtered for this user. `theme_dimensions` keeps the rule through
+   `publicfiles::viewer_may_see_many()`, the MDL Shield finding that must not regress. The
+   listener also writes nothing to `$SESSION` (the services run with a read-only session) and
+   checks its plugin is installed, since core lists `db/hooks.php` from disk.
+
+### Consequences
+
+- Any theme or plugin can give Compass crests, and a site with several answering components gets
+  them all, still bounded at three a course.
+- The answering theme moves its callback from `lib.php`'s `<theme>_course_badges()` to a hook
+  callback in its `db/hooks.php`. Until it does, a site shows no crests and no setting.
+- The privacy position is unchanged: no tables, no personal data; the hook carries course ids
+  only.
+- The crest tests no longer skip on a stack without a theme: they replace core's hook manager
+  with `manager::phpunit_get_instance()` over a fixture listener (`tests/fixtures/`), so the
+  real dispatch path runs in CI.
+
+### Evidence
+
+- Core's hook manager (5.2 and 5.3): `public/lib/classes/hook/manager.php`, `dispatch()` (no try/catch,
+  returns at once with no listener) and `get_callbacks_for_hook()` (the `disabled` flag).
+- Tests: `theme_badges_test::test_with_no_listener_there_is_nothing_and_no_read`,
+  `theme_badges_test::test_a_listener_answers_for_the_asked_ids_only`,
+  `theme_badges_test::test_a_failing_listener_answers_nothing_and_is_reported`,
+  `theme_badges_test::test_a_disabled_listener_is_not_an_answerer`,
+  `course_badges_test` (the hook alone),
+  `cards_test::test_the_hook_answer_reaches_a_detail_in_the_shape_the_client_draws`.
+- Rejected: keeping `component_callback()` with a list of theme names (every successor theme is a
+  code change here); a callback named after the current theme (`component_callback()` over the
+  `theme` plugin type), which still lets only themes answer and still throws for a component that
+  is not installed.

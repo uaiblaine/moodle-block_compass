@@ -22,7 +22,7 @@
     --block_compass-control-line: var(--bs-gray-600, #6a737b);
     --block_compass-muted: var(--bs-secondary-color, #6a737b);
     --block_compass-surface: var(--bs-body-bg, #fff);
-    /* The state pills' two families, the theme card's (theme_boost_union_fundaseg): a later start
+    /* The state pills' two families, the theme card's (a Boost Union child theme): a later start
        in the primary's subtle pair, an application in the warning's. The fallbacks are the
        theme's own measured pairs, 14.53:1 and 7.82:1; Boost 5.2 serves 10.85:1 and 7.82:1. */
     --block_compass-scheduled-bg: var(--bs-primary-bg-subtle, #edeefb);

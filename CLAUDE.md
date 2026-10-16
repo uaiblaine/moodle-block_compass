@@ -169,6 +169,7 @@ classes/local/calendar/    the strip (ADR-014): strip (window, counted statement
                            block_feedback_tracker's calendar in one statement)
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
+classes/hook/course_badges.php the block's own hook, dispatched by local/theme_badges: course ids in, crests out
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, Platter, RowList, Row,
                            RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, calendar,
@@ -275,9 +276,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   in the open strip. One row or the cells on a row of their own is measured in a layout effect (the
   head's children summed while nothing wraps; a ResizeObserver; no `@container`), and the same flag
   (`compact`) shows a period's `_short` twin, which is part of the whole name.
-- **The theme's crests go through `classes/local/theme_badges.php` only**: it asks core's
-  component list before `component_callback()`, which throws for a component that is not
-  installed (it broke every first paint on a site without the theme once).
+- **The crests go through `classes/local/theme_badges.php` only**, which dispatches the block's
+  own hook, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-16): no
+  plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
+  costs the crests, never the first paint), and the listener, not the block, decides which
+  courses the current user may see a crest for.
 - **A fill and its text are one pair** (ADR-014 amendment 13, contrast): every rule that fills a
   background declares its paired foreground at equal or higher specificity than, and after, any
   colour-only rule that could match the same element, or that rule carries a `:not()` guard for the

@@ -20,9 +20,19 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042004) - unreleased
+## v5.2-r1 (2026042005) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
+
+### Changed
+
+- The institutional crests on cards come from the block's own hook,
+  `\block_compass\hook\course_badges`, which any theme or plugin answers from its `db/hooks.php`;
+  the block no longer names a theme (ADR-013, amendment of 2026-10-16). The answering component
+  decides which courses the current user may see a crest for, the block keeps at most three a
+  course and ignores answers for courses it did not ask about, and a listener that fails costs
+  the crests, never the page. The *Show the theme's institutional badges* setting is offered
+  while something answers the hook, and its description no longer names a theme.
 
 ### Added
 
@@ -53,7 +63,7 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
   and the search runs on the server.
 - The view, the sort, the chips and the open filter panel are remembered for each user.
 - "No completion configured" is said to teachers only.
-- With the Boost Union FUNDASEG theme, cards and rows show the course's institutional crests.
+- With a theme answering the `course_badges` hook, cards and rows show the course's institutional crests.
 - A failed read retries itself, then offers *Try again* and *Reload page*. There is no
   permanent reload control: the way back appears only once a load has failed.
 
@@ -151,5 +161,5 @@ php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
 
-A site that installed `2026042000` to `2026042003` from this branch upgrades to `2026042004` in
+A site that installed `2026042000` to `2026042004` from this branch upgrades to `2026042005` in
 place.

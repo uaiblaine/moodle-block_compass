@@ -1241,7 +1241,7 @@ final class accessibility_rules_test extends basic_testcase {
      * A tier 1 card has the theme card's anatomy, and the ghost stretches to its row.
      *
      * ADR-013 decision 7: a 150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600,
-     * the meta line at .8125rem - the theme card's numbers (theme_boost_union_fundaseg) - and a
+     * the meta line at .8125rem - the theme card's numbers (a Boost Union child theme) - and a
      * grid item that lets the ghost take its row's height. Each is read out of its own rule,
      * because nothing else measures a size.
      *
