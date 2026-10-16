@@ -50,6 +50,15 @@ COMPASS_SESSIONS=/path/sessions.json node capture.mjs        # every shot but ri
 python3 finish.py
 ```
 
+Each shot puts the strip in the state it needs (open or closed) by pressing the heading's toggle,
+which writes the user's `block_compass_calendar` preference, and waits for that state's data: the
+open row's days, or the closed line's counts. Note each demo user's `open` value before a run and
+restore it afterwards. The shots are `dashboard`, `strip` (open, student), `card`, `teaching`
+(open, a day with submissions to grade pinned), `line` (closed, student), `lineteaching` (closed,
+teacher; written only when the *To grade* cell is there, which needs the feedback_tracker ledger to
+cover his courses), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, `explore`, `page`,
+`mobile` and `settings`, plus `ring` and `pulse`.
+
 Node 22 or later (global `WebSocket`), Google Chrome at its macOS path or `CHROME_BIN`. The card
 opens on tomorrow, the richest day of the seeded data. The texts that depend on the clock ("Last
 access 2 hours ago", the month in the header) change with the day of the capture.

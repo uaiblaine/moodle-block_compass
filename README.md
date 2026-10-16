@@ -14,9 +14,9 @@ most courses have no end date and no completion rule, that turns into one long "
 list, expensive to build and hard to scan. Compass sorts the same enrolments by **relevance**:
 what I was doing, what just arrived, what I marked as mine, and what is due.
 
-- **Calendar strip** (optional). A row of days, from ten days ago to the end of next month,
-  each coloured by what it holds and weighted by relevance. Pointing at a day opens its items
-  with the actions the Timeline block offers.
+- **Calendar strip** (optional). Closed, one line of counts by period; open, a scrolling row of
+  days, from ten days ago to the end of next month (it opens on the last five, three on a
+  phone), each coloured by what it holds and weighted by relevance. Pointing at a day opens its items with the actions the Timeline block offers.
 - **Tier 1, attention.** Full cards (image, progress, button) in four strips: *Continue where
   you left off*, *New enrolments*, *Starts soon* and *My favourites*. A strip that overflows
   says so in its heading ("+4 new").
@@ -36,7 +36,7 @@ a query budget enforced by an automated test.
 The calendar strip
 ------------------
 
-![The calendar strip above the first tier: days coloured by load, today marked, dots counting each day's items by kind](docs/screenshots/calendar-strip.png)
+![The open calendar strip: a scrolling row of days coloured by load with five past days, today marked, floating arrows over the row's ends, a map under it and one mark per kind of item below each day](docs/screenshots/calendar-strip.png)
 
 The strip is off by default (`calendar_enabled`). When on, it sits above the first tier on the
 Dashboard, on the Compass page, or on both (`calendar_where`), and loads after the first tier so
@@ -49,6 +49,8 @@ the cards always paint first.
   its days, and Today and Tomorrow also open that day's card. A closed strip asks only for these
   counts, never for the whole strip; closing an open strip asks nothing. A count made before the
   strip was opened that day has no *Late* period yet and says so.
+
+  ![The closed strip: one line of counts for Late, Today, Tomorrow, This week and Later](docs/screenshots/calendar-line.png)
 - **Scrolling.** The row holds the whole window and scrolls with a trackpad, touch or the
   keyboard (arrows, Page Up and Down, Home and End), asking the server nothing. It opens with five
   past days before today (three on a narrow block); two arrows over its ends move two weeks at a
@@ -61,29 +63,35 @@ the cards always paint first.
   value.
 - **A day card.** Hovering a day wholly in view, focusing it or clicking it opens a card listing
   the day's items, with the buttons core's Timeline offers, such as "Add submission". A click
-  pins the card as a dialog; Escape closes it. On a narrow block it opens as a bottom sheet.
+  pins the card as a dialog; Escape closes it. On a narrow block it opens as a bottom sheet. Each
+  item's button carries a short verb for what core's Timeline would do: Submit, Answer, Attempt,
+  Grade, View or Open.
 
-  ![A day card open over the course cards: the day's items with core's action buttons](docs/screenshots/calendar-day-card.png)
+  ![A day card open over the course cards: the day's items with their action buttons (Attempt, Submit, View)](docs/screenshots/calendar-day-card.png)
 
 - **Studying and Teaching.** A user who learns in some courses and teaches in others gets a
   switch between the two views; which courses are learning ones follows the site's graded roles
   (`gradebookroles`). The teaching view counts the submissions waiting to be graded, in the same
   group core's grading page shows that teacher first, beside the class's deadlines. An
   *Everything* / *To do* / *Events* filter narrows either view. Both choices are remembered per
-  user. Closed, the teaching line counts grading work only with `block_feedback_tracker` (below);
-  without it, it counts the class's deadlines and events, and grading shows once it is open.
+  user. Closed, the teaching line counts grading work only with `block_feedback_tracker` (below),
+  as a *To grade* cell before the periods; without it, it counts the class's deadlines and
+  events, and grading shows once it is open. The switch is two icons (Studying, Teaching) where
+  the header is narrow.
 
-  ![The Teaching view of the strip: days carrying grading work, and a day card listing the submissions waiting to be graded](docs/screenshots/calendar-teaching.png)
+  ![The Teaching view of the strip, open: days carrying grading work, and a day card with the submissions waiting to be graded and the Grade button](docs/screenshots/calendar-teaching.png)
+
+  ![The teaching line, closed: the To grade cell, a divider, then Overdue, Today, Tomorrow, Week and Later](docs/screenshots/calendar-line-teaching.png)
 
 - **Three styles** (`calendar_style`): dots, a ring per day (fewer days at once), or pulse bars.
 
-  ![The same days drawn in the ring and pulse styles, side by side](docs/screenshots/calendar-styles.png)
+  ![The same row drawn in the ring and pulse styles, side by side](docs/screenshots/calendar-styles.png)
 
   The pulse style draws each day's load as a bar, red where late work is still open:
 
-  ![The pulse style: a bar per day sized by its load, red bars on days with late work still open, weekends and a recess hatched](docs/screenshots/calendar-pulse.png)
+  ![The pulse style: a bar per day sized by its load, red bars on days with late work still open, hatched weekends under the day names](docs/screenshots/calendar-pulse.png)
 
-  ![The pulse style with a day card pinned: two graded quizzes due tomorrow, a submission to do and two events](docs/screenshots/calendar-pulse-card.png)
+  ![The pulse style with a day card pinned: two graded quizzes due tomorrow, a submission to do and events](docs/screenshots/calendar-pulse-card.png)
 
 - **Weekends and days off.** Empty weekend days are hatched. With
   [`block_feedback_tracker`](https://github.com/uaiblaine/moodle-block_feedback_tracker)
@@ -93,11 +101,14 @@ the cards always paint first.
   an activity that will close) is announced as "up to N" until the day is opened. Only
   activities the user can see are counted, and hidden and completed courses are left out.
 - **Linked to the cards.** Pointing at a first-tier card lights the days that hold its course;
-  opening a day outlines the cards of its courses.
+  opening a day outlines the cards of its courses. While a card is pointed at, the days that do
+  not hold its course dim their fills; their numbers stay legible.
+
+  ![Pointing at a course card: its days are ringed, the other days dim](docs/screenshots/calendar-dim.png)
 - **Readable everywhere.** Month, weekday and time names come from the language pack, and every
   mark keeps its contrast in dark mode.
 
-  ![The calendar strip and the course cards in dark mode](docs/screenshots/calendar-dark.png)
+  ![The open strip with a day card pinned, in dark mode](docs/screenshots/calendar-dark.png)
 
 
 All courses and the Compass page
@@ -125,7 +136,7 @@ theme's page without block regions. While it is on, "Compass" is offered under *
 administration > Appearance > Navigation > Start page for users* and in each user's home page
 preference. Off, the page redirects to the Dashboard. Guests are sent to the front page.
 
-![Compass on a phone: a short calendar strip above the course cards in a single column](docs/screenshots/mobile.png)
+![Compass on a phone: the strip with three past days and a peek of the next, and a day card as a bottom sheet](docs/screenshots/mobile.png)
 
 The cards count their columns from the block's own width (three, two or one), so the block works
 in the block drawer and on a phone as well as on a wide Dashboard.
