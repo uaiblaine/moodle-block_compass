@@ -1,8 +1,8 @@
 # Screenshot tools
 
 How the pictures in `docs/screenshots/` are made, and how to use the demo site they come from.
-Development sites only; written for the m502b stack (`http://localhost:9502`, container
-`m502b-webserver-1`, plugin at `/var/www/html/public/blocks/compass`).
+Development sites only; written for the m503 stack (`http://localhost:8503`, container
+`m503-webserver-1`, plugin at `/var/www/html/public/blocks/compass`).
 
 | File | What it does |
 |---|---|
@@ -22,33 +22,42 @@ learner in two courses), plus eight classmates `demo.priya`, `demo.marcus`, `dem
 Their passwords were generated at random by the first run of `seed_demo.php` and are written
 only to **`docs/screenshots/tools/demo-credentials.txt`** (one `username password` per line,
 ignored by git, present only in the checkout that ran the seeder). Sign in at
-`http://localhost:9502/login/index.php`; while `auth_loginsteps` is enabled on the stack and asks
-for a CPF first, use `http://localhost:9502/login/index.php?nocpf=1`. The site theme is
+`http://localhost:8503/login/index.php`; while `auth_loginsteps` is enabled on the stack and asks
+for a CPF first, use `http://localhost:8503/login/index.php?nocpf=1`. The site theme is
 a Boost Union child theme; the screenshots show Boost, which `session.php` puts in the session (any
 session can do the same with `?theme=boost` while `allowthemechangeonurl` is on).
 
 Without a password, from a shell on the server:
 
 ```sh
-docker exec m502b-webserver-1 php /var/www/html/public/blocks/compass/docs/screenshots/tools/session.php --username=demo.student
-# prints MoodleSession502b=<sid>: set it as a cookie for localhost:9502; end it afterwards with
-docker exec m502b-webserver-1 php /var/www/html/public/blocks/compass/docs/screenshots/tools/session.php --destroy=<sid>
+docker exec m503-webserver-1 php /var/www/html/public/blocks/compass/docs/screenshots/tools/session.php --username=demo.student
+# prints MoodleSession503=<sid>: set it as a cookie for localhost:8503; end it afterwards with
+docker exec m503-webserver-1 php /var/www/html/public/blocks/compass/docs/screenshots/tools/session.php --destroy=<sid>
 ```
 
 ## Taking the screenshots again
 
 ```sh
 T=/var/www/html/public/blocks/compass/docs/screenshots/tools
-docker exec m502b-webserver-1 php $T/seed_demo.php           # refresh the dates
-docker exec m502b-webserver-1 php $T/holidays.php --add      # if holidays-state.json is absent
+docker exec m503-webserver-1 php $T/seed_demo.php           # refresh the dates
+docker exec m503-webserver-1 php $T/holidays.php --add      # only where block_feedback_tracker is installed (not on m503)
 # block_compass settings the strip needs: calendar_enabled=1, calendar_sources with "user"
 # One cookie per user, in a JSON file outside the repository:
-#   {"demo.student": "MoodleSession502b=...", "demo.teacher": "...", "admin": "..."}
+#   {"demo.student": "MoodleSession503=...", "demo.teacher": "...", "admin": "..."}
 COMPASS_SESSIONS=/path/sessions.json node capture.mjs        # every shot but ring and pulse
 # calendar_style=ring: node capture.mjs ring; calendar_style=pulse: node capture.mjs pulse (also calendar-pulse.png and calendar-pulse-card.png);
 # calendar_style back to dots
 python3 finish.py
 ```
+
+Each shot puts the strip in the state it needs (open or closed) by pressing the heading's toggle,
+which writes the user's `block_compass_calendar` preference, and waits for that state's data: the
+open row's days, or the closed line's counts. Note each demo user's `open` value before a run and
+restore it afterwards. The shots are `dashboard`, `strip` (open, student), `card`, `teaching`
+(open, a day with submissions to grade pinned), `line` (closed, student), `lineteaching` (closed,
+teacher; the *To grade* cell is there only with block_feedback_tracker, which m503 lacks, so the shot
+shows the line without it and prints a NOTE), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, `explore`, `page`,
+`mobile` and `settings`, plus `ring` and `pulse`.
 
 Node 22 or later (global `WebSocket`), Google Chrome at its macOS path or `CHROME_BIN`. The card
 opens on tomorrow, the richest day of the seeded data. The texts that depend on the clock ("Last
