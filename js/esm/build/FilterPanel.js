@@ -1,16 +1,18 @@
-import{useId as $}from"react";import v from"./Platter";import{jsx as l,jsxs as c}from"react/jsx-runtime";var B=({id:P,hidden:k,config:p,chip:d,fields:F,selection:n,searching:N,facets:a,onChip:C,onSelect:I,onClear:_})=>{let{labels:s}=p,u=$(),m=`${u}-status`,i=[["all",s.chip_all],["new",s.chip_new],["favourites",s.chip_favourites]];p.pendingenabled&&i.push(["pending",s.chip_pending]),i.push(["scheduled",s.chip_scheduled]);let b=e=>e.pressed||e.count===null||e.count===void 0||e.count>0,w=i.map(([e,r])=>({key:e,label:r,count:e==="all"||a.status===null?null:a.status[e]??0,pressed:d===e})).filter(b),o=(d!=="all"?1:0)+Object.keys(n).length+(N?1:0);return c("div",{id:P,className:"compass-fpanel",hidden:k,children:[c("div",{className:"compass-chipgroup",children:[l("span",{className:"compass-chiplabel",id:m,children:s.status}),l(v,{items:w,onPress:C,labelledby:m})]}),F.map((e,r)=>{let g=`${u}-field-${r}`,h=a.fields?.get(e.key)??null,y=e.values.map(t=>({key:String(t.key),label:t.label,count:h===null?null:h.get(t.key)??0,pressed:n[e.key]===t.key})).filter(b);return y.length===0?null:c("div",{className:"compass-chipgroup",children:[l("span",{className:"compass-chiplabel",id:g,children:e.label}),l(v,{items:y,labelledby:g,onPress:t=>{let f=Number(t);I(e.key,n[e.key]===f?null:f)}})]},e.key)}),l("div",{children:l("button",{type:"button",className:o===0?"btn btn-sm btn-outline-secondary rounded-pill compass-clear disabled":"btn btn-sm btn-outline-secondary rounded-pill compass-clear","aria-disabled":o===0||void 0,onClick:()=>{o>0&&_()},children:s.clearfilters})})]})},S=B;export{S as default};
+import{useId as O}from"react";import $ from"./Platter";import{fill as x}from"./str";import{jsx as t,jsxs as a}from"react/jsx-runtime";var B=({id:y,hidden:g,top:i,sheet:u,stacked:k,element:h,config:v,filtered:P,fields:F,selection:s,searching:N,facets:w,shown:c,onSelect:C,onPreview:p,onClear:I,onShow:R})=>{let{labels:n}=v,S=O(),j=e=>e.pressed||e.count===null||e.count===void 0||e.count>0,o=(P?1:0)+Object.keys(s).length+(N?1:0),r=["compass-fpanel","compass-line-layer"];return u&&r.push("compass-fpanel-sheet"),k&&r.push("compass-fpanel-stacked"),a("div",{id:y,ref:h,className:r.join(" "),role:"group","aria-label":n.filterpanel,hidden:g,style:i===null||u?void 0:{top:`${i}px`},children:[F.map((e,M)=>{let d=`${S}-field-${M}`,m=w.fields?.get(e.key)??null,b=e.values.map(l=>({key:String(l.key),label:l.label,count:m===null?null:m.get(l.key)??0,pressed:s[e.key]===l.key})).filter(j);return b.length===0?null:a("div",{className:"compass-chipgroup",children:[t("span",{className:"compass-chiplabel",id:d,children:e.label}),t($,{items:b,labelledby:d,onPress:l=>{let f=Number(l);p(e.key,null),C(e.key,s[e.key]===f?null:f)},onPreview:l=>p(e.key,l===null?null:Number(l))})]},e.key)}),a("div",{className:"compass-fpanel-foot",children:[t("button",{type:"button",className:o===0?"btn btn-sm btn-outline-secondary rounded-pill compass-clear disabled":"btn btn-sm btn-outline-secondary rounded-pill compass-clear","aria-disabled":o===0||void 0,onClick:()=>{o>0&&I()},children:n.clearfilters}),t("button",{type:"button",className:"btn btn-sm btn-primary rounded-pill compass-show",onClick:R,children:c===null?n.line_showcourses:x(n.line_show,String(c))})]})]})},H=B;export{H as default};
 /**
- * The filter panel of tier 3: chip groups on platters, one value per group.
+ * The filter panel of tier 3: chip groups on platters, one value per group (ADR-009 decision 4, as
+ * ADR-015 decision 3 reshapes it).
  *
- * The Status group first - All, New, Favourites, Awaiting approval when the feature is on, and
- * Scheduled - then one group per course custom field the administrator chose, then one Clear control shared
- * by every group. A press replaces the group's selection; the Status group carries a neutral
- * All chip that releases it, a field group has none and pressing its pressed chip releases it.
- * Groups combine with AND. Every group is named by a visible label through aria-labelledby, and
- * the label is not a heading: the panel is a control, not a section.
+ * One group per course custom field the administrator chose, then at its foot Clear filters and
+ * Show N. The scope and the star are on the filter line now and not here. A press replaces the
+ * group's selection; a field group has no neutral chip, and pressing its pressed chip releases it.
+ * Groups combine with AND. Every group is named by a visible label through aria-labelledby, and the
+ * label is not a heading: the panel is a control, not a section. The label sits beside its chips at
+ * the line's first two steps and above them from the third (stacked).
  *
- * The panel is a plain block toggled with the hidden property, never a Bootstrap collapse, and
- * it carries no display utility: those are !important and would defeat [hidden]
+ * A popover under the line's real bottom (top, measured by FilterLine) at steps 1 to 3, and a bottom
+ * sheet at step 4 (sheet). It is a plain block toggled with the hidden property, never a Bootstrap
+ * collapse, and it carries no display utility: those are !important and would defeat [hidden]
  * (bootstrap_compat_test enforces that).
  *
  * @module     block_compass/FilterPanel

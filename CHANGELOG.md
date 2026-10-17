@@ -20,12 +20,27 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042005) - unreleased
+## v5.2-r1 (2026042006) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
 ### Changed
 
+- *All courses* has the fleet's filter line (ADR-015). One line holds the scope (All, New,
+  Scheduled, Awaiting approval: a radio group of counted cells, a zero cell drawn only when
+  chosen), the search, a favourites star that combines with the scope, **Filters** (the course
+  field panel) and **Organise** (the sort: By category, A-Z, Recent), then the list/cards switch.
+  The line folds on its own width in four steps: Filters loses its word, the search becomes an
+  icon, then two lines with the scope on the second and the view inside Organise. The search
+  grows over the line when the line is narrow, with a close button; it suggests filters (with the
+  number each would show) and courses as you type, and `/` focuses it. The field values in force
+  show as chips under the line, with *Clear all* from two. The panel opens as a popover under the
+  line, or as a bottom sheet on a narrow block, and now starts closed. Pointing at a scope cell,
+  the star, a panel option or a suggestion lights the courses it would keep; nothing is asked of
+  the server for it. Above `inventory_max` the line shows no counts and asks nothing new.
+- The remembered toolbar (`block_compass_explore`) is now `{sort, scope, star, cf, panel}`; a
+  state stored with the old status chip is read as the matching scope, or as the star for
+  Favourites.
 - The institutional crests on cards come from the block's own hook,
   `\block_compass\hook\course_badges`, which any theme or plugin answers from its `db/hooks.php`;
   the block no longer names a theme (ADR-013, amendment of 2026-10-16). The answering component
@@ -49,8 +64,8 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - One ghost card closes the strips and counts every other course; a strip that overflows says
   so in its heading ("+4 new") and opens the full list on the matching filter.
 - *All courses*: every course grouped by category, with a side index, a sort (category, name,
-  last opened), a search box, and a list or a cards view.
-- A filter panel with status chips (All, New, Favourites, Awaiting approval, Scheduled) and up
+  last opened), a search with suggestions, and a list or a cards view, on the fleet's filter line.
+- A scope (All, New, Awaiting approval, Scheduled), a favourites star and a filter panel with up
   to three course custom fields chosen by the administrator.
 - Progress and the course image load only for the rows a learner can see.
 - A *Dormant* group gathers courses not opened for `dormant_months`, with an *Archive all*

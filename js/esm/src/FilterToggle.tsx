@@ -14,50 +14,57 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The button that opens and closes the filter panel, with the count of pressed chips.
+ * Filters: the button that opens and closes the filter panel, with the count of field values in force.
  *
  * aria-expanded says which way it will go and aria-controls names the panel, so a screen
- * reader hears "Filter, 2 active filters, collapsed" and knows where the panel is. The pill
+ * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. The badge
  * shows the bare count, hidden from assistive technology; the accessible name repeats it in
- * words, because a bare number beside a word is not a sentence.
+ * words, because a bare number beside a word is not a sentence. From the line's second step the
+ * word leaves the picture (FilterLine's step class) and the badge sits on the button's corner; the
+ * name is unchanged (ADR-015 decision 3). The glyph is the sliders of the plugin's icon map.
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import type {RefObject} from 'react';
 import {fillCount} from './str';
 import type {BlockConfig} from './types';
+import {markup} from './markup';
 
 type FilterToggleProps = {
     count: number,
     open: boolean,
     controls: string,
     config: BlockConfig,
+    button?: RefObject<HTMLButtonElement | null>,
     onToggle: () => void,
 };
 
 /**
  * The button.
  *
- * @param {object} props The pressed-chip count, the panel state and id, the block config and
- *     the callback; see FilterToggleProps.
+ * @param {object} props The count of field values in force, the panel state and id, the block config,
+ *     the element ref and the callback; see FilterToggleProps.
  * @returns {object} The rendered button.
  */
-const FilterToggle = ({count, open, controls, config, onToggle}: FilterToggleProps) => {
+const FilterToggle = ({count, open, controls, config, button, onToggle}: FilterToggleProps) => {
     const {labels, icons} = config;
 
     return (
         <button
             type="button"
-            className="compass-filterbtn btn btn-sm"
+            ref={button}
+            className="compass-filterbtn"
             aria-expanded={open}
             aria-controls={controls}
             aria-label={`${labels.filter}, ${fillCount(labels, 'filteractive', count)}`}
+            title={labels.filter}
             onClick={onToggle}
         >
-            <span aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.filter}} />
-            <span aria-hidden="true">{labels.filter}</span>
+            <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.filter)} />
+            <span className="compass-filterword" aria-hidden="true">{labels.filter}</span>
             {count > 0 && <span className="compass-filtercount" aria-hidden="true">{count}</span>}
         </button>
     );

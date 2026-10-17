@@ -147,6 +147,9 @@ class block implements renderable, templatable {
             'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'chip_pending', 'chip_scheduled',
             'filterby',
             'filter', 'filteractive', 'filteractive_one', 'filterpanel', 'clearfilters', 'status',
+            'line_chip', 'line_clearall', 'line_cleartext', 'line_closesearch', 'line_namedcount', 'line_organise',
+            'line_removechip', 'line_searchchip', 'line_show', 'line_showcourses', 'line_suggestcourses', 'line_suggestfilters',
+            'line_suggeststart',
             'pendingmeta', 'pendingnotice', 'pendingnotice_one', 'pendingnoticelabel', 'pendingnoticeview',
             'state_pending', 'state_scheduled', 'state_waitlisted', 'crests',
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
@@ -176,11 +179,17 @@ class block implements renderable, templatable {
                 // "open this course". Bring back is the box opened.
                 'archive' => $output->render(new pix_icon('archive', '', 'block_compass')),
                 'unarchive' => $output->render(new pix_icon('unarchive', '', 'block_compass')),
-                // The tier 3 toolbar's icon-only controls: core's own list and grid glyphs, the
-                // ones the file picker's view switch uses, and its filter.
+                // The filter line's icon-only controls (ADR-015): core's own list and grid glyphs, the
+                // ones the file picker's view switch uses; the sliders of Filters, from the plugin's
+                // own icon map; core's magnifier, its eraser (the search's, never a cross), its cross
+                // (the grown search's close) and its sort glyph (Organise).
                 'list' => $output->render(new pix_icon('a/view_list_active', '')),
                 'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
-                'filter' => $output->render(new pix_icon('i/filter', '')),
+                'filter' => $output->render(new pix_icon('sliders', '', 'block_compass')),
+                'search' => $output->render(new pix_icon('i/search', '')),
+                'eraser' => $output->render(new pix_icon('e/clear_formatting', '')),
+                'close' => $output->render(new pix_icon('e/cancel', '')),
+                'organise' => $output->render(new pix_icon('t/sort_by', '')),
                 // The accordion's chevrons are the two a course section header draws, shown and
                 // hidden by core's own icons-collapse-expand rule.
                 'expanded' => $output->render(new pix_icon('t/expandedchevron', '')),
