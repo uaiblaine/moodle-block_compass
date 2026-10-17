@@ -19,7 +19,8 @@
  * Each button's aria-label carries the view's name, so a Behat step that clicks the "Cards"
  * button resolves: Moodle matches a button by its aria-label too
  * (lib/behat/classes/partial_named_selector.php). The icons are core's own list and grid glyphs,
- * server-rendered and shipped as props because there is no pix helper for ESM.
+ * server-rendered and shipped as props because there is no pix helper for ESM. Each carries its word as
+ * a tooltip too, as every icon-only control of the filter line does (ADR-015).
  *
  * @module     block_compass/ViewToggle
  * @copyright  2026 Anderson Blaine
@@ -27,6 +28,7 @@
  */
 
 import type {BlockConfig} from './types';
+import {markup} from './markup';
 
 type ViewToggleProps = {
     view: string,
@@ -50,18 +52,20 @@ const ViewToggle = ({view, config, onChoose}: ViewToggleProps) => {
                 className="compass-viewbtn"
                 aria-pressed={view === 'list'}
                 aria-label={labels.view_list}
+                title={labels.view_list}
                 onClick={() => onChoose('list')}
             >
-                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.list}} />
+                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.list)} />
             </button>
             <button
                 type="button"
                 className="compass-viewbtn"
                 aria-pressed={view === 'cards'}
                 aria-label={labels.view_cards}
+                title={labels.view_cards}
                 onClick={() => onChoose('cards')}
             >
-                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: icons.grid}} />
+                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.grid)} />
             </button>
         </div>
     );

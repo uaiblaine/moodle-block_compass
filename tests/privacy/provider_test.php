@@ -74,7 +74,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
         provider::export_user_preferences((int) $user->id);
         $this->assertFalse(writer::with_context(\context_system::instance())->has_any_data());
 
-        $json = '{"sort":"recent","chip":"new","cf":{},"panel":false}';
+        $json = '{"sort":"recent","scope":"new","star":false,"cf":{},"panel":false}';
         set_user_preference('block_compass_explore', $json, $user);
         provider::export_user_preferences((int) $user->id);
         $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');

@@ -1,0 +1,1 @@
+s/(max-width: 16rem;\n    padding: 0 0\.75rem;\n    border: 1px solid var\(--block_compass-brand-ink\);\n    border-radius: 999px;\n    background: var\(--block_compass-scheduled-bg\);\n)    color: var\(--block_compass-scheduled-text\);\n/$1/;

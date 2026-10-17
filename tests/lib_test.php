@@ -118,7 +118,7 @@ final class lib_test extends advanced_testcase {
         $this->assertNull($definition['default']);
         $this->assertArrayNotHasKey('choices', $definition);
 
-        $json = '{"sort":"name","chip":"all","cf":{"modality":1},"panel":false}';
+        $json = '{"sort":"name","scope":"all","star":true,"cf":{"modality":1},"panel":false}';
         $this->assertSame($json, core_user::clean_preference($json, 'block_compass_explore'));
 
         $this->assertTrue(core_user::can_edit_preference('block_compass_explore', $me));
@@ -145,6 +145,9 @@ final class lib_test extends advanced_testcase {
         $map = block_compass_get_fontawesome_icon_map();
         $this->assertSame('fa-box-archive', $map['block_compass:archive']);
         $this->assertSame('fa-box-open', $map['block_compass:unarchive']);
+        // The filter line's Filters button (ADR-015): core's map has no sliders.
+        $this->assertSame('fa-sliders', $map['block_compass:sliders']);
+        $this->assertStringContainsString('fa-sliders', $output->render(new \core\output\pix_icon('sliders', '', 'block_compass')));
 
         $archive = $output->render(new \core\output\pix_icon('archive', '', 'block_compass'));
         $unarchive = $output->render(new \core\output\pix_icon('unarchive', '', 'block_compass'));
