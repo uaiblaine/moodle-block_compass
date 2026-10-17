@@ -22,10 +22,11 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
   says so in its heading ("+4 new").
 - **Tier 2, frontier.** One ghost card that only counts: "+87 other courses". Counting is
   cheap; rendering is not.
-- **Tier 3, exploration.** *All courses*, grouped by category, with a side index, a search
-  box, a filter panel and a list or cards view. Rows fetch their progress and image only once
-  they are on screen. Courses gone quiet gather in a *Dormant* group, and archived ones in an
-  *Archived* group shared with the Course overview block.
+- **Tier 3, exploration.** *All courses*, grouped by category, with a side index and one filter
+  line: a scope, a search that suggests as you type, a favourites star, filters, a sort and a
+  list or cards view. Rows fetch their progress and image only once they are on screen. Courses
+  gone quiet gather in a *Dormant* group, and archived ones in an *Archived* group shared with
+  the Course overview block.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
@@ -114,25 +115,77 @@ the cards always paint first.
 All courses and the Compass page
 --------------------------------
 
-![All courses open, grouped by category, with the toolbar, the filter panel and the category index](docs/screenshots/explore.png)
+![All courses on the Compass page: the filter line on one row (the scope with its counts, the search field, the star, Filters, Organise and the list/cards switch), the category index and the first group open as cards](docs/screenshots/explore.png)
 
-*All courses* opens from the ghost card or from a strip's "+N" link. Above it sits the filter
-line the plugin shares with the other Dimensions surfaces: the scope (All, New, Awaiting approval,
-Scheduled, each with its count), the search, a favourites star that combines with the scope,
-**Filters** (up to three course custom fields chosen by the administrator, as chips) and
-**Organise** (the sort: by category, by name, last opened), then the list/cards switch. The line
-folds to the width of the block, not the screen: on a narrow block the search becomes an icon and
-grows over the line when pressed, the scope takes a second line, and the filter panel opens as a
-bottom sheet. The search suggests filters and courses as you type, and `/` jumps to it. Pointing
-at a filter lights the courses it would keep. An enrolment that starts later is a row with an
-*Access from {date}* pill; an application through *Enrolment on application* (`enrol_apply`) is
-a row with an *Application under review* or *On the waiting list* pill. Every row and card
-carries the star and an archive control; *Dormant* has an **Archive all** control. The line is
-remembered per user, the search text excepted.
+*All courses* opens from the ghost card or from a strip's "+N" link. Above it sits one filter
+line, the one the plugin shares with the other Dimensions surfaces, in this order:
+
+- **The scope**: All, New, Awaiting approval (with `enable_pending`) and Scheduled, each with its
+  count. One is checked; the arrow keys move between them. A scope that would keep no course is
+  left out unless it is the one checked; All always stays.
+- **The search**, with an eraser for its text. `/` jumps to it while the line is on screen.
+- **The star** (with `enable_favourites`): only the favourites, combined with the scope, so
+  New and the star together are the new favourites.
+- **Filters** (with `filter_fields`): a panel of the course custom fields the administrator
+  chose, at most three, one value per field, the fields combined. Its badge counts the values in
+  force; at its foot, *Clear filters* releases everything and *Show N* closes it on the list.
+- **Organise**: the sort, *By category*, *A–Z* or *Recent*.
+- **The list/cards switch.**
+
+The panel and the menu open as popovers under the line. The values in force show as chips on a
+row under the line, each with a cross to remove it, and *Clear all* from two chips up; the scope
+and the star stay on the line and need no chip.
+
+![The Filters popover open under the line: the Modality field with Online, In-person and Hybrid and their counts, Clear filters and Show 14](docs/screenshots/explore-filters.png)
+
+![The Organise menu open under the line: Sort courses, with By category, A–Z and Recent](docs/screenshots/explore-organise.png)
+
+The search suggests as you type, in one list under the line: first the **filters** (a scope,
+the star, a field's value) whose name or field matches the text, each with the number of courses
+it would leave, then up to five **courses** whose names match, accents and case ignored. Choosing
+a filter applies it and empties the field for the next one; choosing a course opens it. With
+fewer than two characters typed, the list offers up to five filters, the largest first, under
+*Start with a filter*. The arrow keys walk the list, Enter chooses and Escape closes it.
+
+![The search grown over the Dashboard's line with "on" typed: under Filters, Online (9) and In-person (2) of the Modality field; under Courses, Nutrition and Metabolism, Introduction to Philosophy and Data Analysis with Python, the matched letters marked](docs/screenshots/explore-search.png)
+
+**The line folds to the width of the block, not of the screen**, in four steps measured on the
+line itself: everything on one row (the Compass page on a desktop); then Filters keeps its icon
+and badge and drops its word; then the search becomes an icon that, when pressed, grows over the
+line, slides the other controls aside and offers a close button (the Dashboard's main column);
+at the narrowest, two lines: the search, the star, Filters and Organise on the first, the scope on
+the second, scrolling sideways, and the list/cards switch moves into Organise (a tablet, a phone,
+the block drawer). A search left in force while its field is folded away shows as a chip.
+
+![All courses on the Dashboard, the line folded to icons: only All with its count of one, the search icon, the star, Filters with a badge of 1, Organise and the switch; under it the chips health and Hybrid with Clear all, and the one course left](docs/screenshots/explore-filtered.png)
+
+![All courses on the Dashboard at a tablet's width: the search field, the star, Filters and Organise on the first line, the scope on the second](docs/screenshots/explore-narrow.png)
+
+At that last step the Filters panel opens as a bottom sheet:
+
+![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality values, Clear filters and Show 14](docs/screenshots/explore-phone.png)
+
+**Pointing at a filter previews it.** A mouse or a pen on a scope, the star, a panel value or a
+suggestion, or the keyboard's focus on one, rings the courses on screen that it would keep,
+combined with the filters already in force, and dims the others. The dim changes colours, never
+transparency, and its text is checked for contrast in light and dark mode. A finger has no hover
+and previews nothing, and a control that would only widen the list previews nothing either.
+
+![The mouse on the New scope: Financial Accounting, the new course of the open group, ringed; Leadership and Team Dynamics and Project Management Fundamentals dimmed](docs/screenshots/explore-preview.png)
+
+An enrolment that starts later is a row with an *Access from {date}* pill; an application through
+*Enrolment on application* (`enrol_apply`) is a row with an *Application under review* or *On the
+waiting list* pill. Every row and card carries the star and an archive control; *Dormant* has an
+**Archive all** control. The line is remembered per user (scope, star, filters, sort and whether
+the panel is open, which starts closed), the search text excepted. In the full list, no filter,
+suggestion or preview asks the server anything.
 
 A learner with more courses than `inventory_max` (default 250) gets the same list in **paged
 mode**: groups start closed with their counts, open 100 courses at a time, and the search runs
-on the server. Nothing is configured per learner.
+on the server. The scope, the star and the suggestions then carry no counts, since nothing is
+counted before a group's rows arrive. The server is asked for one scope at a time (Favourites
+while the star is pressed) and the browser narrows the rows it holds by the rest; the course
+suggestions are the server's search hits. Nothing is configured per learner.
 
 ![The Compass page: the block's content alone under the theme's navigation bar](docs/screenshots/page.png)
 
@@ -215,7 +268,7 @@ Configuration
 | `enable_favourites` | on | The *My favourites* strip and the star. Off hides them; core's favourites are untouched. |
 | `group_depth` | 1 | Category depth that forms the groups of *All courses*. |
 | `inventory_max` | 250 | Above this many courses, *All courses* switches to paged mode. |
-| `enable_search` | on | The search box of *All courses*. |
+| `enable_search` | on | The search of the filter line in *All courses*, with its suggestions. |
 | `show_index` | on | The side index of categories, on wide blocks. |
 | `dormant_months` | 12 | Months without a visit before a course moves to *Dormant*. |
 | `default_view` | list | The view of *All courses* for a user who never chose (list or cards). |
@@ -224,7 +277,7 @@ Configuration
 | `show_theme_badges` | on | Institutional crests on cards; offered only while a theme or plugin answers the `course_badges` hook. |
 | `enable_page` | off | The Compass page and its offer as a start page. |
 | `hide_page_title` | off | Hide the Compass page's heading from sight, keeping it for screen readers. |
-| `filter_fields` | none | Course custom fields offered as filter chips: *Dropdown menu* and *Checkbox* fields visible to everyone, at most 3. |
+| `filter_fields` | none | Course custom fields offered in the *Filters* panel of *All courses*: *Dropdown menu* and *Checkbox* fields visible to everyone, at most 3. None, and the line has no Filters. |
 | `enable_pending` | off | List the learner's applications through `enrol_apply`. Does nothing without that plugin. |
 
 **Calendar strip**
@@ -328,16 +381,17 @@ site that enables read-only sessions:
 | `block_compass_get_day` | One day of the strip: its items with core's actions. |
 
 Writes go to core's own services: the star through `core_course_set_favourite_courses`, the
-view, the toolbar, the strip's choices and archiving through core's user preferences.
+view, the filter line, the strip's choices and archiving through core's user preferences.
 
 
 Privacy
 -------
 
 Compass stores three user preferences of its own: `block_compass_view` (list or cards),
-`block_compass_explore` (the toolbar of *All courses* as the user left it) and
-`block_compass_calendar` (the strip's view, filter, relevance switch and whether it is open). The privacy provider
-declares and exports all three.
+`block_compass_explore` (the filter line of *All courses* as the user left it: scope, star,
+filters, sort and whether the panel is open) and `block_compass_calendar` (the strip's view,
+filter, relevance switch and whether it is open). The privacy provider declares and exports all
+three.
 
 Everything else it shows belongs to core and stays core's to export and delete: courses,
 enrolments, progress and calendar events are read, never copied, except into expiring MUC

@@ -41,7 +41,9 @@
  * empties the field closes it.
  *
  * Every floating layer is placed under the line's measured bottom (place), never at a fixed offset;
- * at the two-line step the panel is a bottom sheet instead.
+ * at the two-line step the panel is a bottom sheet instead, unless an ancestor would clip or capture a
+ * viewport-fixed child - Moodle 5.3's block drawer clips itself with clip-path - and then it stays a
+ * popover under the line (fixedTrapped).
  *
  * @module     block_compass/FilterLine
  * @copyright  2026 Anderson Blaine
@@ -146,6 +148,32 @@ type Option = {kind: 'filter', filter: LineFilter} | {kind: 'course', course: Li
 type Place = {top: number | null, left: number | null, width: number | null};
 
 const NOWHERE: Place = {top: null, left: null, width: null};
+
+/**
+ * Whether an ancestor would clip or capture a position: fixed child, so that it could not reach the viewport.
+ *
+ * Moodle 5.3's open block drawer carries clip-path: inset(0), which hides everything outside its box
+ * even for a fixed descendant (a sheet drawn there is cut to the drawer's width and the chips outside
+ * it are neither seen nor clickable). A transform, a filter, a perspective or a paint or layout
+ * containment makes the ancestor the fixed child's containing block instead. The read is the computed
+ * style, so it follows whatever the theme does rather than a list of themes.
+ *
+ * @param {object|null} element The element whose ancestors are read.
+ * @returns {boolean} Whether a fixed child of the element could not reach the viewport.
+ */
+const fixedTrapped = (element: HTMLElement | null): boolean => {
+    for (let node = element?.parentElement ?? null; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.clipPath !== 'none' || style.transform !== 'none' || style.filter !== 'none'
+            || style.perspective !== 'none' || style.backdropFilter !== 'none'
+            || /\b(paint|layout|strict|content)\b/.test(style.contain)
+            || /\b(transform|perspective|filter)\b/.test(style.willChange)) {
+            return true;
+        }
+    }
+
+    return false;
+};
 
 type FilterLineProps = {
     config: BlockConfig,
@@ -349,6 +377,7 @@ const FilterLine = (props: FilterLineProps) => {
     const [listopen, setListopen] = useState(false);
     const [active, setActive] = useState(-1);
     const [menuopen, setMenuopen] = useState(false);
+    const [trapped, setTrapped] = useState(false);
     const [place, setPlace] = useState<{list: Place, panel: number | null, menu: number | null}>(
         {list: NOWHERE, panel: null, menu: null}
     );
@@ -574,6 +603,16 @@ const FilterLine = (props: FilterLineProps) => {
     ];
     const listshown = listopen && options.length > 0;
     const current = active >= 0 && active < options.length ? active : -1;
+
+    // The sheet needs a viewport-fixed child to reach the viewport; where an ancestor would clip it, the
+    // panel stays a popover. Read before paint, when the panel opens at the two-line step.
+    useLayoutEffect(() => {
+        if (fold.step === 's4' && panelopen) {
+            const next = fixedTrapped(wrapper.current);
+            setTrapped((before) => (before === next ? before : next));
+        }
+    }, [fold.step, panelopen]);
+    const sheet = fold.step === 's4' && !trapped;
 
     // Every open layer under the line's measured bottom; the listbox under the field at the first two steps.
     useLayoutEffect(() => {
@@ -1039,7 +1078,7 @@ const FilterLine = (props: FilterLineProps) => {
             {panel({
                 id: panelid,
                 top: place.panel,
-                sheet: fold.step === 's4',
+                sheet,
                 stacked: fold.step === 's3' || fold.step === 's4',
                 element: panelel,
                 onShow: showList,
@@ -1104,7 +1143,7 @@ const FilterLine = (props: FilterLineProps) => {
     const children = fold.step === 's4' ? [...controls, scope] : [scope, ...controls];
 
     const wrapperclasses = ['compass-filterline'];
-    if (fold.step === 's4' && panelopen) {
+    if (sheet && panelopen) {
         wrapperclasses.push('compass-filterline-sheet');
     }
     const anchored = fold.step === 's1' || fold.step === 's2';

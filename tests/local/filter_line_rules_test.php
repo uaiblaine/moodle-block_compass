@@ -208,11 +208,41 @@ final class filter_line_rules_test extends basic_testcase {
         $line = $this->source('FilterLine.tsx');
 
         $this->assertStringContainsString('const top = Math.round(lineBottom() - origin.top + GAP);', $line);
-        $this->assertStringContainsString("sheet: fold.step === 's4',", $line);
+        $this->assertStringContainsString("const sheet = fold.step === 's4' && !trapped;", $line);
         $css = $this->css();
         $this->assertMatchesRegularExpression(
             '/\.compass-fpanel\.compass-fpanel-sheet:not\(\[hidden\]\)\s*\{[^}]*position:\s*fixed;[^}]*bottom:\s*0;/',
             $css
+        );
+    }
+
+    /**
+     * The sheet yields to a popover where an ancestor would clip a viewport-fixed child.
+     *
+     * Moodle 5.3's open block drawer carries clip-path: inset(0), which cuts a position: fixed
+     * descendant to the drawer's box, so the sheet's chips sat outside it and could not be pressed
+     * (the Dashboard's right drawer, which the Behat scenario uses). The line reads the computed style of its
+     * ancestors when the panel opens at the two-line step and keeps the popover when one traps it.
+     * Changes that must make it fail: the clip-path no longer read, the sheet no longer conditional on the
+     * read, or the line no longer raised only when the panel really is a sheet.
+     *
+     * @return void
+     */
+    public function test_the_sheet_yields_where_an_ancestor_would_clip_it(): void {
+        $line = $this->source('FilterLine.tsx');
+
+        $trap = $this->slice($line, 'const fixedTrapped = ', 'return false;');
+        $this->assertStringContainsString("style.clipPath !== 'none'", $trap);
+        $this->assertStringContainsString("style.transform !== 'none'", $trap);
+        $this->assertMatchesRegularExpression('/paint\|layout/', $trap);
+        $this->assertMatchesRegularExpression(
+            '/if \(fold\.step === \'s4\' && panelopen\) \{\s*const next = fixedTrapped\(wrapper\.current\);/',
+            $line
+        );
+        $this->assertStringContainsString("const sheet = fold.step === 's4' && !trapped;", $line);
+        $this->assertMatchesRegularExpression(
+            '/if \(sheet && panelopen\) \{\s*wrapperclasses\.push\(\'compass-filterline-sheet\'\);/',
+            $line
         );
     }
 

@@ -20,14 +20,18 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042006) - unreleased
+## v5.2-r1 (2026042007) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
 ### Changed
 
+- The filter panel stays a popover where an ancestor would clip a fixed child (a `clip-path`,
+  `transform`, `filter` or paint containment on the way up, as Moodle 5.3 puts on the open block
+  drawer), instead of a bottom sheet that would be cut off and pass its clicks to the page
+  (2026042007).
 - *All courses* has the fleet's filter line (ADR-015). One line holds the scope (All, New,
-  Scheduled, Awaiting approval: a radio group of counted cells, a zero cell drawn only when
+  Awaiting approval, Scheduled: a radio group of counted cells, a zero cell drawn only when
   chosen), the search, a favourites star that combines with the scope, **Filters** (the course
   field panel) and **Organise** (the sort: By category, A-Z, Recent), then the list/cards switch.
   The line folds on its own width in four steps: Filters loses its word, the search becomes an
