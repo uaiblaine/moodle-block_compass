@@ -51,6 +51,17 @@ export type RowFacts = {
 export type Selection = Record<string, number>;
 
 /**
+ * Everything a row is judged by on the filter line (ADR-015): the scope, the star, the field
+ * selection and the query. The star is ANDed with the scope, never one of its values.
+ */
+export type Criteria = {
+    scope: string,
+    star: boolean,
+    selection: Selection,
+    query: string,
+};
+
+/**
  * Lower-case, accent-free form of a string, for accent-insensitive matching.
  *
  * @param {string} text Input.
@@ -146,6 +157,17 @@ export const passesChip = (chip: string, row: RowFacts): boolean => {
 };
 
 /**
+ * Whether a row passes the favourites star: released, every row does; pressed, only what the
+ * favourites chip keeps (passesChip), so a lit star on an application or a later start keeps
+ * nothing, as the chip never did.
+ *
+ * @param {boolean} star Whether the star is pressed.
+ * @param {object} row The row facts.
+ * @returns {boolean} Whether it passes.
+ */
+export const passesStar = (star: boolean, row: RowFacts): boolean => !star || passesChip('favourites', row);
+
+/**
  * The value a row holds for one custom-field group, read out of its cf pairs.
  *
  * @param {number[]} cf The row's cf list: field index, value key, field index, value key...
@@ -173,3 +195,72 @@ export const valueOf = (cf: number[], index: number): number | null => {
  */
 export const passesSelection = (cf: number[], keys: string[], selection: Selection): boolean =>
     Object.entries(selection).every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value);
+
+/**
+ * Whether a row passes every criterion of the line: the scope, the star, the field selection and
+ * the query (empty: no constraint).
+ *
+ * @param {object} row The row facts; its name already normalised.
+ * @param {object} criteria The scope, the star, the selection and the query.
+ * @param {string[]} keys The field keys of the payload's fields array, in order.
+ * @returns {boolean} Whether it passes.
+ */
+export const passesCriteria = (row: RowFacts, criteria: Criteria, keys: string[]): boolean =>
+    passesChip(criteria.scope, row)
+    && passesStar(criteria.star, row)
+    && passesSelection(row.cf, keys, criteria.selection)
+    && (criteria.query === '' || matches(row.name, criteria.query));
+
+/**
+ * How well a normalised text holds a normalised term: 0 where a word starts with it, 1 where it is
+ * inside a word, -1 where it is not there. The suggestions' rank (the filter line contract,
+ * section 3): word starts first.
+ *
+ * @param {string} text The normalised text.
+ * @param {string} term The normalised term.
+ * @returns {number} 0, 1 or -1.
+ */
+export const matchOf = (text: string, term: string): number => {
+    let at = text.indexOf(term);
+    if (at < 0) {
+        return -1;
+    }
+    while (at >= 0) {
+        if (at === 0 || !/[\p{L}\p{N}]/u.test(text.charAt(at - 1))) {
+            return 0;
+        }
+        at = text.indexOf(term, at + 1);
+    }
+
+    return 1;
+};
+
+/**
+ * A text cut where a term matches it, in the text's own spelling, for marking the match.
+ *
+ * The match is found on the folded text (accents off, lower case) character for character, so a
+ * term typed without its accents marks the accented letters it matched.
+ *
+ * @param {string} text The text as shown.
+ * @param {string} term The normalised term, or the empty string.
+ * @returns {string[]} Before, the match and after; the match is empty when there is none.
+ */
+export const markParts = (text: string, term: string): [string, string, string] => {
+    const map: number[] = [];
+    let folded = '';
+    for (let i = 0; i < text.length; i++) {
+        const piece = text.charAt(i).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        folded += piece;
+        for (let j = 0; j < piece.length; j++) {
+            map.push(i);
+        }
+    }
+    const at = term === '' ? -1 : folded.indexOf(term);
+    if (at < 0) {
+        return [text, '', ''];
+    }
+    const start = map[at];
+    const end = map[at + term.length - 1] + 1;
+
+    return [text.slice(0, start), text.slice(start, end), text.slice(end)];
+};

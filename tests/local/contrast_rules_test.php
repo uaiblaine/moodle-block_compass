@@ -62,6 +62,20 @@ final class contrast_rules_test extends basic_testcase {
     /** @var string The ink chip of today's period on the closed line. */
     private const TODAY_CHIP = '.block_compass .compass-cal-period-today .compass-cal-pchip';
 
+    /** @var string[] The filter line's filled rules (ADR-015), each declaring its paired text. */
+    private const LINE_FILLS = [
+        '.block_compass .compass-scope', '.block_compass .compass-scope-cell',
+        '.block_compass .compass-scope-cell[aria-checked="true"]', '.block_compass .compass-scope-count',
+        '.block_compass .compass-scope-cell[aria-checked="true"] .compass-scope-count',
+        '.block_compass .compass-search .compass-search-input', '.block_compass .compass-search-eraser:hover',
+        '.block_compass .compass-line-iconbtn', '.block_compass .compass-line-iconbtn:hover',
+        '.block_compass .compass-line-iconbtn[aria-expanded="true"]', '.block_compass .compass-line-star[aria-pressed="true"]',
+        '.block_compass .compass-filterbtn', '.block_compass .compass-filterbtn:hover',
+        '.block_compass .compass-filterbtn[aria-expanded="true"]', '.block_compass .compass-filtercount',
+        '.block_compass .compass-line-layer', '.block_compass .compass-line-option:hover', '.block_compass .compass-line-mark',
+        '.block_compass .compass-line-chip',
+    ];
+
     /** @var string The scope of a dimmed column of the open row. */
     private const COL_DIM = '.block_compass .compass-cal-col.compass-cal-col-dim';
 
@@ -95,7 +109,9 @@ final class contrast_rules_test extends basic_testcase {
      * Boost's own values of the theme tokens the stylesheet reads, as Moodle 5.2's Boost serves them.
      *
      * Measured with getComputedStyle on the block in each mode (m502b, 2026-10-15); the contrast
-     * audit used the same. Two brands: Boost's blue and an institution's navy (#070093).
+     * audit used the same. The secondary background, which the filter line's scope track reads
+     * (ADR-015), is Boost's gray-200 and its dark gray-800 (theme/boost/scss/bootstrap/_variables.scss
+     * :442, _variables-dark.scss:46, the design system's primitives). Two brands: Boost's blue and an institution's navy (#070093).
      * A --bs-* token not listed here takes the literal fallback the stylesheet writes beside it.
      *
      * @return array Mode name => token name => CSS value.
@@ -107,6 +123,7 @@ final class contrast_rules_test extends basic_testcase {
             '--bs-emphasis-color' => '#000000',
             '--bs-secondary-color' => 'rgba(29, 33, 37, 0.75)',
             '--bs-tertiary-bg' => '#f8f9fa',
+            '--bs-secondary-bg' => '#e9ecef',
             '--bs-border-color' => '#dee2e6',
             '--bs-warning' => '#f0ad4e',
             '--bs-danger' => '#ca3120',
@@ -121,6 +138,7 @@ final class contrast_rules_test extends basic_testcase {
             '--bs-emphasis-color' => '#ffffff',
             '--bs-secondary-color' => 'rgba(222, 226, 230, 0.75)',
             '--bs-tertiary-bg' => '#292e33',
+            '--bs-secondary-bg' => '#343a40',
             '--bs-border-color' => '#495057',
             '--bs-warning' => '#f0ad4e',
             '--bs-danger' => '#ca3120',
@@ -421,6 +439,9 @@ final class contrast_rules_test extends basic_testcase {
             '.block_compass .compass-cal-period:hover',
             '.block_compass .compass-cal-item:hover', '.block_compass .compass-cal-close:hover', '.block_compass .compass-cal-card',
         ];
+        // The filter line's fills (ADR-015): the scope's track, cells and counts, the search, the icon
+        // buttons, Filters and its badge, the floating layers, a hovered option, the mark and a chip.
+        $filled = array_merge($filled, self::LINE_FILLS);
         foreach ($filled as $selector) {
             [, $body] = $this->rule($selectors, $selector);
             $this->assertArrayHasKey('background', $body, "{$selector} no longer fills: is it still a pair?");
@@ -447,7 +468,8 @@ final class contrast_rules_test extends basic_testcase {
         $textbearing = [
             'compass-cal-col', 'compass-cal-col-dim', 'compass-cal-period', 'compass-cal-period-dim', 'compass-cal-day',
             'compass-cal-disc', 'compass-cal-num', 'compass-cal-wd', 'compass-cal-pchip', 'compass-cal-plabel',
-            'compass-cal-todaybtn', 'compass-cal-edge',
+            'compass-cal-todaybtn', 'compass-cal-edge', 'compass-row', 'compass-rowcard', 'compass-preview-lit',
+            'compass-preview-dim',
         ];
         $read = 0;
         foreach ($selectors as $selector => $occurrences) {
@@ -604,6 +626,44 @@ final class contrast_rules_test extends basic_testcase {
             ['an item hovered', '.block_compass .compass-cal-item:hover', '.block_compass .compass-cal-item:hover', ['root']],
             ['the day card', '.block_compass .compass-cal-card', '.block_compass .compass-cal-card', ['root']],
         ]);
+        // The filter line (ADR-015): each text over the fill it sits on, the preview's dim included.
+        $scopefill = '.block_compass .compass-scope';
+        $checked = '.block_compass .compass-scope-cell[aria-checked="true"]';
+        $input = '.block_compass .compass-search .compass-search-input';
+        $hover = '.block_compass .compass-line-option:hover';
+        $pairs = array_merge($pairs, [
+            ['a scope cell', '.block_compass .compass-scope-cell', $scopefill, ['root']],
+            ['the checked scope cell', $checked, $checked, ['root']],
+            ['a scope count', '.block_compass .compass-scope-count', '.block_compass .compass-scope-count', ['root']],
+            ['the checked cell\'s count', "{$checked} .compass-scope-count", "{$checked} .compass-scope-count", ['root']],
+            ['the search', $input, $input, ['root']],
+            ['the search\'s placeholder', "{$input}::placeholder", $input, ['root']],
+            ['the eraser hovered', '.block_compass .compass-search-eraser:hover', '.block_compass .compass-search-eraser:hover',
+                ['root']],
+            ['an icon button', '.block_compass .compass-line-iconbtn', '.block_compass .compass-line-iconbtn', ['root']],
+            ['an icon button hovered', '.block_compass .compass-line-iconbtn:hover', '.block_compass .compass-line-iconbtn:hover',
+                ['root']],
+            ['an open icon button', '.block_compass .compass-line-iconbtn[aria-expanded="true"]',
+                '.block_compass .compass-line-iconbtn[aria-expanded="true"]', ['root']],
+            ['the pressed star', '.block_compass .compass-line-star[aria-pressed="true"]',
+                '.block_compass .compass-line-star[aria-pressed="true"]', ['root']],
+            ['Filters', '.block_compass .compass-filterbtn', '.block_compass .compass-filterbtn', ['root']],
+            ['Filters hovered', '.block_compass .compass-filterbtn:hover', '.block_compass .compass-filterbtn:hover', ['root']],
+            ['Filters open', '.block_compass .compass-filterbtn[aria-expanded="true"]',
+                '.block_compass .compass-filterbtn[aria-expanded="true"]', ['root']],
+            ['the Filters badge', '.block_compass .compass-filtercount', '.block_compass .compass-filtercount', ['root']],
+            ['a floating layer', '.block_compass .compass-line-layer', '.block_compass .compass-line-layer', ['root']],
+            ['a menu label', '.block_compass .compass-line-menulabel', '.block_compass .compass-line-layer', ['root']],
+            ['a suggestion heading', '.block_compass .compass-line-suggesthead', '.block_compass .compass-line-layer', ['root']],
+            ['a suggestion hovered', $hover, $hover, ['root']],
+            ['a suggestion\'s group', '.block_compass .compass-line-optiongroup', $hover, ['root']],
+            ['a suggestion\'s count', '.block_compass .compass-line-optioncount', $hover, ['root']],
+            ['the typed text marked', '.block_compass .compass-line-mark', '.block_compass .compass-line-mark', ['root']],
+            ['a chip', '.block_compass .compass-line-chip', '.block_compass .compass-line-chip', ['root']],
+            ['Clear all', '.block_compass .compass-line-clearall', $surface, ['root']],
+            ['a dimmed row', '.block_compass .compass-row.compass-preview-dim', $surface, ['root']],
+            ['a dimmed card', '.block_compass .compass-rowcard.compass-preview-dim', $surface, ['root']],
+        ]);
         // Marks, 3:1 against the surface they sit on: the dots, the late diamond, the ring.
         $marks = [
             ['a to-do dot', '.block_compass .compass-cal-dot-todo', $col],
@@ -654,6 +714,10 @@ final class contrast_rules_test extends basic_testcase {
             $text = self::ratio(self::evaluate('var(--block_compass-cal-text)', $rootchain), $base);
             $dimtext = self::ratio(self::evaluate('var(--block_compass-cal-text)', $dimchain), $base);
             $this->assertGreaterThan(1.15, $text / $dimtext, "{$mode}: the dimmed text is not quieter than the body text");
+            // The preview's dim (ADR-015 decision 6) recedes as visibly as the calendar's.
+            $rowtext = self::ratio(self::evaluate('var(--block_compass-x3-text)', $rootchain), $base);
+            $rowdim = self::ratio(self::evaluate('var(--block_compass-x3-fg-dim)', $rootchain), $base);
+            $this->assertGreaterThan(1.15, $rowtext / $rowdim, "{$mode}: a dimmed row is not quieter than a lit one");
         }
         $this->assertSame([], $failures, "pairs under their floor:\n" . implode("\n", $failures));
         $this->assertGreaterThanOrEqual(300, $computed, 'fewer than 300 pairs computed: has the list shrunk?');

@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { jsxDEV } from "react/jsx-dev-runtime";
+import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
 /**
  * A platter of pills: one row of toggle buttons on an inset track, one of them raised.
  *
@@ -14,15 +14,18 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * aria-hidden-focus rule names as the fix, because the arrow keys already move between pills
  * and a keyboard user would otherwise pay two more tab stops per platter.
  *
- * Selection is the caller's: this draws what it is given and reports a press.
+ * Selection is the caller's: this draws what it is given and reports a press, and - for the filter
+ * panel's options - a mouse or a pen pointing at a pill, or the keyboard's focus on it, so the
+ * caller can preview what it would keep (ADR-015 decision 6; never a finger).
  *
  * @module     block_compass/Platter
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { hovers } from "./ScopeGroup";
 const HIDDEN_INDICATOR = { left: 0, width: 0, visible: false };
-const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby }) => {
+const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby, onPreview }) => {
   const mask = useRef(null);
   const track = useRef(null);
   const [indicator, setIndicator] = useState(HIDDEN_INDICATOR);
@@ -129,7 +132,7 @@ const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby }) =
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-          lineNumber: 212,
+          lineNumber: 216,
           columnNumber: 21
         }
       ),
@@ -140,11 +143,26 @@ const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby }) =
           className: "compass-chip",
           "aria-pressed": item.pressed,
           onClick: () => onPress(item.key),
+          onPointerEnter: onPreview ? (event) => {
+            if (hovers(event)) {
+              onPreview(item.key);
+            }
+          } : void 0,
+          onPointerLeave: onPreview ? () => onPreview(null) : void 0,
+          onFocus: onPreview ? () => onPreview(item.key) : void 0,
+          onBlur: onPreview ? () => onPreview(null) : void 0,
           children: [
             item.label,
-            item.count !== void 0 && item.count !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-chip-count", children: item.count }, void 0, false, {
+            item.count !== void 0 && item.count !== null && /* @__PURE__ */ jsxDEV(Fragment, { children: [
+              " ",
+              /* @__PURE__ */ jsxDEV("span", { className: "compass-chip-count", children: item.count }, void 0, false, {
+                fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
+                lineNumber: 242,
+                columnNumber: 37
+              })
+            ] }, void 0, true, {
               fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-              lineNumber: 227,
+              lineNumber: 240,
               columnNumber: 33
             })
           ]
@@ -153,17 +171,17 @@ const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby }) =
         true,
         {
           fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-          lineNumber: 218,
+          lineNumber: 222,
           columnNumber: 25
         }
       ))
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-      lineNumber: 211,
+      lineNumber: 215,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-      lineNumber: 210,
+      lineNumber: 214,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV(
@@ -181,7 +199,7 @@ const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby }) =
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-        lineNumber: 234,
+        lineNumber: 250,
         columnNumber: 13
       }
     ),
@@ -200,13 +218,13 @@ const Platter = /* @__PURE__ */ __name(({ items, onPress, label, labelledby }) =
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-        lineNumber: 244,
+        lineNumber: 260,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Platter.tsx",
-    lineNumber: 209,
+    lineNumber: 213,
     columnNumber: 9
   });
 }, "Platter");

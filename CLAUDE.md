@@ -155,8 +155,8 @@ mind supersedes; rejected and deferred ideas get a record too. ADR-000 holds the
 pre-Phase-0 decisions; ADR-001 cache, 002 stamp, 003 pre-warming, 004 paged mode, 005 lazy
 details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009 favourites and
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
-page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip (table with dates
-in the long form).
+page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip, 015 the filter
+line in tier 3 (table with dates in the long form).
 
 ## Code layout
 
@@ -180,7 +180,8 @@ classes/observer.php       per-key deletes on course, category, completion, acco
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
 classes/hook/course_badges.php the block's own hook, dispatched by local/theme_badges: course ids in, crests out
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
-js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, Platter, RowList, Row,
+js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
+                           StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
                            RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, calendar,
                            rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
                            str, types; .eslintrc is load-bearing
@@ -257,8 +258,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed
   on a counter, index hidden below 640 px of the section, focus moved deliberately after
   "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant and
-  archived groups `-1`/`-2`, the toolbar remembered through `explore_preference` (shape
-  validated server-side, membership client-side), resilience in `repository.ts` (bounded retry:
+  archived groups `-1`/`-2`, the filter line remembered through `explore_preference` (`{sort,
+  scope, star, cf, panel}`, an old `chip` migrated on read; shape validated server-side,
+  membership client-side), resilience in `repository.ts` (bounded retry:
   every failed read twice, 2 s apart), then `RetryNotice` (Try again, Reload page): **no
   permanent reload control**, a way back appears only once a load has failed, and every failed
   read offers one; tier 1's Try again re-asks tier 1, then whatever of the strip failed. Busy
@@ -272,6 +274,18 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
   costs the crests, never the first paint), and the listener, not the block, decides which
   courses the current user may see a crest for.
+- **The filter line** (ADR-015; `moodle-dev/docs/filter-line/CONTRACT.md`): `FilterLine.tsx`
+  draws the slots in the contract's order (scope, search, star, Filters, Organise, view), folds on
+  the line's own width (a ResizeObserver, every scope cell drawn while measuring, no `@container`),
+  grows the search over the line from step 3, owns the combobox and its one listbox, and hangs the
+  panel and the Organise menu under the line's measured bottom (a bottom sheet at step 4). The
+  scope is a `radiogroup` (`ScopeGroup.tsx`), the star an `aria-pressed` toggle ANDed with it
+  (`filter.ts` `passesStar()`, the favourites chip's rule). Paged mode tells the server one chip
+  (`star ? 'favourites' : scope`), narrows what it holds in the browser, asks nothing for the star
+  with Awaiting or Scheduled, and shows no counts. The preview writes `compass-preview-lit/-dim`
+  on the drawn rows outside React's render, mouse, pen and keyboard only; dim is a token, never
+  opacity. Every new guard is a gate under "Phase 12" in `mutations/gates.conf`;
+  `filter_line_rules_test` reads the sources.
 - **Text that runs long has one system** (a Portuguese label is often twice its English one): a
   name or line that can run long is clamped to two lines (`.compass-clamp`) or cut to one with an
   ellipsis, and the element carries its whole text in `title` (`accessibility_rules_test` reads
