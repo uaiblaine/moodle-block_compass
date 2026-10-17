@@ -116,14 +116,19 @@ All courses and the Compass page
 
 ![All courses open, grouped by category, with the toolbar, the filter panel and the category index](docs/screenshots/explore.png)
 
-*All courses* opens from the ghost card or from a strip's "+N" link. A toolbar holds the sort
-(category, name, last opened), the list/cards toggle, the search box and a **Filter** button
-opening chip groups: *Status* (All, New, Favourites, Awaiting approval, Scheduled), then up to
-three course custom fields chosen by the administrator. An enrolment that starts later is a row
-with an *Access from {date}* pill; an application through *Enrolment on application*
-(`enrol_apply`) is a row with an *Application under review* or *On the waiting list* pill.
-Every row and card carries the star and an archive control; *Dormant* has an **Archive all**
-control. The toolbar is remembered per user.
+*All courses* opens from the ghost card or from a strip's "+N" link. Above it sits the filter
+line the plugin shares with the other Dimensions surfaces: the scope (All, New, Awaiting approval,
+Scheduled, each with its count), the search, a favourites star that combines with the scope,
+**Filters** (up to three course custom fields chosen by the administrator, as chips) and
+**Organise** (the sort: by category, by name, last opened), then the list/cards switch. The line
+folds to the width of the block, not the screen: on a narrow block the search becomes an icon and
+grows over the line when pressed, the scope takes a second line, and the filter panel opens as a
+bottom sheet. The search suggests filters and courses as you type, and `/` jumps to it. Pointing
+at a filter lights the courses it would keep. An enrolment that starts later is a row with an
+*Access from {date}* pill; an application through *Enrolment on application* (`enrol_apply`) is
+a row with an *Application under review* or *On the waiting list* pill. Every row and card
+carries the star and an archive control; *Dormant* has an **Archive all** control. The line is
+remembered per user, the search text excepted.
 
 A learner with more courses than `inventory_max` (default 250) gets the same list in **paged
 mode**: groups start closed with their counts, open 100 courses at a time, and the search runs

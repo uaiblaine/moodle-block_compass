@@ -27,17 +27,20 @@ namespace block_compass\local;
 /**
  * Reader of the block_compass_explore preference.
  *
- * One JSON object holds the sort, the status chip, the pressed value of each custom-field group
- * and whether the filter panel is open. The client writes it through core's own preference
- * route, which cleans a PARAM_RAW value not at all; so the reading is where the validation is,
- * and it is a validation of shape at zero cost: a sort or a chip outside the vocabulary, a
- * pending chip while the feature is off, a field key that is not a shortname or a value that is
- * not an integer are dropped, and what survives ships as the client's initial state. Whether a
- * field is still configured, and whether its value is still one of the field's keys, is decided
- * when the inventory arrives with its fields array (js/esm/src/Explore.tsx): the shell renders
- * the block without a database or cache read, and the eligible fields live in a cache that may
- * be cold. The two paging services validate the same selection a third time, by the allowlist
- * of filter_fields::validate(), before any work.
+ * One JSON object holds the sort, the scope, whether the favourites star is pressed, the pressed
+ * value of each custom-field group and whether the filter panel is open (ADR-015). The client
+ * writes it through core's own preference route, which cleans a PARAM_RAW value not at all; so the
+ * reading is where the validation is, and it is a validation of shape at zero cost: a sort or a
+ * scope outside the vocabulary, the pending scope while the feature is off, a star that is not a
+ * boolean, a field key that is not a shortname or a value that is not an integer are dropped, and
+ * what survives ships as the client's initial state. A state stored before ADR-015 carries a chip
+ * instead of a scope and a star, and is migrated here, on read: the favourites chip becomes the
+ * star on the All scope, any other chip of the old vocabulary becomes that scope. Whether a field
+ * is still configured, and whether its value is still one of the field's keys, is decided when the
+ * inventory arrives with its fields array (js/esm/src/Explore.tsx): the shell renders the block
+ * without a database or cache read, and the eligible fields live in a cache that may be cold. The
+ * two paging services validate the same selection a third time, by the allowlist of
+ * filter_fields::validate(), before any work.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -50,19 +53,22 @@ final class explore_preference {
     /** @var string[] The sorts the toolbar offers. */
     public const SORTS = ['category', 'name', 'recent'];
 
-    /** @var string[] The status chips, the pending one only while the feature is on; explore::CHIPS's vocabulary. */
+    /** @var string[] The scope cells, the pending one only while the feature is on; explore::CHIPS without favourites. */
+    public const SCOPES = ['all', 'new', 'pending', 'scheduled'];
+
+    /** @var string[] The status chips a state stored before ADR-015 may carry; explore::CHIPS's vocabulary. */
     public const CHIPS = ['all', 'new', 'favourites', 'pending', 'scheduled'];
 
     /**
      * The state the toolbar starts in for a viewer who never changed it.
      *
-     * The filter panel starts open, so its chips are on screen at first render; the Behat
-     * accessibility (axe) check relies on that to audit them.
+     * The filter panel starts closed (ADR-015 decision 5): its field groups are a popover over the
+     * list, and the line's chips show what it holds in force.
      *
-     * @return array sort, chip, cf (shortname => value key) and panel.
+     * @return array sort, scope, star, cf (shortname => value key) and panel.
      */
     public static function defaults(): array {
-        return ['sort' => 'category', 'chip' => 'all', 'cf' => [], 'panel' => true];
+        return ['sort' => 'category', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false];
     }
 
     /**
@@ -70,8 +76,8 @@ final class explore_preference {
      *
      * A preference read is allowed in the shell ({@see \block_compass\output\block::view()}).
      *
-     * @param bool|null $pendingenabled Whether the pending chip may be kept; null for the setting.
-     * @return array sort, chip, cf and panel, each within its vocabulary.
+     * @param bool|null $pendingenabled Whether the pending scope may be kept; null for the setting.
+     * @return array sort, scope, star, cf and panel, each within its vocabulary.
      */
     public static function read(?bool $pendingenabled = null): array {
         $stored = get_user_preferences(self::NAME, null);
@@ -83,8 +89,8 @@ final class explore_preference {
      * Keep of a stored value what the vocabulary admits, field by field.
      *
      * @param string|null $json The stored JSON, or null when nothing is stored.
-     * @param bool $pendingenabled Whether the pending chip may be kept.
-     * @return array sort, chip, cf and panel, each within its vocabulary.
+     * @param bool $pendingenabled Whether the pending scope may be kept.
+     * @return array sort, scope, star, cf and panel, each within its vocabulary.
      */
     public static function validate(?string $json, bool $pendingenabled): array {
         $state = self::defaults();
@@ -98,8 +104,22 @@ final class explore_preference {
         if (isset($decoded['sort']) && in_array($decoded['sort'], self::SORTS, true)) {
             $state['sort'] = $decoded['sort'];
         }
+        // A chip stored before ADR-015 is read first, so a scope or a star stored beside it wins.
         if (isset($decoded['chip']) && in_array($decoded['chip'], self::CHIPS, true)) {
-            $state['chip'] = $decoded['chip'] === 'pending' && !$pendingenabled ? 'all' : $decoded['chip'];
+            if ($decoded['chip'] === 'favourites') {
+                $state['star'] = true;
+            } else {
+                $state['scope'] = $decoded['chip'];
+            }
+        }
+        if (isset($decoded['scope']) && in_array($decoded['scope'], self::SCOPES, true)) {
+            $state['scope'] = $decoded['scope'];
+        }
+        if ($state['scope'] === 'pending' && !$pendingenabled) {
+            $state['scope'] = 'all';
+        }
+        if (isset($decoded['star']) && is_bool($decoded['star'])) {
+            $state['star'] = $decoded['star'];
         }
         if (isset($decoded['panel'])) {
             $state['panel'] = (bool) $decoded['panel'];

@@ -198,6 +198,9 @@ completo no navegador:
 - **Agrupamento do andar 3**: categoria de nível `group_depth` (padrão 1); grupos fechados
   recebem só cabeçalho + contagem.
 - **Busca**: client-side sobre o inventário carregado; no modo degradado, server-side.
+  *(Desde a ADR-015: a barra do andar 3 é a linha de filtros da frota — escopo, busca com
+  sugestões, estrela de favoritos, Filtros, Organizar e visão —, dobrada pela largura da própria
+  linha; o painel começa fechado.)*
 - **Virtualização**: apenas linhas na viewport (+ buffer); `get_card_details` em lotes ≤ 24.
 
 ## 8. Settings

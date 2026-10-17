@@ -29,27 +29,28 @@
  * viewport. Neither knows about the mode, because a row is a row however it arrived.
  *
  * The section is scrolled into view and given the keyboard on every press that opens or
- * re-aims it; the toolbar starts as the viewer left it and is remembered in one preference
- * the shell validates; the star toggles here too, patching the row and refreshing tier 1,
- * and a star toggled in tier 1 patches the row here; and every failure has a way back.
+ * re-aims it; the filter line (FilterLine.tsx, ADR-015) starts as the viewer left it and is
+ * remembered in one preference the shell validates; the course star toggles here too, patching
+ * the row and refreshing tier 1, and a star toggled in tier 1 patches the row here; pointing at a
+ * filter lights the rows it would keep (preview()); and every failure has a way back.
  *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useCallback, useEffect, useId, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {RefObject} from 'react';
+import FilterLine from './FilterLine';
+import type {Candidate, LineChip, LineCourse, LineFilter} from './FilterLine';
 import FilterPanel from './FilterPanel';
 import type {Facets} from './FilterPanel';
-import FilterToggle from './FilterToggle';
 import Group from './Group';
-import Platter from './Platter';
 import RetryNotice from './RetryNotice';
 import RowList from './RowList';
-import ViewToggle from './ViewToggle';
-import {matches, normalise, passesChip, passesSelection} from './filter';
-import type {RowFacts, Selection} from './filter';
+import type {ScopeCell} from './ScopeGroup';
+import {isEnrolled, matches, normalise, passesChip, passesCriteria, passesSelection, passesStar} from './filter';
+import type {Criteria, RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
 import {confirmAction, notify} from './notify';
 import {fill, fillCount, fillObject} from './str';
@@ -64,8 +65,11 @@ import type {
     StarChange,
 } from './types';
 
-/** The status chips, in the order the panel draws them (explore::CHIPS); the pending one only when the feature is on. */
-const STATUS_CHIPS = ['all', 'new', 'favourites', 'pending', 'scheduled'];
+/**
+ * The scope's cells, in the order the line draws them: explore::CHIPS without favourites, which is
+ * the star (ADR-015 decision 1); the pending one only when the feature is on.
+ */
+const SCOPES = ['all', 'new', 'pending', 'scheduled'];
 
 /** Full mode: the browser answers a keystroke, so it may answer it soon. */
 const DEBOUNCE_MS = 150;
@@ -139,6 +143,30 @@ const knownSelection = (selection: Selection, fields: FilterField[]): Selection 
 };
 
 /**
+ * Whether a row the server sent passes the scope and the star, which the browser applies to every row
+ * it holds in paged mode: the server was told one chip (serverchip), the row carries every fact both
+ * criteria read.
+ *
+ * @param {string} scope The scope.
+ * @param {boolean} star Whether the star is pressed.
+ * @param {object} row The row.
+ * @returns {boolean} Whether it is kept.
+ */
+const keptBy = (scope: string, star: boolean, row: InventoryRow): boolean => {
+    const facts: RowFacts = {
+        name: '',
+        opened: row.opened || 0,
+        "new": row.new,
+        fav: row.fav,
+        pend: !!row.pend,
+        sched: row.sched !== undefined,
+        cf: row.cf ?? [],
+    };
+
+    return passesChip(scope, facts) && passesStar(star, facts);
+};
+
+/**
  * Whether the section should scroll without easing: the reader asked for less motion, or a
  * Behat run is driving the page and a click must not land on a moving element.
  *
@@ -181,8 +209,6 @@ const EMPTY_PAGE: PageState = {rows: [], after: 0, hasmore: false, loaded: false
 const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
     const {labels} = config;
     const titleid = useId();
-    const searchid = useId();
-    const panelid = useId();
     // Where the toolbar starts: as the viewer left it before a reload remounted this component,
     // or - on the first mount - as the shell read it.
     const seed = useRef<KeptToolbar>(kept.current ?? {
@@ -190,7 +216,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         view: config.view === 'cards' ? 'cards' : 'list',
         remembered: JSON.stringify({
             sort: config.explore.sort,
-            chip: config.explore.chip,
+            scope: config.explore.scope,
+            star: config.explore.star,
             cf: shippedSelection(config.explore.cf),
             panel: config.explore.panel,
         }),
@@ -201,13 +228,15 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     const [searchfailed, setSearchfailed] = useState(false);
     const [query, setQuery] = useState('');
     const [applied, setApplied] = useState('');
-    // A heading link's chip is pressed over the remembered one by the reveal effect below.
-    const [chip, setChip] = useState(seed.explore.chip);
+    // The scope and the star, ANDed (ADR-015 decision 1). A heading link's chip is pressed over the
+    // remembered pair by the reveal effect below.
+    const [scope, setScope] = useState(seed.explore.scope);
+    const [star, setStar] = useState(seed.explore.star);
     // The pressed chip of each custom-field group: one value per group, groups combine with
     // AND. In full mode a change re-renders; in paged mode it travels.
     const [selection, setSelection] = useState<Selection>(seed.explore.cf);
-    // Open at first render for a viewer who never closed it (explore_preference::defaults()),
-    // which is also what puts the platters on screen for the Behat axe step.
+    // Closed at first render for a viewer who never opened it (explore_preference::defaults(),
+    // ADR-015 decision 5): a popover over the list, whose chips the line shows in force.
     const [panelopen, setPanelopen] = useState(seed.explore.panel);
     const [sort, setSort] = useState(seed.explore.sort);
     const [open, setOpen] = useState<Record<number, boolean>>({});
@@ -245,6 +274,13 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     const lang = document.documentElement.lang || 'en';
 
     const paged = data?.mode === 'paged';
+    // The server takes one chip (get_inventory_rows): the star's favourites when it is pressed, else
+    // the scope. The browser applies the scope and the star to whatever it holds, so the one pair the
+    // server cannot be told - the star and New - is the favourites it sent narrowed to the new ones.
+    const serverchip = star ? 'favourites' : scope;
+    // The star with Awaiting or Scheduled keeps nothing: the favourites chip keeps only a course the
+    // learner can enter (passesChip). Known here, so no page is asked for it.
+    const keepsnothing = star && (scope === 'pending' || scope === 'scheduled');
     const fields = data?.fields ?? [];
     const fieldkeys = useMemo(() => fields.map((field) => field.key), [fields]);
     // The selection as the two paging services take it; memoised so an unchanged selection is
@@ -364,7 +400,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             const page = await getInventoryRows(
                 id,
                 before.after,
-                paged ? chip : 'all',
+                paged ? serverchip : 'all',
                 paged && sort === 'recent' ? 'recent' : 'name',
                 paged ? filters : []
             );
@@ -404,7 +440,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 }));
             }
         }
-    }, [chip, filters, paged, pages, sort]);
+    }, [serverchip, filters, paged, pages, sort]);
 
     /**
      * Paged mode: drop every loaded group's rows and refetch the open ones.
@@ -451,14 +487,19 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 return;
             }
             const page = pages[group.id] || EMPTY_PAGE;
-            if (!open[group.id] || page.loading || page.failed) {
+            if (!open[group.id] || page.loading || page.failed || (paged && keepsnothing)) {
                 return;
             }
             if (!page.loaded || (!paged && group.id === GROUP_ARCHIVED && page.hasmore)) {
                 loadPage(group.id);
             }
         });
-    }, [data, open, pages, paged, loadPage, pagedgroup]);
+    }, [data, open, pages, paged, keepsnothing, loadPage, pagedgroup]);
+
+    // The scope and the star as they are now, for the paged search's announcement: an answer is
+    // narrowed by them in the browser (keptBy), and they are not a reason to ask the server again.
+    const narrowing = useRef({scope, star});
+    narrowing.current = {scope, star};
 
     // Paged mode: the search is the server's, and a query too short for it to match is not sent.
     useEffect(() => {
@@ -496,7 +537,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 }
                 setHits({rows: answer.rows, truncated: answer.truncated});
                 setSearchfailed(false);
-                const shown = fillCount(labels, 'resultsshown', answer.rows.length);
+                const kept = answer.rows.filter((row) => keptBy(narrowing.current.scope, narrowing.current.star, row));
+                const shown = fillCount(labels, 'resultsshown', kept.length);
                 announce(answer.truncated
                     ? `${shown} ${fill(labels.searchtruncated, String(answer.rows.length))}`
                     : shown);
@@ -540,7 +582,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }), [normalised]);
 
     /**
-     * Full mode's one filter: whether a row passes the chip, the field selection and the query.
+     * Full mode's one filter: whether a row passes the scope, the star, the field selection and the query.
      *
      * No request is made for any of it: the rows are already here. The same predicate serves
      * the rows the payload carried and the archive's once fetched, so the two cannot narrow
@@ -549,13 +591,11 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
      * @param {object} row The row.
      * @returns {boolean} Whether it is shown.
      */
-    const passesRow = useCallback((row: InventoryRow): boolean => {
-        const facts = factsof(row);
-
-        return passesChip(chip, facts)
-            && passesSelection(facts.cf, fieldkeys, selection)
-            && (applied === '' || matches(facts.name, applied));
-    }, [chip, selection, fieldkeys, applied, factsof]);
+    const criteria = useMemo((): Criteria => ({scope, star, selection, query: applied}), [scope, star, selection, applied]);
+    const passesRow = useCallback(
+        (row: InventoryRow): boolean => passesCriteria(factsof(row), criteria, fieldkeys),
+        [criteria, fieldkeys, factsof]
+    );
 
     const visible = useMemo(() => {
         const map = new Map<number, InventoryRow[]>();
@@ -570,36 +610,49 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, [data, paged, passesRow]);
 
     /**
-     * Full mode: how many rows each chip would keep, given everything else that is pressed.
+     * Full mode: how many rows each control would keep, given everything else in force.
      *
-     * A status chip is counted over the rows passing the selection and the query; a field chip
-     * over the rows passing the status chip, the query and the other groups' selections - the
-     * usual faceted count, so a number never promises rows the press would not show. Paged mode
-     * holds no rows to count and carries no numbers.
+     * A scope cell is counted over the rows passing the star, the selection and the query; the star
+     * over the rows passing the scope, the selection and the query; a field value over the rows
+     * passing the scope, the star, the query and the other groups' selections - the usual faceted
+     * count, so a number never promises rows the press would not show. Paged mode holds no rows to
+     * count and carries no numbers.
+     *
+     * @param {string} query The query the counts are under: the applied one for the line and the
+     *     panel, the empty one for the suggestions, which empty the field when chosen.
+     * @returns {object} The counts.
      */
-    const facets = useMemo((): Facets => {
+    const countFacets = useCallback((query: string): Facets => {
         if (!data || paged) {
-            return {status: null, fields: null};
+            return {status: null, star: null, fields: null};
         }
         const status: Record<string, number> = {};
-        STATUS_CHIPS.forEach((key) => {
+        SCOPES.forEach((key) => {
             status[key] = 0;
         });
+        let starred = 0;
         const perfield = new Map<string, Map<number, number>>();
         fieldkeys.forEach((key) => perfield.set(key, new Map()));
         data.groups.forEach((group) => group.courses.forEach((row) => {
             const facts = factsof(row);
-            if (applied !== '' && !matches(facts.name, applied)) {
+            if (query !== '' && !matches(facts.name, query)) {
                 return;
             }
-            if (passesSelection(facts.cf, fieldkeys, selection)) {
-                STATUS_CHIPS.forEach((key) => {
+            const selected = passesSelection(facts.cf, fieldkeys, selection);
+            if (selected && passesStar(star, facts)) {
+                SCOPES.forEach((key) => {
                     if (passesChip(key, facts)) {
                         status[key] += 1;
                     }
                 });
             }
-            if (!passesChip(chip, facts)) {
+            if (!passesChip(scope, facts)) {
+                return;
+            }
+            if (selected && passesStar(true, facts)) {
+                starred += 1;
+            }
+            if (!passesStar(star, facts)) {
                 return;
             }
             fieldkeys.forEach((key, index) => {
@@ -617,8 +670,11 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             });
         }));
 
-        return {status, fields: perfield};
-    }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
+        return {status, star: starred, fields: perfield};
+    }, [data, paged, scope, star, selection, fieldkeys, factsof]);
+
+    const facets = useMemo(() => countFacets(applied), [countFacets, applied]);
+    const untyped = useMemo(() => countFacets(''), [countFacets]);
 
     // The archive's rows that pass the same filter, once they are here; none in paged mode,
     // where the rows are not held, and none while a page is still due.
@@ -663,20 +719,56 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, [applied, data, paged, open]);
 
     /**
-     * Change the chip, and in paged mode make it a parameter of the next fetches.
+     * Change the scope or the star, and in paged mode refetch when what the server is told changes.
      *
-     * @param {string} value all, new, favourites or pending.
+     * The server is told one chip (serverchip); a change that leaves it as it is - the star pressed,
+     * the scope moving between All and New - is answered by the browser from the rows it holds.
+     *
+     * @param {string} nextscope all, new, pending or scheduled.
+     * @param {boolean} nextstar Whether the star is pressed.
      * @returns {void}
      */
-    const chooseChip = useCallback((value: string): void => {
-        setChip((current) => {
-            if (current !== value && paged) {
-                resetGroups();
-            }
+    const chooseCriteria = useCallback((nextscope: string, nextstar: boolean): void => {
+        const before = star ? 'favourites' : scope;
+        const after = nextstar ? 'favourites' : nextscope;
+        setScope(nextscope);
+        setStar(nextstar);
+        if (paged && before !== after) {
+            resetGroups();
+        }
+    }, [scope, star, paged, resetGroups]);
 
-            return value;
-        });
-    }, [paged, resetGroups]);
+    /**
+     * Check one scope cell; the star stays as it is.
+     *
+     * @param {string} value all, new, pending or scheduled.
+     * @returns {void}
+     */
+    const chooseScope = useCallback((value: string): void => chooseCriteria(value, star), [chooseCriteria, star]);
+
+    /**
+     * Press or release the star; the scope stays as it is.
+     *
+     * @returns {void}
+     */
+    const toggleStar = useCallback((): void => chooseCriteria(scope, !star), [chooseCriteria, scope, star]);
+
+    /**
+     * Press what a link that opens tier 3 implies (Block's CHIP_OF_KIND, the chips of before ADR-015):
+     * favourites presses the star on the All scope; any other checks that scope and releases the star,
+     * because the link means "show me these".
+     *
+     * @param {string} value new, favourites, pending or scheduled.
+     * @returns {void}
+     */
+    const pressLink = useCallback((value: string): void => {
+        if (value === 'favourites') {
+            chooseCriteria('all', true);
+        } else {
+            // The pending notice's chip, with the feature off, is a cell the line does not draw: All.
+            chooseCriteria(value === 'pending' && !config.pendingenabled ? 'all' : value, false);
+        }
+    }, [chooseCriteria, config.pendingenabled]);
 
     /**
      * Press or release one custom-field chip, and in paged mode refetch with the new selection.
@@ -705,28 +797,55 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, [paged, resetGroups]);
 
     /**
-     * Release every filter at once: the status chip back to All, no field chip pressed, and the
-     * search box emptied. The search is applied at once rather than after its debounce, so the
-     * list is not narrowed by a name for another 150 or 300 ms. The remembered toolbar holds
-     * neither the query nor the applied text, so it follows the chip and the selection alone.
+     * Empty the search box and apply the empty text at once rather than after its debounce, so the
+     * list is not narrowed by a name for another 150 or 300 ms.
+     *
+     * @returns {void}
+     */
+    const eraseQuery = useCallback((): void => {
+        setQuery('');
+        setApplied('');
+    }, []);
+
+    /**
+     * Release every filter at once (the panel's Clear filters): the scope back to All, the star
+     * released, no field chip pressed, and the search box emptied. The search is applied at once
+     * rather than after its debounce. The remembered toolbar holds neither the query nor the applied
+     * text, so it follows the scope, the star and the selection alone.
      *
      * @returns {void}
      */
     const clearFilters = useCallback((): void => {
-        const changed = chip !== 'all' || Object.keys(selection).length > 0;
-        setChip('all');
+        const changed = scope !== 'all' || star || Object.keys(selection).length > 0;
+        setScope('all');
+        setStar(false);
         setSelection({});
         setQuery('');
         setApplied('');
         if (changed && paged) {
             resetGroups();
         }
-    }, [chip, selection, paged, resetGroups]);
+    }, [scope, star, selection, paged, resetGroups]);
 
-    // The status chip a ghost or a heading link opened on may be one the panel does not draw -
-    // pending, with the feature off - and then it means All.
-    const statuschips = config.pendingenabled ? STATUS_CHIPS : STATUS_CHIPS.filter((key) => key !== 'pending');
-    const pressedcount = (chip !== 'all' && statuschips.includes(chip) ? 1 : 0) + Object.keys(selection).length;
+    /**
+     * Release what the chips under the line stand for (Clear all): every field value and the search.
+     * The scope and the star are on the line and have no chip.
+     *
+     * @returns {void}
+     */
+    const clearChips = useCallback((): void => {
+        const changed = Object.keys(selection).length > 0;
+        setSelection({});
+        setQuery('');
+        setApplied('');
+        if (changed && paged) {
+            resetGroups();
+        }
+    }, [selection, paged, resetGroups]);
+
+    // The scope a heading link opened on may be one the line does not draw - pending, with the
+    // feature off - and then it means All.
+    const scopes = config.pendingenabled ? SCOPES : SCOPES.filter((key) => key !== 'pending');
 
     // The last press the effect below has acted on.
     const revealed = useRef(0);
@@ -739,7 +858,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
      * survives the mount and a second press of the same link scrolls again. A tier 3 that
      * would open on its own has no press and moves nothing.
      *
-     * Once per press: the effect also runs when chooseChip changes, which it does when a paged
+     * Once per press: the effect also runs when pressLink changes, which it does when a paged
      * payload lands after the press, and by then the reader may have moved on.
      */
     useEffect(() => {
@@ -748,7 +867,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         }
         revealed.current = reveal;
         if (pressedchip !== null) {
-            chooseChip(pressedchip);
+            pressLink(pressedchip);
         }
         const element = section.current;
         if (!element) {
@@ -756,12 +875,12 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         }
         element.scrollIntoView({block: 'start', behavior: scrollBehavior()});
         element.focus({preventScroll: true});
-    }, [reveal, pressedchip, chooseChip]);
+    }, [reveal, pressedchip, pressLink]);
 
     // The toolbar is remembered once a change has settled: one write per half-second of quiet,
     // never for a render and never for a value equal to what was read.
     useEffect(() => {
-        const state: ExploreState = {sort, chip, cf: selection, panel: panelopen};
+        const state: ExploreState = {sort, scope, star, cf: selection, panel: panelopen};
         const json = JSON.stringify(state);
         if (json === remembered.current) {
             return undefined;
@@ -775,18 +894,18 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         }, REMEMBER_MS);
 
         return () => window.clearTimeout(timer);
-    }, [sort, chip, selection, panelopen, labels.viewerror, kept]);
+    }, [sort, scope, star, selection, panelopen, labels.viewerror, kept]);
 
     // The toolbar as it is now, for Block to hand back after a reload's remount:
     // the live values, and the JSON last read or written, which a change made under the debounce
     // above is still ahead of - so the remounted effect writes it rather than losing it.
     useEffect(() => {
         kept.current = {
-            explore: {sort, chip, cf: selection, panel: panelopen},
+            explore: {sort, scope, star, cf: selection, panel: panelopen},
             view,
             remembered: remembered.current,
         };
-    }, [sort, chip, selection, panelopen, view, kept]);
+    }, [sort, scope, star, selection, panelopen, view, kept]);
 
     // When the browser comes back online, whatever failed is asked for once more on its own:
     // the inventory, the search, and every group whose page failed.
@@ -1121,6 +1240,186 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         return rows;
     }, [visible, sort, normalised]);
 
+    // Paged mode: the hits of the last search, narrowed by the scope and the star in the browser.
+    const keptHits = useMemo(
+        () => (hits === null ? null : hits.rows.filter((row) => keptBy(scope, star, row))),
+        [hits, scope, star]
+    );
+
+    /**
+     * The link a row opens, as Row.tsx builds it: the course, or its enrolment page for a course the
+     * learner cannot enter yet.
+     *
+     * @param {object} row The row.
+     * @returns {string} The URL.
+     */
+    const urlOf = (row: InventoryRow): string => (isEnrolled(row)
+        ? `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}`
+        : `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`);
+
+    // Every row held, by id, for the preview's verdicts: the payload's, the pages', the hits'.
+    const held = useMemo(() => {
+        const map = new Map<number, InventoryRow>();
+        data?.groups.forEach((group) => group.courses.forEach((row) => map.set(row.id, row)));
+        Object.values(pages).forEach((page) => page.rows.forEach((row) => map.set(row.id, row)));
+        hits?.rows.forEach((row) => map.set(row.id, row));
+
+        return map;
+    }, [data, pages, hits]);
+
+    /**
+     * Light the rows and cards drawn that a control would keep, and let the rest recede (ADR-015
+     * decision 6, the contract's section 6, as the calendar strip lights tier 1's cards).
+     *
+     * The control replaces its own group's value and every other criterion is kept. The query is not
+     * re-applied: every row drawn already answered it. A control that would only widen what is drawn -
+     * All, the pressed star, the pressed field value, the checked scope - says nothing and lights
+     * nothing. The classes are written on the drawn elements outside React's render, so pointing
+     * re-renders nothing and asks the server nothing; the stylesheet rings the lit ones in the accent
+     * and remaps the others' text token, never their opacity.
+     *
+     * @param {object|null} candidate What the control would make the criteria; null to clear.
+     * @returns {void}
+     */
+    const preview = useCallback((candidate: Candidate | null): void => {
+        const nodes = section.current?.querySelectorAll<HTMLElement>('.compass-explore-body [data-course-id]') ?? [];
+        let narrowing = candidate !== null;
+        if (candidate !== null && candidate.courseid === undefined) {
+            narrowing = (candidate.scope !== undefined && candidate.scope !== scope && candidate.scope !== 'all')
+                || (candidate.star === true && !star)
+                || (candidate.field !== undefined && candidate.value !== undefined
+                    && selection[candidate.field] !== candidate.value);
+        }
+        const next: Criteria = {
+            scope: candidate?.scope ?? scope,
+            star: candidate?.star ?? star,
+            selection: candidate?.field !== undefined && candidate.value !== undefined
+                ? {...selection, [candidate.field]: candidate.value}
+                : selection,
+            query: '',
+        };
+        nodes.forEach((node) => {
+            const row = held.get(Number(node.dataset.courseId));
+            if (!narrowing || candidate === null || !row) {
+                node.classList.remove('compass-preview-lit', 'compass-preview-dim');
+
+                return;
+            }
+            const keep = candidate.courseid !== undefined
+                ? row.id === candidate.courseid
+                : keptBy(next.scope, next.star, row) && passesSelection(row.cf ?? [], fieldkeys, next.selection);
+            node.classList.toggle('compass-preview-lit', keep);
+            node.classList.toggle('compass-preview-dim', !keep);
+        });
+    }, [scope, star, selection, held, fieldkeys]);
+
+    // A change of the criteria, the order or the view ends any preview: what it lit is gone or moved.
+    useLayoutEffect(() => {
+        preview(null);
+    }, [preview, applied, sort, view]);
+
+    // The scope's cells: counted in full mode, a zero one not drawn unless it is the checked one; All
+    // always drawn, because it is the release.
+    const scopelabels: Record<string, string> = {
+        all: labels.chip_all,
+        "new": labels.chip_new,
+        pending: labels.chip_pending,
+        scheduled: labels.chip_scheduled,
+    };
+    const scopecells: ScopeCell[] = scopes.map((key) => {
+        const count = facets.status === null ? null : facets.status[key] ?? 0;
+
+        return {
+            key,
+            label: scopelabels[key],
+            count,
+            checked: scope === key,
+            drawn: key === 'all' || scope === key || count === null || count > 0,
+        };
+    });
+
+    // What the suggestions may offer: every scope value, the star and every field value not in force,
+    // with the count each would give without the typed text (full mode), none that would keep nothing.
+    const linefilters = useMemo((): LineFilter[] => {
+        const offer: LineFilter[] = [];
+        /**
+         * Whether a filter would keep anything: unknown counts (paged mode) are offered.
+         *
+         * @param {number|null} count Its count, or null.
+         * @returns {boolean} Whether to offer it.
+         */
+        const live = (count: number | null): boolean => count === null || count > 0;
+        scopes.forEach((key) => {
+            const count = untyped.status === null ? null : untyped.status[key] ?? 0;
+            if (key !== scope && live(count)) {
+                offer.push({
+                    key: `scope-${key}`, label: scopelabels[key], group: labels.status, count,
+                    candidate: {scope: key},
+                });
+            }
+        });
+        if (config.favouritesenabled && !star && live(untyped.star)) {
+            offer.push({
+                key: 'star', label: labels.chip_favourites, group: '', count: untyped.star,
+                candidate: {star: true},
+            });
+        }
+        fields.forEach((field) => {
+            const counts = untyped.fields?.get(field.key) ?? null;
+            field.values.forEach((value) => {
+                const count = counts === null ? null : counts.get(value.key) ?? 0;
+                if (selection[field.key] !== value.key && live(count)) {
+                    offer.push({
+                        key: `cf-${field.key}-${value.key}`, label: value.label, group: field.label, count,
+                        candidate: {field: field.key, value: value.key},
+                    });
+                }
+            });
+        });
+
+        return offer;
+        // The labels and the scopes follow from the shell's config, which never changes.
+    }, [scope, star, fields, selection, untyped, config]);
+
+    // The courses the suggestions may offer: in full mode the rows held that the criteria keep and
+    // whose names match what is typed now; in paged mode the last search's hits.
+    const linecourses = useMemo((): LineCourse[] => {
+        const term = normalise(query);
+        if (term.length < SEARCH_MIN_LENGTH) {
+            return [];
+        }
+        const rows = paged
+            ? keptHits ?? []
+            : Array.from(visible.values()).flat().filter((row) => matches(normalised.get(row.id) || '', query));
+
+        return rows.slice(0, 50).map((row) => ({id: row.id, name: row.name, url: urlOf(row)}));
+    }, [query, paged, keptHits, visible, normalised]);
+
+    // The chips under the line: one per field value in force.
+    const linechips = useMemo((): LineChip[] => fields.flatMap((field) => {
+        const value = field.values.find((candidate) => candidate.key === selection[field.key]);
+        if (!value) {
+            return [];
+        }
+        const title = fillObject(labels.line_chip, {field: field.label, value: value.label});
+
+        return [{key: `cf-${field.key}`, label: value.label, title, field: field.key}];
+    }), [fields, selection, labels.line_chip]);
+
+    /**
+     * Apply what a suggestion names: its scope, the star, or its field value, the rest kept.
+     *
+     * @param {object} candidate The suggestion's criteria.
+     * @returns {void}
+     */
+    const applyCandidate = (candidate: Candidate): void => {
+        if (candidate.field !== undefined && candidate.value !== undefined) {
+            chooseSelection(candidate.field, candidate.value);
+        } else {
+            chooseCriteria(candidate.scope ?? scope, candidate.star ?? star);
+        }
+    };
+
     if (failed !== null) {
         return (
             <section className="compass-explore" ref={section} tabIndex={-1}>
@@ -1155,14 +1454,16 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // The cards grid's column count: three without the index, two with it, one while the
     // section is narrow.
     const columns = narrow ? 1 : (showindex ? 2 : 3);
-    const flat = paged ? (hits?.rows ?? []) : flatrows;
-    const noresults = paged ? hits !== null && hits.rows.length === 0 : shown === 0;
+    const flat = paged ? (keptHits ?? []) : flatrows;
+    const noresults = paged ? keepsnothing || (keptHits !== null && keptHits.length === 0) : shown === 0;
 
     /**
      * A group's visible rows and the count its summary shows.
      *
      * In full mode both follow the filter. In paged mode the count is the server's
-     * total until the group's own rows arrive, and then it is what the group holds.
+     * total until the group's own rows arrive, and then it is what the group holds of them that the
+     * scope and the star keep; with the star and Awaiting or Scheduled nothing is kept and no group
+     * is drawn.
      *
      * @param {number} id The group.
      * @param {number} total The count the server sent.
@@ -1188,7 +1489,12 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             return {rows: archivedvisible, count: complete ? archivedvisible.length : total, show: true};
         }
 
-        return {rows: page.rows, count: page.loaded ? page.rows.length : total, show: true};
+        if (keepsnothing) {
+            return {rows: [], count: 0, show: false};
+        }
+        const rows = page.rows.filter((row) => keptBy(scope, star, row));
+
+        return {rows, count: page.loaded ? rows.length : total, show: true};
     };
 
     // The panel title's level comes from heading.ts. The h5 class keeps the size, and
@@ -1200,52 +1506,54 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </Heading>
-            {/* The sort platter and the view toggle on one row, the search box and the Filter
-                button on the next, and the chips inside the panel that button opens. */}
-            <div className="compass-toolbar">
-                <Platter
-                    label={labels.sortby}
-                    items={[['category', labels.sort_category], ['name', labels.sort_name],
-                        ['recent', labels.sort_recent]].map(([value, label]) => ({key: value, label, pressed: sort === value}))}
-                    onPress={chooseSort}
-                />
-                <ViewToggle view={view} config={config} onChoose={chooseView} />
-                <div className="compass-toolbar-row">
-                    {config.showsearch && (
-                        <div className="compass-search flex-grow-1">
-                            <label className="visually-hidden" htmlFor={searchid}>{labels.searchcourses}</label>
-                            <input
-                                type="search"
-                                className="form-control form-control-sm"
-                                id={searchid}
-                                placeholder={labels.searchplaceholder}
-                                autoComplete="off"
-                                value={query}
-                                onChange={(event) => setQuery(event.target.value)}
-                            />
-                        </div>
-                    )}
-                    <FilterToggle
-                        count={pressedcount}
-                        open={panelopen}
-                        controls={panelid}
-                        config={config}
-                        onToggle={() => setPanelopen((current) => !current)}
-                    />
-                </div>
-            </div>
-            <FilterPanel
-                id={panelid}
-                hidden={!panelopen}
+            {/* The filter line (ADR-015): the scope, the search, the star, Filters, Organise and the
+                view, folded on its own width, with the chips of the panel's filters in force under it. */}
+            <FilterLine
                 config={config}
-                chip={chip}
-                fields={fields}
-                selection={selection}
-                searching={query !== ''}
-                facets={facets}
-                onChip={chooseChip}
-                onSelect={chooseSelection}
-                onClear={clearFilters}
+                scopecells={scopecells}
+                onScope={chooseScope}
+                star={star}
+                starcount={facets.star}
+                onStar={toggleStar}
+                hasfilters={fields.length > 0}
+                badge={Object.keys(selection).length}
+                panelopen={panelopen}
+                onPanel={setPanelopen}
+                panel={(layer) => (
+                    <FilterPanel
+                        id={layer.id}
+                        hidden={!panelopen}
+                        top={layer.top}
+                        sheet={layer.sheet}
+                        stacked={layer.stacked}
+                        element={layer.element}
+                        config={config}
+                        filtered={scope !== 'all' || star}
+                        fields={fields}
+                        selection={selection}
+                        searching={query !== ''}
+                        facets={facets}
+                        shown={paged ? null : shown}
+                        onSelect={chooseSelection}
+                        onPreview={(field, value) => preview(value === null ? null : {field, value})}
+                        onClear={clearFilters}
+                        onShow={layer.onShow}
+                    />
+                )}
+                sort={sort}
+                onSort={chooseSort}
+                view={view}
+                onView={chooseView}
+                query={query}
+                onQuery={setQuery}
+                onErase={eraseQuery}
+                filters={linefilters}
+                onApply={applyCandidate}
+                courses={linecourses}
+                chips={linechips}
+                onRelease={(field) => chooseSelection(field, null)}
+                onClearAll={clearChips}
+                onPreview={preview}
             />
             {details.failed && (
                 <RetryNotice message={labels.progresserror} retrying={false} config={config} onRetry={details.retry} />

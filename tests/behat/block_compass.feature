@@ -73,8 +73,10 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Access from" in the "Compass" "block"
     And I should not see "Course 7" in the "Compass" "block"
     When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
-    # Tier 3 opens on the Scheduled chip with its first category group open, which here holds no
-    # later start; the flat A-Z list shows every row the chip keeps, whatever group it is in.
+    # Tier 3 opens on the Scheduled scope with its first category group open, which here holds no
+    # later start; the flat A-Z list shows every row the scope keeps, whatever group it is in. The
+    # sort is inside the filter line's Organise menu (ADR-015), and a choice closes the menu.
+    And I click on "Organise" "button" in the "Compass" "block"
     And I click on "A–Z" "button" in the "Compass" "block"
     Then I should see "Course 7" in the "Compass" "block"
     # Course 3 is an active course tier 1 had no room for; the chip keeps it out of tier 3 too.
@@ -125,15 +127,17 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
-    # The filter panel is open at first render, so its platters and chips are on screen too - all
-    # but the chip nobody's course carries: a chip that would show nothing is not drawn. Hybrid
-    # is the third option of the field and no course has it.
-    And I should see "Delivery" in the "Compass" "block"
+    # The filter panel starts closed (ADR-015 decision 5) and Filters opens it - in the Dashboard's
+    # drawer, at the line's two-line step, as a bottom sheet. Its platters and chips are then on
+    # screen - all but the chip nobody's course carries: a chip that would show nothing is not drawn.
+    # Hybrid is the third option of the field and no course has it.
+    When I click on "Filters" "button" in the "Compass" "block"
+    Then I should see "Delivery" in the "Compass" "block"
     And I should see "On campus" in the "Compass" "block"
     And I should not see "Hybrid" in the "Compass" "block"
-    # With tier 3 open: the index, both groups and their rows, the toolbar and the panel are all
-    # on screen here, which is the most this scenario ever shows (a settled search narrows the
-    # list to its hits).
+    # With tier 3 open: both groups and their rows, the filter line and the panel are all on screen
+    # here, which is the most this scenario ever shows (a settled search narrows the list to its
+    # hits).
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
     # A field chip narrows the list to the one course carrying the option, in the browser: the
     # live region announces the count, which is what settles the re-render before the negative
@@ -153,12 +157,17 @@ Feature: The Compass block puts the courses that need attention first
     Then I should see "1 course shown" in the "Compass" "block"
     And I should see "Course 4" in the "Compass" "block"
     And I should not see "Course 2" in the "Compass" "block"
+    # At the two-line step the search grows over the line as it is typed in, sliding the other
+    # controls out; its close button brings them back.
+    When I click on "Close search" "button" in the "Compass" "block"
     # The cards are a second component tree over the same rows, and in React a defect in one
     # unmounts the whole block rather than drawing a broken card - so this is the only place
     # that would notice. The reload is what proves the choice was written through core's
     # preferences endpoint: a client that failed to persist it would look correct until the
-    # next page load. The switch is an icon-only button, found by its aria-label.
-    When I click on "Cards" "button" in the "Compass" "block"
+    # next page load. The switch is an icon-only button, found by its aria-label; at the two-line
+    # step it is inside Organise, whose switch comes first in the document.
+    And I click on "Organise" "button" in the "Compass" "block"
+    And I click on "Cards" "button" in the "Compass" "block"
     Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
     # The cards are a grid whose column count the client sets from the width it has. Here the
     # block sits in the Dashboard's block drawer, about 315 px wide and under the 640 px the
@@ -166,7 +175,7 @@ Feature: The Compass block puts the courses that need attention first
     # The two- and three-column rules are pinned by accessibility_rules_test.
     And ".compass-rowcards-1" "css_element" should exist in the "Compass" "block"
     When I reload the page
-    # The strip's heading link is the second way into tier 3: it opens on the New chip, so the
+    # The strip's heading link is the second way into tier 3: it opens on the New scope, so the
     # two never-opened courses are what is counted, and the cards view written before the
     # reload is what draws them.
     And I click on "+1 new" "button" in the "Compass" "block"

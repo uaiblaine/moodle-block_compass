@@ -69,8 +69,9 @@ function block_compass_user_preferences(): array {
 /**
  * The plugin's own icons, for the Font Awesome icon system.
  *
- * Core's map carries no archive glyph; Font Awesome 6.7.2, which Moodle 5.2 ships, has both
- * boxes. The map is merged by {@see \core\output\icon_system_fontawesome::get_icon_name_map()},
+ * Core's map carries no archive glyph and no sliders, the glyph of the filter line's Filters button
+ * (ADR-015); Font Awesome 6.7.2, which Moodle 5.2 ships, has the two boxes and the sliders. The map
+ * is merged by {@see \core\output\icon_system_fontawesome::get_icon_name_map()},
  * which renders a class without a family prefix as "fa fa-box-archive".
  *
  * @return array Icon key => Font Awesome class.
@@ -79,5 +80,6 @@ function block_compass_get_fontawesome_icon_map(): array {
     return [
         'block_compass:archive' => 'fa-box-archive',
         'block_compass:unarchive' => 'fa-box-open',
+        'block_compass:sliders' => 'fa-sliders',
     ];
 }

@@ -26,7 +26,9 @@
  * aria-hidden-focus rule names as the fix, because the arrow keys already move between pills
  * and a keyboard user would otherwise pay two more tab stops per platter.
  *
- * Selection is the caller's: this draws what it is given and reports a press.
+ * Selection is the caller's: this draws what it is given and reports a press, and - for the filter
+ * panel's options - a mouse or a pen pointing at a pill, or the keyboard's focus on it, so the
+ * caller can preview what it would keep (ADR-015 decision 6; never a finger).
  *
  * @module     block_compass/Platter
  * @copyright  2026 Anderson Blaine
@@ -35,6 +37,7 @@
 
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import type {KeyboardEvent} from 'react';
+import {hovers} from './ScopeGroup';
 
 /** One pill: its key, its label, an optional count, and whether it is pressed. */
 export type PlatterItem = {
@@ -49,6 +52,7 @@ type PlatterProps = {
     onPress: (key: string) => void,
     label?: string,
     labelledby?: string,
+    onPreview?: (key: string | null) => void,
 };
 
 /** Where the indicator sits, in the items' own coordinates; hidden when nothing is pressed. */
@@ -59,10 +63,10 @@ const HIDDEN_INDICATOR: Indicator = {left: 0, width: 0, visible: false};
 /**
  * The platter.
  *
- * @param {object} props The pills, the press callback and the group's name; see PlatterProps.
+ * @param {object} props The pills, the press and preview callbacks and the group's name; see PlatterProps.
  * @returns {object} The rendered group.
  */
-const Platter = ({items, onPress, label, labelledby}: PlatterProps) => {
+const Platter = ({items, onPress, label, labelledby, onPreview}: PlatterProps) => {
     const mask = useRef<HTMLDivElement>(null);
     const track = useRef<HTMLDivElement>(null);
     const [indicator, setIndicator] = useState<Indicator>(HIDDEN_INDICATOR);
@@ -221,10 +225,22 @@ const Platter = ({items, onPress, label, labelledby}: PlatterProps) => {
                             className="compass-chip"
                             aria-pressed={item.pressed}
                             onClick={() => onPress(item.key)}
+                            onPointerEnter={onPreview ? (event) => {
+                                if (hovers(event)) {
+                                    onPreview(item.key);
+                                }
+                            } : undefined}
+                            onPointerLeave={onPreview ? () => onPreview(null) : undefined}
+                            onFocus={onPreview ? () => onPreview(item.key) : undefined}
+                            onBlur={onPreview ? () => onPreview(null) : undefined}
                         >
                             {item.label}
+                            {/* The space is the accessible name's ("Online 2"); flex layout ignores it. */}
                             {item.count !== undefined && item.count !== null && (
-                                <span className="compass-chip-count">{item.count}</span>
+                                <>
+                                    {' '}
+                                    <span className="compass-chip-count">{item.count}</span>
+                                </>
                             )}
                         </button>
                     ))}
