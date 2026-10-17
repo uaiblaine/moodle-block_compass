@@ -17,23 +17,22 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * viewport. Neither knows about the mode, because a row is a row however it arrived.
  *
  * The section is scrolled into view and given the keyboard on every press that opens or
- * re-aims it; the toolbar starts as the viewer left it and is remembered in one preference
- * the shell validates; the star toggles here too, patching the row and refreshing tier 1,
- * and a star toggled in tier 1 patches the row here; and every failure has a way back.
+ * re-aims it; the filter line (FilterLine.tsx, ADR-015) starts as the viewer left it and is
+ * remembered in one preference the shell validates; the course star toggles here too, patching
+ * the row and refreshing tier 1, and a star toggled in tier 1 patches the row here; pointing at a
+ * filter lights the rows it would keep (preview()); and every failure has a way back.
  *
  * @module     block_compass/Explore
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import FilterLine from "./FilterLine";
 import FilterPanel from "./FilterPanel";
-import FilterToggle from "./FilterToggle";
 import Group from "./Group";
-import Platter from "./Platter";
 import RetryNotice from "./RetryNotice";
 import RowList from "./RowList";
-import ViewToggle from "./ViewToggle";
-import { matches, normalise, passesChip, passesSelection } from "./filter";
+import { isEnrolled, matches, normalise, passesChip, passesCriteria, passesSelection, passesStar } from "./filter";
 import { sectionTag } from "./heading";
 import { confirmAction, notify } from "./notify";
 import { fill, fillCount, fillObject } from "./str";
@@ -49,7 +48,7 @@ import {
 } from "./repository";
 import { useRowDetails } from "./rowdetails";
 import { GROUP_ARCHIVED, GROUP_DORMANT } from "./types";
-const STATUS_CHIPS = ["all", "new", "favourites", "pending", "scheduled"];
+const SCOPES = ["all", "new", "pending", "scheduled"];
 const DEBOUNCE_MS = 150;
 const PAGE_DEBOUNCE_MS = 300;
 const SEARCH_MIN_LENGTH = 2;
@@ -66,6 +65,18 @@ const knownSelection = /* @__PURE__ */ __name((selection, fields) => {
   });
   return next;
 }, "knownSelection");
+const keptBy = /* @__PURE__ */ __name((scope, star, row) => {
+  const facts = {
+    name: "",
+    opened: row.opened || 0,
+    "new": row.new,
+    fav: row.fav,
+    pend: !!row.pend,
+    sched: row.sched !== void 0,
+    cf: row.cf ?? []
+  };
+  return passesChip(scope, facts) && passesStar(star, facts);
+}, "keptBy");
 const scrollBehavior = /* @__PURE__ */ __name(() => {
   const reduced = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return reduced || document.body.classList.contains("behat-site") ? "auto" : "smooth";
@@ -74,14 +85,13 @@ const EMPTY_PAGE = { rows: [], after: 0, hasmore: false, loaded: false, loading:
 const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, starred, reconnecting, kept, announce: alert, onChanged }) => {
   const { labels } = config;
   const titleid = useId();
-  const searchid = useId();
-  const panelid = useId();
   const seed = useRef(kept.current ?? {
     explore: { ...config.explore, cf: shippedSelection(config.explore.cf) },
     view: config.view === "cards" ? "cards" : "list",
     remembered: JSON.stringify({
       sort: config.explore.sort,
-      chip: config.explore.chip,
+      scope: config.explore.scope,
+      star: config.explore.star,
       cf: shippedSelection(config.explore.cf),
       panel: config.explore.panel
     })
@@ -91,7 +101,8 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
   const [searchfailed, setSearchfailed] = useState(false);
   const [query, setQuery] = useState("");
   const [applied, setApplied] = useState("");
-  const [chip, setChip] = useState(seed.explore.chip);
+  const [scope, setScope] = useState(seed.explore.scope);
+  const [star, setStar] = useState(seed.explore.star);
   const [selection, setSelection] = useState(seed.explore.cf);
   const [panelopen, setPanelopen] = useState(seed.explore.panel);
   const [sort, setSort] = useState(seed.explore.sort);
@@ -113,6 +124,8 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
   const now = useRef(Math.floor(Date.now() / 1e3));
   const lang = document.documentElement.lang || "en";
   const paged = data?.mode === "paged";
+  const serverchip = star ? "favourites" : scope;
+  const keepsnothing = star && (scope === "pending" || scope === "scheduled");
   const fields = data?.fields ?? [];
   const fieldkeys = useMemo(() => fields.map((field) => field.key), [fields]);
   const filters = useMemo(
@@ -183,7 +196,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       const page = await getInventoryRows(
         id,
         before.after,
-        paged ? chip : "all",
+        paged ? serverchip : "all",
         paged && sort === "recent" ? "recent" : "name",
         paged ? filters : []
       );
@@ -212,7 +225,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
         }));
       }
     }
-  }, [chip, filters, paged, pages, sort]);
+  }, [serverchip, filters, paged, pages, sort]);
   const resetGroups = useCallback(() => {
     setPages((current) => {
       const next = {};
@@ -235,14 +248,16 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
         return;
       }
       const page = pages[group.id] || EMPTY_PAGE;
-      if (!open[group.id] || page.loading || page.failed) {
+      if (!open[group.id] || page.loading || page.failed || paged && keepsnothing) {
         return;
       }
       if (!page.loaded || !paged && group.id === GROUP_ARCHIVED && page.hasmore) {
         loadPage(group.id);
       }
     });
-  }, [data, open, pages, paged, loadPage, pagedgroup]);
+  }, [data, open, pages, paged, keepsnothing, loadPage, pagedgroup]);
+  const narrowing = useRef({ scope, star });
+  narrowing.current = { scope, star };
   useEffect(() => {
     if (!paged) {
       return;
@@ -266,7 +281,8 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
         }
         setHits({ rows: answer.rows, truncated: answer.truncated });
         setSearchfailed(false);
-        const shown2 = fillCount(labels, "resultsshown", answer.rows.length);
+        const kept2 = answer.rows.filter((row) => keptBy(narrowing.current.scope, narrowing.current.star, row));
+        const shown2 = fillCount(labels, "resultsshown", kept2.length);
         announce(answer.truncated ? `${shown2} ${fill(labels.searchtruncated, String(answer.rows.length))}` : shown2);
       } catch (e) {
         if (searchseq.current === mine) {
@@ -302,10 +318,11 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     sched: row.sched !== void 0,
     cf: row.cf ?? []
   }), [normalised]);
-  const passesRow = useCallback((row) => {
-    const facts = factsof(row);
-    return passesChip(chip, facts) && passesSelection(facts.cf, fieldkeys, selection) && (applied === "" || matches(facts.name, applied));
-  }, [chip, selection, fieldkeys, applied, factsof]);
+  const criteria = useMemo(() => ({ scope, star, selection, query: applied }), [scope, star, selection, applied]);
+  const passesRow = useCallback(
+    (row) => passesCriteria(factsof(row), criteria, fieldkeys),
+    [criteria, fieldkeys, factsof]
+  );
   const visible = useMemo(() => {
     const map = /* @__PURE__ */ new Map();
     if (!data || paged) {
@@ -316,29 +333,37 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     });
     return map;
   }, [data, paged, passesRow]);
-  const facets = useMemo(() => {
+  const countFacets = useCallback((query2) => {
     if (!data || paged) {
-      return { status: null, fields: null };
+      return { status: null, star: null, fields: null };
     }
     const status = {};
-    STATUS_CHIPS.forEach((key) => {
+    SCOPES.forEach((key) => {
       status[key] = 0;
     });
+    let starred2 = 0;
     const perfield = /* @__PURE__ */ new Map();
     fieldkeys.forEach((key) => perfield.set(key, /* @__PURE__ */ new Map()));
     data.groups.forEach((group) => group.courses.forEach((row) => {
       const facts = factsof(row);
-      if (applied !== "" && !matches(facts.name, applied)) {
+      if (query2 !== "" && !matches(facts.name, query2)) {
         return;
       }
-      if (passesSelection(facts.cf, fieldkeys, selection)) {
-        STATUS_CHIPS.forEach((key) => {
+      const selected = passesSelection(facts.cf, fieldkeys, selection);
+      if (selected && passesStar(star, facts)) {
+        SCOPES.forEach((key) => {
           if (passesChip(key, facts)) {
             status[key] += 1;
           }
         });
       }
-      if (!passesChip(chip, facts)) {
+      if (!passesChip(scope, facts)) {
+        return;
+      }
+      if (selected && passesStar(true, facts)) {
+        starred2 += 1;
+      }
+      if (!passesStar(star, facts)) {
         return;
       }
       fieldkeys.forEach((key, index) => {
@@ -355,8 +380,10 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
         }
       });
     }));
-    return { status, fields: perfield };
-  }, [data, paged, chip, selection, fieldkeys, applied, factsof]);
+    return { status, star: starred2, fields: perfield };
+  }, [data, paged, scope, star, selection, fieldkeys, factsof]);
+  const facets = useMemo(() => countFacets(applied), [countFacets, applied]);
+  const untyped = useMemo(() => countFacets(""), [countFacets]);
   const archivedvisible = useMemo(() => {
     const page = pages[GROUP_ARCHIVED];
     if (paged || !page || !page.loaded || page.hasmore) {
@@ -386,14 +413,24 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       openbefore.current = null;
     }
   }, [applied, data, paged, open]);
-  const chooseChip = useCallback((value) => {
-    setChip((current) => {
-      if (current !== value && paged) {
-        resetGroups();
-      }
-      return value;
-    });
-  }, [paged, resetGroups]);
+  const chooseCriteria = useCallback((nextscope, nextstar) => {
+    const before = star ? "favourites" : scope;
+    const after = nextstar ? "favourites" : nextscope;
+    setScope(nextscope);
+    setStar(nextstar);
+    if (paged && before !== after) {
+      resetGroups();
+    }
+  }, [scope, star, paged, resetGroups]);
+  const chooseScope = useCallback((value) => chooseCriteria(value, star), [chooseCriteria, star]);
+  const toggleStar = useCallback(() => chooseCriteria(scope, !star), [chooseCriteria, scope, star]);
+  const pressLink = useCallback((value) => {
+    if (value === "favourites") {
+      chooseCriteria("all", true);
+    } else {
+      chooseCriteria(value === "pending" && !config.pendingenabled ? "all" : value, false);
+    }
+  }, [chooseCriteria, config.pendingenabled]);
   const chooseSelection = useCallback((field, value) => {
     setSelection((current) => {
       if ((current[field] ?? null) === value) {
@@ -411,18 +448,31 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       return next;
     });
   }, [paged, resetGroups]);
+  const eraseQuery = useCallback(() => {
+    setQuery("");
+    setApplied("");
+  }, []);
   const clearFilters = useCallback(() => {
-    const changed = chip !== "all" || Object.keys(selection).length > 0;
-    setChip("all");
+    const changed = scope !== "all" || star || Object.keys(selection).length > 0;
+    setScope("all");
+    setStar(false);
     setSelection({});
     setQuery("");
     setApplied("");
     if (changed && paged) {
       resetGroups();
     }
-  }, [chip, selection, paged, resetGroups]);
-  const statuschips = config.pendingenabled ? STATUS_CHIPS : STATUS_CHIPS.filter((key) => key !== "pending");
-  const pressedcount = (chip !== "all" && statuschips.includes(chip) ? 1 : 0) + Object.keys(selection).length;
+  }, [scope, star, selection, paged, resetGroups]);
+  const clearChips = useCallback(() => {
+    const changed = Object.keys(selection).length > 0;
+    setSelection({});
+    setQuery("");
+    setApplied("");
+    if (changed && paged) {
+      resetGroups();
+    }
+  }, [selection, paged, resetGroups]);
+  const scopes = config.pendingenabled ? SCOPES : SCOPES.filter((key) => key !== "pending");
   const revealed = useRef(0);
   useEffect(() => {
     if (reveal === 0 || reveal === revealed.current) {
@@ -430,7 +480,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     }
     revealed.current = reveal;
     if (pressedchip !== null) {
-      chooseChip(pressedchip);
+      pressLink(pressedchip);
     }
     const element = section.current;
     if (!element) {
@@ -438,9 +488,9 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     }
     element.scrollIntoView({ block: "start", behavior: scrollBehavior() });
     element.focus({ preventScroll: true });
-  }, [reveal, pressedchip, chooseChip]);
+  }, [reveal, pressedchip, pressLink]);
   useEffect(() => {
-    const state = { sort, chip, cf: selection, panel: panelopen };
+    const state = { sort, scope, star, cf: selection, panel: panelopen };
     const json = JSON.stringify(state);
     if (json === remembered.current) {
       return void 0;
@@ -453,14 +503,14 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       setExplorePreference(state).catch(() => notify(labels.viewerror || ""));
     }, REMEMBER_MS);
     return () => window.clearTimeout(timer);
-  }, [sort, chip, selection, panelopen, labels.viewerror, kept]);
+  }, [sort, scope, star, selection, panelopen, labels.viewerror, kept]);
   useEffect(() => {
     kept.current = {
-      explore: { sort, chip, cf: selection, panel: panelopen },
+      explore: { sort, scope, star, cf: selection, panel: panelopen },
       view,
       remembered: remembered.current
     };
-  }, [sort, chip, selection, panelopen, view, kept]);
+  }, [sort, scope, star, selection, panelopen, view, kept]);
   useEffect(() => {
     const again = /* @__PURE__ */ __name(() => {
       if (failed !== null) {
@@ -654,6 +704,124 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     rows.sort(sort === "recent" ? (a, b) => (b.opened || 0) - (a.opened || 0) || byname(a, b) : byname);
     return rows;
   }, [visible, sort, normalised]);
+  const keptHits = useMemo(
+    () => hits === null ? null : hits.rows.filter((row) => keptBy(scope, star, row)),
+    [hits, scope, star]
+  );
+  const urlOf = /* @__PURE__ */ __name((row) => isEnrolled(row) ? `${window.M.cfg.wwwroot}/course/view.php?id=${row.id}` : `${window.M.cfg.wwwroot}/enrol/index.php?id=${row.id}`, "urlOf");
+  const held = useMemo(() => {
+    const map = /* @__PURE__ */ new Map();
+    data?.groups.forEach((group) => group.courses.forEach((row) => map.set(row.id, row)));
+    Object.values(pages).forEach((page) => page.rows.forEach((row) => map.set(row.id, row)));
+    hits?.rows.forEach((row) => map.set(row.id, row));
+    return map;
+  }, [data, pages, hits]);
+  const preview = useCallback((candidate) => {
+    const nodes = section.current?.querySelectorAll(".compass-explore-body [data-course-id]") ?? [];
+    let narrowing2 = candidate !== null;
+    if (candidate !== null && candidate.courseid === void 0) {
+      narrowing2 = candidate.scope !== void 0 && candidate.scope !== scope && candidate.scope !== "all" || candidate.star === true && !star || candidate.field !== void 0 && candidate.value !== void 0 && selection[candidate.field] !== candidate.value;
+    }
+    const next = {
+      scope: candidate?.scope ?? scope,
+      star: candidate?.star ?? star,
+      selection: candidate?.field !== void 0 && candidate.value !== void 0 ? { ...selection, [candidate.field]: candidate.value } : selection,
+      query: ""
+    };
+    nodes.forEach((node) => {
+      const row = held.get(Number(node.dataset.courseId));
+      if (!narrowing2 || candidate === null || !row) {
+        node.classList.remove("compass-preview-lit", "compass-preview-dim");
+        return;
+      }
+      const keep = candidate.courseid !== void 0 ? row.id === candidate.courseid : keptBy(next.scope, next.star, row) && passesSelection(row.cf ?? [], fieldkeys, next.selection);
+      node.classList.toggle("compass-preview-lit", keep);
+      node.classList.toggle("compass-preview-dim", !keep);
+    });
+  }, [scope, star, selection, held, fieldkeys]);
+  useLayoutEffect(() => {
+    preview(null);
+  }, [preview, applied, sort, view]);
+  const scopelabels = {
+    all: labels.chip_all,
+    "new": labels.chip_new,
+    pending: labels.chip_pending,
+    scheduled: labels.chip_scheduled
+  };
+  const scopecells = scopes.map((key) => {
+    const count = facets.status === null ? null : facets.status[key] ?? 0;
+    return {
+      key,
+      label: scopelabels[key],
+      count,
+      checked: scope === key,
+      drawn: key === "all" || scope === key || count === null || count > 0
+    };
+  });
+  const linefilters = useMemo(() => {
+    const offer = [];
+    const live = /* @__PURE__ */ __name((count) => count === null || count > 0, "live");
+    scopes.forEach((key) => {
+      const count = untyped.status === null ? null : untyped.status[key] ?? 0;
+      if (key !== scope && live(count)) {
+        offer.push({
+          key: `scope-${key}`,
+          label: scopelabels[key],
+          group: labels.status,
+          count,
+          candidate: { scope: key }
+        });
+      }
+    });
+    if (config.favouritesenabled && !star && live(untyped.star)) {
+      offer.push({
+        key: "star",
+        label: labels.chip_favourites,
+        group: "",
+        count: untyped.star,
+        candidate: { star: true }
+      });
+    }
+    fields.forEach((field) => {
+      const counts = untyped.fields?.get(field.key) ?? null;
+      field.values.forEach((value) => {
+        const count = counts === null ? null : counts.get(value.key) ?? 0;
+        if (selection[field.key] !== value.key && live(count)) {
+          offer.push({
+            key: `cf-${field.key}-${value.key}`,
+            label: value.label,
+            group: field.label,
+            count,
+            candidate: { field: field.key, value: value.key }
+          });
+        }
+      });
+    });
+    return offer;
+  }, [scope, star, fields, selection, untyped, config]);
+  const linecourses = useMemo(() => {
+    const term = normalise(query);
+    if (term.length < SEARCH_MIN_LENGTH) {
+      return [];
+    }
+    const rows = paged ? keptHits ?? [] : Array.from(visible.values()).flat().filter((row) => matches(normalised.get(row.id) || "", query));
+    return rows.slice(0, 50).map((row) => ({ id: row.id, name: row.name, url: urlOf(row) }));
+  }, [query, paged, keptHits, visible, normalised]);
+  const linechips = useMemo(() => fields.flatMap((field) => {
+    const value = field.values.find((candidate) => candidate.key === selection[field.key]);
+    if (!value) {
+      return [];
+    }
+    const title = fillObject(labels.line_chip, { field: field.label, value: value.label });
+    return [{ key: `cf-${field.key}`, label: value.label, title, field: field.key }];
+  }), [fields, selection, labels.line_chip]);
+  const applyCandidate = /* @__PURE__ */ __name((candidate) => {
+    if (candidate.field !== void 0 && candidate.value !== void 0) {
+      chooseSelection(candidate.field, candidate.value);
+    } else {
+      chooseCriteria(candidate.scope ?? scope, candidate.star ?? star);
+    }
+  }, "applyCandidate");
   if (failed !== null) {
     return /* @__PURE__ */ jsxDEV("section", { className: "compass-explore", ref: section, tabIndex: -1, children: /* @__PURE__ */ jsxDEV(
       RetryNotice,
@@ -667,12 +835,12 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1127,
+        lineNumber: 1426,
         columnNumber: 17
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1126,
+      lineNumber: 1425,
       columnNumber: 13
     });
   }
@@ -682,147 +850,110 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       attempts: String(reconnecting.attempts)
     }) : labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1141,
+      lineNumber: 1440,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1140,
+      lineNumber: 1439,
       columnNumber: 13
     });
   }
   const grouped = paged ? hits === null : sort === "category";
   const showindex = config.showindex && grouped && !narrow;
   const columns = narrow ? 1 : showindex ? 2 : 3;
-  const flat = paged ? hits?.rows ?? [] : flatrows;
-  const noresults = paged ? hits !== null && hits.rows.length === 0 : shown === 0;
+  const flat = paged ? keptHits ?? [] : flatrows;
+  const noresults = paged ? keepsnothing || keptHits !== null && keptHits.length === 0 : shown === 0;
   const groupview = /* @__PURE__ */ __name((id, total) => {
     if (!pagedgroup(id)) {
-      const rows = visible.get(id) || [];
-      return { rows, count: rows.length, show: rows.length > 0 };
+      const rows2 = visible.get(id) || [];
+      return { rows: rows2, count: rows2.length, show: rows2.length > 0 };
     }
     const page = pages[id] || EMPTY_PAGE;
     if (!paged) {
       const complete = page.loaded && !page.hasmore;
       return { rows: archivedvisible, count: complete ? archivedvisible.length : total, show: true };
     }
-    return { rows: page.rows, count: page.loaded ? page.rows.length : total, show: true };
+    if (keepsnothing) {
+      return { rows: [], count: 0, show: false };
+    }
+    const rows = page.rows.filter((row) => keptBy(scope, star, row));
+    return { rows, count: page.loaded ? rows.length : total, show: true };
   }, "groupview");
   const Heading = sectionTag(config.headinglevel);
   return /* @__PURE__ */ jsxDEV("section", { className: "compass-explore", ref: section, tabIndex: -1, "aria-labelledby": titleid, children: [
     /* @__PURE__ */ jsxDEV(Heading, { className: "compass-explore-title h5", id: titleid, tabIndex: -1, children: fill(labels.allcourses, String(data.total)) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1200,
+      lineNumber: 1506,
       columnNumber: 13
     }),
-    /* @__PURE__ */ jsxDEV("div", { className: "compass-toolbar", children: [
-      /* @__PURE__ */ jsxDEV(
-        Platter,
-        {
-          label: labels.sortby,
-          items: [
-            ["category", labels.sort_category],
-            ["name", labels.sort_name],
-            ["recent", labels.sort_recent]
-          ].map(([value, label]) => ({ key: value, label, pressed: sort === value })),
-          onPress: chooseSort
-        },
-        void 0,
-        false,
-        {
-          fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-          lineNumber: 1206,
-          columnNumber: 17
-        }
-      ),
-      /* @__PURE__ */ jsxDEV(ViewToggle, { view, config, onChoose: chooseView }, void 0, false, {
-        fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1212,
-        columnNumber: 17
-      }),
-      /* @__PURE__ */ jsxDEV("div", { className: "compass-toolbar-row", children: [
-        config.showsearch && /* @__PURE__ */ jsxDEV("div", { className: "compass-search flex-grow-1", children: [
-          /* @__PURE__ */ jsxDEV("label", { className: "visually-hidden", htmlFor: searchid, children: labels.searchcourses }, void 0, false, {
-            fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1216,
-            columnNumber: 29
-          }),
-          /* @__PURE__ */ jsxDEV(
-            "input",
-            {
-              type: "search",
-              className: "form-control form-control-sm",
-              id: searchid,
-              placeholder: labels.searchplaceholder,
-              autoComplete: "off",
-              value: query,
-              onChange: (event) => setQuery(event.target.value)
-            },
-            void 0,
-            false,
-            {
-              fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-              lineNumber: 1217,
-              columnNumber: 29
-            }
-          )
-        ] }, void 0, true, {
-          fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-          lineNumber: 1215,
-          columnNumber: 25
-        }),
-        /* @__PURE__ */ jsxDEV(
-          FilterToggle,
+    /* @__PURE__ */ jsxDEV(
+      FilterLine,
+      {
+        config,
+        scopecells,
+        onScope: chooseScope,
+        star,
+        starcount: facets.star,
+        onStar: toggleStar,
+        hasfilters: fields.length > 0,
+        badge: Object.keys(selection).length,
+        panelopen,
+        onPanel: setPanelopen,
+        panel: (layer) => /* @__PURE__ */ jsxDEV(
+          FilterPanel,
           {
-            count: pressedcount,
-            open: panelopen,
-            controls: panelid,
+            id: layer.id,
+            hidden: !panelopen,
+            top: layer.top,
+            sheet: layer.sheet,
+            stacked: layer.stacked,
+            element: layer.element,
             config,
-            onToggle: () => setPanelopen((current) => !current)
+            filtered: scope !== "all" || star,
+            fields,
+            selection,
+            searching: query !== "",
+            facets,
+            shown: paged ? null : shown,
+            onSelect: chooseSelection,
+            onPreview: (field, value) => preview(value === null ? null : { field, value }),
+            onClear: clearFilters,
+            onShow: layer.onShow
           },
           void 0,
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1228,
+            lineNumber: 1523,
             columnNumber: 21
           }
-        )
-      ] }, void 0, true, {
-        fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1213,
-        columnNumber: 17
-      })
-    ] }, void 0, true, {
-      fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1205,
-      columnNumber: 13
-    }),
-    /* @__PURE__ */ jsxDEV(
-      FilterPanel,
-      {
-        id: panelid,
-        hidden: !panelopen,
-        config,
-        chip,
-        fields,
-        selection,
-        searching: query !== "",
-        facets,
-        onChip: chooseChip,
-        onSelect: chooseSelection,
-        onClear: clearFilters
+        ),
+        sort,
+        onSort: chooseSort,
+        view,
+        onView: chooseView,
+        query,
+        onQuery: setQuery,
+        onErase: eraseQuery,
+        filters: linefilters,
+        onApply: applyCandidate,
+        courses: linecourses,
+        chips: linechips,
+        onRelease: (field) => chooseSelection(field, null),
+        onClearAll: clearChips,
+        onPreview: preview
       },
       void 0,
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1237,
+        lineNumber: 1511,
         columnNumber: 13
       }
     ),
     details.failed && /* @__PURE__ */ jsxDEV(RetryNotice, { message: labels.progresserror, retrying: false, config, onRetry: details.retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1251,
+      lineNumber: 1559,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-explore-body", children: [
@@ -840,12 +971,12 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
             children: [
               /* @__PURE__ */ jsxDEV("span", { children: group.name }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-                lineNumber: 1276,
+                lineNumber: 1584,
                 columnNumber: 45
               }),
               /* @__PURE__ */ jsxDEV("span", { className: "text-muted", children: slice.count }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-                lineNumber: 1277,
+                lineNumber: 1585,
                 columnNumber: 45
               })
             ]
@@ -854,21 +985,21 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1271,
+            lineNumber: 1579,
             columnNumber: 41
           }
         ) }, group.id, false, {
           fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-          lineNumber: 1266,
+          lineNumber: 1574,
           columnNumber: 37
         });
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1256,
+        lineNumber: 1564,
         columnNumber: 25
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1255,
+        lineNumber: 1563,
         columnNumber: 21
       }),
       grouped && /* @__PURE__ */ jsxDEV("div", { className: "compass-groups flex-grow-1", children: data.groups.map((group) => {
@@ -924,12 +1055,12 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
               false,
               {
                 fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-                lineNumber: 1342,
+                lineNumber: 1650,
                 columnNumber: 45
               }
             ) }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-              lineNumber: 1333,
+              lineNumber: 1641,
               columnNumber: 41
             }) : void 0
           },
@@ -937,13 +1068,13 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1301,
+            lineNumber: 1609,
             columnNumber: 33
           }
         );
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1286,
+        lineNumber: 1594,
         columnNumber: 21
       }),
       !grouped && /* @__PURE__ */ jsxDEV("div", { className: "compass-flat flex-grow-1", children: [
@@ -959,7 +1090,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1362,
+            lineNumber: 1670,
             columnNumber: 29
           }
         ),
@@ -983,33 +1114,33 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1369,
+            lineNumber: 1677,
             columnNumber: 25
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1360,
+        lineNumber: 1668,
         columnNumber: 21
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1253,
+      lineNumber: 1561,
       columnNumber: 13
     }),
     noresults && /* @__PURE__ */ jsxDEV("p", { className: "compass-noresults text-muted mt-2", children: labels.noresults }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1386,
+      lineNumber: 1694,
       columnNumber: 27
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "status", "aria-live": "polite", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1387,
+      lineNumber: 1695,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-    lineNumber: 1199,
+    lineNumber: 1505,
     columnNumber: 9
   });
 }, "Explore");

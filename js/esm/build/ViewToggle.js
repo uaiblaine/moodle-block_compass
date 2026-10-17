@@ -1,12 +1,13 @@
-import{jsx as e,jsxs as l}from"react/jsx-runtime";/**
+import{markup as o}from"./markup";import{jsx as i,jsxs as l}from"react/jsx-runtime";/**
  * The list/cards switch of tier 3: two icon-only buttons, one pressed.
  *
  * Each button's aria-label carries the view's name, so a Behat step that clicks the "Cards"
  * button resolves: Moodle matches a button by its aria-label too
  * (lib/behat/classes/partial_named_selector.php). The icons are core's own list and grid glyphs,
- * server-rendered and shipped as props because there is no pix helper for ESM.
+ * server-rendered and shipped as props because there is no pix helper for ESM. Each carries its word as
+ * a tooltip too, as every icon-only control of the filter line does (ADR-015).
  *
  * @module     block_compass/ViewToggle
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const n=({view:s,config:t,onChoose:i})=>{const{labels:a,icons:o}=t;return l("div",{className:"compass-views",role:"group","aria-label":a.viewas,children:[e("button",{type:"button",className:"compass-viewbtn","aria-pressed":s==="list","aria-label":a.view_list,onClick:()=>i("list"),children:e("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:{__html:o.list}})}),e("button",{type:"button",className:"compass-viewbtn","aria-pressed":s==="cards","aria-label":a.view_cards,onClick:()=>i("cards"),children:e("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:{__html:o.grid}})})]})};var r=n;export{r as default};
+ */const r=({view:a,config:n,onChoose:s})=>{const{labels:e,icons:t}=n;return l("div",{className:"compass-views",role:"group","aria-label":e.viewas,children:[i("button",{type:"button",className:"compass-viewbtn","aria-pressed":a==="list","aria-label":e.view_list,title:e.view_list,onClick:()=>s("list"),children:i("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:o(t.list)})}),i("button",{type:"button",className:"compass-viewbtn","aria-pressed":a==="cards","aria-label":e.view_cards,title:e.view_cards,onClick:()=>s("cards"),children:i("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:o(t.grid)})})]})};var p=r;export{p as default};

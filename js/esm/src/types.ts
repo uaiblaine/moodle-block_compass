@@ -141,13 +141,15 @@ export type StarChange = {courseid: number, favourite: boolean};
 export type KeptToolbar = {explore: ExploreState, view: string, remembered: string};
 
 /**
- * The tier 3 toolbar as the viewer left it: the shell reads the block_compass_explore
- * preference, validates its shape, and ships the survivors. Whether a field in cf is still
- * configured is decided when the inventory's fields array arrives.
+ * The tier 3 filter line as the viewer left it (ADR-015): the shell reads the block_compass_explore
+ * preference, validates its shape - migrating a chip stored before the line to a scope and a star -
+ * and ships the survivors. Whether a field in cf is still configured is decided when the
+ * inventory's fields array arrives.
  */
 export type ExploreState = {
     sort: string,
-    chip: string,
+    scope: string,
+    star: boolean,
     cf: Record<string, number>,
     panel: boolean,
 };
@@ -175,6 +177,10 @@ export type BlockConfig = {
         list: string,
         grid: string,
         filter: string,
+        search: string,
+        eraser: string,
+        close: string,
+        organise: string,
         expanded: string,
         collapsed: string,
         collapsedrtl: string,

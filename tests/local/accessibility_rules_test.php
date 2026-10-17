@@ -220,7 +220,8 @@ final class accessibility_rules_test extends basic_testcase {
 
         $components = [
             'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
-            'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip', 'CalendarLine', 'Block',
+            'FilterLine', 'ScopeGroup', 'StarToggle', 'OrganiseMenu', 'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip',
+            'CalendarLine', 'Block',
         ];
         foreach ($components as $component) {
             $this->assertArrayHasKey("js/esm/src/{$component}.tsx", $files);
@@ -362,9 +363,12 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
      * without an aria-label a screen reader announces "button" and the user is told to press
-     * something unnamed. The list/cards switch (ViewToggle) is two such buttons, and the Filter
+     * something unnamed. The list/cards switch (ViewToggle) is two such buttons, and the Filters
      * button (FilterToggle) hides its own text and count from the accessibility tree to say them
-     * as one sentence. Every button tag in these four files must carry the attribute.
+     * as one sentence. The filter line's (ADR-015) are the favourites star (StarToggle), Organise
+     * (OrganiseMenu) and, in FilterLine, the search's eraser, its icon and its close button, each
+     * chip's cross and Clear all, which name themselves the same way. Every button tag in these
+     * files must carry the attribute.
      *
      * @return void
      */
@@ -372,6 +376,7 @@ final class accessibility_rules_test extends basic_testcase {
         $files = $this->sources();
         $iconfiles = [
             'js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
+            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
         ];
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
@@ -734,13 +739,17 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Core's .icon carries a right margin for a glyph before a label (theme/boost/scss/moodle/
      * icons.scss), and icon-no-margin is core's own way to drop it inside a control that has no
-     * label. The three icon-only controls are read; the Filter button keeps the margin on purpose,
-     * because its glyph precedes a word. Vacuity guard: each file must render a glyph span.
+     * label. The icon-only controls are read, the filter line's included (ADR-015); Filters drops it
+     * too, because its word is gone from the second step and the gap spaces it before. Vacuity
+     * guard: each file must render a glyph span.
      *
      * @return void
      */
     public function test_the_icon_only_glyphs_carry_no_margin(): void {
-        $files = ['js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx'];
+        $files = [
+            'js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
+            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
+        ];
         foreach ($files as $file) {
             $spans = array_filter(
                 $this->tags($this->sources()[$file], 'span'),

@@ -61,6 +61,7 @@ const passesChip = /* @__PURE__ */ __name((chip, row) => {
   }
   return true;
 }, "passesChip");
+const passesStar = /* @__PURE__ */ __name((star, row) => !star || passesChip("favourites", row), "passesStar");
 const valueOf = /* @__PURE__ */ __name((cf, index) => {
   for (let at = 0; at + 1 < cf.length; at += 2) {
     if (cf[at] === index) {
@@ -70,12 +71,48 @@ const valueOf = /* @__PURE__ */ __name((cf, index) => {
   return null;
 }, "valueOf");
 const passesSelection = /* @__PURE__ */ __name((cf, keys, selection) => Object.entries(selection).every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value), "passesSelection");
+const passesCriteria = /* @__PURE__ */ __name((row, criteria, keys) => passesChip(criteria.scope, row) && passesStar(criteria.star, row) && passesSelection(row.cf, keys, criteria.selection) && (criteria.query === "" || matches(row.name, criteria.query)), "passesCriteria");
+const matchOf = /* @__PURE__ */ __name((text, term) => {
+  let at = text.indexOf(term);
+  if (at < 0) {
+    return -1;
+  }
+  while (at >= 0) {
+    if (at === 0 || !/[\p{L}\p{N}]/u.test(text.charAt(at - 1))) {
+      return 0;
+    }
+    at = text.indexOf(term, at + 1);
+  }
+  return 1;
+}, "matchOf");
+const markParts = /* @__PURE__ */ __name((text, term) => {
+  const map = [];
+  let folded = "";
+  for (let i = 0; i < text.length; i++) {
+    const piece = text.charAt(i).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    folded += piece;
+    for (let j = 0; j < piece.length; j++) {
+      map.push(i);
+    }
+  }
+  const at = term === "" ? -1 : folded.indexOf(term);
+  if (at < 0) {
+    return [text, "", ""];
+  }
+  const start = map[at];
+  const end = map[at + term.length - 1] + 1;
+  return [text.slice(0, start), text.slice(start, end), text.slice(end)];
+}, "markParts");
 export {
   isEnrolled,
+  markParts,
+  matchOf,
   matches,
   normalise,
   passesChip,
+  passesCriteria,
   passesSelection,
+  passesStar,
   relativeTime,
   valueOf
 };

@@ -31,6 +31,10 @@
     "eject": "prohibited",
     "wrap": "prohibited"
   },
+  "FilterLine": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
   "FilterPanel": {
     "eject": "prohibited",
     "wrap": "prohibited"
@@ -44,6 +48,10 @@
     "wrap": "prohibited"
   },
   "Group": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "OrganiseMenu": {
     "eject": "prohibited",
     "wrap": "prohibited"
   },
@@ -71,7 +79,15 @@
     "eject": "prohibited",
     "wrap": "prohibited"
   },
+  "ScopeGroup": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
   "Star": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "StarToggle": {
     "eject": "prohibited",
     "wrap": "prohibited"
   },

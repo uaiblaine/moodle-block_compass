@@ -137,14 +137,20 @@ final class block_compass_test extends advanced_testcase {
         // The icons are server-rendered markup because there is no pix helper for ESM.
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
-        // The tier 3 toolbar's icon-only controls: list, grid and filter glyphs; the archive
-        // boxes and the accordion's chevrons. No reload glyph: a way back appears only with a
-        // failure, as RetryNotice's two text buttons (ADR-014 amendment 11).
-        $icons = ['list', 'grid', 'filter', 'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl'];
+        // The filter line's icon-only controls: list, grid, the sliders, the magnifier, the eraser,
+        // the close cross and Organise's sort glyph (ADR-015); the archive boxes and the accordion's
+        // chevrons. No reload glyph: a way back appears only with a failure, as RetryNotice's two
+        // text buttons (ADR-014 amendment 11).
+        $icons = [
+            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'archive', 'unarchive', 'expanded', 'collapsed',
+            'collapsedrtl',
+        ];
         foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
         }
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
+        $this->assertStringContainsString('fa-sliders', $props['icons']['filter'], 'Filters is drawn with the sliders');
+        $this->assertStringContainsString('fa-eraser', $props['icons']['eraser'], 'the search clears with an eraser');
         $this->assertArrayNotHasKey('reload', $props['icons'], 'no permanent reload control');
         $this->assertArrayNotHasKey('reload', $props['labels'], 'no permanent reload control');
         $this->assertArrayNotHasKey('hide', $props['icons'], 'the archive control is drawn with the archive boxes, not the eye');
@@ -153,7 +159,7 @@ final class block_compass_test extends advanced_testcase {
         // Where the block is, as a heading level: under core's block title, an h3, so 4.
         $this->assertSame(4, $props['headinglevel']);
         $this->assertSame(
-            ['sort' => 'category', 'chip' => 'all', 'cf' => [], 'panel' => true],
+            ['sort' => 'category', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false],
             $props['explore']
         );
         // Both surfaces of an application awaiting approval hang off this flag; off by default.
@@ -278,14 +284,15 @@ final class block_compass_test extends advanced_testcase {
             'sort' => 'sideways',
             'chip' => 'pending',
             'cf' => ['modality' => 2, 'bad key' => 1],
-            'panel' => false,
+            'panel' => true,
         ]), $user);
         $props = $this->props();
 
         $this->assertSame('category', $props['explore']['sort']);
-        $this->assertSame('all', $props['explore']['chip'], 'pending is not a chip while the feature is off');
+        $this->assertSame('all', $props['explore']['scope'], 'pending is not a scope while the feature is off');
+        $this->assertFalse($props['explore']['star']);
         $this->assertSame(['modality' => 2], $props['explore']['cf']);
-        $this->assertFalse($props['explore']['panel']);
+        $this->assertTrue($props['explore']['panel']);
 
         // The raw attribute, before decoding: an empty selection is [] on the wire, by core's doing.
         set_user_preference('block_compass_explore', json_encode(['sort' => 'name']), $user);

@@ -64,16 +64,18 @@ final class client_policy_test extends advanced_testcase {
     }
 
     /**
-     * Clear filters empties the search box and applies the empty text at once.
+     * Clear filters empties the search box and applies the empty text at once, and releases the scope,
+     * the star and every field (ADR-015 decision 3).
      *
      * @return void
      */
     public function test_clear_filters_clears_the_search(): void {
-        $body = $this->slice($this->source('Explore.tsx'), 'const clearFilters = useCallback', '}, [chip, selection');
+        $body = $this->slice($this->source('Explore.tsx'), 'const clearFilters = useCallback', '}, [scope, star, selection');
 
         $this->assertStringContainsString("setQuery('')", $body);
         $this->assertStringContainsString("setApplied('')", $body, 'the debounce must not keep the name filter alive');
-        $this->assertStringContainsString("setChip('all')", $body);
+        $this->assertStringContainsString("setScope('all')", $body);
+        $this->assertStringContainsString('setStar(false)', $body);
         $this->assertStringContainsString('setSelection({})', $body);
     }
 
@@ -95,7 +97,10 @@ final class client_policy_test extends advanced_testcase {
     public function test_remembered_toolbar_holds_no_query(): void {
         $source = $this->source('Explore.tsx');
 
-        $this->assertStringContainsString('const state: ExploreState = {sort, chip, cf: selection, panel: panelopen};', $source);
+        $this->assertStringContainsString(
+            'const state: ExploreState = {sort, scope, star, cf: selection, panel: panelopen};',
+            $source
+        );
         $this->assertStringNotContainsString('query', $this->slice($this->source('types.ts'), 'ExploreState', '};'));
     }
 
@@ -145,7 +150,7 @@ final class client_policy_test extends advanced_testcase {
         $this->assertStringContainsString("fillCount(labels, 'filteractive', count)", $this->source('FilterToggle.tsx'));
         $explore = $this->source('Explore.tsx');
         $this->assertStringContainsString("fillCount(labels, 'resultsshown', shown)", $explore);
-        $this->assertStringContainsString("fillCount(labels, 'resultsshown', answer.rows.length)", $explore);
+        $this->assertStringContainsString("fillCount(labels, 'resultsshown', kept.length)", $explore);
         $this->assertStringContainsString("fillCount(labels, 'archiveallconfirm', rows.length)", $explore);
         $block = $this->source('Block.tsx');
         $this->assertStringContainsString("fillCount(labels, 'pendingnotice', pendingcount)", $block);

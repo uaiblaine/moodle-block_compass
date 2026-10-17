@@ -1,1 +1,1 @@
-s/\$state\['chip'\] = \$decoded\['chip'\] === 'pending' && !\$pendingenabled \? 'all' : \$decoded\['chip'\];/\$state['chip'] = \$decoded['chip'];/;
+s/if \(\$state\['scope'\] === 'pending' && !\$pendingenabled\) \{/if (false) {/;
