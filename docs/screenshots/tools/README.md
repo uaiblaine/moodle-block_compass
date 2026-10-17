@@ -56,8 +56,17 @@ open row's days, or the closed line's counts. Note each demo user's `open` value
 restore it afterwards. The shots are `dashboard`, `strip` (open, student), `card`, `teaching`
 (open, a day with submissions to grade pinned), `line` (closed, student), `lineteaching` (closed,
 teacher; written only when the *To grade* cell is there, which needs the feedback_tracker ledger to
-cover his courses), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, `explore`, `page`,
-`mobile` and `settings`, plus `ring` and `pulse`.
+cover his courses), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, the tier 3 shots,
+`page`, `mobile` and `settings`, plus `ring` and `pulse`.
+
+The tier 3 shots open *All courses* from the ghost and leave the strip as it is: `explore` (the
+filter line at rest on the Compass page, one row), `filtered` (the Dashboard's folded line with a
+field value and a search in force: two chips and Clear all), `search` (the search grown over the
+Dashboard's line, its suggestions open), `filters` and `organise` (the panel and the menu on the
+Compass page), `preview` (the mouse on the New scope, the open group ringed and dimmed), `phone`
+(a phone, the panel as a bottom sheet) and `narrow` (the Dashboard at 768 px, the line on two
+lines). `filtered` releases what it pressed through *Clear filters* and every shot closes what it
+opened, so `block_compass_explore` ends as it started; check it after a run all the same.
 
 Node 22 or later (global `WebSocket`), Google Chrome at its macOS path or `CHROME_BIN`. The card
 opens on tomorrow, the richest day of the seeded data. The texts that depend on the clock ("Last

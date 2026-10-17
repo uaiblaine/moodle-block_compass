@@ -55,7 +55,7 @@ Three facts constrain the port:
 
 ### 1. The scope and the star
 
-- **The scope** is All · New · Scheduled · Awaiting, in the contract's slot one. Awaiting is drawn
+- **The scope** is All · New · Awaiting · Scheduled (the order of `SCOPES` in `Explore.tsx`), in the contract's slot one. Awaiting is drawn
   only with `enable_pending`. A cell with a zero count is not drawn unless it is the chosen one;
   All is always drawn, because it is the release. The cells are a `role="radiogroup"` named by
   *Status*, each a `role="radio"` button with `aria-checked`, a roving `tabIndex` (the checked
