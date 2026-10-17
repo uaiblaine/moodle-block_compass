@@ -33,6 +33,10 @@
  * calendar-styles.png; pulse also writes calendar-pulse.png and calendar-pulse-card.png). Output goes to the
  * parent directory, docs/screenshots/, or to COMPASS_OUT.
  *
+ * The tier 3 shots (explore, filtered, search, filters, organise, preview, phone, narrow) write
+ * explore.png and explore-<shot>.png. The filter line remembers its scope, star, fields, sort and
+ * panel per user (block_compass_explore): a shot that presses a filter releases it before it ends.
+ *
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -47,6 +51,10 @@ const BASE = process.env.COMPASS_BASE || 'http://localhost:8503';
 const OUT = process.env.COMPASS_OUT || join(here, '..');
 const SESSIONS = JSON.parse(readFileSync(process.env.COMPASS_SESSIONS, 'utf8'));
 const DESKTOP = 1200;
+// A tablet's width, where the Dashboard's column folds the filter line to its two-line step.
+const NARROW = 768;
+// What the search shot types: a word that matches a filter value and course names alike.
+const SEARCH = 'on';
 
 // The day the calendar card opens on: tomorrow, the richest day of the seeded data.
 const tomorrow = (() => {
@@ -171,6 +179,103 @@ const gradingDay = async(page) => {
     return match ? match[1] : tomorrow;
 };
 
+/**
+ * Open tier 3 from the ghost and wait for the filter line's first measure and the rows' details.
+ *
+ * @param {object} page The page.
+ * @param {boolean} touch Press the ghost with a tap instead of a click.
+ * @returns {Promise<string>} The step the line folded to (s1 to s4).
+ */
+const openExplore = async(page, touch = false) => {
+    // A press during the first tier's last layout can be lost: press again until the line is there.
+    for (let i = 0; i < 4 && !(await page.eval(`!!document.querySelector('.compass-line[data-step]')`)); i++) {
+        await (touch ? page.tap('.compass-ghost') : page.click('.compass-ghost'));
+        await sleep(1500);
+    }
+    await page.until(`document.querySelector('.compass-line[data-step]:not(.compass-line-measuring)') &&
+        document.querySelector('.compass-explore-body [data-course-id]')`);
+    await settle(page);
+    return page.eval(`document.querySelector('.compass-line').dataset.step`);
+};
+
+/**
+ * Type into the focused field as a keyboard would, one character at a time, so that every input
+ * event reaches React.
+ *
+ * @param {object} page The page.
+ * @param {string} text The text.
+ */
+const typeText = async(page, text) => {
+    for (const character of text) {
+        await page.send('Input.insertText', {text: character});
+        await sleep(60);
+    }
+};
+
+/**
+ * The top of tier 3 as one clip: the section's whole width, from its heading to the lowest of the
+ * given elements (the line, a layer hung under it, a few rows), padded.
+ *
+ * @param {object} page The page.
+ * @param {string[]} selectors Elements the clip must hold below the heading.
+ * @param {number} below CSS pixels kept under the lowest of them.
+ * @returns {Promise<object>} The clip.
+ */
+const exploreTop = async(page, selectors, below = 12) => {
+    const section = await page.box('.compass-explore', 12);
+    const parts = await page.box(['.compass-explore-title', ...selectors], 0);
+    const top = parts.y - 12;
+    return {x: section.x, y: top, width: section.width, height: parts.y + parts.height + below - top};
+};
+
+/**
+ * Release every filter of tier 3 through the panel's Clear filters, so the remembered line is back
+ * at scope All, star off, no field and no search; the panel is closed afterwards.
+ *
+ * @param {object} page The page.
+ */
+const releaseExplore = async(page) => {
+    const open = `!!document.querySelector('.compass-filterbtn[aria-expanded="true"]')`;
+    if (!(await page.eval(open))) {
+        await page.click('.compass-filterbtn');
+        await sleep(800);
+    }
+    await page.eval(`(() => {
+        const clear = document.querySelector('.compass-fpanel .compass-clear');
+        if (clear && clear.getAttribute('aria-disabled') !== 'true') {
+            clear.click();
+        }
+        return true;
+    })()`);
+    await sleep(800);
+    if (await page.eval(open)) {
+        await page.click('.compass-filterbtn');
+        await sleep(800);
+    }
+};
+
+/**
+ * Mark the first element of a list whose text starts with a label, so that a real pointer can press it.
+ *
+ * @param {object} page The page.
+ * @param {string} selector The list's elements.
+ * @param {string} label The visible text's start.
+ * @param {string} tag The data-capture value written.
+ */
+const mark = async(page, selector, label, tag) => {
+    const found = await page.eval(`(() => {
+        const hit = [...document.querySelectorAll(${JSON.stringify(selector)})]
+            .find((e) => e.textContent.trim().startsWith(${JSON.stringify(label)}));
+        if (hit) {
+            hit.setAttribute('data-capture', ${JSON.stringify(tag)});
+        }
+        return !!hit;
+    })()`);
+    if (!found) {
+        throw new Error(`No ${selector} labelled ${label}`);
+    }
+};
+
 const save = (name, png) => {
     writeFileSync(join(OUT, name), png);
     // eslint-disable-next-line no-console
@@ -271,24 +376,121 @@ const SHOTS = {
         save('calendar-dark.png', await page.shot(await page.box([...STRIP, '.compass-cal-card'], 12)));
     },
 
-    // Tier 3, opened from the ghost, the filter panel open.
+    // Tier 3 on the block's own page, where the line is wide (s1): the line at rest, nothing pressed.
     async explore(browser) {
-        const page = await open(browser, 'demo.student', '/my/');
+        const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
         await page.fit(DESKTOP);
-        await page.click('.compass-ghost');
-        await page.until(`document.querySelector('.compass-explore .compass-toolbar')`);
-        await settle(page);
-        await page.fit(DESKTOP);
-        // A click during the panel's first layout can be lost: press again until it is open.
-        for (let i = 0; i < 3 && !(await page.eval(`!!document.querySelector('.compass-filterbtn[aria-expanded="true"]')`)); i++) {
-            await page.click('.compass-filterbtn');
-            await sleep(1000);
-        }
-        await sleep(800);
+        await openExplore(page);
         await page.fit(DESKTOP);
         await settle(page);
         await page.mouseAway();
         save('explore.png', await page.shot(await page.box('.compass-explore', 12)));
+    },
+
+    // The Dashboard's column (s3, the search an icon): a field value chosen in the panel and a search
+    // left in force with the field folded, so the row under the line holds two chips and Clear all.
+    async filtered(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {strip: false});
+        await page.fit(DESKTOP);
+        await openExplore(page);
+        await page.click('.compass-filterbtn');
+        await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-chip')`);
+        await sleep(600);
+        await mark(page, '.compass-fpanel .compass-chip', 'Hybrid', 'value');
+        await page.click('[data-capture="value"]');
+        await sleep(600);
+        await page.click('.compass-fpanel .compass-show');
+        await sleep(600);
+        await page.click('.compass-line-searchopen');
+        await page.until(`document.activeElement && document.activeElement.matches('.compass-search-input')`);
+        await typeText(page, 'health');
+        await sleep(600);
+        await page.click('.compass-line-searchclose');
+        await page.until(`document.querySelector('.compass-line-clearall')`);
+        await page.fit(DESKTOP);
+        await settle(page);
+        await page.mouseAway();
+        save('explore-filtered.png', await page.shot(await page.box('.compass-explore', 12)));
+        await releaseExplore(page);
+    },
+
+    // The search grown over the Dashboard's line (s3), its listbox under it: filters, then courses.
+    async search(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {strip: false});
+        await page.fit(DESKTOP);
+        await openExplore(page);
+        await page.click('.compass-line-searchopen');
+        await page.until(`document.activeElement && document.activeElement.matches('.compass-search-input')`);
+        await sleep(400);
+        await typeText(page, SEARCH);
+        await page.until(`document.querySelector('.compass-line-suggest:not([hidden]) [role="option"]')`);
+        await sleep(900);
+        await page.mouseAway();
+        save('explore-search.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-line-suggest'], 24)));
+    },
+
+    // The Filters popover on the block's page (s1): each field's values with their counts, Clear filters and Show N.
+    async filters(browser) {
+        const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
+        await page.fit(DESKTOP);
+        await openExplore(page);
+        await page.click('.compass-filterbtn');
+        await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-chip')`);
+        await sleep(900);
+        await page.mouseAway();
+        save('explore-filters.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-fpanel'], 48)));
+        await page.click('.compass-filterbtn');
+        await sleep(600);
+    },
+
+    // The Organise menu on the block's page (s1): the sort, By category, A-Z or Recent.
+    async organise(browser) {
+        const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
+        await page.fit(DESKTOP);
+        await openExplore(page);
+        await page.click('.compass-line-organisebtn');
+        await page.until(`document.querySelector('.compass-line-menu:not([hidden])')`);
+        await sleep(700);
+        await page.mouseAway();
+        save('explore-organise.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-line-menu'], 48)));
+    },
+
+    // The preview on the block's page: the mouse on the New cell rings the rows it would keep and dims the others.
+    async preview(browser) {
+        const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
+        await page.fit(DESKTOP);
+        await openExplore(page);
+        await page.hover('.compass-scope-cell[data-scope="new"]');
+        await page.until(`document.querySelector('.compass-preview-lit')`);
+        await sleep(700);
+        // Down to the first group, the one open, whose rows or cards the preview rings or dims.
+        save('explore-preview.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-group'], 12)));
+    },
+
+    // A phone: tier 3 from the ghost, Filters pressed, the panel as a bottom sheet over the list.
+    async phone(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {width: 390, height: 844, mobile: true, strip: false});
+        await openExplore(page, true);
+        const top = await page.eval(`document.querySelector('.compass-explore').getBoundingClientRect().top + scrollY`);
+        await page.eval(`scrollTo(0, ${Math.max(0, top - 70)})`);
+        await sleep(500);
+        await page.tap('.compass-filterbtn');
+        await page.until(`document.querySelector('.compass-fpanel-sheet:not([hidden])')`);
+        await sleep(1200);
+        save('explore-phone.png', await page.screen());
+        await page.tap('.compass-filterbtn');
+        await sleep(600);
+    },
+
+    // The Dashboard at a tablet's width: the block's line folds to two lines (s4), the scope under the rest.
+    async narrow(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {width: NARROW, strip: false});
+        await page.fit(NARROW);
+        await openExplore(page);
+        await page.fit(NARROW);
+        await settle(page);
+        await page.mouseAway();
+        save('explore-narrow.png', await page.shot(await page.box('.compass-explore', 12)));
     },
 
     // The block's own page (enable_page).
@@ -335,7 +537,8 @@ const SHOTS = {
     },
 };
 
-const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'lineteaching', 'dim', 'dark', 'explore', 'page', 'mobile', 'settings'];
+const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'lineteaching', 'dim', 'dark', 'explore', 'filtered', 'search',
+    'filters', 'organise', 'preview', 'phone', 'narrow', 'page', 'mobile', 'settings'];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT;
 const browser = await launch();
 try {
