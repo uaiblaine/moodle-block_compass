@@ -4,7 +4,8 @@
 mockup, "Em seguida", plus option A's ring on the Today cell); the data path below is proposed and
 M1, M2 and M4 were measured on 2026-10-21 on a prototype (`docs/perf/2026-10-21-bench-up-next.md`,
 section "Results so far" below); M3 waits on the maintainer's production replica run, M5 on the
-client. Implementation starts after the maintainer's review.
+client. The maintainer answered the four open questions on 2026-10-21, each confirming the decision
+as written (section "The maintainer's answers"). Implementation starts after the maintainer's review.
 **Date:** 2026-10-21
 **Phase:** 13 (`main` = `MOODLE_502_STABLE`, then the port to `MOODLE_503_STABLE`)
 **Supersedes:** nothing
@@ -217,7 +218,7 @@ state reset, the second call measured.
 |---|---|---|
 | M1 | `get_soon` learning, reads cold and warm: a learner with 3 items in range; the worst learner of E5 (18 graded + 3 events a week); a learner at the inventory bound (250 courses, the strip's course bound) | a ceiling no higher than `get_day` learning (≤ 66), written into the budget test |
 | M2 | `get_soon` teaching, reads: E5's teacher (10 courses), with and without the Feedback tracker's ledger | no higher than `get_day` teaching (11 on PostgreSQL) plus the range's extra rows, stated |
-| M3 | Gate frequency on the E3 production replica kit: the share of loads whose `upcoming` opens the gate, and of those, the share that draw no row | recorded; a high empty share reopens decision 3 |
+| M3 | Gate frequency on a production replica (`docs/perf/m3-up-next-gate-kit.sql`, read-only, run by the maintainer): the share of Dashboard views whose `upcoming` opens the gate at 3, 6 and 12 h, and of those, the share that draw no row | recorded; a high empty share reopens decision 3 |
 | M4 | Payload: `upcoming` in the counts (bytes, gzip), `get_soon` at 10 items | recorded beside ADR-014's E4 |
 | M5 | Layout shift of the region's insertion on m502, Dashboard with tier 1 full | recorded; above 0.1 CLS reopens decision 1's placement |
 
@@ -235,7 +236,8 @@ state reset, the second call measured.
 - **M4 recorded.** `upcoming` adds 49 to 126 B raw (23 to 48 B gzip) to the counts. `get_soon` is
   3.8 to 11.6 KB raw, under 1 KB gzip at ten items.
 - **Not yet:** MariaDB (the flag does not pass through `mdl ci`; no recordset on this path, so the
-  reads should match), M3, M5.
+  reads should match); M3, whose kit is written and validated on PostgreSQL 18.6 (2026-10-21) and waits
+  on the maintainer's replica run; M5, which needs the client.
 
 ### What the prototype corrected
 
@@ -251,12 +253,17 @@ state reset, the second call measured.
   statement's `FUTURE_LIMIT` only; the learning source has no bound.
 - **The horizon travels in seconds** and is echoed in the answer.
 
-## Questions for the maintainer
+## The maintainer's answers (2026-10-21)
 
-1. The horizon: off, 3, 6 or 12 hours, default 6, as an admin setting. Or a fixed 6 h with no setting?
-2. Hiding remembered for the sign-in (decision 7), or only for the page load?
-3. The ring on the open strip's today disc too (decision 1), or on the closed line only?
-4. Teaching view: class deadlines listed and capped at soon, or left out of Up next entirely?
+Each answer confirms the decision as written; no decision text changed.
+
+1. **The horizon** is the admin setting `calendar_soon`: off, 3, 6 or 12 hours, default 6
+   (decision 2). Not a fixed 6 h, not "the rest of today".
+2. **Hiding is remembered until the next sign-in** (decision 7), not only for the page load. There
+   is a hide button.
+3. **The ring is on both marks**: the closed line's Today chip and the open strip's today disc
+   (decision 1).
+4. **The class deadline is listed in the teaching view, capped at soon** (decision 2), not left out.
 5. Deferred, not in this record: "12 de 30 enviaram" on a class deadline (a new count per row).
 
 ## Evidence
