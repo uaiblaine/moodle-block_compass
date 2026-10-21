@@ -1,0 +1,59 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-20T15:00:00Z"
+  },
+  "title": "Compass: due soon today",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1320,
+      "title": "Compare: four options at four moments of the day (interactive)",
+      "is_interactive": true
+    },
+    "Escada.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1200,
+      "h": 1320,
+      "title": "The urgency ladder: one item at every level"
+    },
+    "Ensinando.dc.html": {
+      "x": 0,
+      "y": 1440,
+      "w": 1440,
+      "h": 900,
+      "title": "Teaching view: live class, grading due, the class deadline"
+    },
+    "Celular.dc.html": {
+      "x": 1520,
+      "y": 1440,
+      "w": 860,
+      "h": 900,
+      "title": "Phone: A and B at 390 px"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Escada.dc.html",
+    "Ensinando.dc.html",
+    "Celular.dc.html"
+  ],
+  "notes": {
+    "headline": {
+      "x": 0,
+      "y": -300,
+      "text": "Compass: when a deadline is hours away",
+      "kind": "title1",
+      "maxW": 2720
+    }
+  },
+  "designSystems": []
+}

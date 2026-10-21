@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Due soon: the teaching view</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#5f6870;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-warn:#f0ad4e;
+  --cc-warn-fg:#7a4100;--cc-warn-bg:#fdecd2;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-control:#6a737b;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --activityassessment:#c4006a;--activitycommunication:#b54b00;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root *{box-sizing:border-box}
+.cc-root button{font:inherit;color:inherit}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.cap{margin:0;font-size:12.5px;font-weight:600;color:var(--cc-muted)}
+.blk{border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-surface);padding:12px 18px 18px;display:flex;flex-direction:column;gap:12px}
+.sl-band{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:64px;border-bottom:1px solid var(--cc-line);padding-bottom:10px}
+.sl-title{display:inline-flex;align-items:center;gap:8px;font-size:17px;font-weight:600;padding:0 10px 0 6px}
+.sl-cells{list-style:none;margin:0;padding:0;display:flex;gap:4px;align-items:stretch}
+.sl-cell{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:88px;min-height:56px;padding:4px 12px 5px 10px;border:0;border-radius:10px;background:transparent;text-align:left}
+.sl-lab{font-size:12.5px;color:var(--cc-text-2);white-space:nowrap}
+.sl-numline{display:flex;align-items:center;gap:10px;min-height:28px}
+.sl-chip{min-width:34px;height:28px;padding:0 9px;border-radius:14px;display:inline-grid;place-items:center;font-size:16px;font-weight:700}
+.sl-h1 .sl-chip{background:var(--cc-h1)}.sl-h2 .sl-chip{background:var(--cc-h2)}
+.sl-grade .sl-chip{background:transparent;padding:0 2px;min-width:0}
+.sl-today .sl-lab{color:var(--cc-text);font-weight:700}
+.sl-today .sl-chip{background:var(--cc-ink);color:var(--cc-on-ink)}
+.sl-today.imm .sl-chip{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-warn)}
+.div{width:1px;align-self:stretch;margin:8px 2px;background:var(--cc-line)}
+.vsw{margin-left:auto;display:inline-flex;gap:2px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:3px}
+.vsw span{width:38px;height:34px;border-radius:7px;display:grid;place-items:center;color:var(--cc-text-2)}
+.vsw .on{background:var(--cc-surface);color:var(--cc-accent);box-shadow:0 1px 2px rgba(16,24,40,.14)}
+.nx{display:flex;flex-direction:column;font-size:13px;min-width:0}
+.nx b{font-weight:700}
+.up{border:1px solid color-mix(in oklab,var(--cc-warn) 55%,var(--cc-line));border-radius:12px;padding:10px 12px 10px 14px;display:flex;flex-direction:column;gap:4px}
+.up-head{display:flex;align-items:center;gap:10px}
+.up-h{margin:0;font-size:14.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px}
+.up-sub{font-size:12.5px;color:var(--cc-muted)}
+.x{margin-left:auto;width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:var(--cc-control)}
+.row{display:grid;grid-template-columns:96px 40px minmax(0,1fr) auto;align-items:center;gap:12px;padding:7px 0;border-top:1px solid var(--cc-line)}
+.row.first{border-top:0}
+.when{display:flex;flex-direction:column;line-height:1.2}
+.time{font-size:16px;font-weight:700}
+.rel{font-size:12.5px;color:var(--cc-text-2);white-space:nowrap}
+.rel--imm{align-self:flex-start;margin-top:2px;padding:1px 7px;border-radius:999px;background:var(--cc-warn-bg);color:var(--cc-warn-fg);font-weight:700}
+.act{width:40px;height:40px;border-radius:10px;display:grid;place-items:center}
+.act--a{background:color-mix(in oklab,var(--activityassessment) 11%,var(--cc-surface));color:var(--activityassessment)}
+.act--c{background:color-mix(in oklab,var(--activitycommunication) 12%,var(--cc-surface));color:var(--activitycommunication)}
+.what{display:flex;flex-direction:column;min-width:0}
+.name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:12.5px;color:var(--cc-muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tagk{font-size:11.5px;font-weight:600;border-radius:6px;padding:1px 7px;border:1px solid var(--cc-line-2);color:var(--cc-text-2)}
+.btn{display:inline-grid;place-items:center;min-width:5rem;height:38px;padding:0 14px;border-radius:9px;border:1px solid var(--cc-control);color:var(--cc-accent);background:var(--cc-surface);font-size:14px;font-weight:600;text-decoration:none}
+.more{margin:0;padding-top:6px;border-top:1px solid var(--cc-line);font-size:13px;color:var(--cc-muted)}
+.more a{color:var(--cc-accent)}
+.side{border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.side h3{margin:0;font-size:15px}
+.side ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--cc-text-2);display:flex;flex-direction:column;gap:6px}
+.side b{color:var(--cc-text)}
+.flag{display:inline-block;font-size:11.5px;font-weight:600;border-radius:6px;padding:1px 7px;border:1px dashed var(--cc-line-2);color:var(--cc-text-2)}
+</style>
+</helmet>
+<div class="cc-root" style="width: 1440px; min-height: 900px; padding: 40px 48px; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-direction: column; gap: 6px;">
+    <p class="kicker">Teaching view · 17:10</p>
+    <h1 style="margin: 0; font-size: 28px; font-weight: 700;">Ensinando: what is urgent for the one who teaches</h1>
+    <p class="p">A teacher’s own clock is the session they run and the grading due today; the class’s deadline is the students’ clock, so it is shown, never raised.</p>
+  </header>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <p class="cap">B · Em seguida, teaching</p>
+      <section class="blk" aria-label="Compass">
+        <div class="sl-band">
+          <span class="sl-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform: rotate(-90deg); color: var(--cc-control);"><path d="M6 9l6 6 6-6"/></svg>
+            Calendário
+          </span>
+          <div class="sl-cell sl-grade"><span class="sl-lab">A avaliar</span><span class="sl-numline"><span class="sl-chip">8</span></span></div>
+          <span class="div" aria-hidden="true"></span>
+          <ul class="sl-cells">
+            <li><div class="sl-cell sl-today"><span class="sl-lab">Hoje</span><span class="sl-numline"><span class="sl-chip">3</span></span></div></li>
+            <li><div class="sl-cell sl-h1"><span class="sl-lab">Amanhã</span><span class="sl-numline"><span class="sl-chip">1</span></span></div></li>
+            <li><div class="sl-cell sl-h2"><span class="sl-lab">Esta semana</span><span class="sl-numline"><span class="sl-chip">5</span></span></div></li>
+            <li><div class="sl-cell sl-h1"><span class="sl-lab">Depois</span><span class="sl-numline"><span class="sl-chip">6</span></span></div></li>
+          </ul>
+          <div class="vsw" aria-hidden="true">
+            <span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg></span>
+            <span class="on"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 13l2 2 4-4"/></svg></span>
+          </div>
+        </div>
+
+        <section class="up" aria-labelledby="t-up">
+          <div class="up-head">
+            <h3 class="up-h" id="t-up"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Em seguida</h3>
+            <span class="up-sub">nas próximas 6 horas</span>
+            <span class="x" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+          </div>
+          <div class="row first">
+            <div class="when"><span class="time">17:30</span><span class="rel rel--imm">em 20 min</span></div>
+            <span class="act act--c" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
+            <div class="what"><span class="name">Plantão de dúvidas</span><span class="meta">Playground <span class="tagk">Google Meet</span> <span class="tagk">Aula</span></span></div>
+            <a class="btn" href="#">Entrar</a>
+          </div>
+          <div class="row">
+            <div class="when"><span class="time">18:00</span><span class="rel rel--imm">em 50 min</span></div>
+            <span class="act act--a" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 14l2 2 3-4"/></svg></span>
+            <div class="what"><span class="name">Estudo de caso 2 · correção vence</span><span class="meta">Gestão de Crises <span class="tagk">8 a avaliar</span></span></div>
+            <a class="btn" href="#">Avaliar</a>
+          </div>
+          <div class="row">
+            <div class="when"><span class="time">21:00</span><span class="rel">em 3 h 50</span></div>
+            <span class="act act--a" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="what"><span class="name">Relatório de campo · prazo da turma</span><span class="meta">Direito Administrativo <span class="tagk">12 de 30 enviaram</span></span></div>
+            <a class="btn" href="#">Ver</a>
+          </div>
+          <p class="more">The class deadline stays at “soon” even under an hour · <a href="#">Abrir este dia no calendário</a></p>
+        </section>
+      </section>
+
+      <p class="cap" style="margin-top: 14px;">A · the Today cell, teaching</p>
+      <section class="blk" aria-label="Compass, option A">
+        <div class="sl-band" style="border-bottom: 0; padding-bottom: 0;">
+          <span class="sl-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="transform: rotate(-90deg); color: var(--cc-control);"><path d="M6 9l6 6 6-6"/></svg>
+            Calendário
+          </span>
+          <div class="sl-cell sl-grade"><span class="sl-lab">A avaliar</span><span class="sl-numline"><span class="sl-chip">8</span></span></div>
+          <span class="div" aria-hidden="true"></span>
+          <ul class="sl-cells">
+            <li><div class="sl-cell sl-today imm"><span class="sl-lab">Hoje</span><span class="sl-numline"><span class="sl-chip">3</span><span class="nx"><span><b>17:30</b> <b style="color: var(--cc-warn-fg);">em 20 min</b> <span style="color: var(--cc-muted);">· +1 em breve</span></span><span>Plantão de dúvidas</span></span></span></div></li>
+            <li><div class="sl-cell sl-h1"><span class="sl-lab">Amanhã</span><span class="sl-numline"><span class="sl-chip">1</span></span></div></li>
+            <li><div class="sl-cell sl-h2"><span class="sl-lab">Esta semana</span><span class="sl-numline"><span class="sl-chip">5</span></span></div></li>
+            <li><div class="sl-cell sl-h1"><span class="sl-lab">Depois</span><span class="sl-numline"><span class="sl-chip">6</span></span></div></li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <aside class="side">
+      <h3>What rises in the teaching view</h3>
+      <ul>
+        <li><b>A session the teacher runs</b> (an event with a start: Google Meet, BigBlueButton, attendance session): the full ladder, “Agora” included, with Entrar.</li>
+        <li><b>Grading due today</b> (assign’s gradingdue, or the Feedback tracker’s ledger where it covers the course): the full ladder, with Avaliar and the number waiting.</li>
+        <li><b>The class’s deadline</b> (the students’ due date): listed in time order but capped at “soon”, never amber, with Ver.</li>
+      </ul>
+      <h3 style="margin-top: 6px;">Data this needs</h3>
+      <ul>
+        <li>“8 a avaliar” is the grading count the strip already computes (core’s rule, or the ledger).</li>
+        <li><span class="flag">optional</span> “12 de 30 enviaram” is new: one count per class deadline in the horizon, two at most. Without it the row reads “prazo da turma” only.</li>
+        <li>“Plantão de dúvidas” needs the event’s duration to know when “Agora” ends.</li>
+      </ul>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
