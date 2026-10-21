@@ -3456,20 +3456,24 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 .block_compass .compass-soon-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: max-content 2.375rem minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
 /* A row: the time over its countdown, the activity's icon, the name over the course and the kind, and
-   the action, whose width the day card's rule bounds. */
+   the action, whose width the day card's rule bounds. The columns are the list's, shared through a
+   subgrid: the time column takes the widest countdown of the rows drawn ("Agora · até 18:00" is wider
+   than a fixed track, and overlapped the icon), and the rows stay aligned with each other. */
 .block_compass .compass-soon-row {
     display: grid;
-    grid-template-columns: 6rem 2.375rem minmax(0, 1fr) auto;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 0.75rem;
+    row-gap: 0.75rem;
     padding: 0.4375rem 0;
     border-top: 1px solid var(--block_compass-line);
 }
@@ -3590,9 +3594,13 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 /* A narrow block: the time and the countdown on a line of their own above the name, the icon dropped, the
    action beside the name on the line under, so a long countdown has the row's whole width. */
-.block_compass .compass-cal-narrow .compass-soon-row {
+.block_compass .compass-cal-narrow .compass-soon-list {
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.25rem 0.5rem;
+    column-gap: 0.5rem;
+}
+
+.block_compass .compass-cal-narrow .compass-soon-row {
+    row-gap: 0.25rem;
 }
 
 .block_compass .compass-cal-narrow .compass-soon-row .compass-soon-when {

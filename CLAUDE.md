@@ -334,7 +334,8 @@ forbids two-modifier members in `db/upgrade.php`, the lang file and `block_compa
   never on generated names; `set_config()` is seen at once because `local\config` memoises
   nothing. Matcher parity fixture pins `matcher.php` to `filter.ts` ("Strøm" must not match
   "strom"). A test listing eligible custom fields asserts about the fields it created.
-- Behat: five smoke scenarios at most, every one with core's axe step scoped to the block;
+- Behat: seven smoke scenarios at most (five until the maintainer kept the seventh, Up next's, on
+  2026-10-21), every one with core's axe step scoped to the block;
   `accessibility_rules_test` (24 static rules with vacuity guards) is the other half; a hidden
   element with a display utility shows anyway (`bootstrap_compat_test` holds it). Re-run
   `phpunit-init` when any mounted `version.php` moved; Behat and `mdl ci` never on the same

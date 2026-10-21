@@ -488,6 +488,30 @@ stage stops for the maintainer's review of its diff.
 - **The full gate:** `mdl ci --matrix --behat`, then the merge of the branch on the maintainer's
   word.
 
+- **Done** (stage 13d, 2026-10-21):
+  - **Behat:** a scenario "Up next draws an item inside the horizon above the strip, hides until
+    the next alert and shows again" in `block_compass_calendar.feature`. It has a control with
+    nothing inside the horizon, the region with its action, hide and show, and axe in each state.
+    It is the block's seventh scenario: the cap of five was already passed at six. The maintainer
+    kept all seven on 2026-10-21, and the repository's `CLAUDE.md` now says seven.
+  - **M5's look:** the maintainer checked it in the browser on m502, and Claude checked it in the
+    built-in browser pane. It found and fixed one defect: "Agora · até HH:MM" ran under the icon,
+    because the time column was a fixed track. The list is now the grid, its rows a subgrid, with
+    the time column max-content.
+    - Light mode: as designed.
+    - Dark mode: the region is right with `data-bs-theme="dark"`, Moodle 5.2's one mechanism. The
+      site's Boost Union paints `#region-main` white in dark mode, which fades the calendar line's
+      text; that is the theme's, and predates this stage.
+    - Reduced motion: checked through the served stylesheet. The entry has no transition and the
+      dot no pulse.
+  - **README:** an Up next bullet with `calendar-soon.png` (`capture.mjs soon`, `seed_demo.php`
+    re-dated per run), and the `calendar_soon` row of the settings table.
+  - **Matrix:** `mdl ci --matrix --behat`, four legs. Each ran `Tests: 617, Assertions: 8866,
+    Skipped: 17` and `7 scenarios (7 passed), 253 steps (253 passed)`. Every static gate passed,
+    except the grunt step on the 8.4 pgsql leg. That step fails on the runner's missing esbuild
+    linux-arm64 binary for core's own sources too, with or without the proxy. The committed build
+    was rebuilt byte-identical outside the runner.
+
 **13e. The 5.3 port.** The same change on `MOODLE_503_STABLE`, in that branch's version namespace,
 on its own checkout (`~/dev/moodle-block_compass-503`): the 5.3 ESM build and its own matrix. Then
 the README of 5.3.
