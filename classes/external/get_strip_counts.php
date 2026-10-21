@@ -40,7 +40,9 @@ use core_external\external_value;
  * entry, whole or counted only, is summed at no domain read; a stale one is replaced by the counts
  * pass ({@see strip::counts()}), bounded by the ceiling its budget test pins. Either way the web
  * service pays the floor every Compass service pays. Only numbers and course ids travel: no name,
- * no kind, no needle and no day off, which the closed line does not show.
+ * no kind, no needle and no day off, which the closed line does not show. Each view also carries
+ * Up next's gate lists (upcoming times and [start, end] event pairs, ADR-016 decision 3), already in
+ * the entry, so the gate costs no read; they share get_soon's structures and copying.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -109,7 +111,7 @@ class get_strip_counts extends external_api {
      * @return array
      */
     private static function empty_result(): array {
-        $view = ['periods' => [], 'waiting' => 0, 'waitingcourseids' => []];
+        $view = ['periods' => [], 'waiting' => 0, 'waitingcourseids' => [], 'upcoming' => [], 'events' => []];
 
         return [
             'enabled' => false,
@@ -126,10 +128,10 @@ class get_strip_counts extends external_api {
     }
 
     /**
-     * One view's periods with exactly the fields the structure names.
+     * One view's periods and gate lists with exactly the fields the structure names.
      *
-     * @param array $view From strip::periods().
-     * @return array periods, waiting and waitingcourseids.
+     * @param array $view From strip::counts(): strip::periods() plus upcoming and events.
+     * @return array periods, waiting, waitingcourseids, upcoming and events.
      */
     private static function view_result(array $view): array {
         $periods = [];
@@ -147,6 +149,8 @@ class get_strip_counts extends external_api {
             'periods' => $periods,
             'waiting' => (int) $view['waiting'],
             'waitingcourseids' => array_map('intval', $view['waitingcourseids']),
+            'upcoming' => get_soon::upcoming_result($view['upcoming']),
+            'events' => get_soon::events_result($view['events']),
         ];
     }
 
@@ -175,6 +179,9 @@ class get_strip_counts extends external_api {
                 new external_value(PARAM_INT, 'Course id'),
                 'Courses with submissions waiting over the window; empty unless grading is counted'
             ),
+            // Up next's gate (ADR-016 decision 3): the browser asks get_soon only when these open it.
+            'upcoming' => get_soon::upcoming_structure(),
+            'events' => get_soon::events_structure(),
         ]);
     }
 

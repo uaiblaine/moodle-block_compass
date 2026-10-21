@@ -88,7 +88,8 @@ final class soon {
      * @param int $now Unix time to treat as now.
      * @param int $signin The sign-in marker, $USER->currentlogin.
      * @param \DateTimeZone $tz The user's timezone.
-     * @param int $horizon Seconds ahead of now that the range reaches at least; a negative value counts as 0.
+     * @param int $horizon Seconds ahead of now that the range reaches at least; 0 or less (the setting
+     *     off) returns the empty answer before any read, with horizon 0.
      * @param renderer_base|\Closure $output A renderer, or a closure that returns one. Only an answer
      *     with an item calls it: fetching core's renderer initialises the theme and core's globally
      *     available filters (a recordset: three reads on PostgreSQL), which an empty answer must not pay.
@@ -107,6 +108,19 @@ final class soon {
     ): ?array {
         if (!in_array($view, strip::VIEWS, true)) {
             return null;
+        }
+        if ($horizon <= 0) {
+            // The setting is off: the service answers this before any read, and so does the domain.
+            return [
+                'now' => $now,
+                'horizon' => 0,
+                'view' => $view,
+                'items' => [],
+                'more' => 0,
+                'truncated' => false,
+                'upcoming' => [],
+                'events' => [],
+            ];
         }
         [$from, $to] = self::range($now, $tz, $horizon);
         // The sets suffice: an entry that only counted is not completed here (amendment 11).
@@ -130,8 +144,7 @@ final class soon {
         unset($result['opentimes']);
         ['upcoming' => $upcoming, 'events' => $events] = strip::gate_lists($entry, $view);
         if ($prune) {
-            $pruned = self::pruned($upcoming, $times, $now, $to);
-            $running = self::running($events, $now);
+            [$pruned, $running] = self::prune($upcoming, $events, $times, $now, $to, !$result['truncated']);
             if ($pruned !== $upcoming || $running !== $events) {
                 $entry['upcoming'][$view] = $pruned;
                 $entry['events'][$view] = $running;
@@ -142,6 +155,28 @@ final class soon {
 
         return ['now' => $now, 'horizon' => $horizon, 'view' => $view] + $result
             + ['upcoming' => $upcoming, 'events' => $events];
+    }
+
+    /**
+     * The two gate lists after pruning: deadlines only from a complete open set, ended events always.
+     *
+     * An answer whose view is truncated (the teaching counted statement hit strip::FUTURE_LIMIT) holds
+     * a partial set of open times, so pruning the deadlines by it would delete real ones beyond the cut
+     * from the gate (ADR-016, the security read). Events are pruned by their own end, which needs no
+     * open set.
+     *
+     * @param array $upcoming The entry's deadline times for the view, ascending.
+     * @param array $events The entry's [start, end] pairs for the view, in order.
+     * @param array $open The times of every open item of the answer.
+     * @param int $now Unix time to treat as now.
+     * @param int $to The range's last instant.
+     * @param bool $complete Whether $open is the whole open set (the answer is not truncated).
+     * @return array [upcoming, events] after pruning.
+     */
+    public static function prune(array $upcoming, array $events, array $open, int $now, int $to, bool $complete): array {
+        $kept = $complete ? self::pruned($upcoming, $open, $now, $to) : $upcoming;
+
+        return [$kept, self::running($events, $now)];
     }
 
     /**

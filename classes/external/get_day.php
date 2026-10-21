@@ -111,9 +111,12 @@ class get_day extends external_api {
     /**
      * One item: exactly day::ALLOWLIST.
      *
+     * Public because get_soon returns the same items through it, so a day's item and an Up next row
+     * cannot drift apart ({@see get_soon::execute_returns()}).
+     *
      * @return external_single_structure
      */
-    private static function item_structure(): external_single_structure {
+    public static function item_structure(): external_single_structure {
         return new external_single_structure([
             'id' => new external_value(PARAM_INT, 'Event id'),
             'name' => new external_value(PARAM_TEXT, 'Event name, formatted, unescaped'),

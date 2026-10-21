@@ -26,6 +26,7 @@
 namespace block_compass\local\calendar;
 
 use advanced_testcase;
+use block_compass\local\budget;
 use block_compass\local\calendar_cache;
 use block_compass\local\config;
 use core_cache\cache;
@@ -465,6 +466,122 @@ final class soon_test extends advanced_testcase {
         [$kept] = day::teaching_kept((int) $teacher->id, $from, $to, $entry['sets'], config::calendar_sources(), $now, $tz);
         $keptids = array_map(fn(array $item): int => (int) $item['row']->id, $kept);
         $this->assertContains($passedid, $keptids, 'Control: the statement found it.');
+    }
+
+    /**
+     * Deadlines are pruned only from a complete open set; ended events go either way.
+     *
+     * A truncated answer (the teaching statement hit its bound) holds a partial set of open times, so
+     * pruning by it would delete real deadlines beyond the cut. Complete, a time before now, one after
+     * the range's end and one an open item has are kept, and the one no item has goes.
+     *
+     * @return void
+     */
+    public function test_a_truncated_answer_prunes_no_deadline_but_ended_events(): void {
+        $now = $this->noon();
+        $to = $now + 6 * HOURSECS;
+        $upcoming = [$now - 300, $now + HOURSECS, $now + 2 * HOURSECS, $to + HOURSECS];
+        $events = [[$now - 2 * HOURSECS, $now], [$now - HOURSECS, $now + HOURSECS]];
+        $open = [$now + 2 * HOURSECS];
+        $running = [[$now - HOURSECS, $now + HOURSECS]];
+
+        $this->assertSame(
+            [$upcoming, $running],
+            soon::prune($upcoming, $events, $open, $now, $to, false),
+            'Incomplete: the deadlines are untouched and the ended event still goes.'
+        );
+        $this->assertSame(
+            [[$now - 300, $now + 2 * HOURSECS, $to + HOURSECS], $running],
+            soon::prune($upcoming, $events, $open, $now, $to, true),
+            'Control: complete, the time no open item has goes.'
+        );
+    }
+
+    /**
+     * A horizon of 0 (the setting off) answers the empty shape before any read and builds no entry.
+     *
+     * @return void
+     */
+    public function test_a_horizon_of_zero_answers_empty_without_a_read(): void {
+        [$user, $course, $now] = $this->learner();
+        $this->assign((int) $course->id, $now + HOURSECS);
+        $this->setUser($user);
+        $tz = \core_date::get_user_timezone_object();
+        $never = function (): never {
+            throw new \coding_exception('The renderer was fetched for an off horizon.');
+        };
+        $this->assertNotSame([], $this->soon($user, 'learning', $now)['items'], 'Control: with a horizon the assignment is a row.');
+        cache::make('block_compass', 'calendarstrip')->purge();
+
+        $meter = budget::start();
+        $answer = soon::get((int) $user->id, 'learning', $now, 1, $tz, 0, $never);
+
+        $this->assertSame(0, $meter->reads(), 'An off horizon must cost no read.');
+        $this->assertSame(
+            ['now' => $now, 'horizon' => 0, 'view' => 'learning', 'items' => [], 'more' => 0, 'truncated' => false,
+                'upcoming' => [], 'events' => []],
+            $answer
+        );
+        $this->assertFalse(calendar_cache::get((int) $user->id), 'It must not build the entry.');
+    }
+
+    /**
+     * An assignment in a hidden activity is no row for a plain student; visible, it is.
+     *
+     * @return void
+     */
+    public function test_a_hidden_activity_is_no_row_for_a_student(): void {
+        [$user, $course, $now] = $this->learner();
+        $hidden = $this->assign((int) $course->id, $now + HOURSECS);
+        $shown = $this->assign((int) $course->id, $now + 2 * HOURSECS);
+        set_coursemodule_visible((int) $hidden->cmid, 0);
+        $this->new_request();
+        $this->setUser($user);
+
+        $ids = array_column($this->soon($user, 'learning', $now)['items'], 'id');
+
+        $this->assertSame([$this->event_id((int) $shown->cmid, 'due')], $ids, 'Only the visible activity is a row.');
+
+        set_coursemodule_visible((int) $hidden->cmid, 1);
+        $this->new_request();
+        $both = array_column($this->soon($user, 'learning', $now)['items'], 'id');
+        $this->assertContains($this->event_id((int) $hidden->cmid, 'due'), $both, 'Control: visible, it is a row.');
+    }
+
+    /**
+     * A student gets no grading work in the teaching view of a course where they are a student.
+     *
+     * The control is the course's teacher, who is offered the same grading event.
+     *
+     * @return void
+     */
+    public function test_a_student_gets_no_grading_work_in_the_teaching_view(): void {
+        set_config('calendar_grading', 'core', 'block_compass');
+        $gen = $this->getDataGenerator();
+        $now = $this->noon();
+        $teacher = $gen->create_user(['timezone' => self::TIMEZONE]);
+        $student = $gen->create_user(['timezone' => self::TIMEZONE]);
+        $other = $gen->create_user(['timezone' => self::TIMEZONE]);
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $gen->enrol_user($student->id, $course->id, 'student');
+        $gen->enrol_user($other->id, $course->id, 'student');
+        $assign = $this->assign((int) $course->id, $now + DAYSECS, ['gradingduedate' => $now + HOURSECS]);
+        $this->submission((int) $assign->id, (int) $other->id, $now - 2 * HOURSECS);
+        $gradingid = $this->event_id((int) $assign->cmid, strip::GRADINGDUE);
+
+        $this->setUser($teacher);
+        $this->assertContains(
+            $gradingid,
+            array_column($this->soon($teacher, 'teaching', $now)['items'], 'id'),
+            'Control: the teacher is offered the grading work.'
+        );
+        $this->new_request();
+        $this->setUser($student);
+        $items = $this->soon($student, 'teaching', $now)['items'];
+
+        $this->assertNotContains($gradingid, array_column($items, 'id'));
+        $this->assertSame([], array_intersect(['grade', 'gradesoon'], array_column($items, 'kind')));
     }
 
     /**

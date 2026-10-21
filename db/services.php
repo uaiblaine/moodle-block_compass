@@ -91,4 +91,12 @@ $functions = [
         'ajax' => true,
         'readonlysession' => true,
     ],
+    'block_compass_get_soon' => [
+        'classname' => 'block_compass\\external\\get_soon',
+        'methodname' => 'execute',
+        'description' => 'Up next for the current user: the items still open from now to the horizon, in one view.',
+        'type' => 'read',
+        'ajax' => true,
+        'readonlysession' => true,
+    ],
 ];

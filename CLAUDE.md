@@ -119,7 +119,10 @@ Breaking one is a design change: stop and raise it with the maintainer.
   calendar's one statement, ADR-014 amendment 10), 6 to complete a counted-only entry (7 with
   it); `get_strip_counts` 2 on a fresh entry (whole or counted only), 11 cold and 11 warm (the
   counts pass: no vault, no days off, grading only with the ledger; ADR-014 amendment 11); `get_day` 2 reopened, 11 teaching (PostgreSQL),
-  ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
+  ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5);
+  `get_soon` (ADR-016) never cached, its fixture stated in its budget test: learning 46 cold / 41 warm
+  for three open items, teaching 16 / 11 (19 / 12 with the ledger), about 12 reads per open event
+  in the range, and a prune write adds none. Every service's floor is 2 reads (the per-request
   preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
   reset per-request state, purge the user's layers, keep the shared ones warm, measure the second
@@ -154,7 +157,7 @@ line in tier 3 (table with dates in the long form).
 ```
 block_compass.php, index.php (the block's page, ADR-012), settings.php, lib.php (preference declarations,
                            the two archive icons), version.php
-classes/external/          eight READ functions in the USER context, all readonlysession, none accepting a
+classes/external/          nine READ functions in the USER context, all readonlysession, none accepting a
                            userid; writes go to core's own services from the browser
 classes/local/             THE ONLY place $DB is allowed: budget, config (reads get_config() every call),
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
@@ -228,9 +231,10 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `core_favourites\service_factory`; `course_category_updated` cannot tell a move from a rename
   (observer drops descendants); `user_deleted` fires after the enrolments are gone;
   `core_course_category::get_many()` is request-scoped, so the hot path reads `categorymeta`.
-- **Web services**: the fleet checklist; all eight are reads and declare `readonlysession`
-  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip` and
-  `get_day`; `get_strip_counts` never reaches core's vault); course names through
+- **Web services**: the fleet checklist; all nine are reads and declare `readonlysession`
+  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip`, `get_day`
+  and `get_soon`; `get_strip_counts` never reaches core's vault; `get_soon`'s one write is the
+  `calendarstrip` entry's gate lists, a MUC set, when it prunes them); course names through
   `format_string(..., ['escape' => false])` before a `PARAM_TEXT` return; vocabularies checked
   before any work; a request answerable without work returns before any check that could throw.
   One `cachedef_<name>` per definition (a missing one is fatal on 5.x); `{$a}` parity between

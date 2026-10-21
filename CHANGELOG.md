@@ -20,12 +20,18 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042007) - unreleased
+## v5.2-r1 (2026042008) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
 ### Changed
 
+- Up next's service, `block_compass_get_soon` (ADR-016, stage 13b; 2026042008). It is read-only
+  and works for the current user only, in the user context and in a read-only session; it answers
+  empty when the calendar or the horizon is off. It lists what is still open from now to the
+  horizon (at most ten items, in `get_day`'s item shape) and returns the pruned gate lists. The
+  client comes in 13c. `block_compass_get_strip_counts` also returns each view's `upcoming` and
+  `events`.
 - Up next, server side (ADR-016, stage 13a; nothing is shown yet, the service and the client
   follow). The closed line's counts carry the gate of Up next: `upcoming` holds the counted
   deadlines of today and tomorrow, and `events` holds the events as start and end pairs, so a

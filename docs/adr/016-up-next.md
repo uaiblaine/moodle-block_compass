@@ -396,6 +396,38 @@ stage stops for the maintainer's review of its diff.
 - **The `security-diff-read` skill** over the stage's diff, since the stage adds a service. An MDL
   Shield review only on the maintainer's word: the credits are exhausted until the maintainer says
   otherwise.
+- **Read** (stage 13b, 2026-10-21; `git diff 12f35f3 -- classes db`, six questions):
+  - **F1, medium, fixed:** a teaching answer cut at `strip::FUTURE_LIMIT` holds a partial open set,
+    and pruning would have removed from the gate real deadlines beyond the cut. Deadlines are now
+    pruned only from a complete answer; ended events still go. Fixed in `soon::prune()`, with a test
+    and a gate.
+  - **F5, low, fixed:** `soon::get()` left the horizon-off check to its caller (question 6). It now
+    answers empty itself, with a test and a gate.
+  - **F6, low, tested:** the service reuses the day pipelines for visibility, and now has tests of
+    its own: a hidden activity is not listed, and a student gets no grading work.
+  - **F2, low, accepted:** the prune write is a read-modify-write of the user's own entry. A
+    concurrent request can lose its update; the cost is a rebuild, no leak.
+  - **F3, low, accepted:** the 20-item cap biases the gate early. Pruned to empty with more behind
+    the cut, the gate waits for the next rebuild (30 min at most).
+  - **F4 and F7, none:** `readonlysession` is right, because the write goes to MUC, not the PHP
+    session. The `soon` member is validated on read and bound to the sign-in.
+- **Done** (stage 13b, 2026-10-21; version 2026042008):
+  - **The service:** `block_compass_get_soon`.
+    - It runs the guest check and `validate_context()` first, then returns empty when the calendar
+      or the horizon is off, then checks the view.
+    - Its items are in `get_day::item_structure()`, `events` as a list of `[start, end]` lists, and
+      it returns no `enabled` key, as `get_day`.
+    - `get_strip_counts` returns both gate lists.
+    - `readonly_session_test` covers the ninth service, with `get_soon` the third service allowed
+      core's `calendarshoweventtype` key.
+  - **Budget** (m502b, PostgreSQL), pinned in `get_soon_budget_test` with its fixtures stated
+    (learning: 3 open items; teaching: 3):
+    - learning 46 cold, 41 warm;
+    - teaching 16 / 11, or 19 / 12 with the ledger;
+    - a prune write adds no read.
+  - **Gates:** `mdl mutate --fast`, MOODLE_502_STABLE / PHP 8.4, the whole Phase 13 block of 40.
+    Every gate reddened every test it names, on pgsql and on mariadb. Each baseline ran the full
+    suite green: `Tests: 615, Assertions: 8597, Skipped: 17`.
 
 **13c. The client.**
 - **`repository.ts`:** `getSoon`, with the bounded retry every read has.
