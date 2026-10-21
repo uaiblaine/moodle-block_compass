@@ -2,8 +2,9 @@
 
 **Status:** Proposed (2026-10-21). The maintainer chose the shape on 2026-10-21 (option B of the
 mockup, "Em seguida", plus option A's ring on the Today cell); the data path below is proposed and
-the read budget is **to be measured** (section "Measurements before acceptance"). Implementation
-starts after the measurements and the maintainer's review.
+M1, M2 and M4 were measured on 2026-10-21 on a prototype (`docs/perf/2026-10-21-bench-up-next.md`,
+section "Results so far" below); M3 waits on the maintainer's production replica run, M5 on the
+client. Implementation starts after the maintainer's review.
 **Date:** 2026-10-21
 **Phase:** 13 (`main` = `MOODLE_502_STABLE`, then the port to `MOODLE_503_STABLE`)
 **Supersedes:** nothing
@@ -214,11 +215,41 @@ state reset, the second call measured.
 
 | # | What | Pass condition |
 |---|---|---|
-| M1 | `get_soon` learning, reads cold and warm: a learner with 3 items in range; the worst learner of E5 (18 graded + 3 events a week); 2,851 courses at the inventory bound | a ceiling no higher than `get_day` learning (≤ 66), written into the budget test |
+| M1 | `get_soon` learning, reads cold and warm: a learner with 3 items in range; the worst learner of E5 (18 graded + 3 events a week); a learner at the inventory bound (250 courses, the strip's course bound) | a ceiling no higher than `get_day` learning (≤ 66), written into the budget test |
 | M2 | `get_soon` teaching, reads: E5's teacher (10 courses), with and without the Feedback tracker's ledger | no higher than `get_day` teaching (11 on PostgreSQL) plus the range's extra rows, stated |
 | M3 | Gate frequency on the E3 production replica kit: the share of loads whose `upcoming` opens the gate, and of those, the share that draw no row | recorded; a high empty share reopens decision 3 |
 | M4 | Payload: `upcoming` in the counts (bytes, gzip), `get_soon` at 10 items | recorded beside ADR-014's E4 |
 | M5 | Layout shift of the region's insertion on m502, Dashboard with tier 1 full | recorded; above 0.1 CLS reopens decision 1's placement |
+
+### Results so far (2026-10-21, m502b, PostgreSQL; `docs/perf/2026-10-21-bench-up-next.md`)
+
+- **M1 met.** The learning domain reads are 35 (3 items), 46 (E5's worst learner) and 38 (250
+  courses), identical to `day::get` for today on the same fixture. Repeated calls cost the same
+  (nothing is cached, as decision 4 says). With the renderer (3) and the service floor (2):
+  40 / 51 / 43, under `get_day`'s 66. Proposed budget: `get_soon` learning pinned at `get_day`'s
+  learning ceiling.
+- **M2 met, with the ledger.** The teaching domain reads are 8 for E5's teacher, the same as
+  `day::get`; the service estimate is 13. Proposed budget: `get_day`'s teaching ceiling plus the
+  renderer. Without the ledger it is not measured: m502b has `block_feedback_tracker`, and the path
+  runs one grading statement either way.
+- **M4 recorded.** `upcoming` adds 49 to 126 B raw (23 to 48 B gzip) to the counts. `get_soon` is
+  3.8 to 11.6 KB raw, under 1 KB gzip at ten items.
+- **Not yet:** MariaDB (the flag does not pass through `mdl ci`; no recordset on this path, so the
+  reads should match), M3, M5.
+
+### What the prototype corrected
+
+- **An event already on when the entry is built is missing from `upcoming`.** Its start is before
+  the build instant, and the counted statement carries no duration, so that event alone never opens
+  the gate. Fix for the implementation: select `e.timeduration` in `strip::branch_head()` and keep a
+  standard event whose end is after the build instant. No extra read.
+- **The "started yesterday" limit (decision 4) is teaching-only.** On the learning side core's vault
+  matches `timestart + timeduration > from` (`event_vault.php:303,313`), so a learning event that
+  started yesterday and is still on is found.
+- **`more` counts over the whole range**, which can include tomorrow's first hours; the "Mais N"
+  line's wording should say "mais tarde", not "hoje", when it does. **`truncated`** is the teaching
+  statement's `FUTURE_LIMIT` only; the learning source has no bound.
+- **The horizon travels in seconds** and is echoed in the answer.
 
 ## Questions for the maintainer
 

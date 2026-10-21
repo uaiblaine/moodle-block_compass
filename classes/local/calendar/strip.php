@@ -118,6 +118,9 @@ final class strip {
     /** @var string[] The teaching kinds the closed line counts without the ledger: no grading work. */
     public const TEACHING_COUNTED_CORE = ['class', 'event'];
 
+    /** @var int Times a view's upcoming list keeps at most (ADR-016 decision 3): the gate needs the first few. */
+    public const UPCOMING_LIMIT = 20;
+
     /** @var string[] The preload columns of a module context, kept for a deferred grading candidate. */
     private const CONTEXT_COLUMNS = ['ctxid', 'ctxpath', 'ctxdepth', 'ctxlevel', 'ctxinstance', 'ctxlocked'];
 
@@ -146,7 +149,9 @@ final class strip {
      * @param \DateTimeZone $tz The user's timezone.
      * @return array today and lastday (Y-m-d), past (the Late periods are known), grading (the
      *     teaching view counts grading work: the ledger is the source), truncated, bounded,
-     *     haslearning, hasteaching, and views: learning and teaching, each from {@see periods()}.
+     *     haslearning, hasteaching, and views: learning and teaching, each from {@see periods()} plus
+     *     upcoming, the entry's counted times of today and tomorrow ({@see upcoming()}; empty in an
+     *     entry stored before it existed).
      */
     public static function counts(int $userid, int $now, int $signin, \DateTimeZone $tz): array {
         $entry = self::entry($userid, $now, $signin, $tz, false);
@@ -165,8 +170,10 @@ final class strip {
             'haslearning' => $payload['haslearning'],
             'hasteaching' => $payload['hasteaching'],
             'views' => [
-                'learning' => self::periods($payload['views']['learning']['days'], 'learning', $payload['today'], $past, $grading),
-                'teaching' => self::periods($payload['views']['teaching']['days'], 'teaching', $payload['today'], $past, $grading),
+                'learning' => self::periods($payload['views']['learning']['days'], 'learning', $payload['today'], $past, $grading)
+                    + ['upcoming' => array_map('intval', $entry['upcoming']['learning'] ?? [])],
+                'teaching' => self::periods($payload['views']['teaching']['days'], 'teaching', $payload['today'], $past, $grading)
+                    + ['upcoming' => array_map('intval', $entry['upcoming']['teaching'] ?? [])],
             ],
         ];
     }
@@ -241,7 +248,8 @@ final class strip {
             $built['stamp'],
             $built['deferred'],
             $built['grading'],
-            current_language()
+            current_language(),
+            $built['upcoming']
         );
         calendar_cache::set($userid, $entry);
 
@@ -608,8 +616,9 @@ final class strip {
      * @return array payload, stamp (the inventory stamp the sets were read under, read before them so a
      *     change in between shows as a difference later), sets: courses (id => isfavourite, timeaccess), learning and
      *     teaching (course ids), groups (id => courseid, participation) and categories (ids); and deferred: null for
-     *     the whole strip, else the grading candidates the counts pass left for complete(); and grading:
-     *     the grading source the build counted under (tracker or core), which the entry records.
+     *     the whole strip, else the grading candidates the counts pass left for complete(); grading:
+     *     the grading source the build counted under (tracker or core), which the entry records; and
+     *     upcoming: per view, the counted times of today and tomorrow from $now on ({@see upcoming()}).
      */
     public static function compute(int $userid, int $now, \DateTimeZone $tz, bool $whole = true): array {
         self::require_core();
@@ -686,10 +695,12 @@ final class strip {
             self::add($views['learning'], 'learning', $item['day'], $item['kind'], $weight, $item['courseid'], 0);
         }
         $hasteaching = $teaching !== [] || $grading > 0;
+        $upcoming = self::upcoming($items, $now, $window, $gradingsource === grading::SOURCE_TRACKER);
         // A counts pass that deferred grading keeps the teaching view's other days: the count may yet
         // make the viewer a teacher when complete() runs.
         if (!$hasteaching && $deferred === []) {
             $views['teaching'] = [];
+            $upcoming['teaching'] = [];
         }
 
         $payload = [
@@ -716,7 +727,52 @@ final class strip {
             'stamp' => $inventory['stamp'],
             'deferred' => $whole ? null : $deferred,
             'grading' => $gradingsource,
+            'upcoming' => $upcoming,
         ];
+    }
+
+    /**
+     * Per view, the times of the items the closed line counts today and tomorrow, from $now on.
+     *
+     * ADR-016 decision 3: the browser asks Up next only when one of these falls inside its horizon,
+     * so a calm day costs no request. The times are the counted statement's sorttime, already read
+     * to bucket each row by day ({@see branch_head()}): timesort for an action event, a grading
+     * item's due time included, timestart for the others; no read of their own. The kinds are the
+     * ones periods() counts: done never; in the teaching view grading work only when the ledger is
+     * the source. An upper bound, like the counts: an item submitted after the build still opens the
+     * gate, and the answer then holds no row. An event already in progress at the build instant is
+     * not in it (its start is before $now and the statement carries no duration). Distinct times,
+     * ascending, at most UPCOMING_LIMIT.
+     *
+     * @param array $items Items from collect(), each with its row.
+     * @param int $now The build instant.
+     * @param array $window From window().
+     * @param bool $ledger Whether grading work is counted: the ledger is the grading source.
+     * @return array learning and teaching, each a list of Unix times.
+     */
+    public static function upcoming(array $items, int $now, array $window, bool $ledger): array {
+        $counted = [
+            'learning' => self::LEARNING_COUNTED,
+            'teaching' => $ledger ? self::TEACHING_KINDS : self::TEACHING_COUNTED_CORE,
+        ];
+        $times = ['learning' => [], 'teaching' => []];
+        foreach ($items as $item) {
+            $time = (int) $item['row']->sorttime;
+            if ($time < $now || ($item['day'] !== $window['today'] && $item['day'] !== $window['tomorrow'])) {
+                continue;
+            }
+            foreach ($item['view'] === 'both' ? self::VIEWS : [$item['view']] as $view) {
+                if (in_array($item['kind'], $counted[$view], true)) {
+                    $times[$view][$time] = $time;
+                }
+            }
+        }
+        foreach ($times as $view => $list) {
+            sort($list);
+            $times[$view] = array_slice($list, 0, self::UPCOMING_LIMIT);
+        }
+
+        return $times;
     }
 
     /**
