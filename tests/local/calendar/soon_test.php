@@ -101,7 +101,7 @@ final class soon_test extends advanced_testcase {
         $tz = \core_date::get_user_timezone_object();
 
         $answer = $this->soon($user, 'learning', $now);
-        $this->assertSame(['now', 'horizon', 'view', 'items', 'more', 'truncated'], array_keys($answer));
+        $this->assertSame(['now', 'horizon', 'view', 'items', 'more', 'truncated', 'upcoming'], array_keys($answer));
         $this->assertSame([$now, self::HORIZON, 'learning', 0, false], [
             $answer['now'], $answer['horizon'], $answer['view'], $answer['more'], $answer['truncated'],
         ]);
@@ -271,6 +271,104 @@ final class soon_test extends advanced_testcase {
         $this->assertSame([], $counts['views']['teaching']['upcoming']);
         $today = array_column($counts['views']['learning']['periods'], 'count', 'key')['today'];
         $this->assertSame(1, $today, 'Control: the done assignment is not counted either.');
+    }
+
+    /**
+     * A call prunes the time of a submitted item from the entry's gate list and keeps the rest.
+     *
+     * The entry is built ten minutes before the call, with an open assignment, a submitted one, an
+     * assignment that fell due after the build but before the call (below now: kept as it is) and
+     * one due tomorrow (past the range's end: untouched). The submission removes only its own time.
+     *
+     * @return void
+     */
+    public function test_a_call_prunes_the_times_of_items_core_dropped(): void {
+        [$user, $now, , $times] = $this->pruning_case();
+
+        $this->assertSame($times['all'], $this->gate_list($user, $now), 'Control: the entry counted all four.');
+        $answer = $this->soon($user, 'learning', $now);
+
+        $expected = [$times['past'], $times['open'], $times['tomorrow']];
+        $this->assertSame($expected, $this->gate_list($user, $now), 'Only the submitted item\'s time went.');
+        $this->assertSame($expected, $answer['upcoming']);
+        $this->assertCount(1, $answer['items'], 'Control: the open item is the one row.');
+    }
+
+    /**
+     * Without $prune the entry is not touched and the answer carries the list as it is.
+     *
+     * @return void
+     */
+    public function test_without_pruning_the_entry_is_unchanged(): void {
+        [$user, $now, $tz, $times] = $this->pruning_case();
+        $before = calendar_cache::get((int) $user->id);
+
+        $answer = soon::get((int) $user->id, 'learning', $now, 1, $tz, self::HORIZON, fn() => $this->renderer(), false);
+
+        $this->assertEquals($before, calendar_cache::get((int) $user->id));
+        $this->assertSame($times['all'], $answer['upcoming']);
+        $this->assertContains($times['submitted'], $this->gate_list($user, $now), 'Control: the dead time is still there.');
+    }
+
+    /**
+     * A second call after the pruning changes nothing: the entry is the same array, built included.
+     *
+     * @return void
+     */
+    public function test_a_second_call_after_pruning_writes_nothing(): void {
+        [$user, $now] = $this->pruning_case();
+        $this->soon($user, 'learning', $now);
+        $after = calendar_cache::get((int) $user->id);
+        $this->assertNotContains($now + HOURSECS, $after['upcoming']['learning'], 'Control: the first call pruned.');
+
+        $this->new_request();
+        $again = $this->soon($user, 'learning', $now);
+
+        $this->assertEquals($after, calendar_cache::get((int) $user->id));
+        $this->assertSame($after['built'], calendar_cache::get((int) $user->id)['built']);
+        $this->assertSame($after['upcoming']['learning'], $again['upcoming']);
+    }
+
+    /**
+     * An entry built ten minutes ago whose submitted assignment is still in its gate list.
+     *
+     * @return array [user, now, timezone, times: all, past, submitted, open, tomorrow].
+     */
+    private function pruning_case(): array {
+        [$user, $course, $now] = $this->learner();
+        $times = [
+            'past' => $now - 300,
+            'submitted' => $now + HOURSECS,
+            'open' => $now + 2 * HOURSECS,
+            'tomorrow' => $now + DAYSECS - 3 * HOURSECS,
+        ];
+        $this->assign((int) $course->id, $times['past']);
+        $submitted = $this->assign((int) $course->id, $times['submitted']);
+        $this->assign((int) $course->id, $times['open']);
+        $this->assign((int) $course->id, $times['tomorrow']);
+        $this->setUser($user);
+        // The learner's timezone, read as the learner: the entry is keyed to it, so one read before
+        // setUser() would build it under the site's and every later call would rebuild it.
+        $tz = \core_date::get_user_timezone_object();
+        strip::counts((int) $user->id, $now - 600, 1, $tz);
+        $times['all'] = [$times['past'], $times['submitted'], $times['open'], $times['tomorrow']];
+        $this->submission((int) $submitted->id, (int) $user->id, $now);
+        $this->new_request();
+
+        return [$user, $now, $tz, $times];
+    }
+
+    /**
+     * The learning gate list the counts read from the entry.
+     *
+     * @param \stdClass $user The current user.
+     * @param int $now Now.
+     * @return int[]
+     */
+    private function gate_list(\stdClass $user, int $now): array {
+        $counts = strip::counts((int) $user->id, $now, 1, \core_date::get_user_timezone_object());
+
+        return $counts['views']['learning']['upcoming'];
     }
 
     /**

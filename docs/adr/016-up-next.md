@@ -3,8 +3,9 @@
 **Status:** Proposed (2026-10-21). The maintainer chose the shape on 2026-10-21 (option B of the
 mockup, "Em seguida", plus option A's ring on the Today cell); the data path below is proposed and
 M1, M2 and M4 were measured on 2026-10-21 on a prototype (`docs/perf/2026-10-21-bench-up-next.md`,
-section "Results so far" below); M3 waits on the maintainer's production replica run, M5 on the
-client. The maintainer answered the four open questions on 2026-10-21, each confirming the decision
+section "Results so far" below), on PostgreSQL and MariaDB. M3 is a local simulation on synthetic
+data, at the maintainer's request; M5 became a decision (an animated insertion) rather than a
+measurement. The maintainer answered the four open questions on 2026-10-21, each confirming the decision
 as written (section "The maintainer's answers"). Implementation starts after the maintainer's review.
 **Date:** 2026-10-21
 **Phase:** 13 (`main` = `MOODLE_502_STABLE`, then the port to `MOODLE_503_STABLE`)
@@ -61,6 +62,11 @@ The maintainer chose B, plus A's ring on the Today cell.
   closed line, or the open strip's row and legend) and tier 1. It exists only while the current
   view holds at least one item inside the horizon (decision 2). On a calm day nothing is drawn and
   nothing is asked (decision 3).
+- **It arrives with a short animation.** The region opens from no height to its own (about 200 ms,
+  ease-out; `grid-template-rows: 0fr` to `1fr` with `overflow: hidden`, no `clamp()`/`min()`), and
+  tier 1 slides down with it instead of jumping. Under `prefers-reduced-motion` it appears at once.
+  Hiding and the level rising back use the same transition in reverse and forward. The maintainer
+  decided on 2026-10-21 that the cards moving is acceptable when the motion is gentle (M5).
 - **At most two rows**, in time order. Each row has the clock time (`cal_format_time12`/`24`), the
   countdown, the activity icon, the name (one line, ellipsis, whole name in `title`), the course
   short name, a kind tag and the action button. The button reuses the day card's short verb
@@ -117,6 +123,24 @@ clock (decision 5), re-evaluated once a minute:
   was built still opens the gate; the answer then holds no row and the region stays undrawn. That
   is one wasted request, never a wrong row. An item created after the entry was built is missed
   until the entry is rebuilt (TTL or a new sign-in), the same residual the strip already has.
+- **`get_soon` prunes the gate with core's verdict** (the maintainer, 2026-10-21, after M3 found a
+  third of gated requests empty). After answering, the service rewrites the entry's `upcoming` for the
+  view:
+  - every time inside `[now, range end]` that matches no open item of the answer is removed, so an
+    item core just dropped (submitted, attempted, closed, done) no longer opens the gate;
+  - times outside that interval are kept as they are;
+  - the comparison runs before the ten-item cut, so an open eleventh item keeps its time;
+  - nothing is written when nothing changed.
+
+  The write is a MUC set of the existing `calendarstrip` entry (no new definition, no `invalidate()`,
+  no database read). The answer carries the pruned list as `upcoming`, so the browser replaces its
+  copy and schedules its next ask from it.
+  - **Residual:** a submission a teacher reverts to draft does not reopen the gate until the entry is
+    rebuilt (30 min TTL or a new sign-in).
+  - **Residual:** a rebuilt entry re-counts a submitted item once, so there is at most one wasted
+    request per entry build.
+  - **What is cached:** what is still open is never cached (the next bullet still holds). The entry
+    only stops asking about what core has already said is closed.
 
 ### 4. The service: `block_compass_get_soon`
 
@@ -140,11 +164,12 @@ clock (decision 5), re-evaluated once a minute:
 - **The sets** come from the strip's entry (`strip::entry($userid, $now, $signin, $tz, false)`),
   re-validated against the enrolment stamp and the groups (`strip::revalidated()`, two reads), as a
   new day is. A user who left a course or a group inside TTL is not shown its events.
-- **Never cached.** The answer is not written to `calendarstrip` and has no cache of its own. Its
+- **Never cached.** The answer is not written to `calendarstrip` and has no cache of its own (the
+  gate's pruning, decision 3, writes only the entry's `upcoming` times). Its
   only purpose is to say what is still open, and a sign-in-long copy is the stale fact this record
   exists to avoid. The renderer is still fetched only when the range holds an event to export (the
   closure of `day::get()`).
-- **Answer**: `{now, horizon, view, items, more, truncated}`. `items` is at most `LIMIT = 10` items
+- **Answer**: `{now, horizon, view, items, more, truncated, upcoming}` (`upcoming`: the view's pruned gate, decision 3). `items` is at most `LIMIT = 10` items
   in time order, each with exactly `day::ALLOWLIST` plus `timeduration` (amending ADR-014 decision 7
   for both services: a day item gains it too, so the day card can say when a meeting ends). `more`
   is the count of today's further open items past the ten. The client draws two rows and folds the
@@ -190,11 +215,11 @@ clock (decision 5), re-evaluated once a minute:
 - **A third calendar request on some loads.** The order is unchanged: tier 1 first, then the
   counts or the strip, then `get_soon` only behind the gate. A calm day, and every day with the
   setting off, pays nothing new beyond `upcoming`'s bytes in the counts.
-- **One layout shift on a day with something inside the horizon.** The region is inserted above
-  tier 1 after tier 1 has painted. The shell cannot know in advance (no `$DB` in the block class,
-  non-negotiable 2), so no height can be reserved without lying on calm days. The shift happens
-  once per load, before the reader can act on tier 1 in the common case. It is measured (M5), and
-  Behat waits for it through the pending counter.
+- **Tier 1 moves down once on a day with something inside the horizon.** The region is inserted
+  above tier 1 after tier 1 has painted. The shell cannot know in advance (no `$DB` in the block
+  class, non-negotiable 2), so no height can be reserved without lying on calm days. The maintainer
+  accepted the movement on 2026-10-21 provided it is animated (decision 1); Behat waits for the
+  region through the pending counter, and the transition is skipped under reduced motion.
 - **Freshness has a price.** Every load behind the gate pays core's callbacks for the range's events,
   because that is the fact being shown. M1 to M3 say how much.
 - **A ninth service** (eight read services today), with its behaviour and budget tests and mutation gates under "Phase 13" in
@@ -220,7 +245,7 @@ state reset, the second call measured.
 | M2 | `get_soon` teaching, reads: E5's teacher (10 courses), with and without the Feedback tracker's ledger | no higher than `get_day` teaching (11 on PostgreSQL) plus the range's extra rows, stated |
 | M3 | Gate frequency on a production replica (`docs/perf/m3-up-next-gate-kit.sql`, read-only, run by the maintainer): the share of Dashboard views whose `upcoming` opens the gate at 3, 6 and 12 h, and of those, the share that draw no row | recorded; a high empty share reopens decision 3 |
 | M4 | Payload: `upcoming` in the counts (bytes, gzip), `get_soon` at 10 items | recorded beside ADR-014's E4 |
-| M5 | Layout shift of the region's insertion on m502, Dashboard with tier 1 full | recorded; above 0.1 CLS reopens decision 1's placement |
+| M5 | ~~Layout shift as a CLS number~~ Replaced on 2026-10-21 by the maintainer's decision: the movement is accepted when animated (decision 1). What remains is a visual check of the transition, light and dark, normal and reduced motion, in the browser on a stack, once the client exists | the maintainer's eye |
 
 ### Results so far (2026-10-21, m502b, PostgreSQL; `docs/perf/2026-10-21-bench-up-next.md`)
 
@@ -231,13 +256,33 @@ state reset, the second call measured.
   learning ceiling.
 - **M2 met, with the ledger.** The teaching domain reads are 8 for E5's teacher, the same as
   `day::get`; the service estimate is 13. Proposed budget: `get_day`'s teaching ceiling plus the
-  renderer. Without the ledger it is not measured: m502b has `block_feedback_tracker`, and the path
-  runs one grading statement either way.
+  renderer. Without the ledger (MariaDB runner, no `block_feedback_tracker`): 7, again the same as
+  `day::get`.
 - **M4 recorded.** `upcoming` adds 49 to 126 B raw (23 to 48 B gzip) to the counts. `get_soon` is
   3.8 to 11.6 KB raw, under 1 KB gzip at ten items.
-- **Not yet:** MariaDB (the flag does not pass through `mdl ci`; no recordset on this path, so the
-  reads should match); M3, whose kit is written and validated on PostgreSQL 18.6 (2026-10-21) and waits
-  on the maintainer's replica run; M5, which needs the client.
+- **MariaDB met** (MariaDB 12.3, PHP 8.4, the `mdl ci` runner kept and re-run with the flag): 31 /
+  42 / 33 learning and 7 teaching, each equal to `day::get` on the same fixture and a few reads
+  under PostgreSQL. The whole suite with the prototype passed there: 574 tests, 8,344 assertions,
+  11 skipped.
+- **M3 simulated** (`docs/perf/2026-10-21-sim-up-next-m3.md`; 30 learners, 6 courses, a synthetic
+  week, 427 Dashboard views, the real code). At the 6 h default the gate opens on 62.5 % of views,
+  and a third of those requests (32.6 %) come back with nothing to draw, because `upcoming` keeps a
+  submitted item's time until the entry is rebuilt. That is about 21 `soon` reads per Dashboard view
+  on average, 7 of them wasted. Misses are 0.5 % of views at 6 h and 3.3 % at 3 h, every one an
+  event already in progress when the entry was built: the gap below, which the timeduration fix
+  closes. `soon` reads: mean 34-39, max 92-110 on calls in a request with cold core caches after
+  the simulated writes; the tail has to be looked at before the budget ceiling is pinned. The
+  replica kit (`docs/perf/m3-up-next-gate-kit.sql`) stays for a later production run.
+- **Pruning decided and measured** (the maintainer, 2026-10-21; decision 3; M3 note, "With pruning").
+  At 6 h it cuts the wasted requests from 87 to 68 (32.6 % to 27.5 % of the requests that go out),
+  and the gate opens on 57.8 % of views instead of 62.5 %, at no extra read.
+  - **Why no more:** most entries are rebuilt before a second view (309 builds for 427 views), and
+    each rebuild counts the submitted items again.
+  - **Misses:** 0.7 % instead of 0.5 %, the extra one of the known kind (an event in progress at the
+    build), which the `timeduration` fix closes.
+  - **Below the remaining quarter:** only a counted statement that reads the learner's submissions
+    goes lower, and it is not proposed.
+- **M5**: decided rather than measured (table above).
 
 ### What the prototype corrected
 

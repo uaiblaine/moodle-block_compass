@@ -80,11 +80,32 @@ Protocol of `e5_heavy_scenarios_test`:
 - `upcoming` adds 49 to 126 B raw, 23 to 48 B gzip, to the counts.
 - `soon` at ten items is about 1.2 KB raw per item and under 1 KB gzip whole.
 
+## MariaDB
+
+**Run:** `mdl ci moodle-block_compass --branch MOODLE_502_STABLE --php 8.4 --db mariadb --only phpunit --keep`
+(with `NPM_CONFIG_PREFER_OFFLINE=true NPM_CONFIG_IGNORE_SCRIPTS=true` for the 5.2 install behind the proxy).
+That run reported `Tests: 574, Assertions: 8344, Skipped: 11. -- phpunit: OK`. Then the kept
+container was committed to an image and the measurement test run in it with the flag, as
+`mdl mutate --fast` runs its gates:
+
+`docker run --rm --network mdlci_default -e BLOCK_COMPASS_MEASURE=1 -w /work/moodle --entrypoint php <image> vendor/bin/phpunit public/blocks/compass/tests/local/calendar/m_soon_measure_test.php`
+
+The result was `OK (4 tests, 38 assertions)`, 30 s. The image, the container and the run's
+database were removed afterwards. The runner has no `block_feedback_tracker`, so the teacher
+case here is M2 without the ledger.
+
+| Case | `soon` cold | `soon` repeated | `day::get` today | ms (soon cold) | counts gzip without / with `upcoming` |
+|---|---|---|---|---|---|
+| (a) small learner | 31 | 31 | 31 | 10 | 222 / 247 B |
+| (b) worst learner | 42 | 42 | 42 | 20 | 272 / 319 B |
+| (c) teacher, no ledger | 7 | 7 | 7 | 10 | 258 / 278 B |
+| (d) 250 courses | 33 | 33 | 33 | 36 | 234 / 257 B |
+
+`soon` equals `day::get` on MariaDB too, and both are 4 or 5 reads under PostgreSQL.
+
 ## Not measured here
 
-- **MariaDB:** the measurement flag cannot pass through `mdl ci`. The read counts differ by
-  recordsets only (none on this path), so the counts should match; the ms will not.
-- **M2 without the ledger:** m502b has `block_feedback_tracker`, so its source is what was
-  measured. The teaching path runs one grading statement either way.
-- **M3, the gate frequency,** needs the E3 production replica kit, run by the maintainer.
-- **M5, the layout shift,** needs the client.
+- **M3, the gate frequency:** the maintainer asked on 2026-10-21 for a local simulation on synthetic
+  data instead of the replica kit; it is reported separately.
+- **M5, the layout shift:** replaced by the maintainer's decision. The movement is accepted when
+  it is animated, so what remains is a visual check once the client exists.

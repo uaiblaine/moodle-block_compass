@@ -24,6 +24,7 @@
 
 namespace block_compass\local\calendar;
 
+use block_compass\local\calendar_cache;
 use block_compass\local\config;
 use core\output\renderer_base;
 use core_calendar\local\event\entities\action_event_interface;
@@ -32,11 +33,12 @@ use core_calendar\local\event\entities\event_interface;
 /**
  * The current user's open items from today's first instant to the horizon, in one view.
  *
- * The answer is {now, horizon, view, items, more, truncated}: items is a list of at most LIMIT
+ * The answer is {now, horizon, view, items, more, truncated, upcoming}: items is a list of at most LIMIT
  * entries in time order, each with exactly day::ALLOWLIST; more counts the further open items of
  * the range past them; truncated says the teaching view's counted statement hit its bound
  * (strip::FUTURE_LIMIT), so more is a lower bound. The learning view's source, core's
- * api::get_events() with limit 0, has no bound of its own, so truncated is false there.
+ * api::get_events() with limit 0, has no bound of its own, so truncated is false there. upcoming is
+ * the view's gate list in the entry after pruning, for the client to replace its copy.
  *
  * The range is today's first instant (an event that started this morning and is still on is found)
  * to max(end of today, now + horizon), clipped to the strip window's last instant. The items are
@@ -46,9 +48,10 @@ use core_calendar\local\event\entities\event_interface;
  * later; a standard event when it starts by the range's end and ends after now; late and done
  * items never.
  *
- * Never cached: neither written to the strip's entry (its sets are read from it, re-validated as a
- * new day's are) nor kept anywhere else. Its only purpose is to say what is still open, and a copy
- * kept for the sign-in is the stale fact ADR-016 exists to avoid.
+ * Never cached: the answer is not written to the strip's entry (its sets are read from it,
+ * re-validated as a new day's are) nor kept anywhere else. Its only purpose is to say what is still
+ * open, and a copy kept for the sign-in is the stale fact ADR-016 exists to avoid. The one write is
+ * the pruning of the entry's gate list ({@see self::get()}), which is not the answer.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -65,6 +68,16 @@ final class soon {
      * (two), then the view's pipeline over the range, and the renderer only when there is an item
      * to export.
      *
+     * Pruning (ADR-016, the wasted third M3 measured). The gate list in the entry (`upcoming`, the
+     * times counted when the entry was built) only ever lost a time by expiring, so a time whose item
+     * the learner then submitted kept opening the gate and the request came back empty. With $prune,
+     * the call removes from the view's list every time inside [now, range end] that no open item of
+     * this answer (all of them, not only the LIMIT returned) has; times before now or after the range
+     * end are kept as they are. The list is written back to the entry only when it changed, a cache
+     * write and no database read. The residual: a submission a teacher reverts to draft is not seen by
+     * the gate until the entry is rebuilt (TTL 30 minutes or a new sign-in), and a rebuilt entry
+     * re-counts a submitted item once, so at most one wasted request per entry build.
+     *
      * @param int $userid The current user.
      * @param string $view learning or teaching.
      * @param int $now Unix time to treat as now.
@@ -74,6 +87,7 @@ final class soon {
      * @param renderer_base|\Closure $output A renderer, or a closure that returns one. Only an answer
      *     with an item calls it: fetching core's renderer initialises the theme and core's globally
      *     available filters (a recordset: three reads on PostgreSQL), which an empty answer must not pay.
+     * @param bool $prune Whether to prune the entry's gate list for this view (see above).
      * @return array|null The answer, or null when the view is not one of strip::VIEWS.
      */
     public static function get(
@@ -83,7 +97,8 @@ final class soon {
         int $signin,
         \DateTimeZone $tz,
         int $horizon,
-        renderer_base|\Closure $output
+        renderer_base|\Closure $output,
+        bool $prune = true
     ): ?array {
         if (!in_array($view, strip::VIEWS, true)) {
             return null;
@@ -101,7 +116,37 @@ final class soon {
             $result = self::learning($userid, $from, $to, $sets, $sources, $now, $tz, $output);
         }
 
-        return ['now' => $now, 'horizon' => $horizon, 'view' => $view] + $result;
+        $times = $result['opentimes'];
+        unset($result['opentimes']);
+        $upcoming = array_map('intval', $entry['upcoming'][$view] ?? []);
+        if ($prune) {
+            $pruned = self::pruned($upcoming, $times, $now, $to);
+            if ($pruned !== $upcoming) {
+                $entry['upcoming'][$view] = $pruned;
+                calendar_cache::set($userid, $entry);
+                $upcoming = $pruned;
+            }
+        }
+
+        return ['now' => $now, 'horizon' => $horizon, 'view' => $view] + $result + ['upcoming' => $upcoming];
+    }
+
+    /**
+     * The gate list without the times of items core no longer lists.
+     *
+     * @param int[] $upcoming The entry's list for the view, ascending.
+     * @param int[] $open The times of every open item of the answer.
+     * @param int $now Unix time to treat as now.
+     * @param int $to The range's last instant.
+     * @return int[] Ascending: the times before now or after $to, and those in between that an open item has.
+     */
+    private static function pruned(array $upcoming, array $open, int $now, int $to): array {
+        $open = array_flip($open);
+
+        return array_values(array_filter(
+            $upcoming,
+            fn(int $time): bool => $time < $now || $time > $to || isset($open[$time])
+        ));
     }
 
     /**
@@ -132,7 +177,7 @@ final class soon {
      * @param int $now Unix time to treat as now.
      * @param \DateTimeZone $tz The user's timezone.
      * @param renderer_base|\Closure $output A renderer, or a closure that returns one.
-     * @return array items, more and truncated.
+     * @return array items, more, truncated and opentimes (the time of every open item, before the cut).
      */
     private static function learning(
         int $userid,
@@ -166,7 +211,12 @@ final class soon {
         $shown = self::first($open);
         $items = $shown ? day::export_learning($shown, self::renderer($output), day::starred($sets)) : [];
 
-        return ['items' => $items, 'more' => max(0, count($open) - self::LIMIT), 'truncated' => false];
+        return [
+            'items' => $items,
+            'more' => max(0, count($open) - self::LIMIT),
+            'truncated' => false,
+            'opentimes' => array_column($open, 'time'),
+        ];
     }
 
     /**
@@ -213,7 +263,7 @@ final class soon {
      * @param int $now Unix time to treat as now.
      * @param \DateTimeZone $tz The user's timezone.
      * @param renderer_base|\Closure $output A renderer, or a closure that returns one.
-     * @return array items, more and truncated.
+     * @return array items, more, truncated and opentimes (the time of every open item, before the cut).
      */
     private static function teaching(
         int $userid,
@@ -227,7 +277,7 @@ final class soon {
     ): array {
         [$kept, $cut] = day::teaching_kept($userid, $from, $to, $sets, $sources, $now, $tz);
         if (!$kept) {
-            return ['items' => [], 'more' => 0, 'truncated' => $cut];
+            return ['items' => [], 'more' => 0, 'truncated' => $cut, 'opentimes' => []];
         }
         $names = day::names(array_map(fn(array $item): int => (int) $item['row']->id, $kept));
         $open = [];
@@ -240,7 +290,12 @@ final class soon {
         $shown = self::first($open);
         $items = $shown ? day::export_teaching_items($shown, $names, $sets, self::renderer($output)) : [];
 
-        return ['items' => $items, 'more' => max(0, count($open) - self::LIMIT), 'truncated' => $cut];
+        return [
+            'items' => $items,
+            'more' => max(0, count($open) - self::LIMIT),
+            'truncated' => $cut,
+            'opentimes' => array_column($open, 'time'),
+        ];
     }
 
     /**
