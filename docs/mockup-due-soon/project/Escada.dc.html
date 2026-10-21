@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Due soon: the urgency ladder</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#5f6870;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;--cc-warn:#f0ad4e;
+  --cc-warn-fg:#7a4100;--cc-warn-bg:#fdecd2;--cc-soon-fg:#0b4f8c;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-control:#6a737b;
+  --activityassessment:#c4006a;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root *{box-sizing:border-box}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.grid{display:grid;grid-template-columns:230px minmax(0,1fr) 300px 96px;border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);overflow:hidden}
+.grid > div{padding:14px 16px;border-top:1px solid var(--cc-line);display:flex;align-items:center}
+.gh{font-size:12.5px;font-weight:600;color:var(--cc-muted);border-top:0 !important;background:var(--cc-surface-2)}
+.lvl{flex-direction:column;align-items:flex-start !important;gap:4px}
+.lvl b{font-size:16px}
+.lvl span{font-size:13px;color:var(--cc-text-2);line-height:1.4}
+.rule{display:inline-block;font-size:12px;font-weight:600;border-radius:6px;padding:1px 7px;background:var(--cc-surface-2);border:1px solid var(--cc-line);color:var(--cc-text-2)}
+.none{font-size:13px;color:var(--cc-muted);font-style:italic}
+
+.row{display:grid;grid-template-columns:86px 36px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%}
+.when{display:flex;flex-direction:column;line-height:1.2}
+.time{font-size:16px;font-weight:700}
+.rel{font-size:12.5px;color:var(--cc-text-2);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.rel--imm{align-self:flex-start;margin-top:2px;padding:1px 7px;border-radius:999px;background:var(--cc-warn-bg);color:var(--cc-warn-fg);font-weight:700}
+.rel--live{color:var(--cc-accent);font-weight:700}
+.rel--late{color:var(--cc-danger);font-weight:700}
+.act{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:color-mix(in oklab,var(--activityassessment) 11%,var(--cc-surface));color:var(--activityassessment)}
+.what{display:flex;flex-direction:column;min-width:0}
+.name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:12.5px;color:var(--cc-muted)}
+.btn{display:inline-grid;place-items:center;height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--cc-control);color:var(--cc-accent);background:var(--cc-surface);font-size:13.5px;font-weight:600;text-decoration:none}
+.btn--primary{background:var(--cc-accent);border-color:var(--cc-accent);color:var(--cc-on-accent)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--cc-accent);display:inline-block}
+
+.cell{display:flex;flex-direction:column;gap:3px}
+.cell-lab{font-size:12.5px;font-weight:700}
+.cell-line{display:flex;align-items:center;gap:10px}
+.chip{min-width:34px;height:28px;padding:0 9px;border-radius:14px;display:inline-grid;place-items:center;font-size:16px;font-weight:700;background:var(--cc-ink);color:var(--cc-on-ink)}
+.chip--imm{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-warn)}
+.chip--live{box-shadow:0 0 0 2px var(--cc-surface),0 0 0 4px var(--cc-accent)}
+.chip--late{background:transparent;color:var(--cc-danger);padding:0 2px;min-width:0}
+.nx{display:flex;flex-direction:column;font-size:13px;min-width:0}
+.nx b{font-weight:700}
+.nx-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+
+.ring{width:52px;height:52px;border-radius:50%;display:grid;place-items:center}
+.disc{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:16px;font-weight:600;background:var(--cc-ink);color:var(--cc-on-ink);box-shadow:0 0 0 3px var(--cc-surface)}
+
+.foot{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.box{border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.box h3{margin:0;font-size:15px}
+.box ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--cc-text-2);display:flex;flex-direction:column;gap:5px}
+</style>
+</helmet>
+<div class="cc-root" style="width: 1200px; min-height: 1320px; padding: 40px 44px; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-direction: column; gap: 6px;">
+    <p class="kicker">The urgency ladder</p>
+    <h1 style="margin: 0; font-size: 28px; font-weight: 700;">One item, five moments: how loud each option gets</h1>
+    <p class="p">The quiz “Questionário do módulo 3” closes at 17:30. Every level is decided from core’s own answer for the event (its action), read when the block loads, never from the cached count alone.</p>
+  </header>
+
+  <div class="grid">
+    <div class="gh">Level and its rule</div>
+    <div class="gh">B · Em seguida (one row)</div>
+    <div class="gh">A · the Today cell</div>
+    <div class="gh">D · today’s disc</div>
+
+    <div class="lvl"><b>Calm</b><span>Nothing open in the next 6 h. Nothing new is drawn: the line shows today’s count, as now.</span><span class="rule">&gt; 6 h · 08:00</span></div>
+    <div><span class="none">no row: Em seguida is not drawn</span></div>
+    <div><div class="cell"><span class="cell-lab">Hoje</span><div class="cell-line"><span class="chip">3</span></div></div></div>
+    <div><span class="ring"><span class="disc">20</span></span></div>
+
+    <div class="lvl"><b>Soon</b><span>Open, inside the horizon. Absolute time first, then the countdown; no colour beyond the text.</span><span class="rule">≤ 6 h · 15:00</span></div>
+    <div><div class="row">
+      <div class="when"><span class="time">17:30</span><span class="rel">em 2 h 30</span></div>
+      <span class="act" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+      <div class="what"><span class="name">Questionário do módulo 3</span><span class="meta">Gestão de Crises · Vale nota</span></div>
+      <a class="btn" href="#">Responder</a>
+    </div></div>
+    <div><div class="cell"><span class="cell-lab">Hoje</span><div class="cell-line"><span class="chip">3</span><span class="nx"><span><b>17:30</b> em 2 h 30</span><span class="nx-name">Questionário do módulo 3</span></span></div></div></div>
+    <div><span class="ring" style="background: conic-gradient(var(--cc-accent) 150deg, var(--cc-line) 0);"><span class="disc">20</span></span></div>
+
+    <div class="lvl"><b>Imminent</b><span>Under an hour. The countdown becomes a pill and the today mark gets an amber ring. Announced once, politely, when the level is reached.</span><span class="rule">≤ 1 h · 17:10</span></div>
+    <div><div class="row">
+      <div class="when"><span class="time">17:30</span><span class="rel rel--imm">em 20 min</span></div>
+      <span class="act" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+      <div class="what"><span class="name">Questionário do módulo 3</span><span class="meta">Gestão de Crises · Vale nota</span></div>
+      <a class="btn" href="#">Responder</a>
+    </div></div>
+    <div><div class="cell"><span class="cell-lab">Hoje</span><div class="cell-line"><span class="chip chip--imm">3</span><span class="nx"><span><b>17:30</b> <b style="color: var(--cc-warn-fg);">em 20 min</b></span><span class="nx-name">Questionário do módulo 3</span></span></div></div></div>
+    <div><span class="ring" style="background: conic-gradient(var(--cc-warn) 20deg, var(--cc-line) 0);"><span class="disc">20</span></span></div>
+
+    <div class="lvl"><b>Now</b><span>Events only: started and not ended (timestart + duration). The action turns primary. A deadline has no “now”: it is soon until it passes.</span><span class="rule">event on · 18:05</span></div>
+    <div><div class="row">
+      <div class="when"><span class="time">18:00</span><span class="rel rel--live"><span class="dot" aria-hidden="true"></span>Agora · até 19:00</span></div>
+      <span class="act" aria-hidden="true" style="background: color-mix(in oklab, #b54b00 12%, #fff); color: #b54b00;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
+      <div class="what"><span class="name">Bate-papo Moodle</span><span class="meta">Playground · Google Meet</span></div>
+      <a class="btn btn--primary" href="#">Entrar</a>
+    </div></div>
+    <div><div class="cell"><span class="cell-lab">Hoje</span><div class="cell-line"><span class="chip chip--live">2</span><span class="nx"><span><span class="dot" aria-hidden="true"></span> <b>18:00</b> <b style="color: var(--cc-accent);">Agora</b></span><span class="nx-name">Bate-papo Moodle</span></span></div></div></div>
+    <div><span class="ring" style="background: var(--cc-accent);"><span class="disc">20</span></span></div>
+
+    <div class="lvl"><b>Passed</b><span>The time went by. Still open (an assignment past its due date, before cut-off): it moves to Atrasadas and leaves Em seguida. Closed, attempted, submitted or ended: it simply goes.</span><span class="rule">past · 17:31</span></div>
+    <div><span class="none">leaves the row; the next item moves up</span></div>
+    <div><div class="cell"><span class="cell-lab" style="color: var(--cc-text-2); font-weight: 400;">Atrasadas</span><div class="cell-line"><span class="chip chip--late">1</span></div></div></div>
+    <div><span class="ring"><span class="disc">20</span></span></div>
+  </div>
+
+  <div class="foot">
+    <div class="box">
+      <h3>What never enters</h3>
+      <ul>
+        <li>An item whose action core has removed: submitted, attempted, closed.</li>
+        <li>An event that ended, and every “done” item.</li>
+        <li>Anything past the horizon, even today’s (it stays in the count).</li>
+        <li>Tomorrow’s first hours count only while inside the horizon: at 22:00, a 01:00 deadline is “amanhã 01:00 · em 3 h”.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Time, words and screen readers</h3>
+      <ul>
+        <li>Always the clock time and the countdown together; never a countdown alone.</li>
+        <li>“fecha”, “começa”, “termina” follow the kind; the row says it in its accessible name.</li>
+        <li>The countdown ticks once a minute in the browser; no request per tick.</li>
+        <li>A polite live region speaks only when a level rises, never each minute.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h3>Weight</h3>
+      <ul>
+        <li>At most two rows; a third and later go to “Mais N hoje”.</li>
+        <li>Hidden by the reader until the level rises (soon → imminent → now).</li>
+        <li>Amber means “under an hour”, red stays for late: the ladder never borrows the danger colour.</li>
+        <li>Reduced motion: the live dot stops pulsing.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1200,"height":1320}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
