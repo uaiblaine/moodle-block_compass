@@ -1,12 +1,17 @@
 # ADR-016: Up next: what closes or starts in the next hours, above tier 1, and a ring on Today
 
-**Status:** Proposed (2026-10-21). The maintainer chose the shape on 2026-10-21 (option B of the
-mockup, "Em seguida", plus option A's ring on the Today cell); the data path below is proposed and
-M1, M2 and M4 were measured on 2026-10-21 on a prototype (`docs/perf/2026-10-21-bench-up-next.md`,
-section "Results so far" below), on PostgreSQL and MariaDB. M3 is a local simulation on synthetic
-data, at the maintainer's request; M5 became a decision (an animated insertion) rather than a
-measurement. The maintainer answered the four open questions on 2026-10-21, each confirming the decision
-as written (section "The maintainer's answers"). Implementation starts after the maintainer's review.
+**Status:** Accepted (2026-10-21) by the maintainer, on the branch `phase-13-up-next-measure`, before
+the implementation, which follows the stages in section "Implementation stages (Phase 13)". What led
+there, all on 2026-10-21:
+- **The shape:** the maintainer chose option B of the mockup ("Em seguida") plus option A's ring on
+  the Today cell.
+- **M1, M2 and M4:** measured on a prototype, on PostgreSQL and MariaDB
+  (`docs/perf/2026-10-21-bench-up-next.md`).
+- **M3:** simulated locally on synthetic data, at the maintainer's request, with and without the
+  pruning the maintainer then decided (`docs/perf/2026-10-21-sim-up-next-m3.md`).
+- **M5:** became a decision, an animated insertion, rather than a measurement.
+- **The four open questions:** each answer confirms the decision as written (section "The
+  maintainer's answers").
 **Date:** 2026-10-21
 **Phase:** 13 (`main` = `MOODLE_502_STABLE`, then the port to `MOODLE_503_STABLE`)
 **Supersedes:** nothing
@@ -310,6 +315,87 @@ Each answer confirms the decision as written; no decision text changed.
    (decision 1).
 4. **The class deadline is listed in the teaching view, capped at soon** (decision 2), not left out.
 5. Deferred, not in this record: "12 de 30 enviaram" on a class deadline (a new count per row).
+
+## Implementation stages (Phase 13)
+
+The prototype on this branch (`f7c0d7d`, `d31ea45`) is the starting point. It holds `soon.php`, the
+range form of `day.php`, `strip::upcoming()`, the pruning and the measurement tests. The stages
+continue on this branch, each one commit, `[skip ci]` on every push. Before any merge, one full local
+pipeline: `mdl ci --matrix --behat`, every leg log read for `: FAILED`, and the stage's mutation
+gates swept on both database families (`mdl mutate --fast --db pgsql`, then `--db mariadb`). Each
+stage stops for the maintainer's review of its diff.
+
+**13a. Server domain, finished.**
+- **`upcoming` gains the events in progress.** Select `e.timeduration` in `strip::branch_head()` and
+  keep a standard event whose end is after the build instant. This closes every miss M3 saw.
+- **The read tail.** Before pinning a ceiling, find what drives `soon`'s maximum (92-110 reads in M3
+  against a mean of 34-42). Make it a budget-test case, or record why it is not one.
+- **Settings and preference.**
+  - The `calendar_soon` setting (`admin_setting_configselect`: 0, 3, 6, 12 hours; default 6), read
+    through `config::calendar_soon()`.
+  - The `soon` member of `block_compass_calendar` (`{rank, signin}`), validated member by member in
+    `calendar_preference`; the privacy export covers it.
+- **Strings and housekeeping.**
+  - Lang `en` and `pt_br` in lockstep: the setting, its description, and the `soon_*` strings of
+    decisions 5 and 6.
+  - `version.php` bump and `CHANGELOG.md`.
+- **Tests:** `soon_test`, `strip_test` and `counts_test` extended (in-progress events in `upcoming`,
+  the horizon off, the preference's validation). Phase 13 gates added to `mutations/gates.conf`,
+  covering the gate's two edges, the four time-rule edges, the class cap, the pruning's three cases,
+  the hidden rank and sign-in, and `timeduration`. The gates are swept before the commit that adds
+  them.
+
+**13b. The service.**
+- **`classes/external/get_soon.php`**, following the fleet's web-service checklist: `readonlysession`,
+  `ajax => true`, the view checked before any work, and an early return when the calendar or
+  `calendar_soon` is off.
+- **Returns as an allowlist,** including `upcoming`. `get_strip_counts` returns each view's
+  `upcoming`, and `get_day` returns `timeduration`.
+- **`db/services.php`** entry and a version bump.
+- **Tests:**
+  - a behaviour test through `call_external_function()`;
+  - a budget test pinned at `get_day`'s ceilings (learning 66; teaching 11 plus the renderer), with
+    the 13a tail case;
+  - a test that the prune write adds no read.
+- **The `security-diff-read` skill** over the stage's diff, since the stage adds a service. An MDL
+  Shield review only on the maintainer's word: the credits are exhausted until the maintainer says
+  otherwise.
+
+**13c. The client.**
+- **`repository.ts`:** `getSoon`, with the bounded retry every read has.
+- **`UpNext.tsx`:**
+  - the region, its rows, the "Mais N" line and the hide button with the quiet line;
+  - the ladder, computed from the server's clock offset;
+  - one aligned minute timer, and the ask on `visibilitychange` after 15 minutes hidden;
+  - the polite live region on a rise;
+  - pointing at a row lights its tier 1 course card.
+- **`CalendarStrip.tsx` / `CalendarLine.tsx`:** the gate on `upcoming`, the timer to the next gate
+  time, and the ring on the Today chip and on the open strip's today disc.
+- **`styles.css`:**
+  - the insertion animation (`grid-template-rows` 0fr to 1fr, about 200 ms, none under
+    `prefers-reduced-motion`);
+  - the amber pill and the ring tokens, each fill paired with its text;
+  - the tokens added to `contrast_rules_test`, light and dark;
+  - the region's classes in `accessibility_rules_test`.
+- **Build:** `mdl grunt m502 blocks/compass`, with `tsc --noEmit` green, `js/esm/build` and the
+  bundle in the same commit, and a version bump.
+
+**13d. Smoke, look and the full gate.**
+- **Behat:** one scenario added to the calendar feature, a learner with an item inside the horizon.
+  It checks that the region shows the row and its action, and that hiding works. It runs core's axe
+  step scoped to the block. The block stays within its five smoke scenarios by extending, not
+  adding, where the count requires.
+- **M5's visual check** in the browser on a stack the maintainer picks:
+  - the insertion and the hiding, light and dark, with reduced motion on and off;
+  - the ring on the closed line and the open strip;
+  - the phone width.
+- **README:** a screenshot and the setting.
+- **The full gate:** `mdl ci --matrix --behat`, then the merge of the branch on the maintainer's
+  word.
+
+**13e. The 5.3 port.** The same change on `MOODLE_503_STABLE`, in that branch's version namespace,
+on its own checkout (`~/dev/moodle-block_compass-503`): the 5.3 ESM build and its own matrix. Then
+the README of 5.3.
 
 ## Evidence
 
