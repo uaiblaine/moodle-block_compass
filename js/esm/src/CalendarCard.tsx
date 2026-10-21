@@ -94,11 +94,55 @@ const relative = (strings: Record<string, string>, date: string, today: string):
 };
 
 /**
- * The pills of one item: its kind first, then what weighs on it.
+ * An item's kind as its pill, the first of its pills on a day's card and the kind tag of an Up next row
+ * (UpNext.tsx): nothing for an item whose kind needs no word (to do, grading without a due day).
  *
  * Each pill's classes are a literal of their own, so the stylesheet's rules and the badge rule's
  * reader see every combination written out. A pill is one line, cut with an ellipsis when the column
  * is narrower than its words, and carries its whole text as its title.
+ *
+ * @param {object} item The item.
+ * @param {object} strings The strip's strings.
+ * @param {boolean} istoday Whether the item's day is today, for "due today" against "due tomorrow".
+ * @param {string} timezone The user's Moodle timezone, in which a late item's cut-off date is written.
+ * @returns {object|null} The pill, or nothing.
+ */
+export const kindPillOf = (
+    item: DayItem,
+    strings: Record<string, string>,
+    istoday: boolean,
+    timezone: string
+): ReactNode => {
+    if (item.kind === 'gradedsoon') {
+        const text = istoday ? strings.cal_pill_gradedtoday : strings.cal_pill_gradedtomorrow;
+        return <span key="kind" className="compass-cal-pill compass-cal-pill-accent" title={text}>{text}</span>;
+    } else if (item.kind === 'graded') {
+        const text = strings.cal_pill_graded;
+        return <span key="kind" className="compass-cal-pill compass-cal-pill-soft" title={text}>{text}</span>;
+    } else if (item.kind === 'late') {
+        const text = item.lateuntil > 0
+            ? fill(strings.cal_pill_lateuntil, dayMonth(strings, timeParts(item.lateuntil, timezone)))
+            : strings.cal_pill_late;
+        return <span key="kind" className="compass-cal-pill compass-cal-pill-late" title={text}>{text}</span>;
+    } else if (item.kind === 'gradesoon') {
+        const text = istoday ? strings.cal_pill_gradetoday : strings.cal_pill_gradetomorrow;
+        return <span key="kind" className="compass-cal-pill compass-cal-pill-accent" title={text}>{text}</span>;
+    } else if (item.kind === 'class') {
+        const text = strings.cal_pill_class;
+        return <span key="kind" className="compass-cal-pill" title={text}>{text}</span>;
+    } else if (item.kind === 'done') {
+        const text = strings.cal_pill_done;
+        return <span key="kind" className="compass-cal-pill" title={text}>{text}</span>;
+    } else if (item.kind === 'event') {
+        const text = strings.cal_pill_event;
+        return <span key="kind" className="compass-cal-pill" title={text}>{text}</span>;
+    }
+
+    return null;
+};
+
+/**
+ * The pills of one item: its kind first (kindPillOf()), then what weighs on it.
  *
  * @param {object} item The item.
  * @param {object} strings The strip's strings.
@@ -116,29 +160,9 @@ const pillsOf = (
     stars: boolean
 ): ReactNode[] => {
     const list: ReactNode[] = [];
-    if (item.kind === 'gradedsoon') {
-        const text = istoday ? strings.cal_pill_gradedtoday : strings.cal_pill_gradedtomorrow;
-        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-accent" title={text}>{text}</span>);
-    } else if (item.kind === 'graded') {
-        const text = strings.cal_pill_graded;
-        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-soft" title={text}>{text}</span>);
-    } else if (item.kind === 'late') {
-        const text = item.lateuntil > 0
-            ? fill(strings.cal_pill_lateuntil, dayMonth(strings, timeParts(item.lateuntil, timezone)))
-            : strings.cal_pill_late;
-        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-late" title={text}>{text}</span>);
-    } else if (item.kind === 'gradesoon') {
-        const text = istoday ? strings.cal_pill_gradetoday : strings.cal_pill_gradetomorrow;
-        list.push(<span key="kind" className="compass-cal-pill compass-cal-pill-accent" title={text}>{text}</span>);
-    } else if (item.kind === 'class') {
-        const text = strings.cal_pill_class;
-        list.push(<span key="kind" className="compass-cal-pill" title={text}>{text}</span>);
-    } else if (item.kind === 'done') {
-        const text = strings.cal_pill_done;
-        list.push(<span key="kind" className="compass-cal-pill" title={text}>{text}</span>);
-    } else if (item.kind === 'event') {
-        const text = strings.cal_pill_event;
-        list.push(<span key="kind" className="compass-cal-pill" title={text}>{text}</span>);
+    const kind = kindPillOf(item, strings, istoday, timezone);
+    if (kind) {
+        list.push(kind);
     }
     const waiting = item.action ? item.action.itemcount : 0;
     if ((item.kind === 'grade' || item.kind === 'gradesoon') && waiting > 0) {
@@ -228,19 +252,27 @@ const actionLabel = (item: DayItem, strings: Record<string, string>): ActionLabe
 
 /**
  * The item's action: core's own link when it can be taken now, its name as text when it cannot, and
- * a View link to the event when core gives none; every one labelled by actionLabel().
+ * a View link to the event when core gives none; every one labelled by actionLabel(). An open item's
+ * link is the primary button, and so is an Up next event on now (UpNext.tsx), the one moment an event's
+ * action is the thing to do.
  *
  * @param {object} item The item.
  * @param {object} strings The strip's strings.
+ * @param {boolean} [primary] Whether a link that is not an open item's is drawn primary all the same.
  * @returns {object} The rendered action.
  */
-const actionOf = (item: DayItem, strings: Record<string, string>): ReactNode => {
+export const actionOf = (item: DayItem, strings: Record<string, string>, primary: boolean = false): ReactNode => {
     const label = actionLabel(item, strings);
     if (!item.action) {
-        return (
-            <a className="btn btn-sm btn-outline-secondary compass-cal-action" href={item.viewurl}
-                aria-label={label.name} title={label.title}>{label.text}</a>
-        );
+        return primary
+            ? (
+                <a className="btn btn-sm btn-primary compass-cal-action" href={item.viewurl}
+                    aria-label={label.name} title={label.title}>{label.text}</a>
+            )
+            : (
+                <a className="btn btn-sm btn-outline-secondary compass-cal-action" href={item.viewurl}
+                    aria-label={label.name} title={label.title}>{label.text}</a>
+            );
     }
     if (!item.action.actionable) {
         return (
@@ -251,7 +283,7 @@ const actionOf = (item: DayItem, strings: Record<string, string>): ReactNode => 
         );
     }
 
-    return OPEN_KINDS.includes(item.kind)
+    return primary || OPEN_KINDS.includes(item.kind)
         ? (
             <a className="btn btn-sm btn-primary compass-cal-action" href={item.action.url}
                 aria-label={label.name} title={label.title}>{label.text}</a>

@@ -24,10 +24,14 @@
  * closed. Its request leaves only when tier 1's request has settled, answered or failed: Block hands
  * the turn down (decision 2). Closed, that request is get_strip_counts and nothing else: no
  * get_strip, no get_day. Opening asks get_strip once; closing asks nothing, the line being summed
- * from the payload in hand (calendar.ts, countsOf()). The toggle is written to the preference at
- * once and put back, with a notice, if the write fails. Each zone loads, fails and retries on its
- * own, so a failed strip never blanks the cards; a request that failed is asked again by its own Try
- * again, or by tier 1's.
+ * from the payload in hand (calendar.ts, countsOf()). Either answer carries Up next's gate (ADR-016
+ * decision 3), and get_soon is asked only when it opens (UpNext.tsx, useUpNext()); the region is the
+ * section's last child, under the line or the row, so it sits between the calendar's head and tier 1
+ * in either shape and stays mounted across a toggle, and its highest rung rings today's chip or disc.
+ * Every write of the preference carries Up next's hide (the soon member) along. The toggle is
+ * written to the preference at once and put back, with a notice, if the write fails. Each zone loads,
+ * fails and retries on its own, so a failed strip never blanks the cards; a request that failed is
+ * asked again by its own Try again, or by tier 1's.
  *
  * The row is one native horizontal scroller holding the whole window, which the payload already
  * carries, so a scroll costs no request; it snaps per day, and nothing hijacks the wheel or drags it
@@ -63,10 +67,11 @@ import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
 import CalendarLine, {LineNotes, summaryOf} from './CalendarLine';
 import RetryNotice from './RetryNotice';
+import UpNext, {useUpNext} from './UpNext';
 import {
-    BOUND_KINDS, addDays, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit, fromPayload, homeIndex, itemKinds, kindsOf,
-    leastScroll, longDay, marks, monthName, monthShort, monthYear, periodSpan, score, settle, shortWeekday, shownKinds, step,
-    stepOf, whollyInView, windowDays,
+    BOUND_KINDS, LEVEL_CALM, LEVEL_IMMINENT, addDays, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit,
+    fromPayload, homeIndex, itemKinds, kindsOf, leastScroll, longDay, marks, monthName, monthShort, monthYear, periodSpan, score,
+    ringClass, settle, shortWeekday, shownKinds, step, stepOf, whollyInView, windowDays,
 } from './calendar';
 import type {DayCounts, DayOff, RowFit} from './calendar';
 import {sectionTag} from './heading';
@@ -75,7 +80,8 @@ import {getDay, getStrip, getStripCounts, setCalendarPreference} from './reposit
 import {hold} from './pending';
 import {fill, fillCount, fillObject} from './str';
 import type {
-    BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, LineTarget, StripCounts, StripPayload,
+    BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, LineTarget, SoonMember, StripCounts,
+    StripPayload,
 } from './types';
 
 /** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
@@ -363,6 +369,8 @@ type DayLook = {
     soon: boolean,
     open: boolean,
     pinned: boolean,
+    // Up next's highest rung, for today's disc only: amber imminent, ink now (ADR-016 decision 1).
+    ring: number,
 };
 
 /**
@@ -382,6 +390,7 @@ const discClass = (look: DayLook): string => [
     look.soon ? 'compass-cal-soon' : '',
     look.open ? 'compass-cal-open' : '',
     look.pinned ? 'compass-cal-pinned' : '',
+    look.today ? ringClass(look.ring) : '',
 ].filter(Boolean).join(' ');
 
 /**
@@ -584,6 +593,17 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const linekey = [
         drawn, hasboth, relevance, linecounts ? JSON.stringify(linecounts.views[drawn]) : 'loading', linecounts?.grading,
     ].join('|');
+    // Up next (ADR-016): gated on the lists the counts or the payload carry, never asked with the horizon off.
+    const horizon = calendar.soon.hours * 3600;
+    const soon = useUpNext(horizon, drawn, horizon > 0 && linecounts && linecounts.enabled ? linecounts : null, turn);
+    // The rung the viewer hid Up next at during this sign-in, or null; and the member every write of the
+    // preference carries along, so a toggle, a view, a filter or the switch never drops a hide.
+    const [hiddenrank, setHiddenrank] = useState<number | null>(calendar.soon.rank);
+    const soonmember = useRef<SoonMember | undefined>(
+        calendar.soon.rank === null ? undefined : {rank: calendar.soon.rank, signin: calendar.soon.signin}
+    );
+    // The course of the Up next row pointed at, for the cards' outline; null for none.
+    const [soonpoint, setSoonpoint] = useState<number[] | null>(null);
 
     // The row, once the strip is open and tier 1 has settled, and again on Try again or on tier 1's
     // Try again while it has failed. A new payload starts a new memory of days.
@@ -682,6 +702,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     // every hook must.
     const openday = pinned ?? hover;
     useEffect(() => {
+        if (soonpoint !== null) {
+            onOpenCourses(soonpoint);
+            return;
+        }
         if (!open) {
             onOpenCourses(periodcourses ?? []);
             return;
@@ -690,7 +714,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             ? payload.views[drawnView(payload, view)].days.find((entry) => entry.date === openday)
             : undefined;
         onOpenCourses(day ? day.courseids : []);
-    }, [payload, openday, view, onOpenCourses, open, periodcourses]);
+    }, [payload, openday, view, onOpenCourses, open, periodcourses, soonpoint]);
     useEffect(() => () => onOpenCourses([]), [onOpenCourses]);
 
     useEffect(() => () => {
@@ -785,6 +809,15 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     };
 
     /**
+     * A state to write, with Up next's hide carried along: every write of the preference replaces the
+     * whole JSON value, so a write without the member would bring a hidden region back.
+     *
+     * @param {object} state The view, the filter, the relevance switch and the open flag.
+     * @returns {object} The state with the soon member when the region is hidden.
+     */
+    const withSoon = (state: CalendarState): CalendarState => ({...state, soon: soonmember.current});
+
+    /**
      * Remember the strip as the viewer left it. A failed write keeps the choice on this page.
      *
      * @param {object} state The view, the filter, the relevance switch and the open flag.
@@ -792,7 +825,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      */
     const remember = (state: CalendarState): void => {
         writeseq.current += 1;
-        setCalendarPreference(state).catch(() => notify(strings.cal_prefererror || ''));
+        setCalendarPreference(withSoon(state)).catch(() => notify(strings.cal_prefererror || ''));
     };
 
     /**
@@ -1303,11 +1336,35 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         setOpen(next);
         writeseq.current += 1;
         const mine = writeseq.current;
-        setCalendarPreference({view, filter, relevance, open: next}).catch(() => {
+        setCalendarPreference(withSoon({view, filter, relevance, open: next})).catch(() => {
             if (writeseq.current !== mine) {
                 return;
             }
             setOpen(!next);
+            notify(strings.cal_toggleerror || '');
+        });
+    };
+
+    /**
+     * Hide Up next at a rung, or show it again (null), and remember it for this sign-in (ADR-016
+     * decision 7): the toggle's pattern, optimistic, put back with a notice while it is the last write.
+     *
+     * @param {number|null} rank The rung hidden at, or null to show the region.
+     * @returns {void}
+     */
+    const setSoonRemembered = (rank: number | null): void => {
+        const before = soonmember.current;
+        const beforerank = hiddenrank;
+        soonmember.current = rank === null ? undefined : {rank, signin: calendar.soon.signin};
+        setHiddenrank(rank);
+        writeseq.current += 1;
+        const mine = writeseq.current;
+        setCalendarPreference(withSoon({view, filter, relevance, open})).catch(() => {
+            if (writeseq.current !== mine) {
+                return;
+            }
+            soonmember.current = before;
+            setHiddenrank(beforerank);
             notify(strings.cal_toggleerror || '');
         });
     };
@@ -1322,6 +1379,29 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         periodtarget.current = key;
         togglebutton.current?.focus();
         setOpenRemembered(true);
+    };
+
+    /**
+     * Up next's "open this day": the strip on today with today's card pinned, as the closed line's Today
+     * does; already open, today is shown wholly and pinned, and asked for, as a press on it would.
+     *
+     * @returns {void}
+     */
+    const openToday = (): void => {
+        if (!open) {
+            openPeriod('today');
+            return;
+        }
+        if (!payload) {
+            return;
+        }
+        window.clearTimeout(opentimer.current);
+        setLitspan(null);
+        reveal(todayindex);
+        setPinned(payload.today);
+        setHover(payload.today);
+        ensure(payload.today, drawn, false);
+        focusQuietly(payload.today);
     };
 
     /**
@@ -1370,6 +1450,25 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     }
 
     const Heading = sectionTag(config.headinglevel);
+    // Up next, the calendar's last region (ADR-016 decision 1): after the head, the closed line's notes
+    // and the open row with its legend, so it sits between the calendar's head and tier 1 in either shape,
+    // in the one place that keeps it mounted across a toggle.
+    const ring = soon.level >= LEVEL_IMMINENT ? soon.level : LEVEL_CALM;
+    const upnext = (
+        <UpNext
+            config={config}
+            calendar={calendar}
+            soon={soon}
+            hiddenrank={hiddenrank}
+            tipsoff={tipsoff}
+            onTipsOn={() => setTipsoff(false)}
+            onHide={(rank) => setSoonRemembered(rank)}
+            onShow={() => setSoonRemembered(null)}
+            onOpenToday={openToday}
+            onPoint={setSoonpoint}
+            onAnnounce={setSummary}
+        />
+    );
     const rootclass = [
         'compass-cal',
         `compass-cal-style-${calendar.style}`,
@@ -1544,6 +1643,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             <div id={bodyid} className="compass-cal-body" hidden={!open}>
                 {body}
             </div>
+            {upnext}
             <span className="visually-hidden" aria-live="polite">{summary}</span>
         </section>
     );
@@ -1558,6 +1658,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                 view={drawn}
                 relevance={relevance}
                 compact={narrow || !fits}
+                ring={ring}
                 pointedCourse={pointedCourse}
                 onPeriod={openPeriod}
                 onPoint={setPeriodcourses}
@@ -2106,6 +2207,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                                 soon: !istoday && items.some((kind) => kind === 'gradedsoon' || kind === 'gradesoon'),
                                 open: isopen,
                                 pinned: pinned === date,
+                                ring,
                             });
                             // The weekday label carries the mark only when the disc cannot show it.
                             const labelmark = nothing && !istoday ? '' : off.mark;

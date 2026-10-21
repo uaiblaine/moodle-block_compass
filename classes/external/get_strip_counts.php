@@ -42,7 +42,8 @@ use core_external\external_value;
  * service pays the floor every Compass service pays. Only numbers and course ids travel: no name,
  * no kind, no needle and no day off, which the closed line does not show. Each view also carries
  * Up next's gate lists (upcoming times and [start, end] event pairs, ADR-016 decision 3), already in
- * the entry, so the gate costs no read; they share get_soon's structures and copying.
+ * the entry, so the gate costs no read; they share get_soon's structures and copying. now is the
+ * server's clock, from which the client sets its offset before the gate is first read.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -81,9 +82,10 @@ class get_strip_counts extends external_api {
             return self::empty_result();
         }
 
+        $now = time();
         $counts = strip::counts(
             $userid,
-            time(),
+            $now,
             (int) $USER->currentlogin,
             \core_date::get_user_timezone_object()
         );
@@ -102,6 +104,7 @@ class get_strip_counts extends external_api {
                 'learning' => self::view_result($counts['views']['learning']),
                 'teaching' => self::view_result($counts['views']['teaching']),
             ],
+            'now' => $now,
         ];
     }
 
@@ -124,6 +127,7 @@ class get_strip_counts extends external_api {
             'haslearning' => false,
             'hasteaching' => false,
             'views' => ['learning' => $view, 'teaching' => $view],
+            'now' => time(),
         ];
     }
 
@@ -205,6 +209,7 @@ class get_strip_counts extends external_api {
                 'learning' => self::view_structure(),
                 'teaching' => self::view_structure(),
             ]),
+            'now' => new external_value(PARAM_INT, 'The server\'s now, Unix time, for the client\'s clock offset'),
         ]);
     }
 }

@@ -94,7 +94,8 @@ class block implements renderable, templatable {
         'cal_pill_gradetoday', 'cal_pill_gradetomorrow', 'cal_pill_late', 'cal_pill_lateuntil', 'cal_pill_starred',
         'cal_pill_waiting', 'cal_pill_waiting_one', 'cal_pm', 'cal_prefererror', 'cal_prev', 'cal_region',
         'cal_rel_future', 'cal_rel_past', 'cal_rel_today', 'cal_rel_tomorrow', 'cal_rel_yesterday', 'cal_relevance',
-        'cal_soon_hidden', 'cal_soon_hide', 'cal_soon_horizon', 'cal_soon_in_hours', 'cal_soon_in_hours_minutes',
+        'cal_soon_error', 'cal_soon_hidden', 'cal_soon_hide', 'cal_soon_horizon', 'cal_soon_in_hours',
+        'cal_soon_in_hours_minutes',
         'cal_soon_in_minutes', 'cal_soon_more', 'cal_soon_more_one', 'cal_soon_now_until', 'cal_soon_rise',
         'cal_soon_show', 'cal_soon_title', 'cal_soon_tomorrow_at',
         'cal_submissions', 'cal_submissions_one', 'cal_summary', 'cal_summary_late', 'cal_summary_later',
@@ -262,11 +263,19 @@ class block implements renderable, templatable {
      * the teaching view counts grading work while closed: only with block_feedback_tracker's ledger as
      * the source, a presence check that reads nothing past the config cache.
      *
+     * Up next (ADR-016) travels as soon: its horizon in hours (calendar_soon, 0 when it is off, and then
+     * the client asks nothing), the rank the viewer hid it at during this sign-in (decision 7, null when
+     * it is not hidden), and the sign-in marker the client writes beside a new rank, so a hide holds
+     * until the next sign-in. The marker is the viewer's own $USER->currentlogin, read from the session.
+     *
      * @return array|null style, relevance (the site default), state (view, filter, relevance and open
      *     as the viewer left them), grading, url and dayurl (core's month and day views), timezone (the
-     *     user's, for the times the client formats), bound (inventory_max), daylimit, icons and strings.
+     *     user's, for the times the client formats), bound (inventory_max), daylimit, soon (hours, rank
+     *     and signin), icons and strings.
      */
     private function calendar(renderer_base $output): ?array {
+        global $USER;
+
         if (!config::calendar_enabled()) {
             return null;
         }
@@ -289,6 +298,11 @@ class block implements renderable, templatable {
             'timezone' => \core_date::get_user_timezone(),
             'bound' => config::inventory_max(),
             'daylimit' => day::LIMIT,
+            'soon' => [
+                'hours' => intdiv(config::calendar_soon(), HOURSECS),
+                'rank' => calendar_preference::hidden_rank(),
+                'signin' => (int) ($USER->currentlogin ?? 0),
+            ],
             'icons' => [
                 'prev' => $output->render(new pix_icon('i/previous', '')),
                 'next' => $output->render(new pix_icon('i/next', '')),

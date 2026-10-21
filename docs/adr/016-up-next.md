@@ -100,8 +100,10 @@ clock (decision 5), re-evaluated once a minute:
 | now | an event with a start: `timestart ≤ now < timestart + timeduration` | "Agora · até HH:MM", the action primary | ink |
 | passed | the time went by | leaves the region; an open assignment shows up in Atrasadas on the next counts | none |
 
-- **The level is the highest of the rows drawn**, and only that level rings Today and decides
-  whether a hidden region comes back.
+- **The level is the highest of the open rows the answer holds inside the horizon.** That level
+  rings Today and decides whether a hidden region comes back. The ring stays while the region is
+  hidden (stage 13c, 2026-10-21): it is the quiet cue that something is close, and the region's
+  words return when the level rises.
 - **Red stays reserved for late work.** The ladder never borrows `--block_compass-cal-danger`.
 - **A deadline has no "now"**: it is soon or imminent until it passes. Only an event with a start
   (a meeting, a session) is "now", and only while it lasts.
@@ -447,6 +449,31 @@ stage stops for the maintainer's review of its diff.
   - the region's classes in `accessibility_rules_test`.
 - **Build:** `mdl grunt m502 blocks/compass`, with `tsc --noEmit` green, `js/esm/build` and the
   bundle in the same commit, and a version bump.
+
+- **Done** (stage 13c, 2026-10-21; version 2026042009):
+  - **The region:** `UpNext.tsx` is the calendar section's last child, between its head and tier 1,
+    in both shapes. `calendar.ts` `gateOpens()` and `gateNext()` mirror the PHP edge for edge.
+  - **Services:** `get_strip` and `get_strip_counts` now return `now` and the gate lists. The shell
+    ships `calendar.soon` (`hours`, `rank`, `signin`), and every preference write carries the `soon`
+    member.
+  - **Review against this record:** a reader found four defects, all fixed:
+    - D1: the announcement memory is now kept per view;
+    - D2: a view's first level is silent;
+    - D3: focus moves only after the region has grown;
+    - D4: the narrow row wraps.
+
+    D6 was decided: the ring stays while the region is hidden (decision 2). D5 (an equivalent
+    lighting path) and D7 (the ring greys under the lighting's dim) are low and left for the
+    browser check.
+  - **A flake the pipeline caught:** the budget tests of `get_strip` and `get_strip_counts`
+    compared whole answers, and `now` can cross a second between two calls. They now compare
+    without `now`.
+  - **Build:** rebuilt without `npm install`, and byte-identical to a fresh build.
+  - **Not run:** the CI runner's grunt step. It cannot install esbuild's linux-arm64 binary behind
+    the proxy, for core's own sources as well. That is a moodle-dev issue; type-check and eslint
+    pass.
+  - **Gates:** the whole Phase 13 block of 40, on pgsql and on mariadb. Every gate reddened every
+    test it names; each baseline ran `Tests: 617, Assertions: 8866, Skipped: 17`.
 
 **13d. Smoke, look and the full gate.**
 - **Behat:** one scenario added to the calendar feature, a learner with an item inside the horizon.

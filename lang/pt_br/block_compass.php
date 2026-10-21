@@ -188,6 +188,7 @@ $string['cal_rel_today'] = 'Hoje';
 $string['cal_rel_tomorrow'] = 'Amanhã';
 $string['cal_rel_yesterday'] = 'Ontem';
 $string['cal_relevance'] = 'Pesar por relevância';
+$string['cal_soon_error'] = 'Não foi possível carregar Em seguida.';
 $string['cal_soon_hidden'] = 'Em seguida está oculto';
 $string['cal_soon_hide'] = 'Ocultar até o próximo aviso';
 $string['cal_soon_horizon'] = 'Próximas {$a} horas';

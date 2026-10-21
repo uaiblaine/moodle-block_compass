@@ -188,6 +188,7 @@ $string['cal_rel_today'] = 'Today';
 $string['cal_rel_tomorrow'] = 'Tomorrow';
 $string['cal_rel_yesterday'] = 'Yesterday';
 $string['cal_relevance'] = 'Weigh by relevance';
+$string['cal_soon_error'] = 'Up next could not be loaded.';
 $string['cal_soon_hidden'] = 'Up next is hidden';
 $string['cal_soon_hide'] = 'Hide until the next alert';
 $string['cal_soon_horizon'] = 'Next {$a} hours';

@@ -182,6 +182,7 @@ final class client_policy_test extends advanced_testcase {
                 'getStrip' => 'block_compass_get_strip',
                 'getStripCounts' => 'block_compass_get_strip_counts',
                 'getDay' => 'block_compass_get_day',
+                'getSoon' => 'block_compass_get_soon',
             ] as $name => $service
         ) {
             $this->assertMatchesRegularExpression("/read<[^>]*>\\('{$service}'/", $source, "{$name} must go through read()");

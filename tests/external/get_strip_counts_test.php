@@ -47,7 +47,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 final class get_strip_counts_test extends advanced_testcase {
     /** @var string[] The keys the service returns at the top level, in order. */
     private const TOP_KEYS = [
-        'enabled', 'today', 'lastday', 'past', 'grading', 'truncated', 'bounded', 'haslearning', 'hasteaching', 'views',
+        'enabled', 'today', 'lastday', 'past', 'grading', 'truncated', 'bounded', 'haslearning', 'hasteaching', 'views', 'now',
     ];
 
     /** @var string[] The keys of each view, in order: the periods, the waiting lead and Up next's gate lists. */

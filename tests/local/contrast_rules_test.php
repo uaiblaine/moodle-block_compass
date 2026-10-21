@@ -367,6 +367,8 @@ final class contrast_rules_test extends basic_testcase {
             ['.block_compass .compass-cal-pill-late', '.block_compass .compass-cal-pill'],
             ['.block_compass .compass-cal-todaybtn[aria-disabled="true"]', '.block_compass .compass-cal-todaybtn:hover'],
             ['.block_compass .compass-cal-edge[aria-disabled="true"]', '.block_compass .compass-cal-edge:hover'],
+            // The amber pill is a countdown too: its pair wins over the plain countdown's muted text.
+            ['.block_compass .compass-soon-pill', '.block_compass .compass-soon-rel'],
         ];
         foreach ([1, 2, 3, 4] as $step) {
             $outweighed[] = [self::TODAY_DISC, ".block_compass .compass-cal-heat-{$step}"];
@@ -438,6 +440,8 @@ final class contrast_rules_test extends basic_testcase {
             '.block_compass .compass-cal-link:hover', '.block_compass .compass-cal-toggle:hover',
             '.block_compass .compass-cal-period:hover',
             '.block_compass .compass-cal-item:hover', '.block_compass .compass-cal-close:hover', '.block_compass .compass-cal-card',
+            // Up next (ADR-016): the region, the imminent countdown's amber pill and the hide button hovered.
+            '.block_compass .compass-soon', '.block_compass .compass-soon-pill', '.block_compass .compass-soon-hide:hover',
         ];
         // The filter line's fills (ADR-015): the scope's track, cells and counts, the search, the icon
         // buttons, Filters and its badge, the floating layers, a hovered option, the mark and a chip.
@@ -625,6 +629,19 @@ final class contrast_rules_test extends basic_testcase {
                 ['root']],
             ['an item hovered', '.block_compass .compass-cal-item:hover', '.block_compass .compass-cal-item:hover', ['root']],
             ['the day card', '.block_compass .compass-cal-card', '.block_compass .compass-cal-card', ['root']],
+            // Up next (ADR-016 decision 6): its texts over the region's surface, the amber pill's own pair.
+            ['Up next', '.block_compass .compass-soon', '.block_compass .compass-soon', ['root']],
+            ['Up next\'s horizon', '.block_compass .compass-soon-sub', '.block_compass .compass-soon', ['root']],
+            ['a row\'s time', '.block_compass .compass-soon-time', '.block_compass .compass-soon', ['root']],
+            ['a countdown', '.block_compass .compass-soon-rel', '.block_compass .compass-soon', ['root']],
+            ['the imminent countdown', '.block_compass .compass-soon-pill', '.block_compass .compass-soon-pill', ['root']],
+            ['the countdown on now', '.block_compass .compass-soon-rel-now', '.block_compass .compass-soon', ['root']],
+            ['a row\'s name', '.block_compass .compass-soon-name', '.block_compass .compass-soon', ['root']],
+            ['a row\'s course', '.block_compass .compass-soon-meta', '.block_compass .compass-soon', ['root']],
+            ['the further items', '.block_compass .compass-soon-more', '.block_compass .compass-soon', ['root']],
+            ['the quiet line', '.block_compass .compass-soon-quiet', $surface, ['root']],
+            ['the hide button hovered', '.block_compass .compass-soon-hide:hover', '.block_compass .compass-soon-hide:hover',
+                ['root']],
         ]);
         // The filter line (ADR-015): each text over the fill it sits on, the preview's dim included.
         $scopefill = '.block_compass .compass-scope';
@@ -670,6 +687,10 @@ final class contrast_rules_test extends basic_testcase {
             ['a graded mark', '.block_compass .compass-cal-dot-graded', $col],
             ['a late diamond', 'var(--block_compass-cal-danger)', $col],
             ['the accent', 'var(--block_compass-cal-accent)', $col],
+            // Up next's rings on Today: amber at imminent, on the open disc and on the closed chip, dimmed
+            // or not; the ink at now is the accent above.
+            ['the imminent ring', 'var(--block_compass-cal-soon-ring)', $all],
+            ['the dot on now', '.block_compass .compass-soon-dot', ['root']],
         ];
 
         $computed = 0;

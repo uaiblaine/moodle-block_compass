@@ -215,7 +215,23 @@ export type CalendarState = {
     filter: CalendarFilter,
     relevance: boolean,
     open: boolean,
+    // Up next hidden by the viewer (ADR-016 decision 7), carried along by every write of the preference
+    // so a toggle never drops it; absent when it is not hidden. JSON.stringify leaves an undefined out.
+    soon?: SoonMember,
 };
+
+/**
+ * Up next hidden: the level it was hidden at (1 soon, 2 imminent, 3 now) and the sign-in it holds for,
+ * as calendar_preference::soon() validates it on read.
+ */
+export type SoonMember = {rank: number, signin: number};
+
+/**
+ * Up next's part of the calendar props: the horizon in hours (calendar_soon; 0 is off, and then nothing
+ * is asked), the rank the viewer hid it at during this sign-in or null, and the sign-in marker a hide is
+ * written with.
+ */
+export type SoonConfig = {hours: number, rank: number | null, signin: number};
 
 /**
  * The calendar strip's part of the shell's props (classes/output/block.php, calendar()).
@@ -236,6 +252,7 @@ export type CalendarConfig = {
     timezone: string,
     bound: number,
     daylimit: number,
+    soon: SoonConfig,
     // Core's own glyphs, rendered by the shell with an empty alt (aria-hidden): the arrows' chevrons,
     // the calendar link's glyph and the two views' glyphs.
     icons: {prev: string, next: string, calendar: string, learning: string, teaching: string},
@@ -261,8 +278,17 @@ export type StripDay = Partial<Record<CalendarKind, number>> & {
     waitingcourseids?: number[],
 };
 
-/** One view of the strip payload. */
-export type StripView = {
+/**
+ * Up next's gate for one view (ADR-016 decision 3): the deadline times of today and tomorrow, and the
+ * events not over as [start, end] pairs, both sorted, Unix times. An upper bound, like the counts.
+ */
+export type GateLists = {
+    upcoming: number[],
+    events: [number, number][],
+};
+
+/** One view of the strip payload, with its gate lists. */
+export type StripView = GateLists & {
     days: StripDay[],
     needle: string | null,
 };
@@ -294,6 +320,8 @@ export type StripPayload = {
     // Weekend days as core's mask: bit i for weekday i, 0 = Sunday.
     weekend: number,
     specialdays: SpecialDay[],
+    // The server's clock when it answered, Unix time: the client's offset for the gate.
+    now: number,
 };
 
 /** A period of the closed strip (amendment 11): late, today, tomorrow, the rest of the week, later. */
@@ -318,7 +346,7 @@ export type Period = {
  * One view of the closed strip: its periods in order, the unknown ones absent, the submissions waiting
  * and the courses they wait in (both empty unless grading is counted).
  */
-export type PeriodView = {
+export type PeriodView = GateLists & {
     periods: Period[],
     waiting: number,
     waitingcourseids: number[],
@@ -341,6 +369,8 @@ export type StripCounts = {
     haslearning: boolean,
     hasteaching: boolean,
     views: {learning: PeriodView, teaching: PeriodView},
+    // The server's clock when it answered, Unix time: the client's offset for the gate.
+    now: number,
 };
 
 /** Core's action for an event, as the Timeline shows it. */
@@ -366,6 +396,8 @@ export type DayItem = {
     purpose: string,
     iconurl: string,
     timestart: number,
+    // Seconds; 0 for an instant such as a deadline (ADR-016 decision 4).
+    timeduration: number,
     formattedtime: string,
     viewurl: string,
     action: DayAction | null,
@@ -375,6 +407,20 @@ export type DayItem = {
     criterion: boolean,
     lateuntil: number,
     starred: boolean,
+};
+
+/**
+ * The whole block_compass_get_soon answer (ADR-016 decision 4): at most ten open items in time order,
+ * the range's further open items, the view's pruned gate lists, the server's clock and the horizon in
+ * seconds (0 when the calendar or Up next is off).
+ */
+export type SoonAnswer = GateLists & {
+    now: number,
+    horizon: number,
+    view: CalendarView,
+    items: DayItem[],
+    more: number,
+    truncated: boolean,
 };
 
 /** The whole block_compass_get_day answer. */

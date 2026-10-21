@@ -20,12 +20,26 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
 
 - Moodle 5.3 port: see MOODLE_503_STABLE.
 
-## v5.2-r1 (2026042008) - unreleased
+## v5.2-r1 (2026042009) - unreleased
 
 First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
 
 ### Changed
 
+- Up next is shown (ADR-016, stage 13c; 2026042009). Under the calendar, above tier 1, while something open
+  is inside the horizon:
+  - **Rows:** at most two, each with the clock time and a countdown, the activity, the course, the
+    kind and the action; the rest of the horizon is one "more" line that opens the strip on today.
+  - **Urgency:** under an hour the countdown is an amber pill and Today's chip and disc carry an
+    amber ring; a meeting on now shows "Now · until" with the action primary and an ink ring.
+  - **Behaviour:**
+    - It slides in (200 ms, none under reduced motion).
+    - It can be hidden until the urgency rises, for the sign-in.
+    - Pointing at a row lights its course's card.
+    - A rise is announced once.
+  - **Requests:** it asks only when the gate opens: none on a calm day.
+  - **Services:** `get_strip` and `get_strip_counts` return each view's gate lists and the
+    server's `now`.
 - Up next's service, `block_compass_get_soon` (ADR-016, stage 13b; 2026042008). It is read-only
   and works for the current user only, in the user context and in a read-only session; it answers
   empty when the calendar or the horizon is off. It lists what is still open from now to the

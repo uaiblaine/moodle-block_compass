@@ -176,7 +176,7 @@ classes/hook/course_badges.php the block's own hook, dispatched by local/theme_b
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
-                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, calendar,
+                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext, calendar,
                            rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
                            str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
@@ -197,7 +197,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   strip asks only once `get_attention` settles (tier 1 paints first, ADR-014): closed,
   `get_strip_counts` and nothing else (no `get_strip`, no `get_day`); open, `get_strip`, and
   `get_day` per opened day; closing sums the payload in hand (`calendar.ts` `countsOf()`, the
-  twin of `strip::periods()`). The open/closed toggle is the `open` member of
+  twin of `strip::periods()`). Then, open or closed, `get_soon` only when the view's gate lists
+  open the gate (`calendar.ts` `gateOpens()`, the twin of `strip::gate_opens()`), else one timer
+  to `gateNext()`; a minute timer only while an answer holds items, no request per tick, and a
+  new ask on `visibilitychange` after 15 min hidden (ADR-016, `UpNext.tsx`). Every write of
+  `block_compass_calendar` carries its `soon` member. The open/closed toggle is the `open` member of
   `block_compass_calendar`, written optimistically and put back with a notice on failure;
   `calendar_start` (default closed) decides for a viewer who never toggled, and the shell ships
   the state so the first paint has the right shape. The grading count comes from

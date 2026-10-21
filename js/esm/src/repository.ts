@@ -28,7 +28,7 @@
 import {amd} from './amd';
 import type {
     Attention, CalendarState, CalendarView, CardDetail, DayAnswer, ExploreState, FilterParam, Inventory, RowPage, SearchHits,
-    StripCounts, StripPayload,
+    SoonAnswer, StripCounts, StripPayload,
 } from './types';
 
 type AjaxRequest = {methodname: string, args: Record<string, unknown>};
@@ -130,7 +130,7 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
 /**
  * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.
  *
- * Reads only: the eight services below answer questions, so asking again changes nothing. Writes
+ * Reads only: the nine services below answer questions, so asking again changes nothing. Writes
  * are never retried - the star goes through call(), the view, the toolbar and the archive through
  * core_user/repository - because a write that may have landed must not be sent again. The
  * callers' sequence numbers already drop an answer that arrives after they moved on.
@@ -283,13 +283,25 @@ export const getDay = (date: string, view: CalendarView): Promise<DayAnswer> =>
     read<DayAnswer>('block_compass_get_day', {date, view});
 
 /**
- * Remember the calendar strip as the viewer left it: the view, the filter, the relevance switch and
- * whether it is open.
+ * Up next for the current user in one view: what is still open from now to the horizon (ADR-016).
+ *
+ * A read like the others, so it gets the bounded retry. Asked only when the gate the counts or the
+ * strip carry opens (calendar.ts, gateOpens()), never per minute; the answer is never cached.
+ *
+ * @param {string} view learning or teaching.
+ * @returns {Promise} The open items, the pruned gate lists and the server's clock.
+ */
+export const getSoon = (view: CalendarView): Promise<SoonAnswer> =>
+    read<SoonAnswer>('block_compass_get_soon', {view});
+
+/**
+ * Remember the calendar strip as the viewer left it: the view, the filter, the relevance switch,
+ * whether it is open, and Up next hidden (soon) when it is.
  *
  * One JSON object through core's preference route, as the tier 3 toolbar is; the shell validates
  * its shape when it reads it back (classes/local/calendar_preference.php). A write, so never retried.
  *
- * @param {object} state The view, the filter, the relevance switch and the open flag.
+ * @param {object} state The view, the filter, the relevance switch, the open flag and the soon member.
  * @returns {Promise} Resolves once the preference is written.
  */
 export const setCalendarPreference = async(state: CalendarState): Promise<void> => {
