@@ -121,9 +121,19 @@ clock (decision 5), re-evaluated once a minute:
   statement already selects each row's time to bucket it by day (`sorttime`: `timesort` for action
   events, `timestart` for the others; `strip::branch_head()`, `strip.php:1002`), so keeping the
   times costs no read. Done items are left out, and grading work keeps its due time.
-- **The client asks `get_soon` only when some `upcoming` time is ≥ now and ≤ now + horizon.**
-  Otherwise it sets one timer to the first `upcoming` time minus the horizon, and asks then if the
-  page is still open and visible.
+- **Events travel as start and end pairs** (corrected in stage 13a, 2026-10-21). `upcoming` holds the
+  action events' times only. Each view gains `events`: every counted standard event whose start is
+  before the end of tomorrow and whose end (start + `timeduration`, which `strip::branch_head()` now
+  selects, at no read) is after the build instant. They are stored as `[start, end]` pairs, sorted,
+  at most 20. A time alone cannot say "on now": once a meeting has started, its start is before now
+  and would never open a `[now, now + horizon]` gate. That was the cause of every miss M3 saw.
+- **The client asks `get_soon` only when the gate opens** (`strip::gate_opens()`, which the client
+  mirrors). It opens when:
+  - a deadline time is in `[now, now + horizon]`; or
+  - an event pair has start ≤ now + horizon and end > now.
+
+  Otherwise the client sets one timer to the earliest instant the gate would open, and asks then if
+  the page is still open and visible.
 - `upcoming` is an upper bound, like the counts. A time whose item was submitted after the entry
   was built still opens the gate; the answer then holds no row and the region stays undrawn. That
   is one wasted request, never a wrong row. An item created after the entry was built is missed
@@ -135,7 +145,9 @@ clock (decision 5), re-evaluated once a minute:
     item core just dropped (submitted, attempted, closed, done) no longer opens the gate;
   - times outside that interval are kept as they are;
   - the comparison runs before the ten-item cut, so an open eleventh item keeps its time;
-  - nothing is written when nothing changed.
+  - in `events`, a pair whose end is now or earlier is dropped (core drops no standard event
+    otherwise);
+  - nothing is written when neither list changed.
 
   The write is a MUC set of the existing `calendarstrip` entry (no new definition, no `invalidate()`,
   no database read). The answer carries the pruned list as `upcoming`, so the browser replaces its
@@ -153,9 +165,14 @@ clock (decision 5), re-evaluated once a minute:
   (`learning`|`teaching`, checked against `strip::VIEWS` before any work). The window is the
   server's now in the user's timezone. Like every Compass service, it returns before any check
   that could throw when the calendar or `calendar_soon` is off.
-- **Range**: from today's first instant (so an event that started this morning and is still on is
-  found) to `max(end of today, now + horizon)`. An event that started yesterday and is still on is
-  not found (recorded limit).
+- **Range**: to `max(end of today, now + horizon)`, from:
+  - **teaching:** today's first instant, so an event that started this morning and is still on is
+    found. One that started yesterday is not (recorded limit).
+  - **learning:** now (corrected in stage 13a). Core's vault matches `timestart >= from OR
+    timestart + timeduration > from` (`event_vault::timefield_pagination_from()`, `withduration`),
+    which is the time rule's open set itself, events in progress included whenever they started.
+    Starting at today's first instant made every passed item of the day pay its action callback only
+    to be dropped.
 - **Learning**: the learning day's pipeline over that range instead of a date (`day::learning()`
   generalised to `[from, to]`): `api::get_events()` with the day view's `uservisible` filter
   (`day::events()`), the facts statement (`day::facts()`), the kinds of `day::kind()`, core's
@@ -174,7 +191,7 @@ clock (decision 5), re-evaluated once a minute:
   only purpose is to say what is still open, and a sign-in-long copy is the stale fact this record
   exists to avoid. The renderer is still fetched only when the range holds an event to export (the
   closure of `day::get()`).
-- **Answer**: `{now, horizon, view, items, more, truncated, upcoming}` (`upcoming`: the view's pruned gate, decision 3). `items` is at most `LIMIT = 10` items
+- **Answer**: `{now, horizon, view, items, more, truncated, upcoming, events}` (the view's pruned gate, decision 3). `items` is at most `LIMIT = 10` items
   in time order, each with exactly `day::ALLOWLIST` plus `timeduration` (amending ADR-014 decision 7
   for both services: a day item gains it too, so the day card can say when a meeting ends). `more`
   is the count of today's further open items past the ten. The client draws two rows and folds the
@@ -188,8 +205,8 @@ clock (decision 5), re-evaluated once a minute:
 - One `setInterval` per minute, aligned to the minute, re-evaluates the levels and the countdowns.
   No request per tick. When the page has been hidden for 15 minutes or more and becomes visible
   again (`visibilitychange`), the client asks once more, through the gate. Nothing else polls.
-- Time strings come from the plugin's lang strings (`cal_format_time*`, new `soon_in_minutes`,
-  `soon_in_hours`, `soon_now_until`, `soon_tomorrow_at`), never `Intl` text (`calendar.ts` rule).
+- Time strings come from the plugin's lang strings (`cal_format_time*`, new `cal_soon_in_minutes`,
+  `cal_soon_in_hours`, `cal_soon_now_until`, `cal_soon_tomorrow_at`), never `Intl` text (`calendar.ts` rule).
 
 ### 6. Accessibility
 
@@ -233,7 +250,7 @@ clock (decision 5), re-evaluated once a minute:
   `timeduration` key.
 - **`day::learning()` and `day::teaching()` take a range.** `get_day` passes the day's bounds and
   stays byte-identical in its answer, except for `timeduration`.
-- **Lang lockstep**: `soon_*`, `calendar_soon` and `_desc`, and the service's description, in `en`
+- **Lang lockstep**: `cal_soon_*` (shipped with the calendar's strings, `block::CALENDAR_STRINGS`), `calendar_soon` and `_desc`, and the service's description, in `en`
   and `pt_br`.
 - **5.3 port**: the same change on `MOODLE_503_STABLE` after `main`, as the strip's stages were
   ported.
@@ -293,8 +310,9 @@ state reset, the second call measured.
 
 - **An event already on when the entry is built is missing from `upcoming`.** Its start is before
   the build instant, and the counted statement carries no duration, so that event alone never opens
-  the gate. Fix for the implementation: select `e.timeduration` in `strip::branch_head()` and keep a
-  standard event whose end is after the build instant. No extra read.
+  the gate. Stage 13a fixed it with the `events` pairs of decision 3. Keeping the start in
+  `upcoming`, the first fix, could not work: a start before now never opens a `[now, now + horizon]`
+  gate.
 - **The "started yesterday" limit (decision 4) is teaching-only.** On the learning side core's vault
   matches `timestart + timeduration > from` (`event_vault.php:303,313`), so a learning event that
   started yesterday and is still on is found.
@@ -326,24 +344,42 @@ gates swept on both database families (`mdl mutate --fast --db pgsql`, then `--d
 stage stops for the maintainer's review of its diff.
 
 **13a. Server domain, finished.**
-- **`upcoming` gains the events in progress.** Select `e.timeduration` in `strip::branch_head()` and
-  keep a standard event whose end is after the build instant. This closes every miss M3 saw.
-- **The read tail.** Before pinning a ceiling, find what drives `soon`'s maximum (92-110 reads in M3
-  against a mean of 34-42). Make it a budget-test case, or record why it is not one.
+- **Events as `[start, end]` pairs** beside a deadlines-only `upcoming` (decision 3, as corrected),
+  with `e.timeduration` selected in `strip::branch_head()` and a shared `strip::gate_opens()`. This
+  closes every miss M3 saw; the simulation is re-run on the shared gate to show it.
+- **The read tail, found** (`docs/perf/2026-10-21-sim-up-next-m3.md`, "Stage 13a").
+  - **The cause:** the learning reads grow with the events core walks in the range, about 12 each
+    (each event's action callback): mean 14 at one event, 26 at two, 39 at three, 48 at four, 63 at
+    six. Neither a recent submission nor a learner's first call explains it.
+  - **The fix:** the learning range now starts at now (decision 4). It drops the passed items of the
+    day: mean reads per call 41-42 to 34-35 at every horizon, with identical gate outcomes. The
+    maximum (86-110) stays, because it comes from learners with many open items in the range, which
+    is the cost `get_day` pays for the same day.
+  - **For 13b:** the budget test pins a fixture with a stated number of events and its measured
+    ceiling, rather than one number for every learner.
 - **Settings and preference.**
   - The `calendar_soon` setting (`admin_setting_configselect`: 0, 3, 6, 12 hours; default 6), read
     through `config::calendar_soon()`.
   - The `soon` member of `block_compass_calendar` (`{rank, signin}`), validated member by member in
     `calendar_preference`; the privacy export covers it.
 - **Strings and housekeeping.**
-  - Lang `en` and `pt_br` in lockstep: the setting, its description, and the `soon_*` strings of
+  - Lang `en` and `pt_br` in lockstep: the setting, its description, and the `cal_soon_*` strings of
     decisions 5 and 6.
-  - `version.php` bump and `CHANGELOG.md`.
+  - `CHANGELOG.md`. The `version.php` bump moves to 13b (done in stage 13a, 2026-10-21): 13a changes
+    no service, no JS and no database, a new setting reads as its default until saved, and a bump in
+    the live-mounted checkout would leave m502 and m502b with an upgrade pending and stale test sites
+    in the middle of the work.
 - **Tests:** `soon_test`, `strip_test` and `counts_test` extended (in-progress events in `upcoming`,
   the horizon off, the preference's validation). Phase 13 gates added to `mutations/gates.conf`,
   covering the gate's two edges, the four time-rule edges, the class cap, the pruning's three cases,
   the hidden rank and sign-in, and `timeduration`. The gates are swept before the commit that adds
   them.
+- **Swept** (stage 13a, 2026-10-21): `mdl mutate --fast` on MOODLE_502_STABLE, PHP 8.4, pgsql and then
+  mariadb, 599 tests a run.
+  - 29 of the 30 gates reddened every test they name, on both families.
+  - The 30th, `cal_soon_learning_event_end`, reddened nothing on either. With the learning range
+    starting at now, core's vault already keeps only events not yet ended, so the guard was removed
+    with its gate, and the code says why.
 
 **13b. The service.**
 - **`classes/external/get_soon.php`**, following the fleet's web-service checklist: `readonlysession`,

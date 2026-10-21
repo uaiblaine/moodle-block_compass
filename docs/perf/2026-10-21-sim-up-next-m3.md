@@ -109,6 +109,50 @@ there: `OK (10 tests, 45 assertions)`. The simulation reported `OK (6 tests, 259
   corrected") covers it.
 - **Pruning adds no read.** The mean moves by less than a read; the write is a MUC set.
 
+## Stage 13a (2026-10-21): the gate's event pairs, and the read tail
+
+**Event pairs close every miss.** The gate now reads `upcoming` (deadlines) and `events` (`[start, end]`
+pairs) through `strip::gate_opens()` (ADR-016 decision 3, corrected). With it, the simulation reports
+missed 0 at every horizon, pruning off and on. Gate opens at 6 h: 63.0 % without pruning, 58.5 % with
+it; wasted 32.3 % and 27.2 % of the opened. The leg reported `Tests: 599, Assertions: 8337,
+Failures: 1, Skipped: 17`. The failure was the policy on singular strings: `soon_more_one` was not
+shipped to the client. It is fixed by naming the client strings `cal_soon_*`, so the calendar's
+string list carries them; `client_policy_test` (10 tests) and `block_compass_test` (12 tests) then
+passed.
+
+**What drives the reads.** A copy of the simulation, kept outside the repository and run with pruning
+on at 6 h, grouped each client call's reads by how many events of the learner's courses lie in the
+range:
+
+| Events in range | Calls | Reads mean | Reads max |
+|---|---|---|---|
+| 1 | 21 | 14.4 | 22 |
+| 2 | 42 | 25.7 | 44 |
+| 3 | 55 | 39.2 | 57 |
+| 4 | 63 | 48.4 | 87 |
+| 5 | 33 | 50.8 | 80 |
+| 6 | 36 | 62.7 | 86 |
+
+About 12 reads per event, from core's action callbacks. The same probe ruled out the first two
+guesses:
+- **A recent submission in the learner's courses:** mean 48 with one, 42 without, and both reach 86.
+- **A learner's first call:** 54-57 against 42-48, and calls that were not first reach 86 too.
+
+**Starting the learning range at now.** The prototype started the range at today's first instant, so
+core walked the day's passed items as well. Starting at now leaves the outcomes identical (wasted,
+silent and missed unchanged at every horizon), because core's vault already matches events in
+progress by their duration:
+
+| Horizon | Reads mean, from today's start | Reads mean, from now | Max (both) |
+|---|---|---|---|
+| 3 h | 41.1 / 41.4 | 33.6 / 33.7 | 86 |
+| 6 h | 41.6 / 42.1 | 33.6 / 34.0 | 87 |
+| 12 h | 41.6 / 42.0 | 35.0 / 35.5 | 110 |
+
+(Each pair of figures is pruning off / on.) The maximum belongs to learners with many open items in
+the range. That is the cost `get_day` pays for the same day, so the budget test pins a fixture of a
+stated size.
+
 ## Read with care
 
 - One seed, one synthetic week, behaviour shares chosen by hand. The direction is meaningful; the

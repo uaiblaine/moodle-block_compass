@@ -51,7 +51,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * assignment due, a course event in progress); (b) E5's worst learner (6 courses, 18 graded
  * activities and 3 events a week); (c) E5's teacher (10 courses of 25 students, teaching view);
  * (d) a learner at the inventory bound (inventory_max courses) with the three items of (a) in three
- * of them. M4: the counts payload with and without upcoming, per case.
+ * of them. M4: the counts payload with and without the gate lists (upcoming, events), per case.
  *
  * Clock: the due dates are relative to the real clock, because the module callbacks read time();
  * every instant is an hour count from now or from a local midnight, in a fixed timezone.
@@ -216,20 +216,20 @@ final class m_soon_measure_test extends advanced_testcase {
         soon::get($userid, $view, $now, $signin, $tz, self::HORIZON, $output);
         day::get($userid, $today, $view, $now, $signin, $tz, $output);
 
-        // The counts, cold, then their payload with and without upcoming (M4).
+        // The counts, cold, then their payload with and without the gate lists, upcoming and events (M4).
         $this->purge_plugin_caches();
         $this->new_request();
         $meter = budget::start();
         $counts = strip::counts($userid, $now, $signin, $tz);
         $reads = $meter->reads();
-        $upcoming = count($counts['views'][$view]['upcoming']);
+        $upcoming = count($counts['views'][$view]['upcoming']) + count($counts['views'][$view]['events']);
         $this->line($case . ' counts: cold', $reads, $meter->elapsed() * 1000, $counts, $upcoming);
         $without = $counts;
         foreach (strip::VIEWS as $name) {
-            unset($without['views'][$name]['upcoming']);
+            unset($without['views'][$name]['upcoming'], $without['views'][$name]['events']);
         }
-        $this->line($case . ' counts payload: without upcoming (M4)', 0, 0.0, $without, 0);
-        $this->line($case . ' counts payload: with upcoming (M4)', 0, 0.0, $counts, $upcoming);
+        $this->line($case . ' counts payload: without upcoming and events (M4)', 0, 0.0, $without, 0);
+        $this->line($case . ' counts payload: with upcoming and events (M4)', 0, 0.0, $counts, $upcoming);
 
         // Up next, cold: the entry fresh from a counts call in its own request.
         $this->entry_from_counts($userid, $now, $signin, $tz);

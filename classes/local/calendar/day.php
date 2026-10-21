@@ -691,8 +691,8 @@ final class day {
     /**
      * Names, start and duration of the kept teaching items: one statement.
      *
-     * Index: event primary key. Bound: the ids passed (at most LIMIT from a day; the range's
-     * teaching items from Up next, which needs the durations before its cap).
+     * Index: event primary key. Bound: the ids passed (at most LIMIT from a day, at most soon::LIMIT
+     * from Up next).
      *
      * @param int[] $ids Event ids.
      * @return array Event id => record (name, timestart, timeduration).

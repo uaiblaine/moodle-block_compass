@@ -373,6 +373,12 @@ final class config {
     /** @var string The grading source when nothing is stored: block_feedback_tracker's ledger where it covers a course. */
     public const DEFAULT_CALENDAR_GRADING = 'tracker';
 
+    /** @var int[] Up next's horizons the admin chooses from, in hours; 0 is off (ADR-016 decision 2). */
+    public const CALENDAR_SOONS = [0, 3, 6, 12];
+
+    /** @var int Up next's horizon when nothing is stored, in hours. */
+    public const DEFAULT_CALENDAR_SOON = 6;
+
     /**
      * Whether the calendar strip is on: off unless an explicit 1 is stored (ADR-014 decision 1).
      *
@@ -466,5 +472,21 @@ final class config {
         $value = (string) get_config('block_compass', 'calendar_grading');
 
         return in_array($value, self::CALENDAR_GRADINGS, true) ? $value : self::DEFAULT_CALENDAR_GRADING;
+    }
+
+    /**
+     * How far ahead Up next looks, in seconds; 0 when it is off. An unset or unrecognised value means the default.
+     *
+     * admin_setting_configselect stores the chosen key as a string, so the value is compared as the
+     * vocabulary's own spelling: '06' or '6.0' is not one of the choices and reads as the default, as
+     * a hand-edited row should. Callers get seconds because the range and the answer travel in them.
+     *
+     * @return int 0, or one of CALENDAR_SOONS times HOURSECS.
+     */
+    public static function calendar_soon(): int {
+        $value = (string) get_config('block_compass', 'calendar_soon');
+        $hours = in_array($value, array_map('strval', self::CALENDAR_SOONS), true) ? (int) $value : self::DEFAULT_CALENDAR_SOON;
+
+        return $hours * HOURSECS;
     }
 }

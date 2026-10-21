@@ -26,6 +26,18 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 ### Changed
 
+- Up next, server side (ADR-016, stage 13a; nothing is shown yet, the service and the client
+  follow). The closed line's counts carry the gate of Up next: `upcoming` holds the counted
+  deadlines of today and tomorrow, and `events` holds the events as start and end pairs, so a
+  meeting already in progress opens the gate too (`strip::gate_opens()`, `strip::gate_next()`).
+  `soon::get()` lists what is still open from now to the horizon, never cached. It prunes from
+  the gate what core just dropped (submitted, attempted, closed, ended). It starts the learning
+  range at now, which spares core's action callbacks for the day's passed items. Also added:
+  - the `calendar_soon` setting (off, 3, 6 or 12 hours; default 6);
+  - the `soon` member of the `block_compass_calendar` preference (hidden until the urgency rises,
+    for the sign-in);
+  - the `cal_soon_*` strings, shipped with the calendar's strings;
+  - `timeduration` on a day's items.
 - The filter panel stays a popover where an ancestor would clip a fixed child (a `clip-path`,
   `transform`, `filter` or paint containment on the way up, as Moodle 5.3 puts on the open block
   drawer), instead of a bottom sheet that would be cut off and pass its clicks to the page

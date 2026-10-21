@@ -118,7 +118,7 @@ final class strip {
     /** @var string[] The teaching kinds the closed line counts without the ledger: no grading work. */
     public const TEACHING_COUNTED_CORE = ['class', 'event'];
 
-    /** @var int Times a view's upcoming list keeps at most (ADR-016 decision 3): the gate needs the first few. */
+    /** @var int Entries a view's upcoming and events lists keep at most (ADR-016 decision 3): the gate needs the first few. */
     public const UPCOMING_LIMIT = 20;
 
     /** @var string[] The preload columns of a module context, kept for a deferred grading candidate. */
@@ -150,8 +150,8 @@ final class strip {
      * @return array today and lastday (Y-m-d), past (the Late periods are known), grading (the
      *     teaching view counts grading work: the ledger is the source), truncated, bounded,
      *     haslearning, hasteaching, and views: learning and teaching, each from {@see periods()} plus
-     *     upcoming, the entry's counted times of today and tomorrow ({@see upcoming()}; empty in an
-     *     entry stored before it existed).
+     *     upcoming and events, the entry's gate lists ({@see upcoming()}, {@see events()}; empty in an
+     *     entry stored before they existed).
      */
     public static function counts(int $userid, int $now, int $signin, \DateTimeZone $tz): array {
         $entry = self::entry($userid, $now, $signin, $tz, false);
@@ -171,9 +171,9 @@ final class strip {
             'hasteaching' => $payload['hasteaching'],
             'views' => [
                 'learning' => self::periods($payload['views']['learning']['days'], 'learning', $payload['today'], $past, $grading)
-                    + ['upcoming' => array_map('intval', $entry['upcoming']['learning'] ?? [])],
+                    + self::gate_lists($entry, 'learning'),
                 'teaching' => self::periods($payload['views']['teaching']['days'], 'teaching', $payload['today'], $past, $grading)
-                    + ['upcoming' => array_map('intval', $entry['upcoming']['teaching'] ?? [])],
+                    + self::gate_lists($entry, 'teaching'),
             ],
         ];
     }
@@ -249,7 +249,8 @@ final class strip {
             $built['deferred'],
             $built['grading'],
             current_language(),
-            $built['upcoming']
+            $built['upcoming'],
+            $built['events']
         );
         calendar_cache::set($userid, $entry);
 
@@ -618,7 +619,9 @@ final class strip {
      *     teaching (course ids), groups (id => courseid, participation) and categories (ids); and deferred: null for
      *     the whole strip, else the grading candidates the counts pass left for complete(); grading:
      *     the grading source the build counted under (tracker or core), which the entry records; and
-     *     upcoming: per view, the counted times of today and tomorrow from $now on ({@see upcoming()}).
+     *     upcoming: per view, the counted deadline times of today and tomorrow from $now on ({@see upcoming()});
+     *     and events: per view, the standard events of today and tomorrow not over at $now, as [start, end]
+     *     pairs ({@see events()}).
      */
     public static function compute(int $userid, int $now, \DateTimeZone $tz, bool $whole = true): array {
         self::require_core();
@@ -696,11 +699,13 @@ final class strip {
         }
         $hasteaching = $teaching !== [] || $grading > 0;
         $upcoming = self::upcoming($items, $now, $window, $gradingsource === grading::SOURCE_TRACKER);
+        $events = self::events($items, $now, $window);
         // A counts pass that deferred grading keeps the teaching view's other days: the count may yet
         // make the viewer a teacher when complete() runs.
         if (!$hasteaching && $deferred === []) {
             $views['teaching'] = [];
             $upcoming['teaching'] = [];
+            $events['teaching'] = [];
         }
 
         $payload = [
@@ -728,21 +733,21 @@ final class strip {
             'deferred' => $whole ? null : $deferred,
             'grading' => $gradingsource,
             'upcoming' => $upcoming,
+            'events' => $events,
         ];
     }
 
     /**
-     * Per view, the times of the items the closed line counts today and tomorrow, from $now on.
+     * Per view, the deadline times the closed line counts today and tomorrow, from $now on.
      *
-     * ADR-016 decision 3: the browser asks Up next only when one of these falls inside its horizon,
-     * so a calm day costs no request. The times are the counted statement's sorttime, already read
-     * to bucket each row by day ({@see branch_head()}): timesort for an action event, a grading
-     * item's due time included, timestart for the others; no read of their own. The kinds are the
-     * ones periods() counts: done never; in the teaching view grading work only when the ledger is
-     * the source. An upper bound, like the counts: an item submitted after the build still opens the
-     * gate, and the answer then holds no row. An event already in progress at the build instant is
-     * not in it (its start is before $now and the statement carries no duration). Distinct times,
-     * ascending, at most UPCOMING_LIMIT.
+     * ADR-016 decision 3: the browser asks Up next only when one of these, or one of the view's
+     * events ({@see events()}), falls inside its horizon ({@see gate_opens()}), so a calm day costs no
+     * request. The times are the counted statement's sorttime of the action events, already read to
+     * bucket each row by day ({@see branch_head()}): timesort, a grading item's due time included; no
+     * read of their own. The kinds are the ones periods() counts, standard events (kind event) aside:
+     * done never; in the teaching view grading work only when the ledger is the source. An upper
+     * bound, like the counts: an item submitted after the build still opens the gate, and the answer
+     * then holds no row. Distinct times, ascending, at most UPCOMING_LIMIT.
      *
      * @param array $items Items from collect(), each with its row.
      * @param int $now The build instant.
@@ -758,7 +763,10 @@ final class strip {
         $times = ['learning' => [], 'teaching' => []];
         foreach ($items as $item) {
             $time = (int) $item['row']->sorttime;
-            if ($time < $now || ($item['day'] !== $window['today'] && $item['day'] !== $window['tomorrow'])) {
+            if ($item['kind'] === 'event' || $time < $now) {
+                continue;
+            }
+            if ($item['day'] !== $window['today'] && $item['day'] !== $window['tomorrow']) {
                 continue;
             }
             foreach ($item['view'] === 'both' ? self::VIEWS : [$item['view']] as $view) {
@@ -773,6 +781,128 @@ final class strip {
         }
 
         return $times;
+    }
+
+    /**
+     * Per view, the standard events that start by the end of tomorrow and are not over at $now.
+     *
+     * The other half of decision 3's gate: an event is "now" from its start to its end, so the gate
+     * needs both, and a meeting already on when the entry is built must still open it. Each event is
+     * a pair [start, end]: start its timestart (the row's sorttime), end the start plus its
+     * timeduration, which the counted statement selects beside it ({@see branch_head()}), equal to the
+     * start for an instant. Kept: kind event, its local start day not after tomorrow (the statement
+     * found it from the window's first day on, so one that started yesterday and runs into today is
+     * here), its end after $now. An event is in every view periods() counts it in. Distinct pairs,
+     * by start then end, at most UPCOMING_LIMIT.
+     *
+     * @param array $items Items from collect(), each with its row.
+     * @param int $now The build instant.
+     * @param array $window From window().
+     * @return array learning and teaching, each a list of [start, end] pairs of Unix times.
+     */
+    public static function events(array $items, int $now, array $window): array {
+        $pairs = ['learning' => [], 'teaching' => []];
+        foreach ($items as $item) {
+            if ($item['kind'] !== 'event' || strcmp($item['day'], $window['tomorrow']) > 0) {
+                continue;
+            }
+            $start = (int) $item['row']->sorttime;
+            $end = $start + (int) $item['row']->timeduration;
+            if ($end <= $now) {
+                continue;
+            }
+            foreach ($item['view'] === 'both' ? self::VIEWS : [$item['view']] as $view) {
+                $pairs[$view][$start . ':' . $end] = [$start, $end];
+            }
+        }
+        foreach ($pairs as $view => $list) {
+            usort($list, fn(array $a, array $b): int => $a <=> $b);
+            $pairs[$view] = array_slice($list, 0, self::UPCOMING_LIMIT);
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * A view's two gate lists from an entry, as integers: upcoming (times) and events (pairs).
+     *
+     * An entry stored before a list existed reads as an empty list; the cache store may hand an
+     * integer back as a string.
+     *
+     * @param array $entry A cached entry.
+     * @param string $view learning or teaching.
+     * @return array upcoming and events.
+     */
+    public static function gate_lists(array $entry, string $view): array {
+        return [
+            'upcoming' => array_map('intval', $entry['upcoming'][$view] ?? []),
+            'events' => array_map(
+                fn(array $pair): array => [(int) $pair[0], (int) $pair[1]],
+                $entry['events'][$view] ?? []
+            ),
+        ];
+    }
+
+    /**
+     * Whether Up next's gate opens at $now: the browser asks get_soon only then (ADR-016 decision 3).
+     *
+     * Open when a deadline time t of the view has now <= t <= now + horizon, or an event [start, end]
+     * has start <= now + horizon and end > now (soon, imminent, or on now). A horizon of 0 or less is
+     * the setting off, which asks nothing (decision 2). The client in js/esm/src holds the same rule;
+     * this one is what the tests and the M3 simulation read.
+     *
+     * @param array $view A view of the counts: upcoming (times) and events (pairs).
+     * @param int $now Unix time to treat as now.
+     * @param int $horizon The horizon in seconds, config::calendar_soon().
+     * @return bool
+     */
+    public static function gate_opens(array $view, int $now, int $horizon): bool {
+        if ($horizon <= 0) {
+            return false;
+        }
+        foreach ($view['upcoming'] ?? [] as $time) {
+            if ((int) $time >= $now && (int) $time <= $now + $horizon) {
+                return true;
+            }
+        }
+        foreach ($view['events'] ?? [] as [$start, $end]) {
+            if ((int) $start <= $now + $horizon && (int) $end > $now) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The first instant after $now at which the gate would open with the lists unchanged, for the client's timer.
+     *
+     * A deadline t opens it at t - horizon, an event at its start - horizon; only instants after
+     * $now count (an earlier one has either opened the gate already, gate_opens(), or passed). Null
+     * when nothing will, or when the horizon is off.
+     *
+     * @param array $view A view of the counts: upcoming (times) and events (pairs).
+     * @param int $now Unix time to treat as now.
+     * @param int $horizon The horizon in seconds.
+     * @return int|null
+     */
+    public static function gate_next(array $view, int $now, int $horizon): ?int {
+        if ($horizon <= 0) {
+            return null;
+        }
+        $starts = array_merge(
+            array_map('intval', $view['upcoming'] ?? []),
+            array_map(fn(array $pair): int => (int) $pair[0], $view['events'] ?? [])
+        );
+        $next = null;
+        foreach ($starts as $time) {
+            $opens = $time - $horizon;
+            if ($opens > $now && ($next === null || $opens < $next)) {
+                $next = $opens;
+            }
+        }
+
+        return $next;
     }
 
     /**
@@ -1055,7 +1185,7 @@ final class strip {
     private static function branch_head(string $p, string $sortcolumn, string $facts): array {
         $course = 'CASE WHEN e.courseid <> 0 THEN e.courseid ELSE COALESCE(cm.course, 0) END';
         $sql = "SELECT e.id, {$course} AS courseid, e.groupid, e.type, e.eventtype, e.modulename, e.instance,
-                       e.{$sortcolumn} AS sorttime, cm.id AS cmid, cm.visible AS cmvisible,
+                       e.{$sortcolumn} AS sorttime, e.timeduration, cm.id AS cmid, cm.visible AS cmvisible,
                        CASE WHEN cm.availability IS NULL AND cs.availability IS NULL THEN 0 ELSE 1 END AS restricted,
                        {$facts},
                        CASE WHEN c.groupmodeforce = 1 THEN c.groupmode ELSE cm.groupmode END AS groupmode, cm.groupingid,

@@ -27,6 +27,7 @@ namespace block_compass\local\calendar;
 
 use advanced_testcase;
 use block_compass\local\calendar_cache;
+use block_compass\local\config;
 use core_cache\cache;
 use core_calendar\local\event\container;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -101,7 +102,7 @@ final class soon_test extends advanced_testcase {
         $tz = \core_date::get_user_timezone_object();
 
         $answer = $this->soon($user, 'learning', $now);
-        $this->assertSame(['now', 'horizon', 'view', 'items', 'more', 'truncated', 'upcoming'], array_keys($answer));
+        $this->assertSame(['now', 'horizon', 'view', 'items', 'more', 'truncated', 'upcoming', 'events'], array_keys($answer));
         $this->assertSame([$now, self::HORIZON, 'learning', 0, false], [
             $answer['now'], $answer['horizon'], $answer['view'], $answer['more'], $answer['truncated'],
         ]);
@@ -244,11 +245,12 @@ final class soon_test extends advanced_testcase {
     }
 
     /**
-     * The counts carry, per view, the counted times of today and tomorrow from the build instant on.
+     * The counts carry, per view, the deadline times of today and tomorrow and the events' pairs apart.
      *
-     * Kept: an open assignment due in an hour and a course event tomorrow. Left out: a deadline a
-     * second before now (the counted statement starts actions at now), a completed assignment (done),
-     * and an event in three days (neither today nor tomorrow).
+     * Deadlines: an open assignment due in an hour is kept; a deadline a second before now (the
+     * counted statement starts actions at now) and a completed assignment (done) are not. Events: a
+     * course event tomorrow is a pair of its own, start and end equal; an event in three days is in
+     * neither list.
      *
      * @return void
      */
@@ -267,8 +269,10 @@ final class soon_test extends advanced_testcase {
         $tz = \core_date::get_user_timezone_object();
 
         $counts = strip::counts((int) $user->id, $now, 1, $tz);
-        $this->assertSame([$due, $tomorrow], $counts['views']['learning']['upcoming']);
+        $this->assertSame([$due], $counts['views']['learning']['upcoming']);
+        $this->assertSame([[$tomorrow, $tomorrow]], $counts['views']['learning']['events']);
         $this->assertSame([], $counts['views']['teaching']['upcoming']);
+        $this->assertSame([], $counts['views']['teaching']['events']);
         $today = array_column($counts['views']['learning']['periods'], 'count', 'key')['today'];
         $this->assertSame(1, $today, 'Control: the done assignment is not counted either.');
     }
@@ -330,6 +334,140 @@ final class soon_test extends advanced_testcase {
     }
 
     /**
+     * The counts carry every event not over at the build, as [start, end], and no event in upcoming.
+     *
+     * The counted statement selects each row's duration beside its start, so no read is added. Kept:
+     * an event that started yesterday at 22:00 and runs into this afternoon, one that started an hour
+     * ago and runs two more, and one in an hour. Left out: an event that ended two hours ago and one
+     * that ends at the build instant.
+     *
+     * @return void
+     */
+    public function test_the_counts_carry_the_events_in_progress_at_the_build(): void {
+        [$user, $course, $now] = $this->learner();
+        $ongoing = $now - HOURSECS;
+        $overnight = $now - 14 * HOURSECS;
+        $later = $now + HOURSECS;
+        $this->course_event((int) $course->id, $ongoing, 3 * HOURSECS);
+        $this->course_event((int) $course->id, $overnight, 16 * HOURSECS);
+        $this->course_event((int) $course->id, $later, 0);
+        $this->course_event((int) $course->id, $now - 3 * HOURSECS, HOURSECS);
+        $this->course_event((int) $course->id, $now - 2 * HOURSECS, 2 * HOURSECS);
+        $this->setUser($user);
+        $tz = \core_date::get_user_timezone_object();
+        $this->assertNotSame(strip::local_day($overnight, $tz), strip::local_day($now, $tz), 'Control: it started yesterday.');
+
+        $view = strip::counts((int) $user->id, $now, 1, $tz)['views']['learning'];
+
+        $this->assertSame(
+            [[$overnight, $overnight + 16 * HOURSECS], [$ongoing, $ongoing + 3 * HOURSECS], [$later, $later]],
+            $view['events']
+        );
+        $this->assertSame([], $view['upcoming'], 'Events are not deadlines.');
+        $this->assertTrue(strip::gate_opens($view, $now, HOURSECS), 'An event on now opens the gate.');
+    }
+
+    /**
+     * A call prunes the events that ended by now and keeps the rest, even one core no longer lists.
+     *
+     * The entry is built ten minutes before the call with three events on and an assignment due in an
+     * hour: one event ends at the call's instant, one runs two more hours, and one, running too, is
+     * deleted before the call. Only the ended pair goes, since core drops no standard event by its
+     * state; the deadline list is unchanged, so the write is the events list's alone.
+     *
+     * @return void
+     */
+    public function test_a_call_prunes_the_events_that_ended(): void {
+        global $DB;
+
+        [$user, $course, $now] = $this->learner();
+        $ending = $this->course_event((int) $course->id, $now - HOURSECS, HOURSECS);
+        $on = $this->course_event((int) $course->id, $now - HOURSECS, 3 * HOURSECS);
+        $gone = $this->course_event((int) $course->id, $now - 2 * HOURSECS, 4 * HOURSECS);
+        $assign = $this->assign((int) $course->id, $now + HOURSECS);
+        $this->setUser($user);
+        $tz = \core_date::get_user_timezone_object();
+        strip::counts((int) $user->id, $now - 600, 1, $tz);
+        $built = [[$now - 2 * HOURSECS, $now + 2 * HOURSECS], [$now - HOURSECS, $now], [$now - HOURSECS, $now + 2 * HOURSECS]];
+        $this->assertSame($built, $this->gate_view($user, $now)['events'], 'Control: the entry counted all three on.');
+        $DB->delete_records('event', ['id' => $gone]);
+        $this->new_request();
+
+        $answer = $this->soon($user, 'learning', $now);
+
+        $this->assertSame([$on, $this->event_id((int) $assign->cmid, 'due')], array_column($answer['items'], 'id'));
+        $this->assertNotContains($ending, array_column($answer['items'], 'id'), 'Control: the ended event is no row either.');
+        $kept = [[$now - 2 * HOURSECS, $now + 2 * HOURSECS], [$now - HOURSECS, $now + 2 * HOURSECS]];
+        $this->assertSame($kept, $answer['events']);
+        $this->assertSame(['upcoming' => [$now + HOURSECS], 'events' => $kept], $this->gate_view($user, $now));
+    }
+
+    /**
+     * A call whose pruning changes nothing writes nothing; one whose pruning changes the list writes it.
+     *
+     * The renderer closure runs after the entry was read and before the pruning would write, so it
+     * marks the stored entry: a write puts back the entry the call read, and the mark is gone. The
+     * first call prunes the submitted item's time (the control: the mark goes); the second has nothing
+     * left to prune, and the mark stays.
+     *
+     * @return void
+     */
+    public function test_an_unchanged_gate_list_is_not_written(): void {
+        [$user, $now, $tz] = $this->pruning_case();
+        $userid = (int) $user->id;
+        $marking = function () use ($userid): \core\output\renderer_base {
+            calendar_cache::set($userid, calendar_cache::get($userid) + ['mark' => true]);
+
+            return $this->renderer();
+        };
+
+        soon::get($userid, 'learning', $now, 1, $tz, self::HORIZON, $marking);
+        $this->assertArrayNotHasKey('mark', calendar_cache::get($userid), 'Control: the pruning wrote the entry.');
+
+        $this->new_request();
+        $answer = soon::get($userid, 'learning', $now, 1, $tz, self::HORIZON, $marking);
+        $this->assertCount(1, $answer['items'], 'Control: the renderer was asked for.');
+        $this->assertArrayHasKey('mark', calendar_cache::get($userid), 'Nothing changed, so nothing was written.');
+    }
+
+    /**
+     * Grading work due earlier today is not a teaching row; grading work due later today is.
+     *
+     * Both assignments have a submission waiting, and the teaching statement finds both from today's
+     * first instant (the control): the time rule is what drops the earlier one.
+     *
+     * @return void
+     */
+    public function test_the_teaching_view_drops_grading_work_due_before_now(): void {
+        set_config('calendar_grading', 'core', 'block_compass');
+        $gen = $this->getDataGenerator();
+        $now = $this->noon();
+        $teacher = $gen->create_user(['timezone' => self::TIMEZONE]);
+        $student = $gen->create_user(['timezone' => self::TIMEZONE]);
+        $course = $gen->create_course();
+        $gen->enrol_user($teacher->id, $course->id, 'editingteacher');
+        $gen->enrol_user($student->id, $course->id, 'student');
+        $passed = $this->assign((int) $course->id, $now + DAYSECS, ['gradingduedate' => $now - HOURSECS]);
+        $later = $this->assign((int) $course->id, $now + DAYSECS, ['gradingduedate' => $now + HOURSECS]);
+        $this->submission((int) $passed->id, (int) $student->id, $now - 2 * HOURSECS);
+        $this->submission((int) $later->id, (int) $student->id, $now - 2 * HOURSECS);
+        $this->setUser($teacher);
+        $tz = \core_date::get_user_timezone_object();
+        $passedid = $this->event_id((int) $passed->cmid, strip::GRADINGDUE);
+        $laterid = $this->event_id((int) $later->cmid, strip::GRADINGDUE);
+
+        $answer = $this->soon($teacher, 'teaching', $now);
+
+        $this->assertContains($laterid, array_column($answer['items'], 'id'));
+        $this->assertNotContains($passedid, array_column($answer['items'], 'id'));
+        [$from, $to] = soon::range($now, $tz, self::HORIZON);
+        $entry = strip::entry((int) $teacher->id, $now, 1, $tz, false);
+        [$kept] = day::teaching_kept((int) $teacher->id, $from, $to, $entry['sets'], config::calendar_sources(), $now, $tz);
+        $keptids = array_map(fn(array $item): int => (int) $item['row']->id, $kept);
+        $this->assertContains($passedid, $keptids, 'Control: the statement found it.');
+    }
+
+    /**
      * An entry built ten minutes ago whose submitted assignment is still in its gate list.
      *
      * @return array [user, now, timezone, times: all, past, submitted, open, tomorrow].
@@ -359,16 +497,27 @@ final class soon_test extends advanced_testcase {
     }
 
     /**
-     * The learning gate list the counts read from the entry.
+     * The learning deadline list the counts read from the entry.
      *
      * @param \stdClass $user The current user.
      * @param int $now Now.
      * @return int[]
      */
     private function gate_list(\stdClass $user, int $now): array {
+        return $this->gate_view($user, $now)['upcoming'];
+    }
+
+    /**
+     * The learning view's two gate lists the counts read from the entry.
+     *
+     * @param \stdClass $user The current user.
+     * @param int $now Now.
+     * @return array upcoming and events.
+     */
+    private function gate_view(\stdClass $user, int $now): array {
         $counts = strip::counts((int) $user->id, $now, 1, \core_date::get_user_timezone_object());
 
-        return $counts['views']['learning']['upcoming'];
+        return array_intersect_key($counts['views']['learning'], ['upcoming' => true, 'events' => true]);
     }
 
     /**

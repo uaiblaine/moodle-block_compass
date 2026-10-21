@@ -33,19 +33,21 @@ use core_calendar\local\event\entities\event_interface;
 /**
  * The current user's open items from today's first instant to the horizon, in one view.
  *
- * The answer is {now, horizon, view, items, more, truncated, upcoming}: items is a list of at most LIMIT
- * entries in time order, each with exactly day::ALLOWLIST; more counts the further open items of
- * the range past them; truncated says the teaching view's counted statement hit its bound
+ * The answer is {now, horizon, view, items, more, truncated, upcoming, events}: items is a list of
+ * at most LIMIT entries in time order, each with exactly day::ALLOWLIST; more counts the further open
+ * items of the range past them; truncated says the teaching view's counted statement hit its bound
  * (strip::FUTURE_LIMIT), so more is a lower bound. The learning view's source, core's
- * api::get_events() with limit 0, has no bound of its own, so truncated is false there. upcoming is
- * the view's gate list in the entry after pruning, for the client to replace its copy.
+ * api::get_events() with limit 0, has no bound of its own, so truncated is false there. upcoming and
+ * events are the view's gate lists in the entry after pruning, for the client to replace its copies
+ * ({@see strip::gate_opens()}).
  *
  * The range is today's first instant (an event that started this morning and is still on is found)
  * to max(end of today, now + horizon), clipped to the strip window's last instant. The items are
  * the day pipelines' over that range ({@see day::learning_kept()}, {@see day::teaching_kept()}):
  * in the learning view core's action callbacks have decided, so a submitted, attempted or closed
  * item is never a row. Then the time rule: an action event is kept when its sort time is now or
- * later; a standard event when it starts by the range's end and ends after now; late and done
+ * later; a standard event when it ends after now (both sources already bound its start to the
+ * range: core's vault by timestart <= to, the teaching statement by its time); late and done
  * items never.
  *
  * Never cached: the answer is not written to the strip's entry (its sets are read from it,
@@ -76,7 +78,10 @@ final class soon {
      * end are kept as they are. The list is written back to the entry only when it changed, a cache
      * write and no database read. The residual: a submission a teacher reverts to draft is not seen by
      * the gate until the entry is rebuilt (TTL 30 minutes or a new sign-in), and a rebuilt entry
-     * re-counts a submitted item once, so at most one wasted request per entry build.
+     * re-counts a submitted item once, so at most one wasted request per entry build. The view's
+     * events (`events`, [start, end] pairs) lose the pairs that ended by now and keep the rest: core
+     * drops no standard event by its state, so its end is the only verdict there is. One write covers
+     * both lists, and only when either changed.
      *
      * @param int $userid The current user.
      * @param string $view learning or teaching.
@@ -87,7 +92,7 @@ final class soon {
      * @param renderer_base|\Closure $output A renderer, or a closure that returns one. Only an answer
      *     with an item calls it: fetching core's renderer initialises the theme and core's globally
      *     available filters (a recordset: three reads on PostgreSQL), which an empty answer must not pay.
-     * @param bool $prune Whether to prune the entry's gate list for this view (see above).
+     * @param bool $prune Whether to prune the entry's gate lists for this view (see above).
      * @return array|null The answer, or null when the view is not one of strip::VIEWS.
      */
     public static function get(
@@ -113,22 +118,41 @@ final class soon {
         if ($view === 'teaching') {
             $result = self::teaching($userid, $from, $to, $sets, $sources, $now, $tz, $output);
         } else {
-            $result = self::learning($userid, $from, $to, $sets, $sources, $now, $tz, $output);
+            // From now, not today's first instant: core's vault matches timestart >= from OR
+            // timestart + timeduration > from (event_vault::timefield_pagination_from(), withduration),
+            // which is the time rule's open set itself, events in progress included. Today's earlier,
+            // passed items would each still pay their module's action callback, about 12 reads apiece
+            // (ADR-016, stage 13a), only to be dropped by the time rule.
+            $result = self::learning($userid, $now, $to, $sets, $sources, $now, $tz, $output);
         }
 
         $times = $result['opentimes'];
         unset($result['opentimes']);
-        $upcoming = array_map('intval', $entry['upcoming'][$view] ?? []);
+        ['upcoming' => $upcoming, 'events' => $events] = strip::gate_lists($entry, $view);
         if ($prune) {
             $pruned = self::pruned($upcoming, $times, $now, $to);
-            if ($pruned !== $upcoming) {
+            $running = self::running($events, $now);
+            if ($pruned !== $upcoming || $running !== $events) {
                 $entry['upcoming'][$view] = $pruned;
+                $entry['events'][$view] = $running;
                 calendar_cache::set($userid, $entry);
-                $upcoming = $pruned;
+                [$upcoming, $events] = [$pruned, $running];
             }
         }
 
-        return ['now' => $now, 'horizon' => $horizon, 'view' => $view] + $result + ['upcoming' => $upcoming];
+        return ['now' => $now, 'horizon' => $horizon, 'view' => $view] + $result
+            + ['upcoming' => $upcoming, 'events' => $events];
+    }
+
+    /**
+     * The view's event pairs without those that ended by now.
+     *
+     * @param array $events The entry's [start, end] pairs for the view, in order.
+     * @param int $now Unix time to treat as now.
+     * @return array The pairs whose end is after now, in the same order.
+     */
+    private static function running(array $events, int $now): array {
+        return array_values(array_filter($events, fn(array $pair): bool => $pair[1] > $now));
     }
 
     /**
@@ -203,7 +227,7 @@ final class soon {
         $open = [];
         foreach ($kept as $tuple) {
             $event = $tuple[0];
-            $time = self::learning_time($event, $tuple[2], $now, $to);
+            $time = self::learning_time($event, $tuple[2], $now);
             if ($time !== null) {
                 $open[] = ['time' => $time, 'id' => (int) $event->get_id(), 'value' => $tuple];
             }
@@ -224,16 +248,19 @@ final class soon {
      *
      * An entity with an action is an action event whose callback found it actionable (day::kind()
      * kept nothing else with an action): open from its sort time on, so kept while that is now or
-     * later. Any other kept entity is a standard event (kind event): kept from before its start
-     * until it ends, the entity's end being its start plus its duration (event_abstract_factory).
+     * later. Any other kept entity is a standard event (kind event), ordered by its start. It needs no
+     * check of its own: the learning range starts at now, and core's vault selected it by
+     * timestart + timeduration > now and timestart <= to (event_vault::timefield_pagination_from()
+     * and timefield_pagination_to()), so it is on now or starts inside the range. A late item, an
+     * action due before today (day::kind()), would fall to the sort-time rule as well; the kind check
+     * says it is never a row.
      *
      * @param event_interface $event The event.
      * @param string $kind Its kind from day::learning_kept().
      * @param int $now Unix time to treat as now.
-     * @param int $to The range's last instant.
      * @return int|null
      */
-    private static function learning_time(event_interface $event, string $kind, int $now, int $to): ?int {
+    private static function learning_time(event_interface $event, string $kind, int $now): ?int {
         if ($kind === 'late' || $kind === 'done') {
             return null;
         }
@@ -243,17 +270,18 @@ final class soon {
 
             return $sort >= $now ? $sort : null;
         }
-        $start = $times->get_start_time()->getTimestamp();
 
-        return $start <= $to && $times->get_end_time()->getTimestamp() > $now ? $start : null;
+        // A standard event here has not ended: the learning range starts at now, and core's vault keeps
+        // only timestart + timeduration > from (event_vault::timefield_pagination_from(), withduration),
+        // so no end check of ours could ever drop one (the stage 13a sweep found it held by no test).
+        return $times->get_start_time()->getTimestamp();
     }
 
     /**
      * The teaching view: the counted statement over the range, the time rule, the first LIMIT exported.
      *
-     * The names statement runs over every item of the range, not the first LIMIT as a day's does,
-     * because a standard event's duration (which the counted statement does not carry) decides
-     * whether it is still on before the cap applies. Still one statement.
+     * The time rule reads the counted statement's own start and duration, so the names statement
+     * runs over the first LIMIT only, as a day's does.
      *
      * @param int $userid The current user.
      * @param int $from First instant, inclusive.
@@ -279,16 +307,19 @@ final class soon {
         if (!$kept) {
             return ['items' => [], 'more' => 0, 'truncated' => $cut, 'opentimes' => []];
         }
-        $names = day::names(array_map(fn(array $item): int => (int) $item['row']->id, $kept));
         $open = [];
         foreach ($kept as $item) {
-            $time = self::teaching_time($item, $names[(int) $item['row']->id] ?? null, $now, $to);
+            $time = self::teaching_time($item, $now);
             if ($time !== null) {
                 $open[] = ['time' => $time, 'id' => (int) $item['row']->id, 'value' => $item];
             }
         }
         $shown = self::first($open);
-        $items = $shown ? day::export_teaching_items($shown, $names, $sets, self::renderer($output)) : [];
+        $items = [];
+        if ($shown) {
+            $names = day::names(array_map(fn(array $item): int => (int) $item['row']->id, $shown));
+            $items = day::export_teaching_items($shown, $names, $sets, self::renderer($output));
+        }
 
         return [
             'items' => $items,
@@ -302,24 +333,20 @@ final class soon {
      * The time a teaching item is ordered by, or null when the time rule drops it.
      *
      * Grading work (grade, gradesoon) and a class deadline (class) are action events, their time the
-     * row's timesort; an event is a standard event, its start and duration from the names statement
-     * (the row's sorttime and no duration if the event vanished in between).
+     * row's timesort; an event is a standard event, its start the row's timestart and its end that
+     * plus the row's timeduration. day::teaching_kept() already bounds the row's time to the range.
      *
      * @param array $item An item from day::teaching_kept().
-     * @param \stdClass|null $name Its row from day::names(), null if the event vanished meanwhile.
      * @param int $now Unix time to treat as now.
-     * @param int $to The range's last instant.
      * @return int|null
      */
-    private static function teaching_time(array $item, ?\stdClass $name, int $now, int $to): ?int {
+    private static function teaching_time(array $item, int $now): ?int {
         $sort = (int) $item['row']->sorttime;
         if ($item['kind'] !== 'event') {
             return $sort >= $now ? $sort : null;
         }
-        $start = $name !== null ? (int) $name->timestart : $sort;
-        $duration = $name !== null ? (int) $name->timeduration : 0;
 
-        return $start <= $to && $start + $duration > $now ? $start : null;
+        return $sort + (int) $item['row']->timeduration > $now ? $sort : null;
     }
 
     /**

@@ -39,8 +39,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * Replays one simulated week of Dashboard views against the real strip::counts() and soon::get().
  *
  * The question (ADR-016 decision 3 is the gate, decision 4 the answer): at each Dashboard view at
- * instant t, the gate opens when some time of the learning view's `upcoming` (from the counts the
- * view received) lies in [t, t + H]. The client calls soon::get() only when the gate opens, with
+ * instant t, the gate opens as strip::gate_opens() says over the learning view's `upcoming` and
+ * `events` (from the counts the view received): a deadline in [t, t + H], or an event that starts by
+ * t + H and ends after t. The client calls soon::get() only when the gate opens, with
  * the run's prune flag; when it is closed, a probe (soon::get() with no pruning, so it never changes
  * the entry) is the ground truth. Six runs, each on its own fixture from the same seed: H of 3, 6
  * and 12 hours, with and without the pruning (ADR-016). Each view falls in one class: opened
@@ -99,9 +100,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * is purged.
  *
  * Miss causes, from the earliest row of a missed answer: an event in progress whose start is before
- * the entry's build instant (absent from upcoming, ADR-016 "What the prototype corrected"); an event
- * in progress that started after the build but before the view (in upcoming, but below t); a row not
- * in upcoming at all (created after the build or past UPCOMING_LIMIT); other.
+ * the entry's build instant and that is not in the events list; an event in progress that started
+ * after the build but before the view and is not in it either (with the events list, both should be
+ * zero: ADR-016 "What the prototype corrected"); a row in neither gate list (created after the build
+ * or past UPCOMING_LIMIT); other.
  *
  * Output on STDERR: per run
  * `M3 | H=6h | prune on | views N | opened N (pct) | wasted N (pct of opened) | silent N | missed N (pct of views)
@@ -158,7 +160,7 @@ final class m3_gate_simulation_test extends advanced_testcase {
     private const CAUSES = [
         'event in progress, started before the entry was built',
         'event in progress, started after the build, before the view',
-        'row not in upcoming (created after the build, or past UPCOMING_LIMIT)',
+        'row not in the gate lists (created after the build, or past UPCOMING_LIMIT)',
         'other',
     ];
 
@@ -274,14 +276,10 @@ final class m3_gate_simulation_test extends advanced_testcase {
             if ($built === $t) {
                 $builds++;
             }
-            $upcoming = $counts['views']['learning']['upcoming'];
-            $gate = false;
-            foreach ($upcoming as $time) {
-                if ($time >= $t && $time <= $t + $horizon) {
-                    $gate = true;
-                    break;
-                }
-            }
+            $lists = $counts['views']['learning'];
+            $listsbefore = strip::gate_lists($entry, 'learning');
+            // The client's rule, shared with the tests: strip::gate_opens() over upcoming and events.
+            $gate = strip::gate_opens($lists, $t, $horizon);
 
             $this->new_request();
             $meter = budget::start();
@@ -293,7 +291,7 @@ final class m3_gate_simulation_test extends advanced_testcase {
             if ($after !== false && (int) $after['built'] !== $built) {
                 // The answer's re-validation rebuilt the entry: the next view sees that one.
                 $revalidations++;
-            } else if ($gate && $after !== false && $after['upcoming']['learning'] !== $entry['upcoming']['learning']) {
+            } else if ($gate && $after !== false && strip::gate_lists($after, 'learning') !== $listsbefore) {
                 $s['prunes']++;
             }
 
@@ -323,7 +321,7 @@ final class m3_gate_simulation_test extends advanced_testcase {
                 }
             } else if ($rows) {
                 $s['missed']++;
-                $s['causes'][$this->cause($rows, $upcoming, $t, $built)]++;
+                $s['causes'][$this->cause($rows, $lists, $t, $built)]++;
             } else {
                 $s['silent']++;
             }
@@ -605,19 +603,26 @@ final class m3_gate_simulation_test extends advanced_testcase {
     /**
      * Why a missed answer's earliest row was not in the gate.
      *
+     * An event row is looked for among the events' starts, any other row among the deadline times.
+     * With the events list (ADR-016, after M3) an event in progress at the view is in the gate
+     * whenever it was counted, so the first two causes should stay at zero.
+     *
      * @param array $rows The answer's rows, in time order.
-     * @param int[] $upcoming The counts' learning upcoming times.
+     * @param array $lists The counts' learning view: upcoming (times) and events ([start, end] pairs).
      * @param int $t The view's instant.
      * @param int $built The entry's build instant, as the counts left it.
      * @return string One of CAUSES.
      */
-    private function cause(array $rows, array $upcoming, int $t, int $built): string {
+    private function cause(array $rows, array $lists, int $t, int $built): string {
         $row = $rows[0];
         $start = (int) $row['timestart'];
-        if ($row['kind'] === 'event' && $start < $t) {
+        $known = $row['kind'] === 'event'
+            ? in_array($start, array_column($lists['events'], 0), true)
+            : in_array($start, $lists['upcoming'], true);
+        if ($row['kind'] === 'event' && $start < $t && !$known) {
             return $start < $built ? self::CAUSES[0] : self::CAUSES[1];
         }
-        if (!in_array($start, $upcoming, true)) {
+        if (!$known) {
             return self::CAUSES[2];
         }
 

@@ -90,6 +90,76 @@ final class calendar_preference_test extends advanced_testcase {
     }
 
     /**
+     * The soon member holds for the sign-in it was written under, in the shape the client writes.
+     *
+     * The control is the same member under the next sign-in: Up next is hidden until then only.
+     *
+     * @return void
+     */
+    public function test_the_soon_member_holds_for_its_own_sign_in(): void {
+        $json = json_encode(['open' => true, 'soon' => ['rank' => 2, 'signin' => 1700000000]]);
+
+        $this->assertSame(['rank' => 2, 'signin' => 1700000000], calendar_preference::soon($json, 1700000000));
+        $this->assertNull(calendar_preference::soon($json, 1700003600), 'another sign-in: shown again');
+        foreach (calendar_preference::SOON_RANKS as $rank) {
+            $stored = json_encode(['soon' => ['rank' => $rank, 'signin' => 5]]);
+            $this->assertSame($rank, calendar_preference::soon($stored, 5)['rank'], "rank {$rank}");
+        }
+        $this->assertSame([1, 2, 3], calendar_preference::SOON_RANKS, 'soon, imminent, now');
+    }
+
+    /**
+     * A missing or malformed soon member is not hidden, and never changes what the other members read.
+     *
+     * @return void
+     */
+    public function test_a_malformed_soon_member_is_not_hidden_and_breaks_nothing(): void {
+        $members = [
+            'missing' => [],
+            'not an object' => ['soon' => 2],
+            'rank below the ladder' => ['soon' => ['rank' => 0, 'signin' => 5]],
+            'rank above the ladder' => ['soon' => ['rank' => 4, 'signin' => 5]],
+            'rank as a string' => ['soon' => ['rank' => '2', 'signin' => 5]],
+            'rank as a float' => ['soon' => ['rank' => 2.5, 'signin' => 5]],
+            'no rank' => ['soon' => ['signin' => 5]],
+            'signin as a string' => ['soon' => ['rank' => 2, 'signin' => '5']],
+            'no signin' => ['soon' => ['rank' => 2]],
+        ];
+        $others = ['view' => 'teaching', 'filter' => 'todo', 'relevance' => false, 'open' => true];
+        foreach ($members as $case => $member) {
+            $json = json_encode($others + $member);
+            $this->assertNull(calendar_preference::soon($json, 5), $case);
+            $this->assertSame($others, calendar_preference::validate($json, true), "{$case}: the other members stand");
+        }
+        foreach ([null, '', 'not json', '[]', '"soon"'] as $stored) {
+            $this->assertNull(calendar_preference::soon($stored, 5), var_export($stored, true));
+        }
+        $valid = json_encode($others + ['soon' => ['rank' => 3, 'signin' => 5]]);
+        $this->assertSame(3, calendar_preference::soon($valid, 5)['rank'], 'Control: a well-formed member is read.');
+        $this->assertSame($others, calendar_preference::validate($valid, true), 'A well-formed member changes nothing either.');
+    }
+
+    /**
+     * hidden_rank() reads the current viewer's member against the viewer's own sign-in.
+     *
+     * @return void
+     */
+    public function test_hidden_rank_reads_the_viewers_own_sign_in(): void {
+        global $USER;
+
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $USER->currentlogin = 1700000000;
+
+        $this->assertNull(calendar_preference::hidden_rank(), 'nothing stored');
+        set_user_preference(calendar_preference::NAME, json_encode(['soon' => ['rank' => 2, 'signin' => 1700000000]]), $user);
+        $this->assertSame(2, calendar_preference::hidden_rank());
+        $USER->currentlogin = 1700086400;
+        $this->assertNull(calendar_preference::hidden_rank(), 'the next sign-in shows it again');
+    }
+
+    /**
      * read() takes the current user's stored state and the relevance default from the setting.
      *
      * @return void
