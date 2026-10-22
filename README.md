@@ -58,6 +58,8 @@ the cards always paint first.
   action; the ring on *Today* in the strip marks the same moment. It appears only while something
   is inside the horizon (`calendar_soon`) and asks nothing on a calm day. A reader can hide it
   until the urgency rises.
+
+  ![Up next under the closed strip: an event on now and an assignment due in 40 minutes with its countdown, the ring on Today above](docs/screenshots/calendar-soon.png)
 - **Scrolling.** The row holds the whole window and scrolls with a trackpad, touch or the
   keyboard (arrows, Page Up and Down, Home and End), asking the server nothing. It opens with five
   past days before today (three on a narrow block); two arrows over its ends move two weeks at a
