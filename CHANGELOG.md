@@ -5,24 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each Moodle version has a branch of its own, and each branch numbers its versions in the
-namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Moodle 5.2,
-`20260420XX`; `MOODLE_503_STABLE` is Moodle 5.3, `20261005XX`. Releases are named
-`v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
-[`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
+namespace of its Moodle version: `main` (identical to `MOODLE_503_STABLE`) is Moodle 5.3,
+`20261005XX`; `MOODLE_502_STABLE` is Moodle 5.2, `20260420XX`. Releases are named
+`v<Moodle version>-r<N>`, counted per branch, and every branch carries this same file. The
+design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measurements in
+[`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100500) - unreleased
+## Unreleased
 
-First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
+## v5.3-r1 (2026100507) - 2026-10-22
+
+First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch (`main`), `MATURITY_BETA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
 `MOODLE_503_STABLE` branch.
 
+### Added
+
+- The calendar strip's closed state (2026100502, the same work as v5.2-r1's 2026042001): the
+  strip opens and closes from its heading and each user's choice is remembered; closed, it is
+  one line of plain counts by period from the new read service `block_compass_get_strip_counts`
+  (`calendar_start` decides the first state, closed by default). There is no permanent reload
+  control any more: *Try again* and *Reload page* appear only once a load has failed. With
+  `block_feedback_tracker` installed, the teaching view counts the submissions waiting from that
+  plugin's ledger where it tracks the course (`calendar_grading`), and core's count reads the
+  assignments' index. Details under v5.2-r1 below.
+- The calendar strip scrolls across the whole window (2026100503, the same work as v5.2-r1's
+  2026042002): one native scroller with a day every 50 px, five past days at home (three on a
+  narrow block), two arrows over its ends, a map under the row that scrubs, hover only on a day
+  wholly in view, and one mark per kind in four slots. Details under v5.2-r1 below.
+- The calendar strip's visual pass and contrast (2026100504, the same work as v5.2-r1's
+  2026042004): short action verbs with core's whole name in the title and the accessible name,
+  two-line clamps and ellipses with their whole text in a title, the teaching line's grading cell
+  and icon switch, and every fill paired with a text colour that keeps 4.5:1 in both colour modes,
+  the lighting's dim included. Details under v5.2-r1 below.
+- Up next (2026100506, the same work as v5.2-r1's 2026042008 and 2026042009; ADR-016): under
+  the calendar, above tier 1, while something open is inside the horizon (`calendar_soon`: off,
+  3, 6 or 12 hours; default 6), at most two rows with the clock time and a countdown, the
+  activity, the course, the kind and the action, then one line for the rest that opens the strip
+  on today. Under an hour the countdown is an amber pill and Today carries an amber ring; a
+  meeting on now shows "Now · until" and an ink ring. The region slides in (none under reduced
+  motion), can be hidden until the urgency rises, lights its course's card when pointed at, and
+  announces a rise once. It asks the new read service `block_compass_get_soon` only when the gate
+  carried by the counts opens, so a calm day costs no request; `get_strip` and
+  `get_strip_counts` return each view's gate lists and the server's `now`, `get_day` returns
+  `timeduration`, and the `block_compass_calendar` preference gains its `soon` member. The new
+  component is declared in `js/esm/src/swizzle.json`, closed to theme overrides like the others.
+
 ### Changed
 
-- Moodle 5.3 port: see MOODLE_503_STABLE.
+- *All courses* has the fleet's filter line (2026100505, the same work as v5.2-r1's 2026042006;
+  ADR-015). One line holds the scope (All, New, Scheduled, Awaiting approval: a radio group of
+  counted cells, a zero cell drawn only when chosen), the search, a favourites star that combines
+  with the scope, **Filters** (the course field panel) and **Organise** (the sort: By category,
+  A-Z, Recent), then the list/cards switch. The line folds on its own width in four steps:
+  Filters loses its word, the search becomes an icon, then two lines with the scope on the second
+  and the view inside Organise. The search grows over the line when the line is narrow, with a
+  close button; it suggests filters (with the number each would show) and courses as you type,
+  and `/` focuses it. The field values in force show as chips under the line, with *Clear all*
+  from two. The panel opens as a popover under the line, or as a bottom sheet on a narrow block,
+  and now starts closed. Pointing at a scope cell, the star, a panel option or a suggestion
+  lights the courses it would keep; nothing is asked of the server for it. Above
+  `inventory_max` the line shows no counts and asks nothing new. The four new components are
+  declared in `js/esm/src/swizzle.json`, closed to theme overrides like the others.
+- The remembered toolbar (`block_compass_explore`) is now `{sort, scope, star, cf, panel}`; a
+  state stored with the old status chip is read as the matching scope, or as the star for
+  Favourites.
+- The institutional crests on cards come from the block's own hook,
+  `\block_compass\hook\course_badges`, which any theme or plugin answers from its `db/hooks.php`;
+  the block no longer names a theme (ADR-013, amendment of 2026-10-14). The answering component
+  decides which courses the current user may see a crest for, the block keeps at most three a
+  course and ignores answers for courses it did not ask about, and a listener that fails costs
+  the crests, never the page. The *Show the theme's institutional badges* setting is offered
+  while something answers the hook, and its description no longer names a theme.
+- The modulepreload hints follow Moodle 5.3's import map. Each URL is the one the page's map
+  resolves the module to: on 5.3 core modules and the bundle are served through the current
+  theme (`@moodle/lms/theme-<theme>/...`), so the 5.2 URLs pointed at files the loader never
+  requested. Modules core already preloads from the head (React) are no longer repeated, and
+  `core/pending`, which 5.3's `react_autoinit` imports, is announced too: seven hints.
+- A course queued for asynchronous deletion (5.3, *enablecourseasyncdeletion*) leaves every
+  list at once, including for users who may see hidden courses, instead of staying in *All
+  courses* until the cron deletes it. Core marks such a course without an event, so the block
+  listens to the `before_course_deleted` hook, which drops the course's cache entry now and at the
+  end of the request (an aborted deletion leaves the course live), and the entry records `deletioninprogress`.
+- Cards and rows are painted with the colour behind the block: the block card on the Dashboard
+  and the page background on the block's own page. Boost 5.3's page is light grey while its
+  cards stay white, and the 5.2 surface would have turned the cards grey inside a white block.
+- In dark mode the brand ink is mixed at 30 % instead of 35 %, so it keeps 4.5:1 on Boost
+  5.3's raised card surface, which is lighter than the page.
+- The build is Moodle 5.3's: each module has a minified file and a `.dev.js` twin with its map
+  (the 5.2 `.js.map` files are gone), and `js/esm/src/swizzle.json` closes every component to
+  theme overrides, because the page loads the bundle, which contains them all.
 
-## v5.2-r1 (2026042009) - unreleased
+## v5.2-r1 (2026042010) - 2026-10-22
 
-First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
+First release, for Moodle 5.2 only, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It needs
+`local_unlistedcourses` 2026042003 or later.
 
 ### Changed
 
@@ -212,5 +289,5 @@ php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
 
-A site that installed `2026042000` to `2026042004` from this branch upgrades to `2026042005` in
-place.
+A site that installed a build of this release from its branch upgrades in place: `2026042000` to
+`2026042009` from `MOODLE_502_STABLE`, `2026100500` to `2026100506` from `MOODLE_503_STABLE`.

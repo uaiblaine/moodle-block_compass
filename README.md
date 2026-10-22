@@ -1,8 +1,8 @@
 Compass (block_compass)
 =======================
 
-[![Moodle Plugin CI: main (Moodle 5.2)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3Amain)
-[![Moodle Plugin CI: MOODLE_503_STABLE (Moodle 5.3)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=MOODLE_503_STABLE)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3AMOODLE_503_STABLE)
+[![Moodle Plugin CI: main (Moodle 5.3)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3Amain)
+[![Moodle Plugin CI: MOODLE_502_STABLE (Moodle 5.2)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=MOODLE_502_STABLE)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3AMOODLE_502_STABLE)
 
 My courses by relevance, in three tiers, with a calendar strip above them. Built for very
 large sites.
@@ -213,17 +213,17 @@ Requirements
 
 | Branch | Moodle | PHP | Maturity | Version | Release |
 |---|---|---|---|---|---|
-| `main` (= `MOODLE_502_STABLE`) | 5.2 | 8.3 or later | Alpha | 2026042000 | v5.2-r1 |
-| `MOODLE_503_STABLE` | 5.3 | 8.3 or later | Alpha | 2026100500 | v5.3-r1 |
+| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | 2026100507 | v5.3-r1 |
+| `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | 2026042010 | v5.2-r1 |
 
 Each branch supports exactly one Moodle version (`$plugin->supported`). Moodle 4.5 and 5.1 are
 not supported: the client is React, which core builds and serves from 5.2 on.
 
 - **Required: [`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)**
-  from the branch matching your Moodle version (`main` for 5.2, version 2026042003 or later;
-  `MOODLE_503_STABLE` for 5.3). It decides what each enrolment means (enrolled, starting later,
-  awaiting approval, on the waiting list), and Compass asks it rather than keeping a rule of its
-  own. Install it first.
+  from the branch matching your Moodle version (`MOODLE_502_STABLE` for 5.2, version 2026042003
+  or later; `MOODLE_503_STABLE`, its `main`, for 5.3, version 2026100505 or later). It decides
+  what each enrolment means (enrolled, starting later, awaiting approval, on the waiting list),
+  and Compass asks it rather than keeping a rule of its own. Install it first.
 - PHP's `intl` extension, which Moodle itself requires.
 - Recommended: a shared in-memory cache store, Redis by preference (see *Cache stores*).
 - Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
@@ -448,8 +448,8 @@ Troubleshooting
 Development
 -----------
 
-- Development happens on `main` (Moodle 5.2); fixes are carried to `MOODLE_503_STABLE`, whose
-  `version.php` and CI workflow differ on purpose.
+- Development happens on `main` (Moodle 5.3, identical to `MOODLE_503_STABLE`); fixes are
+  carried to `MOODLE_502_STABLE`, whose `version.php` and CI workflow differ on purpose.
 - Tests: PHPUnit (a behaviour test and a budget test beside every web service), Behat smoke
   scenarios with core's axe step, and mutation gates (`mutations/gates.conf`, one guard per
   line with the test that must fail when the guard is removed).
