@@ -25,11 +25,11 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'block_compass';
-$plugin->version = 2026100506;
+$plugin->version = 2026100507;
 $plugin->release = 'v5.3-r1';
 $plugin->requires = 2026100500;
 $plugin->supported = [503, 503];
-$plugin->maturity = MATURITY_ALPHA;
+$plugin->maturity = MATURITY_BETA;
 $plugin->dependencies = [
     'local_unlistedcourses' => 2026100505,
 ];

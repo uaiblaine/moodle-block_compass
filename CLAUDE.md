@@ -2,7 +2,7 @@
 
 This file is auto-loaded whenever Claude works in this repository. **Fleet-wide standards live
 in `~/dev/CLAUDE.md`** and are not repeated here. This file keeps what is true only for this
-plugin, where being **Moodle 5.3-only on this branch** (`MOODLE_503_STABLE`, ALPHA; `main` = `MOODLE_502_STABLE` is the 5.2 branch) changes the fleet default, and the plan's rules, each
+plugin, where being **Moodle 5.3-only on this branch** (`main` = `MOODLE_503_STABLE`, BETA; `MOODLE_502_STABLE` is the 5.2 branch) changes the fleet default, and the plan's rules, each
 with its one-line reason; the measurements behind them are in `docs/CLAUDE-long-form.md` (the
 previous version of this file, kept whole, not auto-loaded) and in the ADRs. **Read `PLAN.md`
 before any edit**; an accepted ADR supersedes the plan's wording.
@@ -11,7 +11,7 @@ Plugin context: a Moodle **block** ("Compass") that replaces the time-based "My 
 relevance-based listing in three tiers: attention (full cards, first paint), frontier (a ghost
 card with a count) and exploration (a light inventory grouped by category, filtered in the DOM).
 Sized for a million users, so **every endpoint has a query budget enforced by a test**.
-**Moodle 5.3 only on this branch** (`$plugin->supported = [503, 503]`, version `20261005XX`; the 5.2 branch is `main`, `20260420XX`); **one hard dependency,
+**Moodle 5.3 only on this branch** (`$plugin->supported = [503, 503]`, version `20261005XX`; the 5.2 branch is `MOODLE_502_STABLE`, `20260420XX`); **one hard dependency,
 `local_unlistedcourses`** (ADR-013), which decides what every enrolment row means through
 `classes/local/relationship.php` and nowhere else. No own tables: MUC entries, three user
 preferences (`block_compass_view`, `block_compass_explore`, `block_compass_calendar`: one JSON of
@@ -363,7 +363,7 @@ inherited Portuguese document.
 
 Manual only (`!mdlshield review` / `review full`, by the owner), 100 a month shared by every
 repo, 3,000 effective lines soft limit (`mdl mdlshield size`). Config and context read from
-`main` only; `moodle.versions: ["5.2"]`; `fail_on.severity: high`. Ask for a review early on any
+`main` only; `moodle.versions: ["5.3"]`; `fail_on.severity: high`. Ask for a review early on any
 change to the seven services, the relationship door or the hooks, after the
 `security-diff-read` skill. Rules and reasons: fleet file, "MDL Shield reviews".
 
