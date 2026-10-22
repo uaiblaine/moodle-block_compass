@@ -129,4 +129,26 @@ final class bundle_test extends basic_testcase {
             }
         }
     }
+
+    /**
+     * No component is offered to a theme's swizzle: the page mounts the bundle, which inlines them.
+     *
+     * Moodle 5.3's build writes js/esm/src/swizzle.json, defaulting every component it finds to
+     * risky/risky (MDL-88509), and core's swizzle wizard lets a theme eject or wrap any component
+     * not declared prohibited. A theme override of @moodle/lms/block_compass/Card would be served
+     * for that specifier - which nothing on the page imports, because the page loads the bundle
+     * with Card inside it - so the override would silently do nothing. Every entry is prohibited;
+     * a component added without an entry is a build diff that `mdl ci` reports.
+     *
+     * @return void
+     */
+    public function test_no_component_is_offered_to_a_themes_swizzle(): void {
+        $declared = json_decode((string) file_get_contents(self::ROOT . '/js/esm/src/swizzle.json'), true);
+        $this->assertIsArray($declared, 'js/esm/src/swizzle.json is missing: run the 5.3 build and commit it');
+        // Vacuity guard: the components were declared at all.
+        $this->assertGreaterThan(20, count($declared));
+        foreach ($declared as $module => $actions) {
+            $this->assertSame(['eject' => 'prohibited', 'wrap' => 'prohibited'], $actions, $module);
+        }
+    }
 }

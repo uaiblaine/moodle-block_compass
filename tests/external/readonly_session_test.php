@@ -49,7 +49,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * filter, and is reached through core's raw retrieval strategy (calendar_set_filters,
  * calendar/lib.php:1633-1654). In a read-only session that write is dropped and the next request
  * recomputes the same default. Core declares 'readonlysession' => true on
- * core_calendar_get_action_events_by_timesort (lib/db/services.php:279), which takes the same
+ * core_calendar_get_action_events_by_timesort (lib/db/services.php:283), which takes the same
  * path. get_strip_counts gets no tolerance: its counts pass never reaches core's vault. Every other
  * key still fails; test_the_tolerance_is_one_key_for_the_vault_services is the control. get_soon is
  * the third: its learning view is get_day's pipeline over a range (day::learning_kept()), the same

@@ -1,0 +1,110 @@
+{
+  "Archive": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Block": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "CalendarCard": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "CalendarLine": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "CalendarStrip": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Card": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Crests": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Explore": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "FilterLine": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "FilterPanel": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "FilterToggle": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Ghost": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Group": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "OrganiseMenu": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Platter": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Progress": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "RetryNotice": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Row": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "RowCard": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "RowList": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "ScopeGroup": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Star": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "StarToggle": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "StatePill": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "Strip": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "UpNext": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
+  "ViewToggle": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  }
+}

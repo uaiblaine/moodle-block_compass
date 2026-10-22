@@ -1,5 +1,4 @@
-import{useLayoutEffect as u,useRef as p}from"react";import{jsx as s,jsxs as c}from"react/jsx-runtime";var b=({message:l,retrying:t,config:r,onRetry:m})=>{let{labels:o}=r,i=t?"btn btn-sm btn-outline-secondary disabled":"btn btn-sm btn-outline-secondary",n=p(null);return u(()=>()=>{let e=n.current;if(!e||document.activeElement!==e)return;let a=e.closest(".block_compass");(e.closest(".compass-group")?.querySelector("summary")??a?.querySelector(".compass-cal-toggle")??a?.querySelector(".compass-body")??null)?.focus()},[]),c("div",{className:"alert alert-warning compass-error compass-retry",role:"alert",children:[s("span",{className:"compass-retry-message",children:l}),c("span",{className:"compass-retry-actions",children:[s("button",{type:"button",ref:n,className:i,"aria-disabled":t||void 0,onClick:()=>{t||m()},children:t?o.reloading:o.retry}),s("button",{type:"button",className:"btn btn-link btn-sm compass-linkbtn",onClick:()=>window.location.reload(),children:o.reloadpage})]})]})},f=b;export{f as default};
-/**
+import{useLayoutEffect as u,useRef as p}from"react";import{jsx as s,jsxs as c}from"react/jsx-runtime";/**
  * The way back from every failure.
  *
  * Amber rather than error red, because the failure is recoverable; role="alert", so it is
@@ -15,5 +14,4 @@ import{useLayoutEffect as u,useRef as p}from"react";import{jsx as s,jsxs as c}fr
  * @module     block_compass/RetryNotice
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=RetryNotice.js.map
+ */const b=({message:l,retrying:t,config:r,onRetry:m})=>{const{labels:o}=r,i=t?"btn btn-sm btn-outline-secondary disabled":"btn btn-sm btn-outline-secondary",n=p(null);return u(()=>()=>{const e=n.current;if(!e||document.activeElement!==e)return;const a=e.closest(".block_compass");(e.closest(".compass-group")?.querySelector("summary")??a?.querySelector(".compass-cal-toggle")??a?.querySelector(".compass-body")??null)?.focus()},[]),c("div",{className:"alert alert-warning compass-error compass-retry",role:"alert",children:[s("span",{className:"compass-retry-message",children:l}),c("span",{className:"compass-retry-actions",children:[s("button",{type:"button",ref:n,className:i,"aria-disabled":t||void 0,onClick:()=>{t||m()},children:t?o.reloading:o.retry}),s("button",{type:"button",className:"btn btn-link btn-sm compass-linkbtn",onClick:()=>window.location.reload(),children:o.reloadpage})]})]})};var f=b;export{f as default};

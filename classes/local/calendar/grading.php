@@ -80,7 +80,7 @@ final class grading implements grading_source {
      * Whether the count comes from block_feedback_tracker's ledger where it covers a course.
      *
      * Presence is asked of core's component list before anything of the plugin is touched, as
-     * {@see days_off::tracked()} asks, and the plugin must
+     * {@see days_off::tracked()} and {@see \block_compass\local\theme_badges} ask, and the plugin must
      * be installed (its version recorded), or its table does not exist yet. Reads nothing past the
      * config cache, which every request has warm. The presence is injectable so that tests can
      * exercise both branches whether or not the site has the plugin.

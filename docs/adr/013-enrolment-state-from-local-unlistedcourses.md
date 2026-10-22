@@ -3,7 +3,7 @@
 **Status:** Accepted (2026-10-07; the maintainer's decisions of 2026-10-06, recorded in
 `moodle-dev/docs/enrolment-status-matrix/decisions.md`, "Owner answers, 2026-10-06", and D6);
 amended 2026-10-08 (the maintainer's reversal of D6 for tier 1: a Starts-soon strip) and
-2026-10-16 on `main` and `MOODLE_502_STABLE` (decision 9: the crests come from the block's own hook, not
+2026-10-14 on `MOODLE_503_STABLE` (decision 9: the crests come from the block's own hook, not
 from a named theme); both amendments close this record
 **Date:** 2026-10-07
 **Phase:** Stage 5d of the fleet's enrolment-status work, in three stacked pull requests
@@ -177,9 +177,8 @@ since R4: tier 3's "No completion configured" never reached a teacher until this
 
 ### 9. The theme's crests, through its one public door
 
-*Amended 2026-10-16: the crests come from the block's own hook; see the
-last section of this record. The text below is the original design, kept as the record of what
-the amendment replaced.*
+*Amended 2026-10-14 on `MOODLE_503_STABLE`: the crests come from the block's own hook; see the
+last section of this record. The text below is the 5.2 design, still true on `main`.*
 
 With a theme answering the hook installed (the institution's Boost Union child), tier 1 cards and tier 3 cards and rows show the
 course's institutional crests (at most three), read only through
@@ -295,11 +294,12 @@ test of the theme's real answer runs only where the theme is installed (m502).
   `get_attention_test::test_the_starts_soon_strip_adds_no_read_to_the_first_paint`,
   `cards_test::test_a_starts_soon_card_carries_its_start_and_nothing_an_active_card_does`.
 
-## Amendment (2026-10-16, `main` and `MOODLE_502_STABLE`; first made on 2026-10-14 on `MOODLE_503_STABLE`): the crests through the block's own hook
+## Amendment (2026-10-14, `MOODLE_503_STABLE` only): the crests through the block's own hook
 
-**Decided by** the maintainer on 2026-10-14 and 2026-10-16: the institution's previous theme is discontinued and its
-successor, `theme_dimensions`, answers the same question; no plugin is to name a
-theme again. **Amends** decision 9 on every branch (5.2 and 5.3). Decision 9's bounds, cleaning, setting, return structure and one-call-per-response
+**Decided by** the maintainer on 2026-10-14: the institution's previous theme is discontinued and its
+successor on Moodle 5.3, `theme_dimensions`, answers the same question; no plugin is to name a
+theme again. **Amends** decision 9 on this branch alone; `main` (5.2) keeps the named callback,
+with no retrofit. Decision 9's bounds, cleaning, setting, return structure and one-call-per-response
 rule stand.
 
 ### Decision
@@ -331,7 +331,7 @@ rule stand.
 - Any theme or plugin can give Compass crests, and a site with several answering components gets
   them all, still bounded at three a course.
 - The answering theme moves its callback from `lib.php`'s `<theme>_course_badges()` to a hook
-  callback in its `db/hooks.php`. Until it does, a site shows no crests and no setting.
+  callback in its `db/hooks.php`. Until it does, a 5.3 site shows no crests and no setting.
 - The privacy position is unchanged: no tables, no personal data; the hook carries course ids
   only.
 - The crest tests no longer skip on a stack without a theme: they replace core's hook manager
@@ -340,7 +340,7 @@ rule stand.
 
 ### Evidence
 
-- Core's hook manager (5.2 and 5.3): `public/lib/classes/hook/manager.php`, `dispatch()` (no try/catch,
+- Core's hook manager on 5.3: `public/lib/classes/hook/manager.php`, `dispatch()` (no try/catch,
   returns at once with no listener) and `get_callbacks_for_hook()` (the `disabled` flag).
 - Tests: `theme_badges_test::test_with_no_listener_there_is_nothing_and_no_read`,
   `theme_badges_test::test_a_listener_answers_for_the_asked_ids_only`,

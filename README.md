@@ -1,8 +1,8 @@
 Compass (block_compass)
 =======================
 
-[![Moodle Plugin CI: main (Moodle 5.2)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3Amain)
-[![Moodle Plugin CI: MOODLE_503_STABLE (Moodle 5.3)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=MOODLE_503_STABLE)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3AMOODLE_503_STABLE)
+[![Moodle Plugin CI: main (Moodle 5.3)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3Amain)
+[![Moodle Plugin CI: MOODLE_502_STABLE (Moodle 5.2)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml/badge.svg?branch=MOODLE_502_STABLE)](https://github.com/uaiblaine/moodle-block_compass/actions/workflows/ci.yml?query=branch%3AMOODLE_502_STABLE)
 
 My courses by relevance, in three tiers, with a calendar strip above them. Built for very
 large sites.
@@ -90,7 +90,12 @@ the cards always paint first.
 
   ![The Teaching view of the strip, open: days carrying grading work, and a day card with the submissions waiting to be graded and the Grade button](docs/screenshots/calendar-teaching.png)
 
-  ![The teaching line, closed: the To grade cell, a divider, then Overdue, Today, Tomorrow, Week and Later](docs/screenshots/calendar-line-teaching.png)
+  ![The teaching line, closed, on a site without block_feedback_tracker: the icon switch, then Today, Tomorrow, This week and Later, and a note that grading work shows when the strip is open](docs/screenshots/calendar-line-teaching.png)
+
+  The picture above is from a site without `block_feedback_tracker`. Where that plugin is
+  installed and covers the teacher's courses, the line also carries the *To grade* cell, a divider
+  and then the periods; the *To grade* cell and the days off from its calendar are not in any
+  picture here.
 
 - **Three styles** (`calendar_style`): dots, a ring per day (fewer days at once), or pulse bars.
 
@@ -213,17 +218,17 @@ Requirements
 
 | Branch | Moodle | PHP | Maturity | Version | Release |
 |---|---|---|---|---|---|
-| `main` (= `MOODLE_502_STABLE`) | 5.2 | 8.3 or later | Alpha | 2026042000 | v5.2-r1 |
-| `MOODLE_503_STABLE` | 5.3 | 8.3 or later | Alpha | 2026100500 | v5.3-r1 |
+| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | 2026100507 | v5.3-r1 |
+| `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | 2026042010 | v5.2-r1 |
 
 Each branch supports exactly one Moodle version (`$plugin->supported`). Moodle 4.5 and 5.1 are
 not supported: the client is React, which core builds and serves from 5.2 on.
 
 - **Required: [`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)**
-  from the branch matching your Moodle version (`main` for 5.2, version 2026042003 or later;
-  `MOODLE_503_STABLE` for 5.3). It decides what each enrolment means (enrolled, starting later,
-  awaiting approval, on the waiting list), and Compass asks it rather than keeping a rule of its
-  own. Install it first.
+  from the branch matching your Moodle version (`MOODLE_502_STABLE` for 5.2, version 2026042003
+  or later; `MOODLE_503_STABLE`, its `main`, for 5.3, version 2026100505 or later). It decides
+  what each enrolment means (enrolled, starting later, awaiting approval, on the waiting list),
+  and Compass asks it rather than keeping a rule of its own. Install it first.
 - PHP's `intl` extension, which Moodle itself requires.
 - Recommended: a shared in-memory cache store, Redis by preference (see *Cache stores*).
 - Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
@@ -360,7 +365,7 @@ public static function course_badges(\block_compass\hook\course_badges $hook): v
 
 The answering component decides which courses the current user may see a crest for; Compass
 keeps at most three a course and ignores an answer for a course it did not ask about. The
-contract is the hook class's docblock and ADR-013 decision 9, amended 2026-10-16.
+contract is the hook class's docblock and ADR-013 decision 9, amended 2026-10-14.
 
 
 Capabilities
@@ -448,8 +453,8 @@ Troubleshooting
 Development
 -----------
 
-- Development happens on `main` (Moodle 5.2); fixes are carried to `MOODLE_503_STABLE`, whose
-  `version.php` and CI workflow differ on purpose.
+- Development happens on `main` (Moodle 5.3, identical to `MOODLE_503_STABLE`); fixes are
+  carried to `MOODLE_502_STABLE`, whose `version.php` and CI workflow differ on purpose.
 - Tests: PHPUnit (a behaviour test and a budget test beside every web service), Behat smoke
   scenarios with core's axe step, and mutation gates (`mutations/gates.conf`, one guard per
   line with the test that must fail when the guard is removed).
@@ -457,7 +462,9 @@ Development
   branch's Moodle version, on PHP 8.3 and 8.4 against PostgreSQL and MariaDB, with the static
   gates at zero warnings.
 - The client is TypeScript and React under `js/esm/src`, built into `js/esm/build` (tracked,
-  including the bundle and its manifest).
+  including the bundle and its manifest). On Moodle 5.3 the build also writes a `.dev.js` twin
+  of each module and `js/esm/src/swizzle.json`, which declares every component closed to theme
+  overrides: the page loads the bundle, so an override of a single module would never apply.
 - Design decisions: [`docs/adr/`](docs/adr/README.md). Measurements: [`docs/perf/`](docs/perf/).
   Changes: [`CHANGELOG.md`](CHANGELOG.md).
 

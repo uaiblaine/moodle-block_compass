@@ -847,7 +847,8 @@ with. The decision text above is kept as the maintainer reviewed it.
       checks text, not marks).
 
 11. **The strip closed, a remembered collapse, the counts service, no permanent reload, and the
-    grading source (the maintainer's decisions of 2026-10-14), version 2026042001.** Accepted.
+    grading source (the maintainer's decisions of 2026-10-14), version 2026042001 (2026100501 on
+    MOODLE_503_STABLE).** Accepted.
     The design is `docs/mockup-calendar-strip/Slim.dc.html` and its record `slim-notes.md`
     (option B, decisions 1 to 8).
     - **No permanent reload control.** The always-visible Reload (`Reload.tsx`, the content head)
@@ -968,7 +969,8 @@ with. The decision text above is kept as the maintainer reviewed it.
       localised text, so it records `current_language()` and is a miss, rebuilt whole, in another
       language (`cal_cache_lang.pl`, `cal_strip_records_lang.pl`).
     - **Behat.** The calendar scenario starts closed and checks the line and axe. It makes opening
-      fail at the transport: a test step wraps `XMLHttpRequest` to send `get_strip` to a missing
+      fail at the transport: a test step wraps the page's transport (`XMLHttpRequest` on 5.2, `fetch`
+      on 5.3, whose `core/ajax` is an ES module) to send `get_strip` to a missing
       script, so nothing in the plugin knows about it. It checks that the way back appears only
       then and that Try again brings the row, then opens a day as before, with axe in both modes.
 

@@ -1,4 +1,3 @@
-var n=new Map,r=e=>{let t=n.get(e);return t===void 0&&(t={__html:e},n.set(e,t)),t};export{r as markup};
 /**
  * A stable object for dangerouslySetInnerHTML.
  *
@@ -11,5 +10,4 @@ var n=new Map,r=e=>{let t=n.get(e);return t===void 0&&(t={__html:e},n.set(e,t)),
  * @module     block_compass/markup
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=markup.js.map
+ */const n=new Map,r=e=>{let t=n.get(e);return t===void 0&&(t={__html:e},n.set(e,t)),t};export{r as markup};

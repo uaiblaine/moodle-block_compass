@@ -16,8 +16,9 @@
 /**
  * The one place that knows a React component cannot import an AMD module.
  *
- * The import map Moodle serves has six keys and none of them is AMD: the prefix
- * `@moodle/lms/`, the design system, and react and react-dom with a subpath key each
+ * None of the import map's keys is AMD: the prefix `@moodle/lms/` (with a
+ * theme-qualified twin per installed theme on 5.3), the design system, react and
+ * react-dom with a subpath key each, and the bundled libraries such as bootstrap
  * (`lib/classes/output/requirements/import_map.php`, add_standard_imports).
  * A bare import of `core/ajax` from a .tsx is therefore a resolution failure
  * at runtime, and react_autoinit turns that into a console.error and a

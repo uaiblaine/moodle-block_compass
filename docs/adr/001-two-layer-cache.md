@@ -524,6 +524,39 @@ three mutation gates (`observer_user_deleted_inventory`, `observer_user_deleted_
 - `lib/moodlelib.php` (5.2): `delete_user()` (3603) calls `enrol_user_delete()` (3664) and
   deletes the `user_enrolments` rows (3688) before it triggers `user_deleted` (3771–3786).
 
+## Amendment (2026-10-14, `MOODLE_503_STABLE` only): a course being deleted
+
+**Status: Proposed**, written with the 5.3 port and waiting for the maintainer's review.
+
+Moodle 5.3 can delete a course asynchronously (`moodlecourse/enablecourseasyncdeletion`, off by
+default). `delete_course()` dispatches `before_course_deleted`, then
+`helper::action_course_mark_for_deletioninprogress()` sets `visible = 0` and
+`deletioninprogress = 1` with `set_field()` - no `course_updated` - and queues
+`course_async_deletion`; `course_deleted` fires only when the cron deletes the course
+(`public/lib/moodlelib.php:4494-4530`, `public/course/classes/management/helper.php:702-724`).
+Meanwhile `require_login()` refuses the course (`deletingcourseasynchronously_exception`). The
+`coursemeta` entry, which nothing invalidates in that window, would keep it listed in tier 3.
+
+Decision: the entry carries `deletioninprogress` (nullable in `{course}`, 0 when null), and the
+plugin listens to `before_course_deleted` and drops the cached entry, now and again at the end
+of the request (`course_meta::forget_until_marked()`, a `core_shutdown_manager` function). The
+hook runs before the effect and the hook manager has no try/catch, so a later listener of another
+plugin can abort `delete_course()` with the course still live: a rewrite to `visible = 0`,
+`deletioninprogress = 1` (an earlier draft) has no TTL and would hide a live course from everyone
+until a purge. Deciding from the recorded fact, a refill after the request reads the two columns
+as the database finally holds them, marked if the deletion went ahead, live if it was aborted;
+the second delete drops anything a request in between refilled. Readers leave a
+marked course out for everyone, the holder of `viewhiddencourses` included: tier 3 through
+`course_meta::is_being_deleted()`, tier 1 through `COALESCE(c.deletioninprogress, 0) = 0` in
+`attention::visible_sql()`. The calendar strip's course set already requires `c.visible = 1`.
+The per-user layers are still never invalidated from course events; the `calendarstrip` entry
+keeps the course for at most its 30 minutes, as for any course change.
+
+Pinned by `explore_test::test_a_course_queued_for_deletion_leaves_tier_3_at_once`,
+`…_is_left_out_for_a_hidden_course_viewer`, `attention_test::test_a_course_queued_for_deletion_leaves_tier_1_for_a_hidden_course_viewer`
+and `hook_callbacks_test::test_queuing_a_deletion_drops_the_course_entry` and its three siblings, with the gates
+`deletion_hook_forget`, `deletion_forget_now`, `deletion_forget_shutdown`, `explore_deleting` and `attention_not_deleting`.
+
 ## Amendment (2026-10-15): localised text in a cache
 
 None of the four layers above stores localised text (raw names, ids and numbers; the formatting

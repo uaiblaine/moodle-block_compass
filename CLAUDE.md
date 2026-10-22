@@ -2,7 +2,7 @@
 
 This file is auto-loaded whenever Claude works in this repository. **Fleet-wide standards live
 in `~/dev/CLAUDE.md`** and are not repeated here. This file keeps what is true only for this
-plugin, where being **Moodle 5.2-only** changes the fleet default, and the plan's rules, each
+plugin, where being **Moodle 5.3-only on this branch** (`main` = `MOODLE_503_STABLE`, BETA; `MOODLE_502_STABLE` is the 5.2 branch) changes the fleet default, and the plan's rules, each
 with its one-line reason; the measurements behind them are in `docs/CLAUDE-long-form.md` (the
 previous version of this file, kept whole, not auto-loaded) and in the ADRs. **Read `PLAN.md`
 before any edit**; an accepted ADR supersedes the plan's wording.
@@ -11,16 +11,25 @@ Plugin context: a Moodle **block** ("Compass") that replaces the time-based "My 
 relevance-based listing in three tiers: attention (full cards, first paint), frontier (a ghost
 card with a count) and exploration (a light inventory grouped by category, filtered in the DOM).
 Sized for a million users, so **every endpoint has a query budget enforced by a test**.
-**Moodle 5.2 only** (`$plugin->supported = [502, 502]`); **one hard dependency,
+**Moodle 5.3 only on this branch** (`$plugin->supported = [503, 503]`, version `20261005XX`; the 5.2 branch is `MOODLE_502_STABLE`, `20260420XX`); **one hard dependency,
 `local_unlistedcourses`** (ADR-013), which decides what every enrolment row means through
 `classes/local/relationship.php` and nowhere else. No own tables: MUC entries, three user
 preferences (`block_compass_view`, `block_compass_explore`, `block_compass_calendar`: one JSON of
 `view`, `filter`, `relevance` and `open`, validated member by member on read) and three
 `prewarm_*` config rows.
 Favourites are core's course star; archiving writes the Course overview block's
-`block_myoverview_hidden_course_*` preferences. CI: one MAH job (`MOODLE_502_STABLE`, full
-matrix, `plugin-dependencies: local_unlistedcourses`). Development on m502, m502b for parallel
-runs; mounted at `blocks/compass`.
+`block_myoverview_hidden_course_*` preferences. CI: one MAH job (`MOODLE_503_STABLE`, full
+matrix, `plugin-dependencies: local_unlistedcourses,MOODLE_503_STABLE`). Development on m503, m503b for
+parallel runs (checkout `moodle-block_compass-503`); mounted at `blocks/compass`.
+
+**5.3 specifics.** The modulepreload hints are `hook_callbacks::MODULES` minus core's own preload
+allowlist (`import_map::get_preload_specifiers()`), each resolved through the themable import map
+(`@moodle/lms/theme-<theme>/...`), never `loader . specifier`. `js/esm/build` must be exactly what
+`mdl grunt m503 blocks/compass` writes (`X.js`, `X.dev.js`, `X.dev.js.map` per source, no production
+`.js.map`, plus the bundle); `js/esm/src/swizzle.json` declares every component `prohibited` because the
+page mounts the bundle. `coursemeta` carries `deletioninprogress`: the `before_course_deleted` hook drops
+the entry (now and at shutdown; never a write that claims the deletion) and every reader excludes a course being deleted, for everyone. The surface token is
+`--bs-card-bg` falling back to `--bs-body-bg` (5.3 Boost's page is grey).
 
 ## Agent orchestration budget (fleet rule, repeated here on purpose)
 
@@ -268,6 +277,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `scrollIntoView`; a day is focused with `preventScroll`), its own scrolls are flagged so they close no card and hold the
   pending counter until they settle, the day card is the scroller's sibling, and a day opens on hover only while wholly in
   view (`calendar.ts` `whollyInView()`). Long form: "Client side".
+- **The crests go through `classes/local/theme_badges.php` only**, which dispatches the block's
+  own hook, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-14): no
+  plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
+  costs the crests, never the first paint), and the listener, not the block, decides which
+  courses the current user may see a crest for.
 - **The filter line** (ADR-015; `moodle-dev/docs/filter-line/CONTRACT.md`): `FilterLine.tsx`
   draws the slots in the contract's order (scope, search, star, Filters, Organise, view), folds on
   the line's own width (a ResizeObserver, every scope cell drawn while measuring, no `@container`),
@@ -298,11 +312,6 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   in the open strip. One row or the cells on a row of their own is measured in a layout effect (the
   head's children summed while nothing wraps; a ResizeObserver; no `@container`), and the same flag
   (`compact`) shows a period's `_short` twin, which is part of the whole name.
-- **The crests go through `classes/local/theme_badges.php` only**, which dispatches the block's
-  own hook, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-16): no
-  plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
-  costs the crests, never the first paint), and the listener, not the block, decides which
-  courses the current user may see a crest for.
 - **A fill and its text are one pair** (ADR-014 amendment 13, contrast): every rule that fills a
   background declares its paired foreground at equal or higher specificity than, and after, any
   colour-only rule that could match the same element, or that rule carries a `:not()` guard for the
@@ -354,7 +363,7 @@ inherited Portuguese document.
 
 Manual only (`!mdlshield review` / `review full`, by the owner), 100 a month shared by every
 repo, 3,000 effective lines soft limit (`mdl mdlshield size`). Config and context read from
-`main` only; `moodle.versions: ["5.2"]`; `fail_on.severity: high`. Ask for a review early on any
+`main` only; `moodle.versions: ["5.3"]`; `fail_on.severity: high`. Ask for a review early on any
 change to the seven services, the relationship door or the hooks, after the
 `security-diff-read` skill. Rules and reasons: fleet file, "MDL Shield reviews".
 

@@ -36,10 +36,11 @@ class behat_block_compass extends behat_base {
     /**
      * Put the page in Bootstrap's dark colour mode, as a theme does.
      *
-     * Moodle 5.2 has one dark mechanism, Bootstrap 5.3's data-bs-theme attribute, and core's
-     * theme_boost writes it nowhere on 5.2 (5.3 writes it on the html element behind a setting), so
-     * the scenario sets it on the html element itself, where the stylesheet's dark override reads it
-     * ([data-bs-theme="dark"] body .block_compass). The page is not reloaded: the attribute lasts
+     * Moodle 5.x has one dark mechanism, Bootstrap 5.3's data-bs-theme attribute. On 5.3 core's
+     * theme_boost writes it on the html element only when theme_boost/enablecolourmodes is on and
+     * the user chose dark (theme/boost/classes/hook_listener.php), so the scenario sets it on the
+     * html element itself, as Boost would, where both Boost's dark palette and the stylesheet's dark
+     * override read it ([data-bs-theme="dark"] body .block_compass). The page is not reloaded: the attribute lasts
      * until the next page load, long enough for the axe step that follows it.
      *
      * The step returns once the colours have settled: the block's colour transitions would
@@ -71,11 +72,13 @@ class behat_block_compass extends behat_base {
     /**
      * Make the calendar strip's row request fail at the transport, as a dropped link does.
      *
-     * The page's XMLHttpRequest is wrapped once: while the flag is up, a call whose info is
-     * block_compass_get_strip (core/ajax names the method in the URL, lib/amd/src/ajax.js) goes to a
-     * script that does not exist, so the answer is a 404 and the client's bounded retry gives up
-     * after its two retries. The counts' request, block_compass_get_strip_counts, and every other
-     * call pass. Nothing in the plugin knows about this: the failure is the browser's, as a real one is.
+     * The page's fetch is wrapped once: while the flag is up, a call whose info is
+     * block_compass_get_strip goes to a script that does not exist, so the answer is a 404 and the
+     * client's bounded retry gives up after its two retries. On 5.3 core/ajax is the AMD wrapper of
+     * the ES module @moodle/lms/core/ajax, which names the method in the URL and sends it through
+     * the global fetch (lib/js/esm/src/ajax.ts), not XMLHttpRequest as 5.2's lib/amd/src/ajax.js
+     * did. The counts' request, block_compass_get_strip_counts, and every other call pass. Nothing
+     * in the plugin knows about this: the failure is the browser's, as a real one is.
      *
      * @Given the calendar strip requests fail
      * @return void
@@ -89,13 +92,13 @@ class behat_block_compass extends behat_base {
                     return;
                 }
                 window.blockCompassBehatWrapped = true;
-                var open = XMLHttpRequest.prototype.open;
-                XMLHttpRequest.prototype.open = function(method, url) {
-                    var args = Array.prototype.slice.call(arguments);
-                    if (window.blockCompassBehatFail && /[?&]info=block_compass_get_strip(&|$)/.test(String(url))) {
-                        args[1] = String(url).replace('/lib/ajax/service.php', '/lib/ajax/block_compass_behat_missing.php');
+                var original = window.fetch;
+                window.fetch = function(input, init) {
+                    if (window.blockCompassBehatFail && typeof input === 'string'
+                            && /[?&]info=block_compass_get_strip(&|$)/.test(input)) {
+                        input = input.replace('/lib/ajax/service.php', '/lib/ajax/block_compass_behat_missing.php');
                     }
-                    return open.apply(this, args);
+                    return original.call(window, input, init);
                 };
             })();
             JS);

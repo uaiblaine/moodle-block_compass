@@ -26,7 +26,8 @@
  */
 
 /**
- * One of a course's institutional crests, from the block's course_badges hook.
+ * One of a course's institutional crests, from the \block_compass\hook\course_badges hook,
+ * answered by a theme such as theme_dimensions.
  *
  * The URL carries the file's content hash and the alternative text is the theme's; Compass
  * builds neither. A course without crests carries no badges key at all.

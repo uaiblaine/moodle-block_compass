@@ -21,7 +21,7 @@
  * come from a JSON file named by COMPASS_SESSIONS ({"demo.student": "MoodleSession...=...", ...}),
  * written by running session.php once per user, and kept out of the repository.
  *
- *   COMPASS_SESSIONS=/path/sessions.json COMPASS_BASE=http://localhost:9502 \
+ *   COMPASS_SESSIONS=/path/sessions.json COMPASS_BASE=http://localhost:8503 \
  *       node capture.mjs [shot ...]
  *
  * The strip opens and closes from its heading and the choice is a user preference, so every shot
@@ -47,7 +47,7 @@ import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const BASE = process.env.COMPASS_BASE || 'http://localhost:9502';
+const BASE = process.env.COMPASS_BASE || 'http://localhost:8503';
 const OUT = process.env.COMPASS_OUT || join(here, '..');
 const SESSIONS = JSON.parse(readFileSync(process.env.COMPASS_SESSIONS, 'utf8'));
 const DESKTOP = 1200;
@@ -333,16 +333,16 @@ const SHOTS = {
         save('calendar-soon.png', await page.shot(await page.box([...STRIP, 'section.compass-soon'], 12)));
     },
 
-    // The closed line for the teacher: the To grade cell first, then the periods. Written only when the cell is there.
+    // The closed line for the teacher: the To grade cell first when block_feedback_tracker is installed, then the periods.
     async lineteaching(browser) {
         const page = await open(browser, 'demo.teacher', '/my/', {strip: 'closed'});
         await teachingView(page);
         await page.until(LINE_READY, 30000);
         await sleep(600);
         if (!(await page.eval(`!!document.querySelector('.compass-cal-queue')`))) {
+            // Without block_feedback_tracker (m503) the line has no To grade cell: the picture shows the line as it is.
             // eslint-disable-next-line no-console
-            console.log('SKIPPED calendar-line-teaching.png: no To grade cell (the ledger does not cover the teacher)');
-            return;
+            console.log('NOTE calendar-line-teaching.png: no To grade cell (block_feedback_tracker is not installed)');
         }
         await page.mouseAway();
         save('calendar-line-teaching.png', await page.shot(await page.box(STRIP, 12)));

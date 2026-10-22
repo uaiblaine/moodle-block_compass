@@ -30,8 +30,9 @@ Feature: The Compass block puts the courses that need attention first
     And I add the "Compass" block
     And I turn editing mode off
     Then "Compass" "block" should exist
-    # The top of the body carries one modulepreload link per client module wherever the block
-    # is: a seventh link exists and an eighth does not.
+    # The top of the body carries one modulepreload link per client module core does not preload
+    # itself wherever the block is: a seventh sibling exists and an eighth does not (core's own five
+    # hints sit in the head, under another parent).
     And "//link[@rel='modulepreload'][7]" "xpath_element" should exist
     And "//link[@rel='modulepreload'][8]" "xpath_element" should not exist
     And I should see "Continue where you left off" in the "Compass" "block"

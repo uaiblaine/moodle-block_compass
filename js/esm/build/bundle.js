@@ -120,8 +120,9 @@ import{Fragment as Yc,useCallback as to,useEffect as ns,useRef as Bs,useState as
 /**
  * The one place that knows a React component cannot import an AMD module.
  *
- * The import map Moodle serves has six keys and none of them is AMD: the prefix
- * `@moodle/lms/`, the design system, and react and react-dom with a subpath key each
+ * None of the import map's keys is AMD: the prefix `@moodle/lms/` (with a
+ * theme-qualified twin per installed theme on 5.3), the design system, react and
+ * react-dom with a subpath key each, and the bundled libraries such as bootstrap
  * (`lib/classes/output/requirements/import_map.php`, add_standard_imports).
  * A bare import of `core/ajax` from a .tsx is therefore a resolution failure
  * at runtime, and react_autoinit turns that into a console.error and a
@@ -232,7 +233,7 @@ import{Fragment as Yc,useCallback as to,useEffect as ns,useRef as Bs,useState as
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * A course's institutional crests, as the site theme's own course card draws them.
+ * A course's institutional crests, as a theme answering the block's course_badges hook supplies them.
  *
  * A named list of images with the theme's alternative text, at most three, in two sizes: on a
  * card's cover, bottom-right, clear of the New badge (top-left) and the star (top-right); in a list
@@ -688,7 +689,7 @@ import{Fragment as Yc,useCallback as to,useEffect as ns,useRef as Bs,useState as
 /**
  * How many tracks tier 1's card grid gets, from the width the block has.
  *
- * The theme card's arithmetic (a Boost Union child theme's category.scss): three tracks at
+ * A course grid's arithmetic, as the institution's theme draws its own cards: three tracks at
  * its widest, two below 1200 px, one below 576 px, with a 16 px gap. Compass measures the block,
  * not the viewport, because the block may sit in a drawer or a narrow column, so the thresholds
  * are restated as track widths: the narrowest track the theme ever draws is its two-track one at

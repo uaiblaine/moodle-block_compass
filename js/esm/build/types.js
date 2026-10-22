@@ -1,4 +1,3 @@
-var e=-1,n=-2;export{n as GROUP_ARCHIVED,e as GROUP_DORMANT};
 /**
  * The shapes the server sends and the shell exports.
  *
@@ -9,5 +8,4 @@ var e=-1,n=-2;export{n as GROUP_ARCHIVED,e as GROUP_DORMANT};
  * @module     block_compass/types
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-//# sourceMappingURL=types.js.map
+ */const e=-1,n=-2;export{n as GROUP_ARCHIVED,e as GROUP_DORMANT};

@@ -579,13 +579,39 @@ final class attention {
 
     /**
      * Visibility rule: hidden courses only for a holder of moodle/course:viewhiddencourses
-     * in the system context, evaluated once in the constructor.
+     * in the system context, evaluated once in the constructor; and never a course core is
+     * deleting, for anyone.
+     *
+     * Moodle 5.3 marks a course it deletes asynchronously (deletioninprogress 1, visible 0) and
+     * deletes it on the cron; until then require_login() refuses it, so even the capability's
+     * holder must not be offered it. The column is nullable (lib/db/install.xml), hence the
+     * COALESCE. It filters rows already reached through the statement's own indexes.
+     *
+     * @param string $alias Alias of {course} in the statement.
+     * @return string An AND clause.
+     */
+    private function visible_sql(string $alias = 'c'): string {
+        return $this->not_deleting_sql($alias) . $this->visible_only_sql($alias);
+    }
+
+    /**
+     * The hidden-course half of visible_sql().
      *
      * @param string $alias Alias of {course} in the statement.
      * @return string Empty, or an AND clause.
      */
-    private function visible_sql(string $alias = 'c'): string {
+    private function visible_only_sql(string $alias): string {
         return $this->seehidden ? '' : " AND {$alias}.visible = 1";
+    }
+
+    /**
+     * The deletion half of visible_sql().
+     *
+     * @param string $alias Alias of {course} in the statement.
+     * @return string An AND clause.
+     */
+    private function not_deleting_sql(string $alias): string {
+        return " AND COALESCE({$alias}.deletioninprogress, 0) = 0";
     }
 
     /**

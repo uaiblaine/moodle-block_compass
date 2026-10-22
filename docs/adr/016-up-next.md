@@ -516,6 +516,26 @@ stage stops for the maintainer's review of its diff.
 on its own checkout (`~/dev/moodle-block_compass-503`): the 5.3 ESM build and its own matrix. Then
 the README of 5.3.
 
+- **Done** (stage 13e, 2026-10-21; branch `phase-13-up-next-503` from `MOODLE_503_STABLE`, version
+  2026100506):
+  - **The change:** the same as `main`'s PR #49, applied with a three-way merge. It keeps this
+    branch's own version numbering, CHANGELOG headings and the few 5.3 differences of the touched
+    files.
+  - **The client:** `UpNext` is closed in `swizzle.json`, and `js/esm/build` is this branch's own
+    build (`grunt esm` without `npm install`, reproducible byte for byte). Core's checkout was left
+    as it was.
+  - **README:** Up next and `calendar_soon`, with no picture yet. This branch's screenshots are its
+    own, and `capture.mjs soon` can take it now that m503 is upgraded.
+  - **Matrix:** `mdl ci moodle-block_compass-503 --matrix --behat`, all 4 legs PASS, every static
+    gate included (grunt passes on this branch's runner). Each leg ran `Tests: 626, Assertions:
+    8954, Skipped: 17` and `7 scenarios (7 passed), 253 steps (253 passed)`.
+  - **Gates:** `mdl mutate --fast` over this branch's Phase 13 block (40 gates), on pgsql and on
+    mariadb. Every gate reddened every test it names.
+  - **Stacks:** m503 and m503b are upgraded to 2026100506 and their PHPUnit sites re-initialised.
+    There the service tests passed: `get_soon_test` 7, `get_soon_budget_test` 3,
+    `readonly_session_test` 13, `soon_test` 18, `contrast_rules_test` 4,
+    `accessibility_rules_test` 49 and `block_compass_test` 12.
+
 ## Evidence
 
 - **Design**: four shapes at four moments of one day, the urgency ladder, the teaching view and the

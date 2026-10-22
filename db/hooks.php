@@ -17,10 +17,12 @@
 /**
  * Hook callbacks of the Compass block.
  *
- * Two callbacks, both guarded in the class that hosts them: the top-of-body hook that announces
+ * Three callbacks, all guarded in the class that hosts them: the top-of-body hook that announces
  * the client's modules with modulepreload where the block is - after the import map, which a
- * preload in the head would disable ({@see \block_compass\hook_callbacks}) - and the home page
- * hook that offers the block's own page as the site's start page while the page is enabled.
+ * preload in the head would disable ({@see \block_compass\hook_callbacks}) - the home page
+ * hook that offers the block's own page as the site's start page while the page is enabled, and
+ * the course deletion hook that records in the course layer a deletion core is about to mark
+ * without an event (Moodle 5.3's asynchronous course deletion).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -37,5 +39,9 @@ $callbacks = [
     [
         'hook' => \core_user\hook\extend_default_homepage::class,
         'callback' => \block_compass\hook_callbacks::class . '::extend_default_homepage',
+    ],
+    [
+        'hook' => \core_course\hook\before_course_deleted::class,
+        'callback' => \block_compass\hook_callbacks::class . '::before_course_deleted',
     ],
 ];
