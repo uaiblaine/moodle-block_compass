@@ -145,6 +145,16 @@ final class block_compass_demo_seeder {
     }
 
     /**
+     * A moment from a pair: [days, 'H:i'] is a clock time on a day, ['now', seconds] is that many seconds from this run.
+     *
+     * @param array $pair The pair.
+     * @return int Unix time.
+     */
+    private function moment(array $pair): int {
+        return $pair[0] === 'now' ? $this->now + (int) $pair[1] : $this->at($pair[0], $pair[1]);
+    }
+
+    /**
      * The users: two named demo users and eight classmates.
      *
      * @return array username => [firstname, lastname].
@@ -522,6 +532,11 @@ final class block_compass_demo_seeder {
             ['anat101', 'assign', 'readinglog6', 'Reading log: week 6', ['due' => [1, '17:00'], 'graded' => false]],
             ['anat101', 'assign', 'muscle', 'Case study: muscle physiology',
                 ['due' => [-2, '23:59'], 'cutoff' => [4, '23:59'], 'gradingdue' => [7, '17:00']]],
+            // Up next (ADR-016): moved with the clock on every run, so two are imminent and soon.
+            ['anat101', 'assign', 'heartsounds', 'Peer assessment: heart sounds',
+                ['due' => ['now', 40 * MINSECS], 'graded' => false]],
+            ['anat101', 'assign', 'histology', 'Histology slide worksheet',
+                ['due' => ['now', 150 * MINSECS], 'graded' => false]],
             ['anat101', 'assign', 'nervous', 'Lab report: nervous system', ['due' => [13, '23:59']]],
             ['anat101', 'quiz', 'midterm', 'Midterm exam', ['close' => [20, '12:00'], 'open' => [-1, '09:00']]],
             // Clinical Pharmacology (starred).
@@ -615,7 +630,7 @@ final class block_compass_demo_seeder {
      * @return array Column => value.
      */
     private function activity_fields(string $modname, array $settings): array {
-        $time = fn(?array $pair): int => $pair === null ? 0 : $this->at($pair[0], $pair[1]);
+        $time = fn(?array $pair): int => $pair === null ? 0 : $this->moment($pair);
         if ($modname === 'quiz') {
             return ['timeopen' => $time($settings['open'] ?? null), 'timeclose' => $time($settings['close'] ?? null)];
         }
@@ -765,6 +780,7 @@ final class block_compass_demo_seeder {
         $events = [
             ['anat-briefing', 'course', 'anat101', 'Anatomy lab practical briefing', [1, '14:00'], HOURSECS],
             ['anat-induction', 'course', 'anat101', 'Lab safety induction', [-6, '10:00'], HOURSECS],
+            ['anat-demo', 'course', 'anat101', 'Dissection demonstration', ['now', -20 * MINSECS], HOURSECS],
             ['phar-lecture', 'course', 'phar210', 'Guest lecture: antibiotic stewardship', [8, '15:00'], HOURSECS],
             ['writ-workshop', 'course', 'writ100', 'Writing centre workshop', [0, '16:00'], HOURSECS],
             ['cskl-suite', 'course', 'cskl300', 'Simulation suite open session', [2, '10:00'], 2 * HOURSECS],
@@ -780,7 +796,7 @@ final class block_compass_demo_seeder {
         ];
         foreach ($events as [$uuid, $type, $owner, $name, $when, $duration]) {
             $uuid = self::PREFIX . '-' . $uuid;
-            $timestart = $this->at($when[0], $when[1]);
+            $timestart = $this->moment($when);
             if ($id = $DB->get_field('event', 'id', ['uuid' => $uuid])) {
                 $DB->set_field('event', 'timestart', $timestart, ['id' => $id]);
                 $DB->set_field('event', 'timesort', $timestart, ['id' => $id]);

@@ -47,8 +47,23 @@ use PHPUnit\Framework\Attributes\CoversClass;
 final class get_strip_counts_test extends advanced_testcase {
     /** @var string[] The keys the service returns at the top level, in order. */
     private const TOP_KEYS = [
-        'enabled', 'today', 'lastday', 'past', 'grading', 'truncated', 'bounded', 'haslearning', 'hasteaching', 'views',
+        'enabled', 'today', 'lastday', 'past', 'grading', 'truncated', 'bounded', 'haslearning', 'hasteaching', 'views', 'now',
     ];
+
+    /** @var string[] The keys of each view, in order: the periods, the waiting lead and Up next's gate lists. */
+    private const VIEW_KEYS = ['periods', 'waiting', 'waitingcourseids', 'upcoming', 'events'];
+
+    /**
+     * Load the core library the gate fixture's event needs.
+     *
+     * @return void
+     */
+    public static function setUpBeforeClass(): void {
+        global $CFG;
+
+        parent::setUpBeforeClass();
+        require_once($CFG->dirroot . '/calendar/lib.php');
+    }
 
     /**
      * Every case starts with the strip's own layer and the user layers empty, and the calendar on.
@@ -124,7 +139,8 @@ final class get_strip_counts_test extends advanced_testcase {
         $data = $this->call();
         $clean = external_api::clean_returnvalue(get_strip_counts::execute_returns(), $data);
         $this->assertSame(self::TOP_KEYS, array_keys($clean));
-        $this->assertSame(['periods', 'waiting', 'waitingcourseids'], array_keys($clean['views']['learning']));
+        $this->assertSame(self::VIEW_KEYS, array_keys($clean['views']['learning']));
+        $this->assertSame(self::VIEW_KEYS, array_keys($clean['views']['teaching']));
         $period = $clean['views']['learning']['periods'][0];
         $this->assertSame(['key', 'count', 'step', 'countstep', 'courseids'], array_keys($period));
         $this->assertTrue($clean['enabled']);
@@ -139,6 +155,49 @@ final class get_strip_counts_test extends advanced_testcase {
         $this->assertTrue($opened['past']);
         $this->assertSame('late', $opened['views']['learning']['periods'][0]['key']);
         $this->assertSame(1, $opened['views']['learning']['periods'][0]['count']);
+    }
+
+    /**
+     * Each view carries Up next's gate lists (ADR-016 decision 3): deadline times and event pairs.
+     *
+     * A learner with an assignment due in two hours and a course event that started an hour ago and
+     * lasts two: the learning view's upcoming holds the deadline alone, its events the one
+     * [start, end] pair, both as integers through the allowlist. The teaching view of a learner holds
+     * neither (the control that the lists are per view).
+     *
+     * @return void
+     */
+    public function test_each_view_carries_the_gate_lists(): void {
+        $gen = $this->getDataGenerator();
+        $user = $gen->create_user(['timezone' => 'America/Sao_Paulo']);
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $now = time();
+        $due = $now + 2 * HOURSECS;
+        $start = $now - HOURSECS;
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $due, 'assignsubmission_onlinetext_enabled' => 1]);
+        \calendar_event::create((object) [
+            'name' => 'Counts gate event',
+            'description' => '',
+            'format' => FORMAT_HTML,
+            'eventtype' => 'course',
+            'courseid' => $course->id,
+            'groupid' => 0,
+            'userid' => 2,
+            'modulename' => '',
+            'instance' => 0,
+            'type' => CALENDAR_EVENT_TYPE_STANDARD,
+            'timestart' => $start,
+            'timeduration' => 2 * HOURSECS,
+            'timesort' => $start,
+        ], false);
+        $this->setUser($user);
+
+        $data = external_api::clean_returnvalue(get_strip_counts::execute_returns(), $this->call());
+
+        $this->assertSame([$due], $data['views']['learning']['upcoming']);
+        $this->assertSame([[$start, $start + 2 * HOURSECS]], $data['views']['learning']['events']);
+        $this->assertSame([[], []], [$data['views']['teaching']['upcoming'], $data['views']['teaching']['events']]);
     }
 
     /**
@@ -160,6 +219,7 @@ final class get_strip_counts_test extends advanced_testcase {
         $this->assertFalse($data['enabled']);
         $this->assertSame([], $data['views']['learning']['periods']);
         $this->assertSame([], $data['views']['teaching']['periods']);
+        $this->assertSame([[], []], [$data['views']['learning']['upcoming'], $data['views']['learning']['events']]);
         $this->assertSame(['', ''], [$data['today'], $data['lastday']]);
 
         $meter = budget::start();

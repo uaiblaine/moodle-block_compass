@@ -95,3 +95,56 @@ Feature: The calendar strip above the Compass cards shows what falls due, day by
     Then "//section[contains(@class, 'compass-cal')]//button[contains(@class, 'compass-cal-edge-next')][@aria-disabled='true']" "xpath_element" should not exist
     When I click on "//section[contains(@class, 'compass-cal')]//button[contains(@class, 'compass-cal-todaybtn')]" "xpath_element"
     Then "//section[contains(@class, 'compass-cal')]//button[contains(@class, 'compass-cal-todaybtn')][@aria-disabled='true']" "xpath_element" should exist
+
+  Scenario: Up next draws an item inside the horizon above the strip, hides until the next alert and shows again
+    Given the following config values are set as admin:
+      | calendar_enabled | 1 | block_compass |
+    And the following "users" exist:
+      | username | firstname | lastname | email                |
+      | student2 | Student   | Two      | student2@example.com |
+    And the following "courses" exist:
+      | fullname | shortname |
+      | Course 2 | C2        |
+    And the following "course enrolments" exist:
+      | user     | course | role    |
+      | student2 | C2     | student |
+    And the following "activities" exist:
+      | activity | course | name      | idnumber | duedate      | assignsubmission_onlinetext_enabled |
+      | assign   | C2     | Essay now | essay2   | ##+2 hours## | 1                                   |
+    # The control: student1 has only the Background's item, due tomorrow noon, at least 12 hours away and
+    # past the default 6 h horizon. The closed line's count proves the calendar has settled, and the
+    # region is absent beside it (the gate stays shut and get_soon is never asked, ADR-016 decision 3).
+    And I am on the "C1" "Course" page logged in as "student1"
+    And I follow "Dashboard"
+    And I turn editing mode on
+    And I add the "Compass" block
+    And I turn editing mode off
+    Then "//section[contains(@class, 'compass-cal')]//button[contains(@aria-label, 'Tomorrow: 1 item.')]" "xpath_element" should exist
+    And "//section[contains(@class, 'compass-soon')]" "xpath_element" should not exist
+    # The learner with an assignment due in about 2 hours sees the region: the title, the item and
+    # core's action, which keeps its accessible name (label in name). The region holds the pending
+    # counter until its answer renders, so the steps below need no wait of their own.
+    When I log out
+    And I am on the "C2" "Course" page logged in as "student2"
+    And I follow "Dashboard"
+    And I turn editing mode on
+    And I add the "Compass" block
+    And I turn editing mode off
+    Then "//section[contains(@class, 'compass-soon')]" "xpath_element" should exist
+    And I should see "Up next" in the "//section[contains(@class, 'compass-soon')]" "xpath_element"
+    And I should see "Essay now" in the "//section[contains(@class, 'compass-soon')]" "xpath_element"
+    And I should see "Submit" in the "//section[contains(@class, 'compass-soon')]" "xpath_element"
+    And "//section[contains(@class, 'compass-soon')]//a[contains(@aria-label, 'Submit: Add submission')]" "xpath_element" should exist
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
+    # Hiding opens the quiet line in the region's place; the rows leave the page (the wrap loses its open class).
+    When I click on "Hide until the next alert" "button" in the "Compass" "block"
+    Then I should see "Up next is hidden" in the "Compass" "block"
+    And "//div[contains(@class, 'compass-soon-wrap-open')]" "xpath_element" should not exist
+    And I should not see "Essay now" in the "Compass" "block"
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
+    # Show clears the hiding and the row returns.
+    When I click on "//p[contains(@class, 'compass-soon-quiet')]//button" "xpath_element"
+    Then "//div[contains(@class, 'compass-soon-wrap-open')]" "xpath_element" should exist
+    And I should see "Essay now" in the "//section[contains(@class, 'compass-soon')]" "xpath_element"
+    And "//p[contains(@class, 'compass-soon-quiet')]" "xpath_element" should not exist
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests

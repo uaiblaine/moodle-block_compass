@@ -157,7 +157,7 @@ const periodsOf = /* @__PURE__ */ __name((days, view, today, past, grading) => {
       }
     });
   });
-  return { periods: Array.from(periods.values()), waiting, waitingcourseids };
+  return { periods: Array.from(periods.values()), waiting, waitingcourseids, upcoming: [], events: [] };
 }, "periodsOf");
 const countsOf = /* @__PURE__ */ __name((payload, grading) => {
   const days = windowDays(payload.firstday, payload.today);
@@ -172,11 +172,77 @@ const countsOf = /* @__PURE__ */ __name((payload, grading) => {
     haslearning: payload.haslearning,
     hasteaching: payload.hasteaching,
     views: {
-      learning: periodsOf(payload.views.learning.days, "learning", payload.today, true, grading),
-      teaching: periodsOf(payload.views.teaching.days, "teaching", payload.today, true, grading)
-    }
+      learning: {
+        ...periodsOf(payload.views.learning.days, "learning", payload.today, true, grading),
+        upcoming: payload.views.learning.upcoming,
+        events: payload.views.learning.events
+      },
+      teaching: {
+        ...periodsOf(payload.views.teaching.days, "teaching", payload.today, true, grading),
+        upcoming: payload.views.teaching.upcoming,
+        events: payload.views.teaching.events
+      }
+    },
+    now: payload.now
   };
 }, "countsOf");
+const LEVEL_CALM = 0;
+const LEVEL_SOON = 1;
+const LEVEL_IMMINENT = 2;
+const LEVEL_NOW = 3;
+const LEVEL_PASSED = -1;
+const IMMINENT_S = 3600;
+const gateOpens = /* @__PURE__ */ __name((lists, now, horizon) => {
+  if (horizon <= 0) {
+    return false;
+  }
+  for (const time of lists.upcoming) {
+    if (time >= now && time <= now + horizon) {
+      return true;
+    }
+  }
+  for (const [start, end] of lists.events) {
+    if (start <= now + horizon && end > now) {
+      return true;
+    }
+  }
+  return false;
+}, "gateOpens");
+const gateNext = /* @__PURE__ */ __name((lists, now, horizon) => {
+  if (horizon <= 0) {
+    return null;
+  }
+  let next = null;
+  for (const time of [...lists.upcoming, ...lists.events.map(([start]) => start)]) {
+    const opens = time - horizon;
+    if (opens > now && (next === null || opens < next)) {
+      next = opens;
+    }
+  }
+  return next;
+}, "gateNext");
+const ringClass = /* @__PURE__ */ __name((level) => {
+  if (level === LEVEL_NOW) {
+    return "compass-soon-ring-now";
+  }
+  return level === LEVEL_IMMINENT ? "compass-soon-ring-imminent" : "";
+}, "ringClass");
+const soonLevel = /* @__PURE__ */ __name((item, view, now, horizon) => {
+  const lasts = item.kind === "event" && item.timeduration > 0;
+  if (lasts && item.timestart <= now && now < item.timestart + item.timeduration) {
+    return LEVEL_NOW;
+  }
+  if (item.timestart < now) {
+    return LEVEL_PASSED;
+  }
+  if (item.timestart > now + horizon) {
+    return LEVEL_CALM;
+  }
+  if (view === "teaching" && item.kind === "class") {
+    return LEVEL_SOON;
+  }
+  return item.timestart - now <= IMMINENT_S ? LEVEL_IMMINENT : LEVEL_SOON;
+}, "soonLevel");
 const periodSpan = /* @__PURE__ */ __name((key, firstday, today, lastday) => {
   switch (key) {
     case "late":
@@ -401,7 +467,13 @@ export {
   BOUND_KINDS,
   DAY_PITCH_PX,
   EDGE_INSET_PX,
+  IMMINENT_S,
   LEARNING_KINDS,
+  LEVEL_CALM,
+  LEVEL_IMMINENT,
+  LEVEL_NOW,
+  LEVEL_PASSED,
+  LEVEL_SOON,
   MARK_SLOTS,
   OPEN_KINDS,
   PERIOD_KEYS,
@@ -418,6 +490,8 @@ export {
   daysBetween,
   fit,
   fromPayload,
+  gateNext,
+  gateOpens,
   homeIndex,
   inWeekend,
   itemKinds,
@@ -430,10 +504,12 @@ export {
   monthYear,
   periodSpan,
   periodsOf,
+  ringClass,
   score,
   settle,
   shortWeekday,
   shownKinds,
+  soonLevel,
   sortItems,
   step,
   stepOf,

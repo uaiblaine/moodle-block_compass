@@ -57,7 +57,7 @@ final class config_test extends advanced_testcase {
             'inventory_max', 'enable_prewarm', 'prewarm_days', 'prewarm_budget_seconds',
             'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category', 'enable_page',
             'calendar_enabled', 'calendar_where', 'calendar_sources', 'calendar_style', 'calendar_relevance',
-            'calendar_start', 'calendar_grading',
+            'calendar_start', 'calendar_grading', 'calendar_soon',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -99,6 +99,7 @@ final class config_test extends advanced_testcase {
         $this->assertTrue(config::calendar_relevance());
         $this->assertSame('closed', config::calendar_start());
         $this->assertSame('tracker', config::calendar_grading());
+        $this->assertSame(6 * HOURSECS, config::calendar_soon());
     }
 
     /**
@@ -640,6 +641,30 @@ final class config_test extends advanced_testcase {
         $this->assertSame('core', config::calendar_grading());
         set_config('calendar_grading', 'ledger', 'block_compass');
         $this->assertSame('tracker', config::calendar_grading());
+    }
+
+    /**
+     * Up next's horizon is one of its choices in seconds, 0 when off, and the default for anything else.
+     *
+     * The stored values are the select's keys as strings; a near spelling of a choice is not one.
+     *
+     * @return void
+     */
+    public function test_the_soon_horizon_keeps_only_its_vocabulary_in_seconds(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertSame(config::DEFAULT_CALENDAR_SOON * HOURSECS, config::calendar_soon(), 'never set');
+        set_config('calendar_soon', '0', 'block_compass');
+        $this->assertSame(0, config::calendar_soon(), 'off');
+        foreach (['3' => 3, '6' => 6, '12' => 12] as $stored => $hours) {
+            set_config('calendar_soon', $stored, 'block_compass');
+            $this->assertSame($hours * HOURSECS, config::calendar_soon(), "stored {$stored}");
+        }
+        foreach (['5', '24', '06', '6.0', '-6', 'off', ''] as $stored) {
+            set_config('calendar_soon', $stored, 'block_compass');
+            $this->assertSame(6 * HOURSECS, config::calendar_soon(), "stored '{$stored}' is not a choice");
+        }
     }
 
     /**

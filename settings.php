@@ -260,6 +260,21 @@ if ($ADMIN->fulltree) {
         ]
     ));
 
+    // Up next's horizon (ADR-016 decision 2): hours ahead, 0 for off. One literal string per label shape.
+    $soonchoices = [];
+    foreach (\block_compass\local\config::CALENDAR_SOONS as $hours) {
+        $soonchoices[$hours] = $hours === 0
+            ? get_string('calendar_soon_off', 'block_compass')
+            : get_string('calendar_soon_hours', 'block_compass', $hours);
+    }
+    $settings->add(new admin_setting_configselect(
+        'block_compass/calendar_soon',
+        get_string('calendar_soon', 'block_compass'),
+        get_string('calendar_soon_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_CALENDAR_SOON,
+        $soonchoices
+    ));
+
     // Where the teaching view's grading count comes from: offered only where block_feedback_tracker is
     // installed, because without it there is one source, core's.
     if (\block_compass\local\calendar\grading::tracker_installed()) {

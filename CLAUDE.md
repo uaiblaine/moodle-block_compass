@@ -128,7 +128,10 @@ Breaking one is a design change: stop and raise it with the maintainer.
   calendar's one statement, ADR-014 amendment 10), 6 to complete a counted-only entry (7 with
   it); `get_strip_counts` 2 on a fresh entry (whole or counted only), 11 cold and 11 warm (the
   counts pass: no vault, no days off, grading only with the ledger; ADR-014 amendment 11); `get_day` 2 reopened, 11 teaching (PostgreSQL),
-  ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5). Every service's floor is 2 reads (the per-request
+  ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5);
+  `get_soon` (ADR-016) never cached, its fixture stated in its budget test: learning 46 cold / 41 warm
+  for three open items, teaching 16 / 11 (19 / 12 with the ledger), about 12 reads per open event
+  in the range, and a prune write adds none. Every service's floor is 2 reads (the per-request
   preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
   reset per-request state, purge the user's layers, keep the shared ones warm, measure the second
@@ -163,7 +166,7 @@ line in tier 3 (table with dates in the long form).
 ```
 block_compass.php, index.php (the block's page, ADR-012), settings.php, lib.php (preference declarations,
                            the two archive icons), version.php
-classes/external/          eight READ functions in the USER context, all readonlysession, none accepting a
+classes/external/          nine READ functions in the USER context, all readonlysession, none accepting a
                            userid; writes go to core's own services from the browser
 classes/local/             THE ONLY place $DB is allowed: budget, config (reads get_config() every call),
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
@@ -182,7 +185,7 @@ classes/hook/course_badges.php the block's own hook, dispatched by local/theme_b
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
-                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, calendar,
+                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext, calendar,
                            rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
                            str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
@@ -203,7 +206,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   strip asks only once `get_attention` settles (tier 1 paints first, ADR-014): closed,
   `get_strip_counts` and nothing else (no `get_strip`, no `get_day`); open, `get_strip`, and
   `get_day` per opened day; closing sums the payload in hand (`calendar.ts` `countsOf()`, the
-  twin of `strip::periods()`). The open/closed toggle is the `open` member of
+  twin of `strip::periods()`). Then, open or closed, `get_soon` only when the view's gate lists
+  open the gate (`calendar.ts` `gateOpens()`, the twin of `strip::gate_opens()`), else one timer
+  to `gateNext()`; a minute timer only while an answer holds items, no request per tick, and a
+  new ask on `visibilitychange` after 15 min hidden (ADR-016, `UpNext.tsx`). Every write of
+  `block_compass_calendar` carries its `soon` member. The open/closed toggle is the `open` member of
   `block_compass_calendar`, written optimistically and put back with a notice on failure;
   `calendar_start` (default closed) decides for a viewer who never toggled, and the shell ships
   the state so the first paint has the right shape. The grading count comes from
@@ -237,9 +244,10 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `core_favourites\service_factory`; `course_category_updated` cannot tell a move from a rename
   (observer drops descendants); `user_deleted` fires after the enrolments are gone;
   `core_course_category::get_many()` is request-scoped, so the hot path reads `categorymeta`.
-- **Web services**: the fleet checklist; all eight are reads and declare `readonlysession`
-  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip` and
-  `get_day`; `get_strip_counts` never reaches core's vault); course names through
+- **Web services**: the fleet checklist; all nine are reads and declare `readonlysession`
+  (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip`, `get_day`
+  and `get_soon`; `get_strip_counts` never reaches core's vault; `get_soon`'s one write is the
+  `calendarstrip` entry's gate lists, a MUC set, when it prunes them); course names through
   `format_string(..., ['escape' => false])` before a `PARAM_TEXT` return; vocabularies checked
   before any work; a request answerable without work returns before any check that could throw.
   One `cachedef_<name>` per definition (a missing one is fatal on 5.x); `{$a}` parity between
@@ -335,7 +343,8 @@ forbids two-modifier members in `db/upgrade.php`, the lang file and `block_compa
   never on generated names; `set_config()` is seen at once because `local\config` memoises
   nothing. Matcher parity fixture pins `matcher.php` to `filter.ts` ("Strøm" must not match
   "strom"). A test listing eligible custom fields asserts about the fields it created.
-- Behat: five smoke scenarios at most, every one with core's axe step scoped to the block;
+- Behat: seven smoke scenarios at most (five until the maintainer kept the seventh, Up next's, on
+  2026-10-21), every one with core's axe step scoped to the block;
   `accessibility_rules_test` (24 static rules with vacuity guards) is the other half; a hidden
   element with a display utility shows anyway (`bootstrap_compat_test` holds it). Re-run
   `phpunit-init` when any mounted `version.php` moved; Behat and `mdl ci` never on the same

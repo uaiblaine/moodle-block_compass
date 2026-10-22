@@ -10,7 +10,7 @@ namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Mo
 `v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
 [`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100505) - unreleased
+## v5.3-r1 (2026100506) - unreleased
 
 First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
@@ -35,6 +35,18 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   two-line clamps and ellipses with their whole text in a title, the teaching line's grading cell
   and icon switch, and every fill paired with a text colour that keeps 4.5:1 in both colour modes,
   the lighting's dim included. Details under v5.2-r1 below.
+- Up next (2026100506, the same work as v5.2-r1's 2026042008 and 2026042009; ADR-016): under
+  the calendar, above tier 1, while something open is inside the horizon (`calendar_soon`: off,
+  3, 6 or 12 hours; default 6), at most two rows with the clock time and a countdown, the
+  activity, the course, the kind and the action, then one line for the rest that opens the strip
+  on today. Under an hour the countdown is an amber pill and Today carries an amber ring; a
+  meeting on now shows "Now · until" and an ink ring. The region slides in (none under reduced
+  motion), can be hidden until the urgency rises, lights its course's card when pointed at, and
+  announces a rise once. It asks the new read service `block_compass_get_soon` only when the gate
+  carried by the counts opens, so a calm day costs no request; `get_strip` and
+  `get_strip_counts` return each view's gate lists and the server's `now`, `get_day` returns
+  `timeduration`, and the `block_compass_calendar` preference gains its `soon` member. The new
+  component is declared in `js/esm/src/swizzle.json`, closed to theme overrides like the others.
 
 ### Changed
 
@@ -154,6 +166,9 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - A future count that may still shrink reads "up to N" until the day is opened.
 - Month, weekday and time names come from the language pack.
 - Pointing at a first-tier card lights its days on the strip; opening a day outlines its cards.
+- *Up next*, between the calendar and the first tier, lists what closes or starts within the
+  horizon (`calendar_soon`, 6 hours by default) with a countdown, rings *Today* when it is under an
+  hour away or on now, and can be hidden until the urgency rises; a calm day asks nothing.
 - Only activities the user can see are counted; hidden and completed courses are left out.
 - Long text keeps its layout in every language: a day's action button shows a short verb
   (*Attempt*/*Responder* for a quiz, *Answer*/*Responder*, *Submit*/*Enviar*, *Start*/*Iniciar*,
@@ -185,7 +200,7 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 **Administration and scale**
 
-- Eight read-only web services that do not hold the session lock, each with a read budget
+- Nine read-only web services that do not hold the session lock, each with a read budget
   enforced by a test.
 - Core's count of submissions waiting is read through the assignments' index, not by a scan of
   every submission.

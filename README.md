@@ -52,6 +52,14 @@ the cards always paint first.
   strip was opened that day has no *Late* period yet and says so.
 
   ![The closed strip: one line of counts for Late, Today, Tomorrow, This week and Later](docs/screenshots/calendar-line.png)
+- **Up next.** Under the strip, open or closed, at most two rows show what is still open in the
+  next hours: an assignment about to be due, a quiz about to close, an event about to start. Each
+  row has its time, a countdown (amber under an hour), *Now* for an event that is on, and the
+  action; the ring on *Today* in the strip marks the same moment. It appears only while something
+  is inside the horizon (`calendar_soon`) and asks nothing on a calm day. A reader can hide it
+  until the urgency rises.
+
+  ![Up next under the closed strip: an event on now and an assignment due in 40 minutes with its countdown, the ring on Today above](docs/screenshots/calendar-soon.png)
 - **Scrolling.** The row holds the whole window and scrolls with a trackpad, touch or the
   keyboard (arrows, Page Up and Down, Home and End), asking the server nothing. It opens with five
   past days before today (three on a narrow block); two arrows over its ends move two weeks at a
@@ -292,6 +300,7 @@ Configuration
 | `calendar_enabled` | off | Show the strip. Off, it costs no request and no query. |
 | `calendar_where` | Dashboard and the Compass page | Where the strip shows: both, the Dashboard only, or the Compass page only. |
 | `calendar_sources` | deadlines, course, group and site events | What the strip counts: deadlines and grading work, course events, group events, site events, personal events, category events. |
+| `calendar_soon` | 6 hours | The horizon of Up next: off, 3, 6 or 12 hours. Off draws nothing and asks nothing. |
 | `calendar_style` | dots | How each day is drawn: dots, ring or pulse bars. |
 | `calendar_relevance` | on | The starting value of each user's relevance switch. |
 | `calendar_start` | closed | How the strip first shows to someone who never opened or closed it: open (the row of days) or closed (counts by period). |

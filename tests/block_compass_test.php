@@ -414,6 +414,8 @@ final class block_compass_test extends advanced_testcase {
      * @return void
      */
     public function test_the_calendar_props_carry_what_the_client_draws(): void {
+        global $USER;
+
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user(['timezone' => 'America/Sao_Paulo']);
         $this->setUser($user);
@@ -441,6 +443,18 @@ final class block_compass_test extends advanced_testcase {
         $this->assertSame('America/Sao_Paulo', $calendar['timezone']);
         $this->assertSame(config::inventory_max(), $calendar['bound']);
         $this->assertSame(day::LIMIT, $calendar['daylimit']);
+        // Up next (ADR-016): the horizon in hours, not hidden, and the sign-in a hide is written under.
+        $this->assertSame(['hours' => 6, 'rank' => null, 'signin' => (int) $user->currentlogin], $calendar['soon']);
+        $USER->currentlogin = 1700000000;
+        set_user_preference('block_compass_calendar', json_encode(['soon' => ['rank' => 2, 'signin' => 1700000000]]));
+        set_config('calendar_soon', '0', 'block_compass');
+        $this->assertSame(
+            ['hours' => 0, 'rank' => 2, 'signin' => 1700000000],
+            $this->props()['calendar']['soon'],
+            'off is 0 hours, and a hide under this sign-in ships its rank'
+        );
+        $USER->currentlogin = 1700003600;
+        $this->assertNull($this->props()['calendar']['soon']['rank'], 'another sign-in: shown again');
         $this->assertSame(shell::CALENDAR_STRINGS, array_keys($calendar['strings']));
         foreach (shell::CALENDAR_STRINGS as $key) {
             $this->assertSame(get_string($key, 'block_compass'), $calendar['strings'][$key], $key);
@@ -485,8 +499,13 @@ final class block_compass_test extends advanced_testcase {
         sort($shipped);
         $this->assertSame($calkeys, $shipped, 'the strip\'s strings are exactly the cal_ strings of the language file');
 
-        $files = glob($root . '/js/esm/src/Calendar*.tsx');
-        $this->assertCount(3, $files, 'CalendarStrip.tsx, CalendarLine.tsx and CalendarCard.tsx');
+        // The calendar's components, Up next among them (ADR-016): every one reads the strip's strings.
+        $files = array_merge(glob($root . '/js/esm/src/Calendar*.tsx'), [$root . '/js/esm/src/UpNext.tsx']);
+        $this->assertCount(
+            4,
+            array_filter($files, 'is_file'),
+            'CalendarStrip.tsx, CalendarLine.tsx, CalendarCard.tsx and UpNext.tsx'
+        );
         $read = [];
         foreach ($files as $file) {
             $source = file_get_contents($file);
@@ -510,6 +529,7 @@ final class block_compass_test extends advanced_testcase {
         $read = array_values(array_unique($read));
         $this->assertContains('cal_daylabel', $read, 'vacuity: a plain read was found');
         $this->assertContains('cal_items_one', $read, 'vacuity: a fillCount() read was found');
+        $this->assertContains('cal_soon_more_one', $read, 'vacuity: Up next\'s reads were found');
         $this->assertSame(
             [],
             array_values(array_diff($read, shell::CALENDAR_STRINGS)),

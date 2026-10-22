@@ -51,7 +51,7 @@ final class get_strip_test extends advanced_testcase {
     /** @var string[] The keys the service returns at the top level, in order. */
     private const TOP_KEYS = [
         'enabled', 'firstday', 'today', 'from', 'to', 'truncated', 'bounded', 'haslearning', 'hasteaching', 'views',
-        'weekend', 'specialdays',
+        'weekend', 'specialdays', 'now',
     ];
 
     /**
@@ -170,6 +170,41 @@ final class get_strip_test extends advanced_testcase {
         foreach (['firstday', 'today', 'from', 'to', 'truncated', 'bounded', 'haslearning', 'hasteaching'] as $key) {
             $this->assertSame($payload[$key], $data[$key], $key);
         }
+
+        // Up next's gate (ADR-016 decision 3): each view carries the entry's lists, as the counts do,
+        // so an open strip gates get_soon without asking for the counts.
+        $entry = calendar_cache::get((int) $user->id);
+        $this->assertIsArray($entry);
+        foreach (strip::VIEWS as $view) {
+            $this->assertSame(['days', 'needle', 'upcoming', 'events'], array_keys($data['views'][$view]), $view);
+            $this->assertSame(strip::gate_lists($entry, $view), [
+                'upcoming' => $data['views'][$view]['upcoming'],
+                'events' => $data['views'][$view]['events'],
+            ], $view);
+        }
+        $this->assertEqualsWithDelta(time(), $data['now'], 5, 'the server\'s clock');
+    }
+
+    /**
+     * An open strip carries the gate get_strip_counts carries: a deadline in two hours is in the learning
+     * view's upcoming, as an integer through the allowlist, and the teaching view of a learner holds none.
+     *
+     * @return void
+     */
+    public function test_each_view_carries_the_gate_lists(): void {
+        $gen = $this->getDataGenerator();
+        $user = $gen->create_user(['timezone' => 'America/Sao_Paulo']);
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $due = time() + 2 * HOURSECS;
+        $gen->create_module('assign', ['course' => $course->id, 'duedate' => $due, 'assignsubmission_onlinetext_enabled' => 1]);
+        $this->setUser($user);
+
+        $data = $this->call();
+
+        $this->assertSame([$due], $data['views']['learning']['upcoming']);
+        $this->assertSame([], $data['views']['learning']['events']);
+        $this->assertSame([[], []], [$data['views']['teaching']['upcoming'], $data['views']['teaching']['events']]);
     }
 
     /**

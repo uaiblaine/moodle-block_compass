@@ -99,6 +99,10 @@
     "eject": "prohibited",
     "wrap": "prohibited"
   },
+  "UpNext": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
   "ViewToggle": {
     "eject": "prohibited",
     "wrap": "prohibited"
