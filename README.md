@@ -251,8 +251,8 @@ public directory (`public/` in a 5.2 or 5.3 checkout):
 
 ```sh
 # Moodle 5.2
-git clone -b main https://github.com/uaiblaine/moodle-local_unlistedcourses.git public/local/unlistedcourses
-git clone -b main https://github.com/uaiblaine/moodle-block_compass.git public/blocks/compass
+git clone -b MOODLE_502_STABLE https://github.com/uaiblaine/moodle-local_unlistedcourses.git public/local/unlistedcourses
+git clone -b MOODLE_502_STABLE https://github.com/uaiblaine/moodle-block_compass.git public/blocks/compass
 
 # Moodle 5.3
 git clone -b MOODLE_503_STABLE https://github.com/uaiblaine/moodle-local_unlistedcourses.git public/local/unlistedcourses
