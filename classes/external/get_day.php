@@ -111,9 +111,12 @@ class get_day extends external_api {
     /**
      * One item: exactly day::ALLOWLIST.
      *
+     * Public because get_soon returns the same items through it, so a day's item and an Up next row
+     * cannot drift apart ({@see get_soon::execute_returns()}).
+     *
      * @return external_single_structure
      */
-    private static function item_structure(): external_single_structure {
+    public static function item_structure(): external_single_structure {
         return new external_single_structure([
             'id' => new external_value(PARAM_INT, 'Event id'),
             'name' => new external_value(PARAM_TEXT, 'Event name, formatted, unescaped'),
@@ -123,6 +126,7 @@ class get_day extends external_api {
             'purpose' => new external_value(PARAM_ALPHANUMEXT, 'The activity\'s purpose, empty for none'),
             'iconurl' => new external_value(PARAM_URL, 'Icon URL, empty when none'),
             'timestart' => new external_value(PARAM_INT, 'Start, Unix time'),
+            'timeduration' => new external_value(PARAM_INT, 'Duration in seconds, 0 for an instant such as a deadline'),
             'formattedtime' => new external_value(PARAM_RAW, 'The time as core\'s humantimeperiod renders it (trusted HTML)'),
             'viewurl' => new external_value(PARAM_URL, 'The event in core\'s day view'),
             'action' => new external_single_structure([

@@ -324,6 +324,15 @@ const SHOTS = {
         save('calendar-line.png', await page.shot(await page.box(STRIP, 12)));
     },
 
+    // Up next under the closed line: the assignments about to close and the event on now, the strip and the section boxed.
+    async soon(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {strip: 'closed'});
+        await page.until(`document.querySelector('.block_compass .compass-soon .compass-soon-row')`, 30000);
+        await sleep(600);
+        await page.mouseAway();
+        save('calendar-soon.png', await page.shot(await page.box([...STRIP, 'section.compass-soon'], 12)));
+    },
+
     // The closed line for the teacher: the To grade cell first, then the periods. Written only when the cell is there.
     async lineteaching(browser) {
         const page = await open(browser, 'demo.teacher', '/my/', {strip: 'closed'});
@@ -537,7 +546,7 @@ const SHOTS = {
     },
 };
 
-const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'lineteaching', 'dim', 'dark', 'explore', 'filtered', 'search',
+const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'soon', 'lineteaching', 'dim', 'dark', 'explore', 'filtered', 'search',
     'filters', 'organise', 'preview', 'phone', 'narrow', 'page', 'mobile', 'settings'];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT;
 const browser = await launch();

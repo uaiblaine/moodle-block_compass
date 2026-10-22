@@ -698,6 +698,219 @@ final class strip_test extends advanced_testcase {
     }
 
     /**
+     * Up next's deadline list holds action-event times only, from the build instant, today or tomorrow.
+     *
+     * Kept: a to-do in an hour, graded work tomorrow, a class deadline in the teaching view. Left out:
+     * a standard event later today (the events list holds it, {@see strip::events()}), a to-do whose
+     * time passed before the build, and a to-do in three days.
+     *
+     * @return void
+     */
+    public function test_upcoming_holds_only_deadlines_from_the_build_instant(): void {
+        [$now, $window] = $this->upcoming_clock();
+        $items = [
+            $this->upcoming_item('todo', 'learning', $window['today'], $now + HOURSECS, 0),
+            $this->upcoming_item('graded', 'learning', $window['tomorrow'], $now + DAYSECS, 0),
+            $this->upcoming_item('class', 'teaching', $window['today'], $now + 2 * HOURSECS, 0),
+            $this->upcoming_item('event', 'both', $window['today'], $now + 30 * MINSECS, HOURSECS),
+            $this->upcoming_item('todo', 'learning', $window['today'], $now - HOURSECS, 0),
+            $this->upcoming_item('todo', 'learning', gmdate('Y-m-d', $now + 3 * DAYSECS), $now + 3 * DAYSECS, 0),
+        ];
+
+        $upcoming = strip::upcoming($items, $now, $window, false);
+
+        $this->assertSame([$now + HOURSECS, $now + DAYSECS], $upcoming['learning']);
+        $this->assertSame([$now + 2 * HOURSECS], $upcoming['teaching']);
+    }
+
+    /**
+     * The events list: every standard event that starts by the end of tomorrow and is not over at the build.
+     *
+     * Kept, as [start, end]: one that started yesterday evening and runs into today, one running at the
+     * build, a site event running (in both views), one later today, an instant later today (end equal to
+     * start), one late tomorrow. Left out: one that ended before the build, one that ends at the build
+     * instant, an instant before the build, one the day after tomorrow, and a to-do (only events).
+     *
+     * @return void
+     */
+    public function test_events_lists_the_events_not_over_at_the_build_instant(): void {
+        [$now, $window] = $this->upcoming_clock();
+        $yesterday = gmdate('Y-m-d', $now - DAYSECS);
+        $items = [
+            $this->upcoming_item('event', 'learning', $window['today'], $now - HOURSECS, 3 * HOURSECS),
+            $this->upcoming_item('event', 'learning', $yesterday, $now - 14 * HOURSECS, 16 * HOURSECS),
+            $this->upcoming_item('event', 'both', $window['today'], $now - 30 * MINSECS, HOURSECS),
+            $this->upcoming_item('event', 'learning', $window['today'], $now + 2 * HOURSECS, HOURSECS),
+            $this->upcoming_item('event', 'learning', $window['today'], $now + 4 * HOURSECS, 0),
+            $this->upcoming_item('event', 'learning', $window['tomorrow'], $now + DAYSECS + 11 * HOURSECS, 0),
+            $this->upcoming_item('event', 'learning', $window['today'], $now - 3 * HOURSECS, HOURSECS),
+            $this->upcoming_item('event', 'learning', $window['today'], $now - 2 * HOURSECS, 2 * HOURSECS),
+            $this->upcoming_item('event', 'learning', $window['today'], $now - MINSECS, 0),
+            $this->upcoming_item('event', 'learning', gmdate('Y-m-d', $now + 2 * DAYSECS), $now + DAYSECS + 13 * HOURSECS, 0),
+            $this->upcoming_item('todo', 'learning', $window['today'], $now + HOURSECS, 3 * HOURSECS),
+        ];
+
+        $events = strip::events($items, $now, $window);
+
+        $this->assertSame(
+            [
+                [$now - 14 * HOURSECS, $now + 2 * HOURSECS],
+                [$now - HOURSECS, $now + 2 * HOURSECS],
+                [$now - 30 * MINSECS, $now + 30 * MINSECS],
+                [$now + 2 * HOURSECS, $now + 3 * HOURSECS],
+                [$now + 4 * HOURSECS, $now + 4 * HOURSECS],
+                [$now + DAYSECS + 11 * HOURSECS, $now + DAYSECS + 11 * HOURSECS],
+            ],
+            $events['learning']
+        );
+        $this->assertSame([[$now - 30 * MINSECS, $now + 30 * MINSECS]], $events['teaching'], 'An event of both views is in both.');
+    }
+
+    /**
+     * The events list is distinct, ordered by start then end, and cut at UPCOMING_LIMIT.
+     *
+     * Twenty-four events today, latest first, two of them the same pair, and two sharing a start.
+     *
+     * @return void
+     */
+    public function test_events_are_distinct_ordered_and_cut_at_the_limit(): void {
+        [$now, $window] = $this->upcoming_clock();
+        $items = [];
+        for ($i = 21; $i >= 0; $i--) {
+            $items[] = $this->upcoming_item('event', 'learning', $window['today'], $now + HOURSECS + $i * MINSECS, HOURSECS);
+        }
+        $items[] = $this->upcoming_item('event', 'learning', $window['today'], $now + HOURSECS, HOURSECS);
+        $items[] = $this->upcoming_item('event', 'learning', $window['today'], $now + HOURSECS, MINSECS);
+
+        $expected = [[$now + HOURSECS, $now + HOURSECS + MINSECS]];
+        for ($i = 0; $i < strip::UPCOMING_LIMIT - 1; $i++) {
+            $expected[] = [$now + HOURSECS + $i * MINSECS, $now + 2 * HOURSECS + $i * MINSECS];
+        }
+        $this->assertSame($expected, strip::events($items, $now, $window)['learning']);
+    }
+
+    /**
+     * The gate opens on a deadline inside [now, now + horizon] and nowhere else.
+     *
+     * @return void
+     */
+    public function test_the_gate_opens_on_a_deadline_inside_the_horizon(): void {
+        $now = 1773144000;
+        $h = 6 * HOURSECS;
+        $deadline = fn(int $time): array => ['upcoming' => [$time], 'events' => []];
+
+        $this->assertTrue(strip::gate_opens($deadline($now), $now, $h), 'due at now');
+        $this->assertTrue(strip::gate_opens($deadline($now + $h), $now, $h), 'due at the horizon');
+        $this->assertFalse(strip::gate_opens($deadline($now + $h + 1), $now, $h), 'due past the horizon');
+        $this->assertFalse(strip::gate_opens($deadline($now - 1), $now, $h), 'due before now');
+        $this->assertFalse(strip::gate_opens(['upcoming' => [], 'events' => []], $now, $h), 'nothing');
+        $this->assertFalse(strip::gate_opens($deadline($now), $now, 0), 'the setting off asks nothing');
+    }
+
+    /**
+     * The gate opens on an event that starts by now + horizon and has not ended at now.
+     *
+     * @return void
+     */
+    public function test_the_gate_opens_on_an_event_running_or_starting_inside_the_horizon(): void {
+        $now = 1773144000;
+        $h = 6 * HOURSECS;
+        $event = fn(int $start, int $end): array => ['upcoming' => [], 'events' => [[$start, $end]]];
+
+        $this->assertTrue(strip::gate_opens($event($now - HOURSECS, $now + HOURSECS), $now, $h), 'running');
+        $this->assertTrue(strip::gate_opens($event($now + $h, $now + $h + HOURSECS), $now, $h), 'starting at the horizon');
+        $this->assertTrue(strip::gate_opens($event($now + HOURSECS, $now + HOURSECS), $now, $h), 'an instant inside');
+        $this->assertFalse(strip::gate_opens($event($now + $h + 1, $now + $h + HOURSECS), $now, $h), 'starting past it');
+        $this->assertFalse(strip::gate_opens($event($now - HOURSECS, $now), $now, $h), 'ending at now');
+        $this->assertFalse(strip::gate_opens($event($now - HOURSECS, $now + HOURSECS), $now, 0), 'the setting off');
+    }
+
+    /**
+     * The client's timer: the first instant after now at which the gate would open, or null.
+     *
+     * @return void
+     */
+    public function test_the_gate_next_opens_at_the_earliest_time_less_the_horizon(): void {
+        $now = 1773144000;
+        $h = 6 * HOURSECS;
+        $view = ['upcoming' => [$now + $h + 600, $now + 2 * $h], 'events' => [[$now + $h + 300, $now + $h + 900]]];
+
+        $this->assertSame($now + 300, strip::gate_next($view, $now, $h));
+        $this->assertSame($now + 600, strip::gate_next(['upcoming' => [$now + $h + 600], 'events' => []], $now, $h));
+        $this->assertNull(strip::gate_next(['upcoming' => [$now + $h], 'events' => []], $now, $h), 'open now, not later');
+        $this->assertNull(strip::gate_next(['upcoming' => [], 'events' => []], $now, $h), 'nothing');
+        $this->assertNull(strip::gate_next($view, $now, 0), 'the setting off');
+    }
+
+    /**
+     * Done items never open the gate; the open item beside them does.
+     *
+     * @return void
+     */
+    public function test_upcoming_leaves_out_done_items(): void {
+        [$now, $window] = $this->upcoming_clock();
+        $items = [
+            $this->upcoming_item('done', 'learning', $window['today'], $now + HOURSECS, 0),
+            $this->upcoming_item('todo', 'learning', $window['today'], $now + 2 * HOURSECS, 0),
+        ];
+
+        $this->assertSame([$now + 2 * HOURSECS], strip::upcoming($items, $now, $window, false)['learning']);
+    }
+
+    /**
+     * A view's list is distinct, ascending and cut at UPCOMING_LIMIT, the earliest times kept.
+     *
+     * Twenty-five to-do items today, given latest first, two of them at the same instant.
+     *
+     * @return void
+     */
+    public function test_upcoming_is_distinct_ascending_and_cut_at_its_limit(): void {
+        [$now, $window] = $this->upcoming_clock();
+        $items = [];
+        for ($i = 24; $i >= 0; $i--) {
+            $items[] = $this->upcoming_item('todo', 'learning', $window['today'], $now + HOURSECS + $i * MINSECS, 0);
+        }
+        $items[] = $this->upcoming_item('todo', 'learning', $window['today'], $now + HOURSECS, 0);
+
+        $expected = [];
+        for ($i = 0; $i < strip::UPCOMING_LIMIT; $i++) {
+            $expected[] = $now + HOURSECS + $i * MINSECS;
+        }
+        $this->assertSame(20, strip::UPCOMING_LIMIT);
+        $this->assertSame($expected, strip::upcoming($items, $now, $window, false)['learning']);
+    }
+
+    /**
+     * A fixed build instant, a day's noon in UTC, and its window: upcoming() reads no clock.
+     *
+     * @return array [now, window].
+     */
+    private function upcoming_clock(): array {
+        $now = (new \DateTimeImmutable('2026-03-10 12:00:00', new \DateTimeZone('UTC')))->getTimestamp();
+
+        return [$now, strip::window($now, new \DateTimeZone('UTC'))];
+    }
+
+    /**
+     * An item as collect() returns it, with only what upcoming() reads.
+     *
+     * @param string $kind Its kind.
+     * @param string $view learning, teaching or both.
+     * @param string $day Its local day, Y-m-d.
+     * @param int $time Its row's sorttime.
+     * @param int $duration Its row's timeduration.
+     * @return array
+     */
+    private function upcoming_item(string $kind, string $view, string $day, int $time, int $duration): array {
+        return [
+            'view' => $view,
+            'kind' => $kind,
+            'day' => $day,
+            'row' => (object) ['sorttime' => $time, 'timeduration' => $duration],
+        ];
+    }
+
+    /**
      * Budget: a cache hit costs no read; a rebuild costs at most E2's measured ceiling.
      *
      * Protocol (classes/local/budget.php, tests/external/get_attention_test.php's budget tests):

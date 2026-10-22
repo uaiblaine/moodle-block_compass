@@ -43,7 +43,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * preference bundle into $USER->preference, which a read-only request discards and the next
  * request reloads.
  *
- * One key is tolerated, for two of the calendar services only (see CALENDAR_SERVICES): the write is
+ * One key is tolerated, for the three calendar services that reach core's vault (see CALENDAR_SERVICES): the write is
  * core's, not the plugin's. calendar_show_event_type() (calendar/lib.php:1995-2003) memoises the
  * default event-type filter in $SESSION->calendarshoweventtype when the user has no persisted
  * filter, and is reached through core's raw retrieval strategy (calendar_set_filters,
@@ -51,7 +51,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * recomputes the same default. Core declares 'readonlysession' => true on
  * core_calendar_get_action_events_by_timesort (lib/db/services.php:279), which takes the same
  * path. get_strip_counts gets no tolerance: its counts pass never reaches core's vault. Every other
- * key still fails; test_the_tolerance_is_one_key_for_two_services is the control.
+ * key still fails; test_the_tolerance_is_one_key_for_the_vault_services is the control. get_soon is
+ * the third: its learning view is get_day's pipeline over a range (day::learning_kept()), the same
+ * api::get_events() call.
  *
  * @package    block_compass
  * @category   test
@@ -66,9 +68,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 #[CoversClass(get_strip::class)]
 #[CoversClass(get_strip_counts::class)]
 #[CoversClass(get_day::class)]
+#[CoversClass(get_soon::class)]
 final class readonly_session_test extends advanced_testcase {
     /** @var string[] Services that reach core's calendar filter memo, and may add the one key below. */
-    private const CALENDAR_SERVICES = ['block_compass_get_strip', 'block_compass_get_day'];
+    private const CALENDAR_SERVICES = ['block_compass_get_strip', 'block_compass_get_day', 'block_compass_get_soon'];
 
     /** @var string The $SESSION key core's calendar_show_event_type() memoises. */
     private const CALENDAR_SERVICE_TOLERATED = 'calendarshoweventtype';
@@ -98,6 +101,7 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_get_strip',
             'block_compass_get_strip_counts',
             'block_compass_get_day',
+            'block_compass_get_soon',
         ];
 
         return array_combine($names, array_map(fn(string $name): array => [$name], $names));
@@ -151,7 +155,7 @@ final class readonly_session_test extends advanced_testcase {
      */
     public function test_every_service_is_a_read_declared_read_only(): void {
         $functions = self::declared_functions();
-        $this->assertCount(8, $functions);
+        $this->assertCount(9, $functions);
 
         foreach (array_keys($functions) as $name) {
             $this->assertSame('read', $functions[$name]['type'], $name);
@@ -256,6 +260,7 @@ final class readonly_session_test extends advanced_testcase {
                 'courseids' => array_map(fn($course): int => (int) $course->id, array_values($courses)),
             ],
             'block_compass_get_day' => ['date' => date('Y-m-d', $now), 'view' => 'learning'],
+            'block_compass_get_soon' => ['view' => 'learning'],
             default => [],
         };
         $CFG->enable_read_only_sessions = true;
@@ -287,6 +292,8 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_get_strip' => $this->assertTrue($data['enabled']),
             'block_compass_get_strip_counts' => $this->assertTrue($data['enabled']),
             'block_compass_get_day' => $this->assertSame('learning', $data['view']),
+            // A horizon above 0 is the control that the domain ran rather than the off answer.
+            'block_compass_get_soon' => $this->assertGreaterThan(0, $data['horizon']),
         };
         $this->assertSame([], self::unexpected_keys($name, self::changed_keys($before, $after)), "$name changed \$SESSION");
     }
@@ -307,13 +314,14 @@ final class readonly_session_test extends advanced_testcase {
     }
 
     /**
-     * The tolerance is one key for two services: the key passes for them, fails for any other
-     * service, and a different key added by a calendar service still fails.
+     * The tolerance is one key for the three vault services: the key passes for them, fails for any
+     * other service, and a different key added by a calendar service still fails.
      *
      * @return void
      */
-    public function test_the_tolerance_is_one_key_for_two_services(): void {
+    public function test_the_tolerance_is_one_key_for_the_vault_services(): void {
         $this->assertSame([], self::unexpected_keys('block_compass_get_day', ['calendarshoweventtype']));
+        $this->assertSame([], self::unexpected_keys('block_compass_get_soon', ['calendarshoweventtype']));
         $this->assertSame([], self::unexpected_keys('block_compass_get_strip', ['calendarshoweventtype']));
         $this->assertSame(
             ['calendarshoweventtype'],

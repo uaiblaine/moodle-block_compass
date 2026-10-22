@@ -221,7 +221,7 @@ final class accessibility_rules_test extends basic_testcase {
         $components = [
             'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
             'FilterLine', 'ScopeGroup', 'StarToggle', 'OrganiseMenu', 'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip',
-            'CalendarLine', 'Block',
+            'CalendarLine', 'UpNext', 'Block',
         ];
         foreach ($components as $component) {
             $this->assertArrayHasKey("js/esm/src/{$component}.tsx", $files);
@@ -501,9 +501,9 @@ final class accessibility_rules_test extends basic_testcase {
             'the section rung is the section titles: the calendar strip, a tier 1 strip and the tier 3 panel'
         );
         $this->assertSame(
-            ['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx'],
+            ['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx', 'js/esm/src/UpNext.tsx'],
             $titles,
-            'the title rung is the card titles: the tier 1 card and the tier 3 one'
+            'the title rung is the card titles, the tier 1 card and the tier 3 one, and Up next, a region of the calendar'
         );
     }
 
@@ -2057,7 +2057,8 @@ final class accessibility_rules_test extends basic_testcase {
                 $this->assertStringContainsString($tag . '{label.text}</a>', $card, 'a link not showing its verb');
             }
         }
-        $this->assertSame(4, $drawn, 'the View link, the inactive name and the two actionable links');
+        // The View link twice: primary for an Up next event on now (ADR-016 decision 2), else outlined.
+        $this->assertSame(5, $drawn, 'the two View links, the inactive name and the two actionable links');
         $this->assertStringContainsString('<span className="visually-hidden">{label.name}</span>', $card);
     }
 
@@ -2326,6 +2327,77 @@ final class accessibility_rules_test extends basic_testcase {
         foreach ($declarations as $declaration) {
             $this->assertMatchesRegularExpression('/(?<![\w-])' . $declaration . '\b/', $body, $declaration);
         }
+    }
+
+    /**
+     * Up next grows in from no height, appears at once under reduced motion, and names its one icon button.
+     *
+     * ADR-016 decisions 1 and 6: the region is a one-track grid whose row goes from 0fr to 1fr over at
+     * least 100 ms (the fleet's stylelint floor), its content clipped inside, so tier 1 slides; the
+     * collapsed region is hidden from every reader; under prefers-reduced-motion the transition and the
+     * dot's pulse are off. The hide button is an icon named by its aria-label, with the strip's own
+     * aria-hidden tooltip and no title, put off by Escape as the switch's are. The heading comes from
+     * heading.ts, the rows are a list, and the rise is said through the strip's polite region, which
+     * the region is handed rather than one of its own. Vacuity guards: each rule and element was found.
+     *
+     * Changes that must make it fail: the grow dropped or made instant; the reduced-motion block or the
+     * pulse's stop deleted; the hide button's name, its tooltip or its Escape guard removed; a title
+     * added to it; a live region of its own.
+     *
+     * @return void
+     */
+    public function test_up_next_grows_in_and_names_its_icon_button(): void {
+        $bodies = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            $bodies[$selector] = ($bodies[$selector] ?? '') . $body;
+        }
+        $wrap = $bodies['.block_compass .compass-soon-wrap'] ?? '';
+        $this->assertMatchesRegularExpression('/grid-template-rows:\s*0fr/', $wrap, 'the region starts at no height');
+        $this->assertMatchesRegularExpression('/visibility:\s*hidden/', $wrap, 'collapsed, it is hidden from every reader');
+        $this->assertSame(1, preg_match('/transition:\s*grid-template-rows\s+(\d+)ms\s+ease-out/', $wrap, $ms), 'the grow');
+        $this->assertGreaterThanOrEqual(100, (int) $ms[1]);
+        $open = $bodies['.block_compass .compass-soon-wrap.compass-soon-wrap-open'] ?? '';
+        $this->assertMatchesRegularExpression('/grid-template-rows:\s*1fr/', $open, 'open, the region has its own height');
+        $this->assertMatchesRegularExpression('/overflow:\s*hidden/', $bodies['.block_compass .compass-soon-inner'] ?? '');
+        $dot = $bodies['.block_compass .compass-soon-dot'] ?? '';
+        $this->assertMatchesRegularExpression('/animation:\s*block_compass-soon-pulse\b/', $dot, 'the dot on now pulses');
+
+        $pattern = '/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/';
+        preg_match_all($pattern, $this->css(), $media);
+        $reduced = implode("\n", $media[1]);
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-soon-wrap\s*\{\s*transition:\s*none;/',
+            $reduced,
+            'under reduced motion the region appears at once'
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-soon-dot\s*\{\s*animation:\s*none;/',
+            $reduced,
+            'under reduced motion the dot on now holds still'
+        );
+
+        $source = $this->reactsources()['js/esm/src/UpNext.tsx'];
+        $hide = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-soon-hide')
+        ));
+        $this->assertCount(1, $hide, 'vacuity: the hide button');
+        $this->assertStringContainsString('aria-label={strings.cal_soon_hide}', $hide[0]);
+        $this->assertStringNotContainsString('title=', $hide[0], 'a title draws a second tooltip');
+        $this->assertStringContainsString("'compass-soon-hide compass-cal-tipsoff'", $hide[0], 'Escape puts its tooltip off');
+        $this->assertStringContainsString(
+            '<span className="compass-cal-tip" aria-hidden="true">{strings.cal_soon_hide}</span>',
+            $source
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.compass-soon-hide:not\(\.compass-cal-tipsoff\):focus-visible \.compass-cal-tip/',
+            $this->css(),
+            'the tooltip shows on keyboard focus'
+        );
+        $this->assertStringContainsString('titleTag(config.headinglevel)', $source);
+        $this->assertStringContainsString('<ul className="compass-soon-list">', $source);
+        $this->assertStringNotContainsString('aria-live', $source, 'the rise goes through the strip\'s polite region');
+        $this->assertStringContainsString('onAnnounce={setSummary}', $this->reactsources()['js/esm/src/CalendarStrip.tsx']);
     }
 
     /**
