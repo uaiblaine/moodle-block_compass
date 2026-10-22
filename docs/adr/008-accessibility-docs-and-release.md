@@ -739,6 +739,33 @@ Three stops, each a real one — the phase does not continue past a stop without
   the query from a row. `keepFocus()` stays where ADR-007 put it — archiving unmounts the focused
   row; clearing a search does not. Five findings remain, all fixed in the phase.
 
+## Amendments (2026-10-22, the release)
+
+- **Two releases, one per branch.** By the time the plugin shipped, it had a branch per Moodle
+  version, so decision 5 ran twice: `v5.2-r1` on `MOODLE_502_STABLE` (2026042010) and `v5.3-r1` on
+  `MOODLE_503_STABLE` (2026100507). Each has its own release commit, annotated tag and zip. `main`
+  became the 5.3 branch the same day and is identical to `MOODLE_503_STABLE`. One `CHANGELOG.md`,
+  dated, is shared by both branches.
+- **`MATURITY_BETA`, as decision 5 says.** When asked again on 2026-10-22, the maintainer kept the
+  answer to Q2. `MATURITY_STABLE` still waits for the first production rollout.
+- **The release workflow is removed** (the maintainer, 2026-10-22), as on the rest of the fleet.
+  The repository never got `MOODLE_ORG_TOKEN`, so pushing a `v*` tag would only have started a
+  job that fails. The moodle.org record remains the maintainer's manual act, as decision 5 says:
+  the first submission is the form, with the release zip attached.
+- **The install proof ran without unmounting a shared stack.** The installer used was
+  `moodle-plugin-ci` instead of the web form. Each zip, built with `git archive --prefix=compass/`
+  from its release commit, was unpacked into a throwaway repository, given the branch's
+  `ci.yml` so the runner would add `local_unlistedcourses`, and run through
+  `mdl ci --only phpunit` on PHP 8.4 and PostgreSQL. That installs a fresh site with the plugin
+  from the zip, then runs the suite shipped inside it:
+  - 5.2: 617 tests, 8 866 assertions, 17 skipped;
+  - 5.3: 626 tests, 8 954 assertions, 17 skipped.
+
+  These are the numbers of each branch's matrix. The listing has 287 entries for 5.2 and 327 for
+  5.3, and nothing under `docs/`, `mutations/`, `.github/` or `.mdlshield/`, with no `CLAUDE.md`
+  and no `PLAN.md`. What this did not exercise is the web installer's own validation of the
+  upload. The maintainer can do that through *Install plugins* on any site.
+
 ## Questions for the maintainer, and the answers (2026-09-07)
 
 1. **README language.** English only, as this record proposed and as the fleet rule of 2026-07-31

@@ -5,14 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each Moodle version has a branch of its own, and each branch numbers its versions in the
-namespace of its Moodle version: `main` (identical to `MOODLE_502_STABLE`) is Moodle 5.2,
-`20260420XX`; `MOODLE_503_STABLE` is Moodle 5.3, `20261005XX`. Releases are named
-`v<Moodle version>-r<N>`, counted per branch. The design behind each feature is in
-[`docs/adr/`](docs/adr/README.md) and the measurements in [`docs/perf/`](docs/perf/).
+namespace of its Moodle version: `main` (identical to `MOODLE_503_STABLE`) is Moodle 5.3,
+`20261005XX`; `MOODLE_502_STABLE` is Moodle 5.2, `20260420XX`. Releases are named
+`v<Moodle version>-r<N>`, counted per branch, and every branch carries this same file. The
+design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measurements in
+[`docs/perf/`](docs/perf/).
 
-## v5.3-r1 (2026100506) - unreleased
+## Unreleased
 
-First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch, `MATURITY_ALPHA`. It carries
+## v5.3-r1 (2026100507) - 2026-10-22
+
+First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch (`main`), `MATURITY_BETA`. It carries
 the features of v5.2-r1 below and depends on `local_unlistedcourses` from that plugin's
 `MOODLE_503_STABLE` branch.
 
@@ -93,9 +96,71 @@ the features of v5.2-r1 below and depends on `local_unlistedcourses` from that p
   (the 5.2 `.js.map` files are gone), and `js/esm/src/swizzle.json` closes every component to
   theme overrides, because the page loads the bundle, which contains them all.
 
-## v5.2-r1 (2026042004) - unreleased
+## v5.2-r1 (2026042010) - 2026-10-22
 
-First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 or later.
+First release, for Moodle 5.2 only, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It needs
+`local_unlistedcourses` 2026042003 or later.
+
+### Changed
+
+- Up next is shown (ADR-016, stage 13c; 2026042009). Under the calendar, above tier 1, while something open
+  is inside the horizon:
+  - **Rows:** at most two, each with the clock time and a countdown, the activity, the course, the
+    kind and the action; the rest of the horizon is one "more" line that opens the strip on today.
+  - **Urgency:** under an hour the countdown is an amber pill and Today's chip and disc carry an
+    amber ring; a meeting on now shows "Now · until" with the action primary and an ink ring.
+  - **Behaviour:**
+    - It slides in (200 ms, none under reduced motion).
+    - It can be hidden until the urgency rises, for the sign-in.
+    - Pointing at a row lights its course's card.
+    - A rise is announced once.
+  - **Requests:** it asks only when the gate opens: none on a calm day.
+  - **Services:** `get_strip` and `get_strip_counts` return each view's gate lists and the
+    server's `now`.
+- Up next's service, `block_compass_get_soon` (ADR-016, stage 13b; 2026042008). It is read-only
+  and works for the current user only, in the user context and in a read-only session; it answers
+  empty when the calendar or the horizon is off. It lists what is still open from now to the
+  horizon (at most ten items, in `get_day`'s item shape) and returns the pruned gate lists. The
+  client comes in 13c. `block_compass_get_strip_counts` also returns each view's `upcoming` and
+  `events`.
+- Up next, server side (ADR-016, stage 13a; nothing is shown yet, the service and the client
+  follow). The closed line's counts carry the gate of Up next: `upcoming` holds the counted
+  deadlines of today and tomorrow, and `events` holds the events as start and end pairs, so a
+  meeting already in progress opens the gate too (`strip::gate_opens()`, `strip::gate_next()`).
+  `soon::get()` lists what is still open from now to the horizon, never cached. It prunes from
+  the gate what core just dropped (submitted, attempted, closed, ended). It starts the learning
+  range at now, which spares core's action callbacks for the day's passed items. Also added:
+  - the `calendar_soon` setting (off, 3, 6 or 12 hours; default 6);
+  - the `soon` member of the `block_compass_calendar` preference (hidden until the urgency rises,
+    for the sign-in);
+  - the `cal_soon_*` strings, shipped with the calendar's strings;
+  - `timeduration` on a day's items.
+- The filter panel stays a popover where an ancestor would clip a fixed child (a `clip-path`,
+  `transform`, `filter` or paint containment on the way up, as Moodle 5.3 puts on the open block
+  drawer), instead of a bottom sheet that would be cut off and pass its clicks to the page
+  (2026042007).
+- *All courses* has the fleet's filter line (ADR-015). One line holds the scope (All, New,
+  Awaiting approval, Scheduled: a radio group of counted cells, a zero cell drawn only when
+  chosen), the search, a favourites star that combines with the scope, **Filters** (the course
+  field panel) and **Organise** (the sort: By category, A-Z, Recent), then the list/cards switch.
+  The line folds on its own width in four steps: Filters loses its word, the search becomes an
+  icon, then two lines with the scope on the second and the view inside Organise. The search
+  grows over the line when the line is narrow, with a close button; it suggests filters (with the
+  number each would show) and courses as you type, and `/` focuses it. The field values in force
+  show as chips under the line, with *Clear all* from two. The panel opens as a popover under the
+  line, or as a bottom sheet on a narrow block, and now starts closed. Pointing at a scope cell,
+  the star, a panel option or a suggestion lights the courses it would keep; nothing is asked of
+  the server for it. Above `inventory_max` the line shows no counts and asks nothing new.
+- The remembered toolbar (`block_compass_explore`) is now `{sort, scope, star, cf, panel}`; a
+  state stored with the old status chip is read as the matching scope, or as the star for
+  Favourites.
+- The institutional crests on cards come from the block's own hook,
+  `\block_compass\hook\course_badges`, which any theme or plugin answers from its `db/hooks.php`;
+  the block no longer names a theme (ADR-013, amendment of 2026-10-16). The answering component
+  decides which courses the current user may see a crest for, the block keeps at most three a
+  course and ignores answers for courses it did not ask about, and a listener that fails costs
+  the crests, never the page. The *Show the theme's institutional badges* setting is offered
+  while something answers the hook, and its description no longer names a theme.
 
 ### Added
 
@@ -166,9 +231,6 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 - A future count that may still shrink reads "up to N" until the day is opened.
 - Month, weekday and time names come from the language pack.
 - Pointing at a first-tier card lights its days on the strip; opening a day outlines its cards.
-- *Up next*, between the calendar and the first tier, lists what closes or starts within the
-  horizon (`calendar_soon`, 6 hours by default) with a countdown, rings *Today* when it is under an
-  hour away or on now, and can be hidden until the urgency rises; a calm day asks nothing.
 - Only activities the user can see are counted; hidden and completed courses are left out.
 - Long text keeps its layout in every language: a day's action button shows a short verb
   (*Attempt*/*Responder* for a quiz, *Answer*/*Responder*, *Submit*/*Enviar*, *Start*/*Iniciar*,
@@ -200,7 +262,7 @@ First release, for Moodle 5.2 only. It needs `local_unlistedcourses` 2026042003 
 
 **Administration and scale**
 
-- Nine read-only web services that do not hold the session lock, each with a read budget
+- Eight read-only web services that do not hold the session lock, each with a read budget
   enforced by a test.
 - Core's count of submissions waiting is read through the assignments' index, not by a scan of
   every submission.
@@ -227,5 +289,5 @@ php admin/cli/cfg.php --component=block_compass --name=version --set=2026041999
 php admin/cli/upgrade.php
 ```
 
-A site that installed `2026042000` to `2026042003` from `MOODLE_502_STABLE` upgrades to `2026042004` in place;
-on `MOODLE_503_STABLE`, `2026100500` to `2026100503` upgrade to `2026100504` in place.
+A site that installed a build of this release from its branch upgrades in place: `2026042000` to
+`2026042009` from `MOODLE_502_STABLE`, `2026100500` to `2026100506` from `MOODLE_503_STABLE`.
