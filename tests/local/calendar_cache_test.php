@@ -90,10 +90,15 @@ final class calendar_cache_test extends advanced_testcase {
      * The control: the same entry, recording the current source, is served as it is. Reading the
      * source costs no database read (config is cached), so the budgets are unchanged.
      *
+     * The setting is pinned to core's count: with its default, the source is the ledger wherever
+     * block_feedback_tracker is installed (grading::tracker_active()), and the test would depend
+     * on what the site has rather than on the entry it rewrites.
+     *
      * @return void
      */
     public function test_an_entry_built_under_another_grading_source_is_rebuilt(): void {
         $this->resetAfterTest();
+        set_config('calendar_grading', 'core', 'block_compass');
         cache::make('block_compass', 'calendarstrip')->purge();
         $user = $this->getDataGenerator()->create_user();
         $this->setUser($user);
@@ -102,7 +107,7 @@ final class calendar_cache_test extends advanced_testcase {
         $userid = (int) $user->id;
 
         $first = strip::entry($userid, $now, 100, $tz);
-        $this->assertSame('core', $first['grading'], 'no ledger on the site: core counts');
+        $this->assertSame('core', $first['grading'], 'calendar_grading is core: core counts');
         $this->assertFalse(strip::counts($userid, $now + 60, 100, $tz)['grading']);
         $this->assertSame($now, strip::entry($userid, $now + 60, 100, $tz)['built'], 'control: same source, served');
 
