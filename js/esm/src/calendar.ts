@@ -32,8 +32,8 @@
 
 import {fillObject} from './str';
 import type {
-    CalendarFilter, CalendarKind, CalendarView, DayItem, Period, PeriodKey, PeriodView, SpecialDay, StripCounts, StripDay,
-    StripPayload,
+    CalendarFilter, CalendarKind, CalendarView, DayItem, GateLists, Period, PeriodKey, PeriodView, SpecialDay, StripCounts,
+    StripDay, StripPayload,
 } from './types';
 
 /** One calendar day in milliseconds; exact for UTC dates. */
@@ -366,11 +366,14 @@ export const periodsOf = (days: StripDay[], view: CalendarView, today: string, p
         });
     });
 
-    return {periods: Array.from(periods.values()), waiting, waitingcourseids};
+    return {periods: Array.from(periods.values()), waiting, waitingcourseids, upcoming: [], events: []};
 };
 
 /**
  * An open strip's payload as the closed strip's counts, summed in the browser.
+ *
+ * The gate lists and the clock are the payload's own (get_strip carries them as the counts do), so a
+ * strip that closes keeps Up next's gate without a request.
  *
  * @param {object} payload The strip payload, whole.
  * @param {boolean} grading Whether grading work is counted (the ledger is the source).
@@ -390,10 +393,136 @@ export const countsOf = (payload: StripPayload, grading: boolean): StripCounts =
         haslearning: payload.haslearning,
         hasteaching: payload.hasteaching,
         views: {
-            learning: periodsOf(payload.views.learning.days, 'learning', payload.today, true, grading),
-            teaching: periodsOf(payload.views.teaching.days, 'teaching', payload.today, true, grading),
+            learning: {
+                ...periodsOf(payload.views.learning.days, 'learning', payload.today, true, grading),
+                upcoming: payload.views.learning.upcoming,
+                events: payload.views.learning.events,
+            },
+            teaching: {
+                ...periodsOf(payload.views.teaching.days, 'teaching', payload.today, true, grading),
+                upcoming: payload.views.teaching.upcoming,
+                events: payload.views.teaching.events,
+            },
         },
+        now: payload.now,
     };
+};
+
+/** Up next's levels (ADR-016 decision 2): calm draws nothing; the highest drawn rings Today and lifts a hide. */
+export const LEVEL_CALM = 0;
+export const LEVEL_SOON = 1;
+export const LEVEL_IMMINENT = 2;
+export const LEVEL_NOW = 3;
+
+/** An item gone by: it leaves Up next. Below every level, so a maximum never picks it. */
+export const LEVEL_PASSED = -1;
+
+/** A deadline or a start this close, in seconds, is imminent: the amber pill and the amber ring. */
+export const IMMINENT_S = 3600;
+
+/**
+ * Whether Up next's gate opens at now: the browser asks get_soon only then (ADR-016 decision 3).
+ *
+ * The twin of strip::gate_opens() ({@see classes/local/calendar/strip.php}), edge for edge: a deadline
+ * t opens it when now <= t <= now + horizon, an event [start, end] when start <= now + horizon and
+ * end > now; a horizon of 0 or less opens nothing. Keep the two in step.
+ *
+ * @param {object} lists The view's gate lists; see GateLists.
+ * @param {number} now Unix time, on the server's clock.
+ * @param {number} horizon The horizon in seconds.
+ * @returns {boolean} Whether to ask.
+ */
+export const gateOpens = (lists: GateLists, now: number, horizon: number): boolean => {
+    if (horizon <= 0) {
+        return false;
+    }
+    for (const time of lists.upcoming) {
+        if (time >= now && time <= now + horizon) {
+            return true;
+        }
+    }
+    for (const [start, end] of lists.events) {
+        if (start <= now + horizon && end > now) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+/**
+ * The first instant after now at which the gate would open with the lists unchanged, for the one timer.
+ *
+ * The twin of strip::gate_next() ({@see classes/local/calendar/strip.php}): a deadline t opens it at
+ * t - horizon, an event at its start - horizon, and only instants after now count; null when nothing
+ * will, or when the horizon is off. Keep the two in step.
+ *
+ * @param {object} lists The view's gate lists; see GateLists.
+ * @param {number} now Unix time, on the server's clock.
+ * @param {number} horizon The horizon in seconds.
+ * @returns {number|null} Unix time, or null.
+ */
+export const gateNext = (lists: GateLists, now: number, horizon: number): number | null => {
+    if (horizon <= 0) {
+        return null;
+    }
+    let next: number | null = null;
+    for (const time of [...lists.upcoming, ...lists.events.map(([start]) => start)]) {
+        const opens = time - horizon;
+        if (opens > now && (next === null || opens < next)) {
+            next = opens;
+        }
+    }
+
+    return next;
+};
+
+/**
+ * Up next's ring on Today, by the highest rung drawn: none at calm and soon, amber at imminent, the
+ * brand's ink at now (ADR-016 decisions 1 and 2). Never the meaning alone: the region says the rung in
+ * words. Shared by the open strip's today disc and the closed line's Today chip.
+ *
+ * @param {number} level The highest rung drawn.
+ * @returns {string} The class, or the empty string.
+ */
+export const ringClass = (level: number): string => {
+    if (level === LEVEL_NOW) {
+        return 'compass-soon-ring-now';
+    }
+
+    return level === LEVEL_IMMINENT ? 'compass-soon-ring-imminent' : '';
+};
+
+/**
+ * An item's rung on Up next's ladder at now (ADR-016 decision 2).
+ *
+ * Only an event with a duration is ever "now", while it lasts; a deadline is soon or imminent until it
+ * passes, and an instant event the same. In the teaching view a class deadline (the students' due date)
+ * is capped at soon: never amber, never ringing. An open item past the horizon is calm: it is not drawn,
+ * and it folds into the line of further items.
+ *
+ * @param {object} item The item, as get_soon lists it.
+ * @param {string} view learning or teaching.
+ * @param {number} now Unix time, on the server's clock.
+ * @param {number} horizon The horizon in seconds.
+ * @returns {number} LEVEL_PASSED, LEVEL_CALM, LEVEL_SOON, LEVEL_IMMINENT or LEVEL_NOW.
+ */
+export const soonLevel = (item: DayItem, view: CalendarView, now: number, horizon: number): number => {
+    const lasts = item.kind === 'event' && item.timeduration > 0;
+    if (lasts && item.timestart <= now && now < item.timestart + item.timeduration) {
+        return LEVEL_NOW;
+    }
+    if (item.timestart < now) {
+        return LEVEL_PASSED;
+    }
+    if (item.timestart > now + horizon) {
+        return LEVEL_CALM;
+    }
+    if (view === 'teaching' && item.kind === 'class') {
+        return LEVEL_SOON;
+    }
+
+    return item.timestart - now <= IMMINENT_S ? LEVEL_IMMINENT : LEVEL_SOON;
 };
 
 /**

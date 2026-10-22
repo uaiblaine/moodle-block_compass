@@ -50,7 +50,12 @@ use core_cache\cache;
  * - deferred: the grading candidates such a pass left uncounted, as facts (no objects), empty otherwise;
  * - lang: current_language() when it was built. The payload and the opened days hold localised text
  *   (days-off labels, item names through the multilang filters, core's action names, times), so an
- *   entry built in another language is a miss, rebuilt whole.
+ *   entry built in another language is a miss, rebuilt whole;
+ * - upcoming and events: per view, the gate of Up next (ADR-016 decision 3): the counted deadline
+ *   times of today and tomorrow from the build instant on ({@see calendar\strip::upcoming()}), and the
+ *   standard events of today and tomorrow not over at it, as [start, end] pairs
+ *   ({@see calendar\strip::events()}). Up next prunes both ({@see calendar\soon::get()}); its own
+ *   answer is never kept here: it exists to say what is still open.
  *
  * An entry is served only when is_fresh() holds; anything else is rebuilt and replaces it whole,
  * days included. A miss is false, never an empty array.
@@ -144,6 +149,10 @@ final class calendar_cache {
      *     it left uncounted (an empty array when it counted them).
      * @param string $grading The grading source the build counted under: tracker or core.
      * @param string $lang The language the build was made in, current_language().
+     * @param array|null $upcoming Per view (learning, teaching), the counted deadline times of today and
+     *     tomorrow from the build instant on ({@see calendar\strip::upcoming()}); null for none.
+     * @param array|null $events Per view, the [start, end] pairs of the standard events of today and
+     *     tomorrow not over at the build instant ({@see calendar\strip::events()}); null for none.
      * @return array The entry.
      */
     public static function entry(
@@ -156,7 +165,9 @@ final class calendar_cache {
         ?array $stamp = null,
         ?array $deferred = null,
         string $grading = 'core',
-        string $lang = 'en'
+        string $lang = 'en',
+        ?array $upcoming = null,
+        ?array $events = null
     ): array {
         return [
             'payload' => $payload,
@@ -171,6 +182,8 @@ final class calendar_cache {
             'deferred' => $deferred ?? [],
             'grading' => $grading,
             'lang' => $lang,
+            'upcoming' => $upcoming ?? ['learning' => [], 'teaching' => []],
+            'events' => $events ?? ['learning' => [], 'teaching' => []],
         ];
     }
 

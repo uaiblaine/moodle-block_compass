@@ -37,7 +37,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {dateParts, monthName} from './calendar';
+import {dateParts, monthName, ringClass} from './calendar';
 import {fill, fillCount, fillObject} from './str';
 import type {CalendarConfig, CalendarView, LineTarget, Period, PeriodKey, StripCounts} from './types';
 
@@ -52,6 +52,8 @@ type CalendarLineProps = {
     // and opens its accessible name (cal_period_label), and every short twin is inside its whole name
     // (accessibility_rules_test), so the visible label stays inside the name (WCAG 2.5.3).
     compact: boolean,
+    // Up next's highest rung (ADR-016): Today's chip is ringed amber at imminent, with the ink at now.
+    ring: number,
     // The course a tier 1 card is pointed at, or null: the cells holding it light, the others dim.
     pointedCourse: number | null,
     onPeriod: (key: LineTarget) => void,
@@ -242,7 +244,9 @@ export const LineNotes = ({calendar, counts, view}: {calendar: CalendarConfig, c
  * @param {object} props The calendar props, the counts and the drawn view; see CalendarLineProps.
  * @returns {object} The rendered line.
  */
-const CalendarLine = ({calendar, counts, view, relevance, compact, pointedCourse, onPeriod, onPoint}: CalendarLineProps) => {
+const CalendarLine = ({
+    calendar, counts, view, relevance, compact, ring, pointedCourse, onPeriod, onPoint,
+}: CalendarLineProps) => {
     const {strings} = calendar;
     if (counts === null) {
         // The line's place while the counts travel: its cells at their height, so nothing moves.
@@ -335,7 +339,13 @@ const CalendarLine = ({calendar, counts, view, relevance, compact, pointedCourse
                                     onBlur={() => onPoint(null)}
                                 >
                                     <span className="compass-cal-plabel" aria-hidden="true">{shown}</span>
-                                    <span className={`compass-cal-pchip compass-cal-heat-${level}`} aria-hidden="true">
+                                    <span
+                                        className={[
+                                            `compass-cal-pchip compass-cal-heat-${level}`,
+                                            period.key === 'today' ? ringClass(ring) : '',
+                                        ].filter(Boolean).join(' ')}
+                                        aria-hidden="true"
+                                    >
                                         {many ? strings.cal_many : period.count}
                                     </span>
                                 </button>

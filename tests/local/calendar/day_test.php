@@ -199,13 +199,14 @@ final class day_test extends advanced_testcase {
         }
         $PAGE->set_context(\core\context\system::instance());
         $output = $PAGE->get_renderer('core');
+        [$from, $to] = day::bounds($date, $tz);
 
-        $day = day::learning((int) $user->id, $date, [(int) $course->id], [], [], ['course'], $now, $tz, $output);
+        $day = day::learning((int) $user->id, $from, $to, [(int) $course->id], [], [], ['course'], $now, $tz, $output);
         $this->assertCount(day::LIMIT, $day['items']);
         $this->assertTrue($day['truncated']);
 
         \calendar_event::load(array_pop($ids))->delete();
-        $day = day::learning((int) $user->id, $date, [(int) $course->id], [], [], ['course'], $now, $tz, $output);
+        $day = day::learning((int) $user->id, $from, $to, [(int) $course->id], [], [], ['course'], $now, $tz, $output);
         $this->assertCount(day::LIMIT, $day['items']);
         $this->assertFalse($day['truncated']);
     }

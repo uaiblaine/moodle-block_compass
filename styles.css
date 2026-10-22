@@ -1670,6 +1670,16 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     --block_compass-cal-mark-dim: var(--block_compass-muted);
     --block_compass-cal-ring: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-accent);
     --block_compass-cal-ring-dim: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-mark-dim);
+    /* Up next (ADR-016 decision 6). The imminent countdown is an amber pill, its fill and text one pair:
+       the warning drawn into the surface as the second heat step is, with the body text (12.9:1 light,
+       5.8:1 dark on Boost). The amber ring on Today is a mark, 3:1 against the surface: the warning
+       pulled towards the body colour, darker in light mode (3.9:1 on white, where the warning itself is
+       1.9:1) and lighter in dark mode (9.7:1); the theme's body colour rather than the strip's text, so
+       a dimmed period or column keeps the ring whole. Both move with the tokens they mix, so dark mode
+       needs no override; contrast_rules_test computes them. The ring at now is the brand's ink. */
+    --block_compass-cal-soon-fill: color-mix(in oklab, var(--block_compass-cal-warn) 36%, var(--block_compass-surface));
+    --block_compass-cal-fg-on-soon: var(--block_compass-cal-text);
+    --block_compass-cal-soon-ring: color-mix(in oklab, var(--block_compass-cal-warn) 65%, var(--bs-body-color, #1d2125));
     /* The hatch of a weekend or a day off (the mockup's #d4d9de on white): the hairline darkened by
        a touch of text, so it reads on the surface in either mode. Decorative: a day's sentence says
        what the day is. A day off the institution marked is cross-hatched, a weekend hatched once. */
@@ -2557,7 +2567,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 /* The icon switch's tooltip, the button's own aria-hidden child (the button's aria-label is the name),
    in core's tooltip look: ink fill, text on ink, lightened in dark mode by the ink tokens. Shown on hover
    and on keyboard focus, never while Escape has put the switch's tooltips off; once shown it takes the
-   pointer, and its ::before bridges the gap to the button, so the pointer can move onto it (WCAG 1.4.13). */
+   pointer, and its ::before bridges the gap to the button, so the pointer can move onto it (WCAG 1.4.13).
+   Up next's hide button (UpNext.tsx) shows the same tooltip, opened below it. */
 .block_compass .compass-cal-tip {
     position: absolute;
     bottom: calc(100% + 9px);
@@ -2597,7 +2608,9 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 .block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip,
-.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip {
+.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip,
+.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):hover .compass-cal-tip,
+.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):focus-visible .compass-cal-tip {
     opacity: 1;
     pointer-events: auto;
 }
@@ -3332,6 +3345,296 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     .block_compass .compass-cal *,
     .block_compass .compass-cal-card {
         transition: none;
+        animation: none;
+    }
+}
+
+/*
+ * Up next (ADR-016): the calendar's last region, between its head and tier 1 (UpNext.tsx).
+ *
+ * It arrives by growing from no height to its own: a one-track grid whose row goes from 0fr to 1fr,
+ * with the content clipped inside, so tier 1 slides down rather than jumps (decision 1). Hiding runs
+ * the same transition back; the collapsed region is invisible to every reader once it has closed
+ * (visibility transitions as one step at the end). No animation under reduced motion: it appears at
+ * once. The tooltip of the hide button opens below it, inside the region, which the clip would cut
+ * above.
+ */
+.block_compass .compass-soon-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows 200ms ease-out, visibility 200ms;
+}
+
+.block_compass .compass-soon-wrap.compass-soon-wrap-open {
+    grid-template-rows: 1fr;
+    visibility: visible;
+}
+
+.block_compass .compass-soon-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.block_compass .compass-soon {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin-top: 0.75rem;
+    padding: 0.625rem 0.75rem 0.625rem 0.875rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.75rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-cal-text);
+}
+
+/* The region's edge follows its rung, as decoration only: the rows say the rung in words. */
+.block_compass .compass-soon.compass-soon-level-2 {
+    border-color: color-mix(in oklab, var(--block_compass-cal-warn) 55%, var(--block_compass-line));
+}
+
+.block_compass .compass-soon.compass-soon-level-3 {
+    border-color: color-mix(in oklab, var(--block_compass-cal-accent) 45%, var(--block_compass-line));
+}
+
+.block_compass .compass-soon-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.625rem;
+}
+
+.block_compass .compass-soon-title {
+    font-weight: 700;
+}
+
+.block_compass .compass-soon-sub {
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+}
+
+/* The hide button: a 36 px icon button at the head's end, with the strip's own tooltip. */
+.block_compass .compass-soon-hide {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-inline-start: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0.5625rem;
+    background: transparent;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-soon-hide:hover {
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+}
+
+.block_compass .compass-soon-hide .compass-cal-tip {
+    top: calc(100% + 9px);
+    right: 0;
+    bottom: auto;
+    left: auto;
+    transform: none;
+}
+
+.block_compass .compass-soon-hide .compass-cal-tip::before {
+    top: auto;
+    bottom: 100%;
+}
+
+.block_compass .compass-soon-hide .compass-cal-tip::after {
+    top: auto;
+    right: 13px;
+    bottom: 100%;
+    left: auto;
+    border-top-color: transparent;
+    border-bottom-color: var(--block_compass-cal-ink);
+}
+
+.block_compass .compass-soon-list {
+    display: grid;
+    grid-template-columns: max-content 2.375rem minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* A row: the time over its countdown, the activity's icon, the name over the course and the kind, and
+   the action, whose width the day card's rule bounds. The columns are the list's, shared through a
+   subgrid: the time column takes the widest countdown of the rows drawn ("Agora · até 18:00" is wider
+   than a fixed track, and overlapped the icon), and the rows stay aligned with each other. */
+.block_compass .compass-soon-row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    row-gap: 0.75rem;
+    padding: 0.4375rem 0;
+    border-top: 1px solid var(--block_compass-line);
+}
+
+.block_compass .compass-soon-row:first-child {
+    border-top: 0;
+}
+
+.block_compass .compass-soon-when {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.block_compass .compass-soon-time {
+    color: var(--block_compass-cal-text);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.block_compass .compass-soon-rel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
+/* Imminent: the countdown on the amber pill, its fill and its text one pair (after the plain rule, at
+   its specificity, so the pill's text wins). Red stays late work's. */
+.block_compass .compass-soon-pill {
+    padding: 1px 0.4375rem;
+    border-radius: 999px;
+    background: var(--block_compass-cal-soon-fill);
+    color: var(--block_compass-cal-fg-on-soon);
+    font-weight: 700;
+}
+
+/* Now: the brand's text, and a dot that pulses unless reduced motion is asked for. */
+.block_compass .compass-soon-rel-now {
+    color: var(--block_compass-brand-text);
+    font-weight: 700;
+}
+
+.block_compass .compass-soon-dot {
+    flex: none;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--block_compass-cal-accent);
+    animation: block_compass-soon-pulse 1600ms ease-in-out infinite;
+}
+
+@keyframes block_compass-soon-pulse {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 color-mix(in oklab, var(--block_compass-cal-accent) 45%, transparent);
+    }
+
+    50% {
+        box-shadow: 0 0 0 5px color-mix(in oklab, var(--block_compass-cal-accent) 0%, transparent);
+    }
+}
+
+.block_compass .compass-soon-what {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* The name is one line, cut with an ellipsis, its whole text in its title. */
+.block_compass .compass-soon-name {
+    overflow: hidden;
+    color: var(--block_compass-cal-text);
+    font-weight: 600;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.block_compass .compass-soon-name:hover {
+    color: var(--block_compass-cal-text);
+    text-decoration: underline;
+}
+
+.block_compass .compass-soon-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+}
+
+.block_compass .compass-soon-more,
+.block_compass .compass-soon-quiet {
+    margin: 0;
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+}
+
+.block_compass .compass-soon-more {
+    padding-top: 0.375rem;
+    border-top: 1px solid var(--block_compass-line);
+}
+
+.block_compass .compass-soon-quiet {
+    margin-top: 0.5rem;
+}
+
+.block_compass .compass-soon-fail {
+    margin-top: 0.75rem;
+}
+
+/* A narrow block: the time and the countdown on a line of their own above the name, the icon dropped, the
+   action beside the name on the line under, so a long countdown has the row's whole width. */
+.block_compass .compass-cal-narrow .compass-soon-list {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.5rem;
+}
+
+.block_compass .compass-cal-narrow .compass-soon-row {
+    row-gap: 0.25rem;
+}
+
+.block_compass .compass-cal-narrow .compass-soon-row .compass-soon-when {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.125rem 0.5rem;
+}
+
+.block_compass .compass-cal-narrow .compass-soon-row .compass-cal-icon {
+    display: none;
+}
+
+/* The ring on Today (decision 1): the closed line's chip and the open strip's disc, outside the heat's
+   own halo; amber at imminent, the ink at now, thicker. A pointed card's outline on a lit day wins. */
+.block_compass .compass-cal-disc.compass-soon-ring-imminent,
+.block_compass .compass-cal-pchip.compass-soon-ring-imminent {
+    outline: 2px solid var(--block_compass-cal-soon-ring);
+    outline-offset: 3px;
+}
+
+.block_compass .compass-cal-disc.compass-soon-ring-now,
+.block_compass .compass-cal-pchip.compass-soon-ring-now {
+    outline: 3px solid var(--block_compass-cal-accent);
+    outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-soon-wrap {
+        transition: none;
+    }
+
+    .block_compass .compass-soon-dot {
         animation: none;
     }
 }

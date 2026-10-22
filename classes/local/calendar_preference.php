@@ -36,6 +36,11 @@ namespace block_compass\local;
  * someone who no longer teaches) is the client's decision once the strip payload says which
  * views exist; the shell reads this without a database or cache read.
  *
+ * The soon member (ADR-016 decision 7) is Up next hidden by the viewer: {rank, signin}, rank the
+ * level hidden at (SOON_RANKS) and signin $USER->currentlogin when it was written. It is read on its
+ * own ({@see soon()}), never through validate(), so it can neither break nor be broken by the other
+ * members: a missing or malformed member, or one written under another sign-in, is not hidden.
+ *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -49,6 +54,9 @@ final class calendar_preference {
 
     /** @var string[] The item filters: everything, only what is to do, only events. */
     public const FILTERS = ['all', 'todo', 'events'];
+
+    /** @var int[] The levels Up next can be hidden at: 1 soon, 2 imminent, 3 now (ADR-016 decision 2). */
+    public const SOON_RANKS = [1, 2, 3];
 
     /**
      * The state the strip starts in for a viewer who never changed it.
@@ -117,5 +125,52 @@ final class calendar_preference {
         }
 
         return $state;
+    }
+
+    /**
+     * The soon member of a stored value when it holds for this sign-in, in the shape the client writes.
+     *
+     * Kept only as JSON integers, as the switches are kept only as booleans: "2" or 2.0 is not a
+     * level the client wrote. A member written under another sign-in is not hidden any more
+     * (decision 7: until the next sign-in), so it reads as null, and a client writing back what this
+     * returns drops it.
+     *
+     * @param string|null $json The stored JSON, or null when nothing is stored.
+     * @param int $signin The sign-in marker now, $USER->currentlogin.
+     * @return array|null rank (one of SOON_RANKS) and signin (equal to $signin), or null: not hidden.
+     */
+    public static function soon(?string $json, int $signin): ?array {
+        if ($json === null || $json === '') {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+        $member = is_array($decoded) ? ($decoded['soon'] ?? null) : null;
+        if (!is_array($member) || !isset($member['rank'], $member['signin'])) {
+            return null;
+        }
+        if (!in_array($member['rank'], self::SOON_RANKS, true)) {
+            return null;
+        }
+        if ($member['signin'] !== $signin) {
+            return null;
+        }
+
+        return ['rank' => $member['rank'], 'signin' => $member['signin']];
+    }
+
+    /**
+     * The level the current viewer hid Up next at during this sign-in, or null when it is not hidden.
+     *
+     * Up next shows again when its highest level is above this rank (decision 7).
+     *
+     * @return int|null One of SOON_RANKS, or null.
+     */
+    public static function hidden_rank(): ?int {
+        global $USER;
+
+        $stored = get_user_preferences(self::NAME, null);
+        $soon = self::soon(is_string($stored) ? $stored : null, (int) ($USER->currentlogin ?? 0));
+
+        return $soon['rank'] ?? null;
     }
 }

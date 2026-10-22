@@ -120,9 +120,9 @@ final class client_policy_test extends advanced_testcase {
         $exporter = file_get_contents($root . '/classes/output/block.php');
         $ones = array_filter(array_keys($strings['en']), static fn($key) => str_ends_with($key, '_one'));
 
-        // Ten for the block's labels, eleven for the calendar strip's strings, which the shell ships
-        // under the calendar key (block::CALENDAR_STRINGS).
-        $this->assertCount(21, $ones);
+        // Ten for the block's labels, twelve for the calendar's strings (the strip's and Up next's),
+        // which the shell ships under the calendar key (block::CALENDAR_STRINGS).
+        $this->assertCount(22, $ones);
         foreach ($ones as $key) {
             $this->assertArrayHasKey($key, $strings['pt_br'], $key);
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
@@ -182,6 +182,7 @@ final class client_policy_test extends advanced_testcase {
                 'getStrip' => 'block_compass_get_strip',
                 'getStripCounts' => 'block_compass_get_strip_counts',
                 'getDay' => 'block_compass_get_day',
+                'getSoon' => 'block_compass_get_soon',
             ] as $name => $service
         ) {
             $this->assertMatchesRegularExpression("/read<[^>]*>\\('{$service}'/", $source, "{$name} must go through read()");
