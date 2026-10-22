@@ -123,8 +123,9 @@ final class page_test extends advanced_testcase {
     }
 
     /**
-     * With the title shown the theme gets the name and the page adds nothing; hidden, the theme gets
-     * an empty heading, the body gets the class, and the page renders the name as a hidden h1.
+     * With the title shown the theme gets the name and the body only the page's own class; hidden,
+     * the theme gets an empty heading, the body gets the no-title class too, and the page renders the
+     * name as a hidden h1.
      *
      * The control is the shown half: the same page without the setting hands the theme the name
      * and renders no h1 of its own, so the h1 that appears is the setting's doing.
@@ -138,14 +139,14 @@ final class page_test extends advanced_testcase {
 
         $shown = new page();
         $this->assertSame($name, $shown->theme_heading());
-        $this->assertSame([], $shown->body_classes());
+        $this->assertSame([page::PAGE_CLASS], $shown->body_classes(), 'the page rules key on the page class alone');
         [$html] = $this->render($shown);
         $this->assertDoesNotMatchRegularExpression('/<h1\b/', $html, 'the page renders no h1 while the theme shows one');
 
         set_config('hide_page_title', 1, 'block_compass');
         $hidden = new page();
         $this->assertSame('', $hidden->theme_heading(), 'an empty heading is how core renders no heading element');
-        $this->assertSame([page::NOTITLE_CLASS], $hidden->body_classes());
+        $this->assertSame([page::PAGE_CLASS, page::NOTITLE_CLASS], $hidden->body_classes());
         [$html, $props] = $this->render($hidden);
         $this->assertStringContainsString('<h1 class="visually-hidden">' . $name . '</h1>', $html);
         $this->assertSame(2, $props['headinglevel'], 'the sections stay one rung under the hidden h1');

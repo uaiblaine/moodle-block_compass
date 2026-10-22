@@ -30,7 +30,7 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
-preferences. The server ships a shell and the browser renders it (React). Every web service has
+preferences (see *Data stored*). The server ships a shell and the browser renders it (React). Every web service has
 a query budget enforced by an automated test.
 
 
@@ -213,8 +213,8 @@ Requirements
 
 | Branch | Moodle | PHP | Maturity | Version | Release |
 |---|---|---|---|---|---|
-| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | 2026100507 | v5.3-r1 |
-| `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | 2026042010 | v5.2-r1 |
+| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | 2026100508 | v5.3-r1 |
+| `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | 2026042011 | v5.2-r1 |
 
 Each branch supports exactly one Moodle version (`$plugin->supported`). Moodle 4.5 and 5.1 are
 not supported: the client is React, which core builds and serves from 5.2 on.
@@ -229,7 +229,7 @@ not supported: the client is React, which core builds and serves from 5.2 on.
 - Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
   `block_feedback_tracker` for the academic calendar of the strip; a theme or plugin that answers
   the block's `course_badges` hook for the institutional crests on cards (*Course crests*, under
-  *Configuration*).
+  *Settings*).
 
 
 Installation
@@ -262,8 +262,8 @@ their Dashboard, or an administrator adds it to the default Dashboard under *Sit
 administration > Appearance > Default Dashboard page*.
 
 
-Configuration
--------------
+Settings
+--------
 
 ![The Compass settings page, with the calendar strip section](docs/screenshots/settings.png)
 
@@ -317,7 +317,7 @@ grading work, led by the number of submissions waiting.
 
 | Setting | Default | What it does |
 |---|---|---|
-| `enable_prewarm` | off | Run the nightly task *Pre-warm the course inventory of recently active users* (04:00 site time). |
+| `enable_prewarm` | off | Run the nightly task *Pre-warm the course inventory of recently active users* (04:00 site time, at a random minute). |
 | `prewarm_days` | 7 | Warm only users active within this many days. |
 | `prewarm_budget_seconds` | 10 minutes (minimum 1 minute) | Time budget per run; an unfinished sweep resumes the next night. |
 
@@ -374,7 +374,7 @@ Capabilities
 Web services
 ------------
 
-Eight read-only functions, callable over AJAX after login, never by the guest account. Each
+Nine read-only functions, callable over AJAX after login, never by the guest account. Each
 answers for the current user (none accepts a user id) and runs without the session lock on a
 site that enables read-only sessions:
 
@@ -388,25 +388,45 @@ site that enables read-only sessions:
 | `block_compass_get_strip` | The calendar strip: per-day counts for the window. |
 | `block_compass_get_strip_counts` | The calendar strip closed: plain counts by period. |
 | `block_compass_get_day` | One day of the strip: its items with core's actions. |
+| `block_compass_get_soon` | Up next: the items still open from now to the horizon (`calendar_soon`). |
 
 Writes go to core's own services: the star through `core_course_set_favourite_courses`, the
 view, the filter line, the strip's choices and archiving through core's user preferences.
 
 
-Privacy
--------
+Data stored
+-----------
 
-Compass stores three user preferences of its own: `block_compass_view` (list or cards),
-`block_compass_explore` (the filter line of *All courses* as the user left it: scope, star,
-filters, sort and whether the panel is open) and `block_compass_calendar` (the strip's view,
-filter, relevance switch and whether it is open). The privacy provider declares and exports all
-three.
+**Database tables: none.** The plugin has no `db/install.xml`. What it keeps is:
 
-Everything else it shows belongs to core and stays core's to export and delete: courses,
-enrolments, progress and calendar events are read, never copied, except into expiring MUC
-caches. Deleting an account drops that user's cached entries at once. The favourite star and the
-archive are core's own records (`core_favourites` and the Course overview block's preferences).
-The pre-warming task keeps its position in plugin configuration, which is site state.
+| What | Where | What it holds | How long | What removes it |
+|---|---|---|---|---|
+| `block_compass_view` | User preference | The view of *All courses* the user chose: list or cards. | Until changed | Uninstalling the plugin; deleting the account |
+| `block_compass_explore` | User preference | The filter line of *All courses* as the user left it: scope, star, filters, sort and whether the panel is open (never the search text). | Until changed | Uninstalling the plugin; deleting the account |
+| `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next, for that sign-in. | Until changed | Uninstalling the plugin; deleting the account |
+| `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star), no course data. | 24 hours | Its TTL; deleting the account; purging caches |
+| `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; deleting the account; purging caches |
+| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `coursemeta`, `categorymeta`, `coursefields`, `filterfields` | MUC caches, shared | Course and category names, dates and custom field values: no personal data. | Until the course, category or field changes | Core's events; purging caches |
+| `prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep` | Plugin configuration | Where the pre-warming task stopped (a user id), the activity window it walks and when it last finished a sweep. Site state. | Until the next run | Uninstalling the plugin |
+
+Two kinds of row the block writes belong to core and stay core's: the favourite star is
+`core_favourites` (component `core_course`), written through `core_course_set_favourite_courses`,
+and archiving writes the Course overview block's `block_myoverview_hidden_course_<id>`
+preferences. Compass never stamps a core row with its own component. Courses, enrolments,
+progress and calendar events are read, never copied, except into the caches above.
+
+**A data export** (*Site administration > Users > Privacy and policies*) carries the three
+preferences: the view as its label, the filter line and the strip as the JSON the user's browser
+wrote. The caches are not exported: they hold copies of core data that core's own export
+carries. The star and the archive are exported by `core_course` and `block_myoverview`.
+
+**A data deletion** of the user's own context removes every preference of the user through
+core's user provider, the three of Compass among them. Deleting the account removes them as
+well, and Compass drops that user's `inventory`, `details` and `calendarstrip` entries at once;
+whatever the account deletion cannot reach expires with the TTLs above. **Uninstalling** the
+plugin removes its configuration, its task, its caches and the three preferences of every user;
+the archive rows stay, since they are the Course overview block's.
 
 
 Accessibility
@@ -467,6 +487,14 @@ Credits
 
 The shape of a shell block rendered in the browser follows the sibling plugin
 `block_dimensions`.
+
+
+Translations
+------------
+
+The English strings ship in the package. The Brazilian Portuguese translation is maintained in
+this repository (`lang/pt_br`) and reaches sites through [AMOS](https://lang.moodle.org/), as the
+plugins directory requires; it is left out of the release package.
 
 
 License

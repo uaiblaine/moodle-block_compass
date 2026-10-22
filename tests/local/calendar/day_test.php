@@ -592,6 +592,9 @@ final class day_test extends advanced_testcase {
     public function test_the_grade_action_says_this_plugins_verb_in_portuguese(): void {
         global $CFG, $PAGE, $SESSION;
 
+        if (!is_file($CFG->dirroot . '/blocks/compass/lang/pt_br/block_compass.php')) {
+            $this->markTestSkipped('The release package ships English only: lang/pt_br is in the git checkout alone.');
+        }
         $gen = $this->getDataGenerator();
         $now = time();
         $teacher = $gen->create_user();

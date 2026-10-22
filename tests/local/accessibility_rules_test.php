@@ -1215,7 +1215,7 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Each count's grid is capped at that many 373 px tracks and their 16 px gaps, so a card in a
      * wide block keeps the gap rather than sitting at the start of a wider track; the page caps the
-     * theme's content box, keyed on its own body id. Changes that must make it fail: a cap that no
+     * theme's content box, keyed on its own body class. Changes that must make it fail: a cap that no
      * longer matches its count, a cap moved onto the item, the page rule lost or keyed on a bare
      * theme selector.
      *
@@ -1229,7 +1229,7 @@ final class accessibility_rules_test extends basic_testcase {
             if (preg_match('/\.compass-cards-([123])(?![\w-])/', $selector, $matches) && !str_contains($selector, ':')) {
                 $caps[(int) $matches[1]] = $body;
             }
-            if (str_contains($selector, '#page-blocks-compass-index') && str_contains($selector, '.main-inner')) {
+            if (str_contains($selector, '.block_compass-page') && str_contains($selector, '.main-inner')) {
                 $page = $body;
             }
         }
@@ -1242,7 +1242,7 @@ final class accessibility_rules_test extends basic_testcase {
                 ".compass-cards-{$count} is not capped at {$count} tracks of 373 px"
             );
         }
-        $this->assertNotNull($page, 'no #page-blocks-compass-index .main-inner rule found in styles.css');
+        $this->assertNotNull($page, 'no .block_compass-page .main-inner rule found in styles.css');
         $this->assertMatchesRegularExpression('/\bmax-width\s*:\s*1080px\b/', $page, 'the page is not capped at 1080 px');
     }
 
@@ -1599,7 +1599,7 @@ final class accessibility_rules_test extends basic_testcase {
         global $CFG;
 
         $checked = 0;
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $string = [];
             include($CFG->dirroot . "/blocks/compass/lang/{$lang}/block_compass.php");
             foreach ($string as $key => $short) {
@@ -1615,8 +1615,8 @@ final class accessibility_rules_test extends basic_testcase {
                 $checked++;
             }
         }
-        // Vacuity guard: six periods, two languages.
-        $this->assertGreaterThanOrEqual(12, $checked);
+        // Vacuity guard: six periods in every language checked.
+        $this->assertGreaterThanOrEqual(6 * count(self::languages()), $checked);
     }
 
     /**
@@ -1931,7 +1931,7 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The language file of one language, read as the plugin ships it.
      *
-     * @param string $lang en or pt_br.
+     * @param string $lang A language of {@see self::languages()}.
      * @return array Key => string.
      */
     private function langstrings(string $lang): array {
@@ -2017,10 +2017,12 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertSame('cal_act_open', $verbs['workshop'] ?? null, 'a workshop says Open');
         // Core's own word for a quiz in English; Portuguese keeps Responder, the word for answering.
         $this->assertSame('Attempt', $this->langstrings('en')['cal_act_attempt']);
-        $this->assertSame($this->langstrings('pt_br')['cal_act_answer'], $this->langstrings('pt_br')['cal_act_attempt']);
+        if (in_array('pt_br', self::languages(), true)) {
+            $this->assertSame($this->langstrings('pt_br')['cal_act_answer'], $this->langstrings('pt_br')['cal_act_attempt']);
+        }
 
         $keys = array_values(array_unique(array_merge(array_values($verbs), ['cal_act_grade', 'cal_act_open', 'cal_view'])));
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $strings = $this->langstrings($lang);
             foreach ($keys as $key) {
                 $this->assertArrayHasKey($key, $strings, "{$lang}: {$key}");
@@ -2083,7 +2085,7 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('title={shown === name ? undefined : name}', $line);
         $this->assertStringContainsString('<span className="compass-cal-plabel" aria-hidden="true">{shown}</span>', $line);
 
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $strings = $this->langstrings($lang);
             $pairs = 0;
             foreach ($strings as $key => $short) {
@@ -2255,7 +2257,7 @@ final class accessibility_rules_test extends basic_testcase {
             $cell[0]
         );
         $this->assertStringContainsString('<span className="compass-cal-qdiv" aria-hidden="true" />', $cell[0]);
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $strings = $this->langstrings($lang);
             $this->assertStringStartsWith('{$a->period}', $strings['cal_tograde_label'], "{$lang}: the label leads the sentence");
             $this->assertStringStartsWith('{$a}', $strings['cal_tograde_none'], "{$lang}: the label leads the sentence");
@@ -2428,5 +2430,17 @@ final class accessibility_rules_test extends basic_testcase {
             '<span className="compass-retry-message">{message}</span>',
             $this->reactsources()['js/esm/src/RetryNotice.tsx']
         );
+    }
+
+    /**
+     * The languages whose pack the plugin directory carries: English always, Portuguese in a git checkout.
+     *
+     * The release package ships English only (lang/pt_br is export-ignored, and translations reach
+     * sites through AMOS), so a run from the package checks the English pack alone.
+     *
+     * @return string[]
+     */
+    private static function languages(): array {
+        return is_file(dirname(__DIR__, 2) . '/lang/pt_br/block_compass.php') ? ['en', 'pt_br'] : ['en'];
     }
 }

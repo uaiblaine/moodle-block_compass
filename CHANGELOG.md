@@ -13,6 +13,24 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Changed
+
+- Plugins directory readiness (2026042011): the package carries `LICENSE` beside `COPYING.txt`,
+  both the GPL v3 text, and ships English only: `lang/pt_br` stays in git, in step with `lang/en`,
+  but is left out of the release zip, and Portuguese reaches sites through AMOS. The tests that
+  read the Portuguese pack check it where the plugin directory carries it. The Compass page's
+  width cap keys on the page's own body class, `block_compass-page`, rather than the page's body
+  id, so every selector of `styles.css` names the plugin. The README gains *Data stored*,
+  *Settings* and *Translations* sections and lists the ninth web service, `block_compass_get_soon`.
+  `tests/marketplace_readiness_test.php`, the fleet's copy, holds these rules.
+
+### Fixed
+
+- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
+  `block_compass_calendar` preferences (`db/uninstall.php`, 2026042011): core's uninstall drops
+  the settings, the task and the caches but leaves user preferences. The Course overview block's
+  archive rows stay, since they are that block's.
+
 ## v5.3-r1 (2026100507) - 2026-10-22
 
 First release for Moodle 5.3, on the `MOODLE_503_STABLE` branch (`main`), `MATURITY_BETA`. It carries

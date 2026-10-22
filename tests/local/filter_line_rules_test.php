@@ -406,7 +406,7 @@ final class filter_line_rules_test extends basic_testcase {
     public function test_the_words_are_the_contracts(): void {
         $root = dirname(__DIR__, 2);
         $strings = [];
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $string = [];
             include($root . '/lang/' . $lang . '/block_compass.php');
             $strings[$lang] = $string;
@@ -428,7 +428,21 @@ final class filter_line_rules_test extends basic_testcase {
         ];
         foreach ($words as $key => [$en, $ptbr]) {
             $this->assertSame($en, $strings['en'][$key] ?? null, "en {$key}");
-            $this->assertSame($ptbr, $strings['pt_br'][$key] ?? null, "pt_br {$key}");
+            if (isset($strings['pt_br'])) {
+                $this->assertSame($ptbr, $strings['pt_br'][$key] ?? null, "pt_br {$key}");
+            }
         }
+    }
+
+    /**
+     * The languages whose pack the plugin directory carries: English always, Portuguese in a git checkout.
+     *
+     * The release package ships English only (lang/pt_br is export-ignored, and translations reach
+     * sites through AMOS), so a run from the package checks the English pack alone.
+     *
+     * @return string[]
+     */
+    private static function languages(): array {
+        return is_file(dirname(__DIR__, 2) . '/lang/pt_br/block_compass.php') ? ['en', 'pt_br'] : ['en'];
     }
 }

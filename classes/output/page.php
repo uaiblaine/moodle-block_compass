@@ -37,6 +37,9 @@ use core\output\renderer_base;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class page extends block {
+    /** @var string The body class the stylesheet keys the page's own rules on, named after the plugin. */
+    public const PAGE_CLASS = 'block_compass-page';
+
     /** @var string The body class the stylesheet keys the no-title rules on. */
     public const NOTITLE_CLASS = 'block_compass-notitle';
 
@@ -64,12 +67,15 @@ class page extends block {
     }
 
     /**
-     * The body classes the page adds: the no-title class while the title is hidden.
+     * The body classes the page adds: its own, then the no-title class while the title is hidden.
+     *
+     * The page's class is what styles.css keys the page rules on: every selector of a plugin sheet
+     * names the plugin, because core concatenates the sheets and serves them on every page.
      *
      * @return string[]
      */
     public function body_classes(): array {
-        return $this->hidetitle ? [self::NOTITLE_CLASS] : [];
+        return $this->hidetitle ? [self::PAGE_CLASS, self::NOTITLE_CLASS] : [self::PAGE_CLASS];
     }
 
     /**
