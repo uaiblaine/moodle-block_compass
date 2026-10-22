@@ -18,6 +18,7 @@
 /CLAUDE.md             export-ignore
 /PLAN.md               export-ignore
 /docs                  export-ignore
+/lang/pt_br            export-ignore
 /mutations             export-ignore
 /phpcs.xml             export-ignore
-/.mdlshield          export-ignore
+/.mdlshield            export-ignore

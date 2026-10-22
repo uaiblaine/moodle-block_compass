@@ -479,19 +479,21 @@ final class block_compass_test extends advanced_testcase {
     public function test_the_calendar_strings_are_shipped_and_in_both_languages(): void {
         $root = dirname(__DIR__);
         $strings = [];
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $string = [];
             include($root . '/lang/' . $lang . '/block_compass.php');
             $strings[$lang] = $string;
         }
         foreach (shell::CALENDAR_STRINGS as $key) {
             $this->assertArrayHasKey($key, $strings['en'], $key);
-            $this->assertArrayHasKey($key, $strings['pt_br'], $key);
             preg_match_all('/\{\$a(?:->\w+)?\}/', $strings['en'][$key], $en);
-            preg_match_all('/\{\$a(?:->\w+)?\}/', $strings['pt_br'][$key], $pt);
             sort($en[0]);
-            sort($pt[0]);
-            $this->assertSame($en[0], $pt[0], "{$key}: placeholder parity");
+            foreach (array_diff(array_keys($strings), ['en']) as $lang) {
+                $this->assertArrayHasKey($key, $strings[$lang], "{$lang}: {$key}");
+                preg_match_all('/\{\$a(?:->\w+)?\}/', $strings[$lang][$key], $other);
+                sort($other[0]);
+                $this->assertSame($en[0], $other[0], "{$lang}: {$key}: placeholder parity");
+            }
         }
         $calkeys = array_values(preg_grep('/^cal_/', array_keys($strings['en'])));
         $shipped = shell::CALENDAR_STRINGS;
@@ -565,7 +567,7 @@ final class block_compass_test extends advanced_testcase {
             'cal_weekday_%d' => range(0, 6),
             'cal_weekdayshort_%d' => range(0, 6),
         ];
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $string = [];
             include($root . '/lang/' . $lang . '/block_compass.php');
             $names = [];
@@ -621,5 +623,17 @@ final class block_compass_test extends advanced_testcase {
         preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
         $this->assertArrayHasKey('calendar', json_decode(html_entity_decode($matches[1]), true));
         $this->assertSame(0, $reads);
+    }
+
+    /**
+     * The languages whose pack the plugin directory carries: English always, Portuguese in a git checkout.
+     *
+     * The release package ships English only (lang/pt_br is export-ignored, and translations reach
+     * sites through AMOS), so a run from the package checks the English pack alone.
+     *
+     * @return string[]
+     */
+    private static function languages(): array {
+        return is_file(dirname(__DIR__) . '/lang/pt_br/block_compass.php') ? ['en', 'pt_br'] : ['en'];
     }
 }
