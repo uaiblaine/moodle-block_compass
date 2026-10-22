@@ -52,6 +52,9 @@ use core_course\output\activity_icon;
  * exported without callbacks: core would drop a class deadline for a non-participant, after paying
  * the callbacks to learn it (decision 11).
  *
+ * Both pipelines take an instant range, not a date: a day passes its bounds ({@see bounds()}), and
+ * Up next ({@see soon}, ADR-016 decision 4) a range of its own, through the same steps.
+ *
  * A day opened once in a sign-in is kept in the strip's cache entry, so reopening it costs
  * nothing (decision 8, {@see get()}). Residual: a kept day, like the strip's counts, can lag an
  * enrolment, group, hidden-course or role change until TTL.
@@ -64,9 +67,12 @@ final class day {
     /** @var int Items a day returns at most, core's ceiling for action lists (decision 7). */
     public const LIMIT = 50;
 
-    /** @var string[] The keys an item carries: the allowlist of decision 7. */
+    /**
+     * @var string[] The keys an item carries: the allowlist of decision 7, with ADR-016 decision 4's
+     *     timeduration (seconds, 0 for an instant), so a client can tell an event in progress from one that ended.
+     */
     public const ALLOWLIST = [
-        'id', 'name', 'courseid', 'courseshortname', 'modulename', 'purpose', 'iconurl', 'timestart',
+        'id', 'name', 'courseid', 'courseshortname', 'modulename', 'purpose', 'iconurl', 'timestart', 'timeduration',
         'formattedtime', 'viewurl', 'action', 'kind', 'graded', 'gradedsoon', 'criterion', 'lateuntil', 'starred',
     ];
 
@@ -156,12 +162,14 @@ final class day {
         renderer_base $output
     ): array {
         $sources = config::calendar_sources();
+        [$from, $to] = self::bounds($date, $tz);
         if ($view === 'teaching') {
-            $result = self::teaching($userid, $date, $sets, $sources, $now, $tz, $output);
+            $result = self::teaching($userid, $from, $to, $sets, $sources, $now, $tz, $output);
         } else {
             $result = self::learning(
                 $userid,
-                $date,
+                $from,
+                $to,
                 $sets['learning'],
                 strip::groups_in($sets['groups'], $sets['learning']),
                 $sets['categories'],
@@ -217,17 +225,20 @@ final class day {
         renderer_base $output
     ): array {
         $sources = config::calendar_sources();
+        [$from, $to] = self::bounds($date, $tz);
 
-        return self::learning($userid, $date, $courseids, $groupids, [], $sources, $now, $tz, $output)['items'];
+        return self::learning($userid, $from, $to, $courseids, $groupids, [], $sources, $now, $tz, $output)['items'];
     }
 
     /**
-     * The learning day: core's pipeline, kinds by decision 4, the first LIMIT exported.
+     * The learning items of a range: core's pipeline, kinds by decision 4, the first LIMIT exported.
      *
-     * Grading work is the teaching day's, so gradingdue is left out here.
+     * get_day passes a day's bounds ({@see bounds()}); Up next composes the same steps itself
+     * ({@see learning_kept()}, {@see export_learning()}) to apply its time rule before the cap.
      *
      * @param int $userid The current user.
-     * @param string $date The day, Y-m-d in the user's timezone.
+     * @param int $from First instant, inclusive.
+     * @param int $to Last instant, inclusive.
      * @param int[] $courseids The learning courses.
      * @param int[] $groupids The user's groups in them.
      * @param int[] $categoryids The categories whose events count; empty for none.
@@ -240,7 +251,8 @@ final class day {
      */
     public static function learning(
         int $userid,
-        string $date,
+        int $from,
+        int $to,
         array $courseids,
         array $groupids,
         array $categoryids,
@@ -250,8 +262,45 @@ final class day {
         renderer_base $output,
         array $starred = []
     ): array {
-        [$start, $end] = self::bounds($date, $tz);
-        $events = self::events($userid, $courseids, $groupids, $start, $end, $categoryids);
+        $kept = self::learning_kept($userid, $from, $to, $courseids, $groupids, $categoryids, $sources, $now, $tz);
+
+        return [
+            'items' => self::export_learning(array_slice($kept, 0, self::LIMIT), $output, $starred),
+            'truncated' => count($kept) > self::LIMIT,
+        ];
+    }
+
+    /**
+     * The learning events of a range that decision 4 shows, with their facts and kinds: nothing exported.
+     *
+     * Grading work is the teaching day's, so gradingdue is left out here. Core's action callbacks
+     * have run (api::get_events() builds the entities), so an action that is not actionable (a
+     * submitted, attempted or closed item) is already no action, and kind() drops it unless
+     * completion recorded it done. In core's order (the vault's).
+     *
+     * @param int $userid The current user.
+     * @param int $from First instant, inclusive.
+     * @param int $to Last instant, inclusive.
+     * @param int[] $courseids The learning courses.
+     * @param int[] $groupids The user's groups in them.
+     * @param int[] $categoryids The categories whose events count; empty for none.
+     * @param string[] $sources The calendar sources.
+     * @param int $now Unix time to treat as now.
+     * @param \DateTimeZone $tz The user's timezone.
+     * @return array List of [event_interface, fact record or null, kind].
+     */
+    public static function learning_kept(
+        int $userid,
+        int $from,
+        int $to,
+        array $courseids,
+        array $groupids,
+        array $categoryids,
+        array $sources,
+        int $now,
+        \DateTimeZone $tz
+    ): array {
+        $events = self::events($userid, $courseids, $groupids, $from, $to, $categoryids);
         $facts = self::facts($userid, $events);
         $window = strip::window($now, $tz);
         $kept = [];
@@ -266,10 +315,7 @@ final class day {
             }
         }
 
-        return [
-            'items' => self::export(array_slice($kept, 0, self::LIMIT), $output, $starred),
-            'truncated' => count($kept) > self::LIMIT,
-        ];
+        return $kept;
     }
 
     /**
@@ -421,16 +467,16 @@ final class day {
     }
 
     /**
-     * Kinds by decision 4, then core's exporter, reduced to the allowlist.
+     * Kept learning events through core's exporter, reduced to the allowlist.
      *
      * Exported through event_exporter with events_related_objects_cache, as core's day view does.
      *
-     * @param array $kept List of [event, fact, kind].
+     * @param array $kept List of [event, fact, kind], from learning_kept().
      * @param renderer_base $output A renderer.
      * @param int[] $starred The courses the user starred.
      * @return array List of items, each with exactly the ALLOWLIST keys.
      */
-    private static function export(array $kept, renderer_base $output, array $starred): array {
+    public static function export_learning(array $kept, renderer_base $output, array $starred): array {
         $cache = new events_related_objects_cache(array_column($kept, 0));
         // Every name below is formatted in a context on the preloaded paths (the event's, and the
         // course's for the course short name), so one read fills the filter cache for all of them;
@@ -467,6 +513,8 @@ final class day {
                 'purpose' => (string) $exported->purpose,
                 'iconurl' => self::icon_url($exported->icon, $output),
                 'timestart' => (int) $exported->timestart,
+                // The exporter's end minus start (event_exporter_base), the entity's get_end_time() underneath.
+                'timeduration' => (int) $exported->timeduration,
                 'formattedtime' => (string) $exported->formattedtime,
                 'viewurl' => (string) $exported->viewurl,
                 'action' => $action,
@@ -519,18 +567,19 @@ final class day {
     }
 
     /**
-     * The teaching day: the strip's own rows for the day, grading counts on, no callbacks.
+     * The teaching items of a range: the strip's own rows, grading counts on, no callbacks.
      *
-     * The rows are the counted statement's over the day's bounds and collect()'s teaching items,
-     * the same rules the strip's teaching view counted, plus the events of both views. Kinds:
-     * grade and gradesoon carry a Grade action (mod_assign_core_calendar_provide_event_action()'s grader
-     * URL and count waiting, named with this plugin's cal_act_grade verb rather than core's gradeverb,
-     * which Portuguese reads as "Nota", a noun); class carries a View action to the
+     * The rows are the counted statement's over the range and collect()'s teaching items, the same
+     * rules the strip's teaching view counted, plus the events of both views ({@see teaching_kept()}).
+     * Kinds: grade and gradesoon carry a Grade action (mod_assign_core_calendar_provide_event_action()'s
+     * grader URL and count waiting, named with this plugin's cal_act_grade verb rather than core's
+     * gradeverb, which Portuguese reads as "Nota", a noun); class carries a View action to the
      * activity; an event carries none. Names come from one statement over the kept ids, since the
-     * strip's statement does not carry them.
+     * strip's statement does not carry them ({@see export_teaching_items()}).
      *
      * @param int $userid The current user.
-     * @param string $date The day, Y-m-d in the user's timezone.
+     * @param int $from First instant, inclusive.
+     * @param int $to Last instant, inclusive.
      * @param array $sets The sets strip::compute() returns.
      * @param string[] $sources The calendar sources.
      * @param int $now Unix time to treat as now.
@@ -540,14 +589,50 @@ final class day {
      */
     private static function teaching(
         int $userid,
-        string $date,
+        int $from,
+        int $to,
         array $sets,
         array $sources,
         int $now,
         \DateTimeZone $tz,
         renderer_base $output
     ): array {
-        [$start, $end] = self::bounds($date, $tz);
+        [$kept] = self::teaching_kept($userid, $from, $to, $sets, $sources, $now, $tz);
+        $truncated = count($kept) > self::LIMIT;
+        $kept = array_slice($kept, 0, self::LIMIT);
+        if (!$kept) {
+            return ['items' => [], 'truncated' => false];
+        }
+        $names = self::names(array_map(fn(array $item): int => (int) $item['row']->id, $kept));
+
+        return ['items' => self::export_teaching_items($kept, $names, $sets, $output), 'truncated' => $truncated];
+    }
+
+    /**
+     * The teaching items of a range from the counted statement: nothing named, nothing exported.
+     *
+     * An item is kept when it belongs to the teaching view (or both) and its time (the row's
+     * sorttime: timesort for an action event, timestart otherwise) lies in the range. The statement
+     * finds an event by its start, so one that started before $from and is still on is not found.
+     *
+     * @param int $userid The current user.
+     * @param int $from First instant, inclusive.
+     * @param int $to Last instant, inclusive.
+     * @param array $sets The sets strip::compute() returns.
+     * @param string[] $sources The calendar sources.
+     * @param int $now Unix time to treat as now.
+     * @param \DateTimeZone $tz The user's timezone.
+     * @return array [list of items from strip::collect(), whether the statement hit strip::FUTURE_LIMIT].
+     */
+    public static function teaching_kept(
+        int $userid,
+        int $from,
+        int $to,
+        array $sets,
+        array $sources,
+        int $now,
+        \DateTimeZone $tz
+    ): array {
         $rows = strip::future(
             $userid,
             array_keys($sets['courses']),
@@ -556,23 +641,31 @@ final class day {
             $sets['categories'],
             $sources,
             $now,
-            $start,
-            $end + 1
+            $from,
+            $to + 1
         );
         [$items] = strip::collect($userid, $rows, $sets, $now, strip::window($now, $tz), $tz);
         $kept = [];
         foreach ($items as $item) {
-            if ($item['view'] !== 'learning' && $item['day'] === $date) {
+            $time = (int) $item['row']->sorttime;
+            if ($item['view'] !== 'learning' && $time >= $from && $time <= $to) {
                 $kept[] = $item;
             }
         }
-        $truncated = count($kept) > self::LIMIT;
-        $kept = array_slice($kept, 0, self::LIMIT);
-        if (!$kept) {
-            return ['items' => [], 'truncated' => false];
-        }
 
-        $names = self::names(array_map(fn(array $item): int => (int) $item['row']->id, $kept));
+        return [$kept, count($rows) >= strip::FUTURE_LIMIT];
+    }
+
+    /**
+     * Kept teaching items in the allowlist's shape, their names and course short names formatted.
+     *
+     * @param array $kept Items from teaching_kept(), at most LIMIT.
+     * @param array $names Their rows from names(), keyed by event id.
+     * @param array $sets The sets strip::compute() returns.
+     * @param renderer_base $output A renderer.
+     * @return array List of items, each with exactly the ALLOWLIST keys.
+     */
+    public static function export_teaching_items(array $kept, array $names, array $sets, renderer_base $output): array {
         $courses = course_meta::get_many(array_column($kept, 'courseid'));
         // The names are formatted in the module context, the short names in the course context:
         // one read fills the filter cache for both and for every ancestor.
@@ -592,18 +685,19 @@ final class day {
                 + ['starred' => in_array((int) $item['courseid'], $starred, true)];
         }
 
-        return ['items' => $exported, 'truncated' => $truncated];
+        return $exported;
     }
 
     /**
      * Names, start and duration of the kept teaching items: one statement.
      *
-     * Index: event primary key. Bound: at most LIMIT ids.
+     * Index: event primary key. Bound: the ids passed (at most LIMIT from a day, at most soon::LIMIT
+     * from Up next).
      *
      * @param int[] $ids Event ids.
      * @return array Event id => record (name, timestart, timeduration).
      */
-    private static function names(array $ids): array {
+    public static function names(array $ids): array {
         global $DB;
 
         [$in, $params] = $DB->get_in_or_equal($ids, SQL_PARAMS_NAMED, 'tn');
@@ -630,7 +724,7 @@ final class day {
      * @param \stdClass|null $event Its row from names(), null if the event vanished meanwhile.
      * @param array $courses Course entries from course_meta::get_many().
      * @param renderer_base $output A renderer.
-     * @return array The item, with the ALLOWLIST keys but the last, starred, which teaching() adds.
+     * @return array The item, with the ALLOWLIST keys but the last, starred, which export_teaching_items() adds.
      */
     private static function export_teaching(array $item, ?\stdClass $event, array $courses, renderer_base $output): array {
         $row = $item['row'];
@@ -688,6 +782,7 @@ final class day {
             'purpose' => $purpose,
             'iconurl' => $iconurl,
             'timestart' => $timestart,
+            'timeduration' => $duration,
             'formattedtime' => $output->render($period),
             'viewurl' => $viewurl->out(false),
             'action' => $action,

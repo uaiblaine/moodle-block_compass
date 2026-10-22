@@ -108,8 +108,10 @@ final class get_strip_budget_test extends advanced_testcase {
         $hit = get_strip::execute();
         $this->assertLessThanOrEqual(2, $meter->reads(), 'A cache hit must cost the preferences and context reads alone.');
 
-        $this->assertSame($cold, $warm);
-        $this->assertSame($warm, $hit);
+        // The answers must agree but for now, the server's clock, which a second boundary may move.
+        $this->assertSame(self::without_now($cold), self::without_now($warm));
+        $this->assertSame(self::without_now($warm), self::without_now($hit));
+        $this->assertLessThanOrEqual($hit['now'], $cold['now'], 'The server clock moves forward only.');
         $this->assertNotSame([], $hit['views']['learning']['days']);
     }
 
@@ -185,5 +187,17 @@ final class get_strip_budget_test extends advanced_testcase {
         $this->getDataGenerator()->get_plugin_generator('block_compass')->simulate_new_request();
         container::reset_caches();
         \core_course\modinfo::clear_instance_cache();
+    }
+
+    /**
+     * An answer without its now member, for comparing two calls made a second boundary apart.
+     *
+     * @param array $answer A service answer.
+     * @return array The same answer, now removed.
+     */
+    private static function without_now(array $answer): array {
+        unset($answer['now']);
+
+        return $answer;
     }
 }

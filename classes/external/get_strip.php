@@ -44,7 +44,9 @@ use core_external\external_value;
  * them. Dates in the lists are Y-m-d in the user's timezone, because an external structure
  * cannot have dynamic keys. The weekend mask and the institution's marked days (ADR-014
  * amendment 10) come from the entry raw; their labels and notes are formatted here, at response
- * time, as names are, which reads nothing.
+ * time, as names are, which reads nothing. Each view also carries Up next's gate lists (ADR-016
+ * decision 3), the same the counts carry and from the same entry, so an open strip gates get_soon
+ * at no read and with no second request; now is the server's clock, for the client's offset.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -84,12 +86,15 @@ class get_strip extends external_api {
             return self::empty_result();
         }
 
-        $payload = strip::get(
+        $now = time();
+        // The entry rather than strip::get(), its payload: the gate lists sit beside the payload.
+        $entry = strip::entry(
             $userid,
-            time(),
+            $now,
             (int) $USER->currentlogin,
             \core_date::get_user_timezone_object()
         );
+        $payload = $entry['payload'];
 
         return [
             'enabled' => true,
@@ -102,11 +107,14 @@ class get_strip extends external_api {
             'haslearning' => $payload['haslearning'],
             'hasteaching' => $payload['hasteaching'],
             'views' => [
-                'learning' => self::view_result($payload['views']['learning'], strip::KINDS, false),
-                'teaching' => self::view_result($payload['views']['teaching'], strip::TEACHING_KINDS, true),
+                'learning' => self::view_result($payload['views']['learning'], strip::KINDS, false)
+                    + self::gate_result($entry, 'learning'),
+                'teaching' => self::view_result($payload['views']['teaching'], strip::TEACHING_KINDS, true)
+                    + self::gate_result($entry, 'teaching'),
             ],
             'weekend' => (int) $payload['daysoff']['weekend'],
             'specialdays' => days_off::export($payload['daysoff']['days']),
+            'now' => $now,
         ];
     }
 
@@ -116,7 +124,7 @@ class get_strip extends external_api {
      * @return array
      */
     private static function empty_result(): array {
-        $view = ['days' => [], 'needle' => null];
+        $view = ['days' => [], 'needle' => null, 'upcoming' => [], 'events' => []];
 
         return [
             'enabled' => false,
@@ -131,6 +139,23 @@ class get_strip extends external_api {
             'views' => ['learning' => $view, 'teaching' => $view],
             'weekend' => 0,
             'specialdays' => [],
+            'now' => time(),
+        ];
+    }
+
+    /**
+     * One view's gate lists, copied as get_strip_counts copies them.
+     *
+     * @param array $entry The user's cache entry.
+     * @param string $view learning or teaching.
+     * @return array upcoming and events.
+     */
+    private static function gate_result(array $entry, string $view): array {
+        $lists = strip::gate_lists($entry, $view);
+
+        return [
+            'upcoming' => get_soon::upcoming_result($lists['upcoming']),
+            'events' => get_soon::events_result($lists['events']),
         ];
     }
 
@@ -203,6 +228,9 @@ class get_strip extends external_api {
                 null,
                 NULL_ALLOWED
             ),
+            // Up next's gate (ADR-016 decision 3), as get_strip_counts names it.
+            'upcoming' => get_soon::upcoming_structure(),
+            'events' => get_soon::events_structure(),
         ]);
     }
 
@@ -236,6 +264,7 @@ class get_strip extends external_api {
                 ]),
                 'The days the institution\'s calendar marks in the window, by date; empty without block_feedback_tracker'
             ),
+            'now' => new external_value(PARAM_INT, 'The server\'s now, Unix time, for the client\'s clock offset'),
         ]);
     }
 }

@@ -24,7 +24,7 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { dateParts, monthName } from "./calendar";
+import { dateParts, monthName, ringClass } from "./calendar";
 import { fill, fillCount, fillObject } from "./str";
 const namesOf = /* @__PURE__ */ __name((strings, key, view) => {
   switch (key) {
@@ -95,12 +95,12 @@ const GradingCell = /* @__PURE__ */ __name(({ strings, waiting, courseids, point
         children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-plabel", "aria-hidden": "true", children: strings.cal_tograde }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-            lineNumber: 200,
+            lineNumber: 202,
             columnNumber: 17
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-pchip compass-cal-heat-0", "aria-hidden": "true", children: waiting }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-            lineNumber: 201,
+            lineNumber: 203,
             columnNumber: 17
           })
         ]
@@ -109,18 +109,18 @@ const GradingCell = /* @__PURE__ */ __name(({ strings, waiting, courseids, point
       true,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-        lineNumber: 189,
+        lineNumber: 191,
         columnNumber: 13
       }
     ),
     /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-qdiv", "aria-hidden": "true" }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-      lineNumber: 203,
+      lineNumber: 205,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-    lineNumber: 188,
+    lineNumber: 190,
     columnNumber: 9
   });
 }, "GradingCell");
@@ -141,21 +141,31 @@ const LineNotes = /* @__PURE__ */ __name(({ calendar, counts, view }) => {
   return /* @__PURE__ */ jsxDEV(Fragment, { children: [
     note !== "" && /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-linenote", children: note }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-      lineNumber: 232,
+      lineNumber: 234,
       columnNumber: 29
     }),
     counts.bounded && /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-linenote", children: fill(strings.cal_bounded, String(calendar.bound)) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-      lineNumber: 233,
+      lineNumber: 235,
       columnNumber: 32
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-    lineNumber: 231,
+    lineNumber: 233,
     columnNumber: 9
   });
 }, "LineNotes");
-const CalendarLine = /* @__PURE__ */ __name(({ calendar, counts, view, relevance, compact, pointedCourse, onPeriod, onPoint }) => {
+const CalendarLine = /* @__PURE__ */ __name(({
+  calendar,
+  counts,
+  view,
+  relevance,
+  compact,
+  ring,
+  pointedCourse,
+  onPeriod,
+  onPoint
+}) => {
   const { strings } = calendar;
   if (counts === null) {
     return /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-line", children: [
@@ -163,27 +173,27 @@ const CalendarLine = /* @__PURE__ */ __name(({ calendar, counts, view, relevance
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-psk", "aria-hidden": "true", children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-plabel" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-            lineNumber: 254,
+            lineNumber: 258,
             columnNumber: 29
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-pchip" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-            lineNumber: 255,
+            lineNumber: 259,
             columnNumber: 29
           })
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-          lineNumber: 253,
+          lineNumber: 257,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-qdiv", "aria-hidden": "true" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-          lineNumber: 257,
+          lineNumber: 261,
           columnNumber: 25
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-        lineNumber: 252,
+        lineNumber: 256,
         columnNumber: 21
       }),
       /* @__PURE__ */ jsxDEV(
@@ -195,17 +205,17 @@ const CalendarLine = /* @__PURE__ */ __name(({ calendar, counts, view, relevance
           children: [0, 1, 2, 3, 4].map((at) => /* @__PURE__ */ jsxDEV("li", { className: "compass-cal-psk", children: [
             /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-plabel" }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-              lineNumber: 267,
+              lineNumber: 271,
               columnNumber: 29
             }),
             /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-pchip" }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-              lineNumber: 268,
+              lineNumber: 272,
               columnNumber: 29
             })
           ] }, at, true, {
             fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-            lineNumber: 266,
+            lineNumber: 270,
             columnNumber: 25
           }))
         },
@@ -213,13 +223,13 @@ const CalendarLine = /* @__PURE__ */ __name(({ calendar, counts, view, relevance
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-          lineNumber: 260,
+          lineNumber: 264,
           columnNumber: 17
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-      lineNumber: 250,
+      lineNumber: 254,
       columnNumber: 13
     });
   }
@@ -240,13 +250,13 @@ const CalendarLine = /* @__PURE__ */ __name(({ calendar, counts, view, relevance
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-        lineNumber: 282,
+        lineNumber: 286,
         columnNumber: 17
       }
     ),
     isEmpty(counts, view) ? /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-linenote", children: fill(strings.cal_nothing_until, monthName(strings, dateParts(counts.lastday).month)) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-      lineNumber: 292,
+      lineNumber: 296,
       columnNumber: 17
     }) : /* @__PURE__ */ jsxDEV("ul", { className: "compass-cal-periods", "aria-label": strings.cal_periods, children: data.periods.map((period) => {
       const [name, short] = namesOf(strings, period.key, view);
@@ -288,36 +298,49 @@ const CalendarLine = /* @__PURE__ */ __name(({ calendar, counts, view, relevance
           children: [
             /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-plabel", "aria-hidden": "true", children: shown }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-              lineNumber: 337,
+              lineNumber: 341,
               columnNumber: 37
             }),
-            /* @__PURE__ */ jsxDEV("span", { className: `compass-cal-pchip compass-cal-heat-${level}`, "aria-hidden": "true", children: many ? strings.cal_many : period.count }, void 0, false, {
-              fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-              lineNumber: 338,
-              columnNumber: 37
-            })
+            /* @__PURE__ */ jsxDEV(
+              "span",
+              {
+                className: [
+                  `compass-cal-pchip compass-cal-heat-${level}`,
+                  period.key === "today" ? ringClass(ring) : ""
+                ].filter(Boolean).join(" "),
+                "aria-hidden": "true",
+                children: many ? strings.cal_many : period.count
+              },
+              void 0,
+              false,
+              {
+                fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
+                lineNumber: 342,
+                columnNumber: 37
+              }
+            )
           ]
         },
         void 0,
         true,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-          lineNumber: 326,
+          lineNumber: 330,
           columnNumber: 33
         }
       ) }, period.key, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-        lineNumber: 325,
+        lineNumber: 329,
         columnNumber: 29
       });
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-      lineNumber: 296,
+      lineNumber: 300,
       columnNumber: 17
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarLine.tsx",
-    lineNumber: 280,
+    lineNumber: 284,
     columnNumber: 9
   });
 }, "CalendarLine");
