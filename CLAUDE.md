@@ -162,7 +162,8 @@ classes/external/          nine READ functions in the USER context, all readonly
 classes/local/             THE ONLY place $DB is allowed: budget, config (reads get_config() every call),
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
                            inventory, explore, matcher, prewarm, dormancy, relationship, filter_fields,
-                           course_fields, explore_preference, calendar_cache, calendar_preference
+                           course_fields, explore_preference, calendar_cache, calendar_preference,
+                           uninstall (the three preferences, which core's uninstall leaves)
 classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
                            default active group, the counts pass and its completion, periods), day, grading
                            (mirrors count_submissions_need_grading_with_groups(), the list bound on s.assignment
@@ -180,7 +181,7 @@ js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, C
                            rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
                            str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
-templates/ (block, page, preload), db/ (access, services, caches, events, tasks, hooks; NO install.xml)
+templates/ (block, page, preload), db/ (access, services, caches, events, tasks, hooks, uninstall; NO install.xml)
 docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each external test; generator)
 ```
 

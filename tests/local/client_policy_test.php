@@ -112,7 +112,7 @@ final class client_policy_test extends advanced_testcase {
     public function test_singular_strings_exist_in_both_languages_and_are_exported(): void {
         $root = dirname(__DIR__, 2);
         $strings = [];
-        foreach (['en', 'pt_br'] as $lang) {
+        foreach (self::languages() as $lang) {
             $string = [];
             include($root . '/lang/' . $lang . '/block_compass.php');
             $strings[$lang] = $string;
@@ -124,18 +124,22 @@ final class client_policy_test extends advanced_testcase {
         // which the shell ships under the calendar key (block::CALENDAR_STRINGS).
         $this->assertCount(22, $ones);
         foreach ($ones as $key) {
-            $this->assertArrayHasKey($key, $strings['pt_br'], $key);
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
             $this->assertSame(
                 str_contains($strings['en'][substr($key, 0, -4)], '{$a}'),
                 str_contains($strings['en'][$key], '{$a}'),
                 "{$key} placeholder parity with its plural"
             );
-            $this->assertSame(str_contains($strings['en'][$key], '{$a}'), str_contains($strings['pt_br'][$key], '{$a}'), $key);
+            foreach (array_diff(array_keys($strings), ['en']) as $lang) {
+                $this->assertArrayHasKey($key, $strings[$lang], "{$lang}: {$key}");
+                $this->assertSame(str_contains($strings['en'][$key], '{$a}'), str_contains($strings[$lang][$key], '{$a}'), $key);
+            }
             $this->assertStringContainsString("'{$key}'", $exporter, "{$key} is not exported to the client");
         }
         $this->assertSame('{$a} course', $strings['en']['coursesingroup_one']);
-        $this->assertSame('{$a} curso', $strings['pt_br']['coursesingroup_one']);
+        if (isset($strings['pt_br'])) {
+            $this->assertSame('{$a} curso', $strings['pt_br']['coursesingroup_one']);
+        }
     }
 
     /**
@@ -358,5 +362,17 @@ final class client_policy_test extends advanced_testcase {
             '{scrolls && !rowview.atend && <span className="compass-cal-fade compass-cal-fade-end" aria-hidden="true" />}',
             $strip
         );
+    }
+
+    /**
+     * The languages whose pack the plugin directory carries: English always, Portuguese in a git checkout.
+     *
+     * The release package ships English only (lang/pt_br is export-ignored, and translations reach
+     * sites through AMOS), so a run from the package checks the English pack alone.
+     *
+     * @return string[]
+     */
+    private static function languages(): array {
+        return is_file(dirname(__DIR__, 2) . '/lang/pt_br/block_compass.php') ? ['en', 'pt_br'] : ['en'];
     }
 }
