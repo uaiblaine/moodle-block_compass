@@ -119,9 +119,9 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 /* The block's own page (index.php, on the base layout) keeps its content to 1080 px, centred: the
-   theme's content box is full width on that layout. Keyed on the page's body id, which is the
-   plugin's own and outweighs Boost's #page.drawers .main-inner. */
-#page-blocks-compass-index #page.drawers .main-inner {
+   theme's content box is full width on that layout. Keyed on the body class index.php adds, which
+   is the plugin's own and outweighs Boost's #page.drawers .main-inner. */
+.block_compass-page #page.drawers .main-inner {
     max-width: 1080px;
 }
 

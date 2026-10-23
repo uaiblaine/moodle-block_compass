@@ -1,0 +1,1 @@
+s/\$DB->delete_records_select\('user_preferences', "name \{\$insql\}", \$params\);/\$DB->delete_records_select('user_preferences', \$DB->sql_like('name', ':prefix'), ['prefix' => 'block_compass%']);/;
