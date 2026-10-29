@@ -15,6 +15,10 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,
+  core's `btn btn-icon icons-collapse-expand` (2026042012), so the strip reads as expandable the
+  way a section does, in each Moodle version's own look; hovering the strip's toggle rings the box
+  as hovering a section's does.
 - Plugins directory readiness (2026042011): the package carries `LICENSE` beside `COPYING.txt`,
   both the GPL v3 text, and ships English only: `lang/pt_br` stays in git, in step with `lang/en`,
   but is left out of the release zip, and Portuguese reaches sites through AMOS. The tests that

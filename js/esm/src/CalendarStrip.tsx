@@ -1615,12 +1615,13 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
                         aria-controls={bodyid}
                         onClick={() => setOpenRemembered(!open)}
                     >
-                        {/* Core's own chevron pair, shown and hidden by core's icons-collapse-expand rule, as
-                            a tier 3 group's is (Group.tsx). */}
+                        {/* Core's own chevron pair, shown and hidden by core's icons-collapse-expand rule and
+                            drawn by core's btn-icon as a course section's toggle is, so the strip reads as
+                            expandable the way a section does, in each Moodle version's own look. */}
                         <span
                             className={open
-                                ? 'compass-cal-togglechev icons-collapse-expand'
-                                : 'compass-cal-togglechev icons-collapse-expand collapsed'}
+                                ? 'compass-cal-togglechev btn btn-icon icons-collapse-expand'
+                                : 'compass-cal-togglechev btn btn-icon icons-collapse-expand collapsed'}
                             aria-hidden="true"
                         >
                             <span
