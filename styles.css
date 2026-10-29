@@ -2500,12 +2500,18 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-cal-text);
 }
 
-/* Core's chevron pair, shown and hidden by core's icons-collapse-expand rule, inline as a tier 3
-   group's is (.compass-group-chevron says why). */
+/* Core's chevron pair in core's section toggle box (btn-icon icons-collapse-expand paints it), inline
+   as a tier 3 group's is (.compass-group-chevron says why). The whole toggle is the control, so its
+   hover rings the box the way core's own :hover does on a section's. */
 .block_compass .compass-cal-togglechev {
     display: inline-flex;
+    flex: none;
     align-items: center;
-    color: var(--block_compass-brand-text);
+    margin-right: 0.25rem;
+}
+
+.block_compass .compass-cal-toggle:hover .compass-cal-togglechev {
+    outline: 2px solid var(--block_compass-brand-ink);
 }
 
 /* Closed, the strip is one band: the toggle, the icon switch, the line's cells and the calendar link. */
