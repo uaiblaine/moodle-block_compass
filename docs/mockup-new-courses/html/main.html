@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass: open courses to join, four placements</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#5f6870;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;--cc-warn:#f0ad4e;
+  --cc-warn-fg:#7a4100;--cc-warn-bg:#fdecd2;--cc-new-bg:#e7f0fa;--cc-new-fg:#0b4f8c;
+  --cc-ink:#121518;--cc-on-ink:#fff;--cc-hatch:#d4d9de;--cc-control:#6a737b;
+  --cc-h1:color-mix(in oklab,var(--cc-warn) 17%,var(--cc-surface));
+  --cc-h2:color-mix(in oklab,var(--cc-warn) 36%,var(--cc-surface));
+  --cc-shadow:0 18px 44px -18px rgba(16,24,40,.28),0 2px 8px rgba(16,24,40,.06);
+  --activityassessment:#c4006a;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);
+  font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root.cc-dark{
+  --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#9aa2aa;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-danger:#ff7b6b;--cc-warn:#f2b45c;--cc-control:#99a1a9;
+  --cc-accent:#7fb4e8;--cc-on-accent:#0b1a29;--cc-warn-fg:#ffd08a;--cc-warn-bg:#3a2a12;--cc-new-bg:#13263a;--cc-new-fg:#a9d0f5;
+  --cc-ink:#f3f4f6;--cc-on-ink:#111417;--cc-hatch:#353b40;--activityassessment:#ff6fb5;
+  --cc-shadow:0 18px 44px -18px rgba(0,0,0,.7),0 2px 8px rgba(0,0,0,.4);
+}
+.cc-root *{box-sizing:border-box}
+.cc-root button{font:inherit;color:inherit}
+.cc-root :focus-visible{outline:2px solid var(--cc-accent);outline-offset:3px}
+.cc-root a{color:var(--cc-accent)}
+
+/* Board furniture */
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0;letter-spacing:.02em}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.ctl{display:flex;flex-wrap:wrap;align-items:center;gap:14px 28px;padding:14px 16px;border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface)}
+.ctl-g{display:flex;align-items:center;gap:10px}
+.ctl-lab{font-size:12.5px;font-weight:600;color:var(--cc-muted)}
+.seg{display:inline-flex;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:3px;gap:2px}
+.segbtn{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-size:13.5px;cursor:pointer;color:var(--cc-text-2);display:inline-flex;align-items:center;gap:7px;min-height:36px}
+.segbtn[aria-pressed="true"]{background:var(--cc-surface);color:var(--cc-text);font-weight:600;box-shadow:0 1px 2px rgba(16,24,40,.14)}
+.segbtn .ltr{width:20px;height:20px;border-radius:6px;background:var(--cc-ink);color:var(--cc-on-ink);font-size:11.5px;font-weight:700;display:inline-grid;place-items:center}
+.optnote{margin:0;font-size:14px;color:var(--cc-text-2);line-height:1.5;max-width:1200px}
+.optnote b{color:var(--cc-text)}
+.verdict{display:inline-block;font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 8px;margin-right:6px;vertical-align:1px}
+.verdict--rec{background:var(--cc-accent);color:var(--cc-on-accent)}
+.verdict--no{border:1px dashed var(--cc-danger);color:var(--cc-danger)}
+.verdict--alt{border:1px dashed var(--cc-line-2);color:var(--cc-text-2)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.side{display:flex;flex-direction:column;gap:14px}
+.box{border:1px solid var(--cc-line);border-radius:14px;background:var(--cc-surface);padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.box h3{margin:0;font-size:13px;font-weight:700;color:var(--cc-muted)}
+.box p{margin:0;font-size:13.5px;color:var(--cc-text-2);line-height:1.5}
+.box code{font-size:12px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:4px;padding:0 4px;word-break:break-all}
+.log{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--cc-text-2)}
+.log li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:6px}
+.log .n{color:var(--cc-muted);font-weight:700}
+.log b{color:var(--cc-text);font-weight:600}
+
+/* The Dashboard around the block */
+.dash{border:1px solid var(--cc-line);border-radius:16px;background:var(--cc-page);padding:22px 24px 26px;display:flex;flex-direction:column;gap:14px}
+.dash-h{margin:0;font-size:24px;font-weight:600}
+.blk{position:relative;border:1px solid var(--cc-line);border-radius:12px;background:var(--cc-surface);padding:14px 18px 20px;display:flex;flex-direction:column;gap:14px}
+.bh{display:flex;align-items:center;gap:12px}
+.bh-t{margin:0;font-size:19px;font-weight:600}
+.bh-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.vsw{display:inline-flex;gap:2px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:10px;padding:3px}
+.vsw button{border:0;background:transparent;width:38px;height:34px;border-radius:7px;display:grid;place-items:center;color:var(--cc-text-2);cursor:pointer}
+.vsw button[aria-pressed="true"]{background:var(--cc-surface);color:var(--cc-accent);box-shadow:0 1px 2px rgba(16,24,40,.14)}
+
+/* The closed calendar line, as built */
+.sl{border-bottom:1px solid var(--cc-line);padding-bottom:10px}
+.sl-band{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:64px}
+.sl-toggle{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;padding:0 12px 0 6px;border-radius:10px;font-size:17px;font-weight:600;cursor:pointer;min-height:44px}
+.sl-chev{color:var(--cc-control);transform:rotate(-90deg)}
+.sl-cells{list-style:none;margin:0;padding:0;display:flex;gap:4px;align-items:stretch;flex-wrap:wrap}
+.sl-cell{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:96px;min-height:56px;padding:4px 12px 5px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer}
+.sl-cell:hover{background:var(--cc-surface-2)}
+.sl-lab{font-size:12.5px;color:var(--cc-text-2);line-height:1.2;white-space:nowrap}
+.sl-chip{min-width:34px;height:28px;padding:0 9px;border-radius:14px;display:inline-grid;place-items:center;font-size:16px;font-weight:700;color:var(--cc-text)}
+.sl-h1 .sl-chip{background:var(--cc-h1)}.sl-h2 .sl-chip{background:var(--cc-h2)}
+.sl-cell--today .sl-lab{color:var(--cc-text);font-weight:700}
+.sl-cell--today .sl-chip{background:var(--cc-ink);color:var(--cc-on-ink)}
+.sl-cell--late .sl-chip{background:transparent;color:var(--cc-muted);font-weight:600;padding:0 2px;min-width:0}
+.sl-nothing{margin:0;font-size:14px;color:var(--cc-muted)}
+/* A: the strip's own cells carry the news (the refuted variant) */
+.sl-div{flex:none;width:1px;height:40px;align-self:center;margin:0 6px;background:var(--cc-line-2)}
+.sl-cell--news .sl-chip{background:transparent;border:1.5px dashed var(--cc-accent);color:var(--cc-accent)}
+.sl-cell--news .sl-lab{color:var(--cc-accent)}
+.sl-cell--newsquiet .sl-chip{background:transparent;color:var(--cc-muted);font-weight:600;padding:0 2px;min-width:0}
+.sl-newslead{font-size:13px;font-weight:600;color:var(--cc-text-2);margin-right:2px}
+.warnflag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--cc-danger);border:1px dashed var(--cc-danger);border-radius:8px;padding:3px 8px}
+
+/* B: the line of its own */
+.nv{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:44px;padding:4px 4px 4px 2px}
+.nv-ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--cc-new-bg);color:var(--cc-new-fg);flex:none}
+.nv-h{margin:0;font-size:14px;font-weight:700;color:var(--cc-text);white-space:nowrap}
+.nv-sum{font-size:13.5px;color:var(--cc-text-2);white-space:nowrap}
+.nv-gs{display:flex;gap:6px;flex-wrap:wrap;list-style:none;margin:0;padding:0}
+.nv-g{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 6px 0 12px;border:1px solid var(--cc-line-2);border-radius:999px;background:var(--cc-surface);color:var(--cc-text);text-decoration:none;font-size:13.5px;cursor:pointer;max-width:280px}
+.nv-g:hover{border-color:var(--cc-accent)}
+.nv-gname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nv-gn{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--cc-new-bg);color:var(--cc-new-fg);font-size:12.5px;font-weight:700}
+.nv-g1 .nv-gn{background:transparent;color:var(--cc-muted);font-weight:600;padding:0 4px}
+.nv-all{font-size:13.5px}
+.iconbtn{margin-left:auto;width:36px;height:36px;border-radius:9px;border:0;background:transparent;display:grid;place-items:center;color:var(--cc-control);cursor:pointer}
+.iconbtn:hover{background:var(--cc-surface-2)}
+.nv--compact{min-height:32px;padding:0 2px;gap:8px}
+.nv--compact .nv-ic{width:22px;height:22px;border-radius:6px}
+.nv--compact .nv-sum{color:var(--cc-muted);font-size:13px}
+.linkbtn{border:0;background:transparent;color:var(--cc-accent);padding:4px 6px;border-radius:6px;cursor:pointer;font-size:13px;text-decoration:underline}
+.nv-seen{font-size:13px;color:var(--cc-muted);display:flex;align-items:center;gap:8px}
+
+/* C: the head pill and its popover */
+.hp{position:relative}
+.hp-btn{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 10px 0 9px;border-radius:999px;border:1px solid var(--cc-line-2);background:var(--cc-surface);color:var(--cc-text-2);font-size:13px;cursor:pointer}
+.hp-btn .nv-gn{height:20px;min-width:20px;font-size:12px}
+.pop{position:absolute;top:calc(100% + 8px);right:0;z-index:5;width:340px;background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:12px;box-shadow:var(--cc-shadow);padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.pop--left{left:0;right:auto}
+.pop-h{margin:0 0 4px;font-size:13.5px;font-weight:700}
+.pop-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:7px 6px;border-radius:8px;text-decoration:none;color:var(--cc-text);cursor:pointer;border:0;background:transparent;text-align:left;width:100%}
+.pop-row:hover{background:var(--cc-surface-2)}
+.pop-sub{display:block;font-size:12.5px;color:var(--cc-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pop-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--cc-line);margin-top:4px;padding-top:6px;font-size:13px}
+
+/* Up next, as built (one row only, for the "Up next showing" situation) */
+.up{border:1px solid color-mix(in oklab,var(--cc-warn) 55%,var(--cc-line));border-radius:12px;background:var(--cc-surface);padding:10px 12px 10px 14px;display:flex;align-items:center;gap:12px}
+.up-h{margin:0;font-size:14.5px;font-weight:700;white-space:nowrap}
+.up-rel{padding:1px 7px;border-radius:999px;background:var(--cc-warn-bg);color:var(--cc-warn-fg);font-weight:700;font-size:12.5px;white-space:nowrap}
+.up-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{display:inline-grid;place-items:center;height:36px;padding:0 14px;border-radius:9px;border:1px solid var(--cc-control);color:var(--cc-accent);background:var(--cc-surface);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;margin-left:auto}
+
+/* Tier 1 */
+.t1-h{margin:4px 0 0;font-size:17px;font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.cd{border:1px solid var(--cc-line);border-radius:12px;overflow:hidden;background:var(--cc-surface);display:flex;flex-direction:column}
+.cd-img{height:104px}
+.cd-img--a{background:repeating-linear-gradient(135deg,var(--cc-hatch) 0 2px,var(--cc-surface-2) 2px 12px)}
+.cd-img--b{background:color-mix(in oklab,#0f6cbf 18%,var(--cc-surface))}
+.cd-img--c{background:color-mix(in oklab,#357a32 16%,var(--cc-surface))}
+.cd-body{padding:10px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.cd-cat{font-size:12.5px;color:var(--cc-muted)}
+.cd-title{font-weight:600;color:var(--cc-text);line-height:1.3}
+.bar{display:block;height:6px;border-radius:3px;background:var(--cc-line);margin-top:auto}
+.bar span{display:block;height:6px;border-radius:3px;background:var(--cc-accent)}
+.t1-empty{border:1px dashed var(--cc-line-2);border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.t1-empty-t{margin:0;font-size:15px;color:var(--cc-text-2)}
+.nvl{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.nvl-row{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--cc-line);border-radius:10px;background:var(--cc-surface);text-align:left;cursor:pointer;width:100%}
+.nvl-row:hover{border-color:var(--cc-accent)}
+.nvl-top{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:600}
+.nvl-sub{font-size:12.5px;color:var(--cc-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t3{display:flex;align-items:center;gap:10px;border-top:1px solid var(--cc-line);padding-top:12px;font-size:14px;color:var(--cc-text-2)}
+.t3-ghost{display:inline-flex;align-items:center;gap:8px;font-weight:600;color:var(--cc-text)}
+.dlink{font-size:13.5px;display:inline-flex;align-items:center;gap:6px}
+</style>
+
+<style>
+.dcx-tweaks{position:fixed;right:16px;bottom:16px;z-index:9999;background:#fff;color:#1d2125;border:1px solid #d5dade;
+  border-radius:12px;padding:10px 12px;font:13px system-ui,sans-serif;box-shadow:0 10px 30px -12px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;min-width:190px}
+.dcx-tweaks b{font-weight:600}
+.dcx-tweaks label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dcx-tweaks a{color:#0f6cbf}
+</style>
+</head>
+<body>
+<div id="dcx-root"></div>
+<script type="module">
+import { h, render, Component as PreactComponent } from 'https://cdn.jsdelivr.net/npm/preact@10.24.3/dist/preact.module.js';
+import htm from 'https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.module.js';
+const html = htm.bind(h);
+class DCLogic extends PreactComponent {}
+
+class Component extends DCLogic {
+  data() {
+    const OPTIONS = [
+      {key: 'A', label: 'Na faixa', verdict: 'Refuted', vcls: 'verdict--no', title: 'A · The calendar line carries the news.',
+        note: 'The maintainer’s idea, drawn faithfully: with nothing due, the closed line’s sentence becomes one cell per category; with work, a muted "Inscrições" cell after a divider opens a popover. It exists only while the calendar is on, its cells stop meaning "open the strip on these days", and the same band reads as obligations one day and as an offer the next.'},
+      {key: 'B', label: 'Linha própria', verdict: 'Recommended', vcls: 'verdict--rec', title: 'B · A line of its own, that recedes.',
+        note: 'Drawn by the block, under the calendar line (or at the top when the calendar is off), only when something counts. Calm block: up to three category links. Work due today or tomorrow: one muted sentence and a popover. Up next showing: below tier 1. No course at all: it becomes tier 1’s empty state.'},
+      {key: 'C', label: 'No cabeçalho', verdict: 'Alternative', vcls: 'verdict--alt', title: 'C · A pill in the block’s head.',
+        note: 'The least weight: an "Inscrições 6" pill beside the view controls, the list in a popover. Same service and caches as B. Easy to miss, and a count on a pill reads as a notification badge, which the block has never had.'},
+      {key: 'D', label: 'Só um link', verdict: 'Fallback', vcls: 'verdict--alt', title: 'D · A link, no count.',
+        note: 'No request and no cache: "Ver cursos com inscrição aberta" in tier 1’s empty state and beside the tier 3 ghost, to the category page through the same hook. Fixes the empty-state dead end; says nothing about what starts, or where.'},
+    ];
+    const SITS = [
+      {key: 'calm', label: 'Nada a fazer', note: 'The calendar line is empty (nothing due until the end of November); tier 1 has cards.'},
+      {key: 'busy', label: 'Com tarefas', note: 'Two items today, one tomorrow: the calendar line has work, so the news recedes.'},
+      {key: 'upnext', label: 'Em seguida', note: 'Up next (ADR-016) shows a quiz closing in 40 min: nothing may sit above it.'},
+      {key: 'empty', label: 'Sem cursos', note: 'A new account: no course, so tier 1 would only say "Você ainda não está inscrito em nenhum curso."'},
+    ];
+    const GROUPS = [
+      {name: 'Saúde', count: 3, sub: 'Primeiros Socorros, Biossegurança e mais 1', id: 12,
+        url: '/course/index.php?categoryid=12&chip=open&from=2026-10-21&to=2026-11-27',
+        text: 'Saúde holds three new courses: the category page, through the block’s category_link hook. theme_dimensions answers with its showcase filtered to open courses (server-side, first paint, the remembered filter untouched). With from and to set to the same band, it lists the same 3 courses (the two classifiers can still differ at the margin, both erring towards open: M3). Without a theme answering, core’s category page, unfiltered.'},
+      {name: 'Tecnologia', count: 2, sub: 'Python para Análise de Dados, LGPD na Prática', id: 31,
+        url: '/course/index.php?categoryid=31&chip=open&from=2026-10-21&to=2026-11-27',
+        text: 'Two new courses in Tecnologia: the category page through the hook, as for Saúde.'},
+      {name: 'Gestão Pública', count: 1, sub: 'Licitações e Contratos', id: 7, one: 'Licitações e Contratos', courseid: 418,
+        url: '/enrol/index.php?id=418',
+        text: 'One course: its enrolment page, the link the Starts-soon strip already uses. The theme’s landing page intercepts it where it does; the provider’s discoverability gate on enrol/index.php applies as for any link.'},
+    ];
+    const LOGS = {
+      A: [['1', 'get_attention (tier 1, unchanged)'], ['2', 'get_strip_counts, now carrying the news: a fresh calendarstrip entry 2 reads; a rebuild about 20 (11 + the news build), estimate'], ['!', 'Calendar off (the default) or not on this surface: no news at all']],
+      B: [['1', 'get_attention (tier 1, unchanged)'], ['2', 'get_strip_counts (unchanged), when the calendar is on'], ['3', 'get_news: fresh entry 2 reads; build about 11 with the shared catalogue warm, about 14 cold (estimates, M1)'], ['·', 'No timer, no polling; × and the clicks write seen through core_user/repository']],
+      C: [['1', 'get_attention'], ['2', 'get_strip_counts, when the calendar is on'], ['3', 'get_news, as B; opening the popover asks nothing']],
+      D: [['1', 'get_attention'], ['2', 'get_strip_counts, when the calendar is on'], ['·', 'Nothing for the link: 0 reads, no cache']],
+    };
+    const CARDS = [
+      {name: 'Ética Profissional', cat: 'Formação geral', hue: 'a', w: 'width: 64%'},
+      {name: 'Gestão de Crises', cat: 'Operações', hue: 'b', w: 'width: 38%'},
+      {name: 'Inglês Instrumental', cat: 'Idiomas', hue: 'c', w: 'width: 12%'},
+    ];
+    return {OPTIONS, SITS, GROUPS, LOGS, CARDS};
+  }
+
+  constructor(props) {
+    super(props);
+    this.state = {opt: 'B', sit: 'calm', dest: null, pop: false, seen: false};
+  }
+
+  renderVals() {
+    const {OPTIONS, SITS, GROUPS, LOGS, CARDS} = this.data();
+    const st = this.state;
+    const o = OPTIONS.find((x) => x.key === st.opt);
+    const s = SITS.find((x) => x.key === st.sit);
+    const isA = o.key === 'A', isB = o.key === 'B', isC = o.key === 'C', isD = o.key === 'D';
+    const calm = st.sit === 'calm', busy = st.sit === 'busy', up = st.sit === 'upnext', empty = st.sit === 'empty';
+    const work = busy || up;
+    const seen = st.seen;
+    const go = (dest) => () => this.setState({dest, pop: false});
+    const groups = GROUPS.map((g) => ({
+      ...g,
+      label: g.one ? g.name + ' · ' + g.one : g.name,
+      title: g.one ? g.one + ' (Gestão Pública)' : g.sub,
+      cls: g.one ? 'nv-g1' : '',
+      pick: go({text: g.text, url: g.url}),
+    }));
+    const all = {text: 'Several categories: the hook is asked for the root (category 0). theme_dimensions answers with its showcase at the root filtered to open courses; without it, core’s course index.', url: '/course/index.php?chip=open&from=2026-10-21&to=2026-11-27'};
+    const lineNewsOnly = isA && !work && !seen;
+    const dest = st.dest;
+    return {
+      darkClass: this.props.dark ? 'cc-dark' : '',
+      options: OPTIONS.map((x) => ({...x, pressed: x.key === st.opt ? 'true' : 'false', pick: () => this.setState({opt: x.key, dest: null, pop: false, seen: false})})),
+      sits: SITS.map((x) => ({...x, pressed: x.key === st.sit ? 'true' : 'false', pick: () => this.setState({sit: x.key, dest: null, pop: false})})),
+      verdict: o.verdict, verdictCls: o.vcls, optTitle: o.title, optNote: o.note, sitNote: s.note,
+      groups, cards: CARDS,
+      showPill: isC && !seen,
+      popOpen: st.pop ? 'true' : 'false',
+      popShown: !!st.pop,
+      togglePop: () => this.setState({pop: !st.pop}),
+      pickAll: go(all),
+      markSeen: () => this.setState({seen: true, pop: false, dest: {text: 'Hidden until the next sign-in: the sign-in marker ($USER->currentlogin) is written as a member of an existing JSON preference through core_user/repository, optimistically, the way Up next hides (ADR-016). get_news is not asked again while the marker matches.', url: ''}}),
+      unsee: () => this.setState({seen: false, dest: null}),
+      lineNothing: !work && !lineNewsOnly,
+      lineNewsOnly,
+      lineWork: work,
+      lineNewsTail: isA && work && !seen,
+      aFlag: isA && !seen,
+      aFlagText: work ? 'The last cell opens a popover, not the strip: one row, two behaviours' : 'Same band, another meaning: tomorrow, with work due, these cells give way to the periods',
+      aPop: isA && work && st.pop && !seen,
+      showUp: up,
+      bFull: isB && !seen && (calm),
+      bCompact: isB && !seen && busy,
+      bBelow: isB && !seen && up,
+      bSeen: (isB || isC || isA) && seen,
+      hasCourses: !empty,
+      noCourses: empty,
+      emptyList: empty && (isB || isC || isA) && !seen,
+      emptyLink: empty && isD,
+      dFoot: isD,
+      hasDest: !!(dest && dest.url),
+      destText: dest ? dest.text : 'Click a category, a course or "Ver" to see where it leads.',
+      destUrl: dest ? dest.url : '',
+      log: LOGS[o.key].map(([n, t]) => ({n, t})),
+    };
+  }
+}
+
+Component.prototype.render = function () {
+  const v = this.renderVals();
+  return html`
+<div class=${`cc-root ${v.darkClass}`} style="min-height: 1500px; padding: 40px 48px 56px; display: flex; flex-direction: column; gap: 18px;">
+  <header style="display: flex; flex-direction: column; gap: 6px;">
+    <p class="kicker">block_compass · open courses to join (brainstorm, 2026-10-28)</p>
+    <h1 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.01em;">Open courses the viewer can join: four placements</h1>
+    <p class="p">Wednesday 28 October 2026, Studying view, the block in Portuguese. The band is the start date from 7 days back to 30 ahead (21 October to 27 November): six courses in it are open to this viewer, in three top-level categories (<code>news_depth</code> = 1). Pick an option and a situation, then click any part of the news to see where it leads.</p>
+  </header>
+
+  <div class="ctl">
+    <div class="ctl-g">
+      <span class="ctl-lab" id="lab-opt">Option</span>
+      <div class="seg" role="group" aria-labelledby="lab-opt">
+        ${(v.options || []).map((o, __i0) => html`
+          <button class="segbtn" type="button" aria-pressed=${o.pressed} onClick=${o.pick}><span class="ltr">${o.key}</span>${o.label}</button>
+        `)}
+      </div>
+    </div>
+    <div class="ctl-g">
+      <span class="ctl-lab" id="lab-s">Situation</span>
+      <div class="seg" role="group" aria-labelledby="lab-s">
+        ${(v.sits || []).map((s, __i0) => html`
+          <button class="segbtn" type="button" aria-pressed=${s.pressed} onClick=${s.pick}>${s.label}</button>
+        `)}
+      </div>
+    </div>
+  </div>
+  <p class="optnote"><span class=${`verdict ${v.verdictCls}`}>${v.verdict}</span><b>${v.optTitle}</b> ${v.optNote}</p>
+  <p class="optnote" style="font-size: 13px;"><b>Situation.</b> ${v.sitNote}</p>
+
+  <div class="cols">
+  <div class="dash">
+    <h2 class="dash-h">Painel</h2>
+    <section class="blk" aria-label="Meus cursos">
+      <div class="bh">
+        <h3 class="bh-t">Meus cursos</h3>
+        <div class="bh-right">
+          ${(v.showPill) ? html`
+          <div class="hp">
+            <button class="hp-btn" type="button" aria-expanded=${v.popOpen} aria-label="Inscrições abertas: 6 cursos começam até 27 de novembro" onClick=${v.togglePop}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+              Inscrições <span class="nv-gn">6</span>
+            </button>
+            ${(v.popShown) ? html`
+            <div class="pop" role="dialog" aria-label="Inscrições abertas">
+              <p class="pop-h">Começam entre 21 de outubro e 27 de novembro</p>
+              ${(v.groups || []).map((g, __i0) => html`
+                <button class="pop-row" type="button" onClick=${g.pick}><span><span>${g.name}</span><span class="pop-sub">${g.sub}</span></span><span class="nv-gn">${g.count}</span></button>
+              `)}
+              <div class="pop-foot"><button class="linkbtn" type="button" onClick=${v.pickAll}>Ver todos os cursos abertos</button><button class="linkbtn" type="button" onClick=${v.markSeen}>Ocultar até o próximo acesso</button></div>
+            </div>
+            ` : null}
+          </div>
+          ` : null}
+          <div class="vsw" role="group" aria-label="Visualização">
+            <button type="button" aria-pressed="true" aria-label="Cartões"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+            <button type="button" aria-pressed="false" aria-label="Lista"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sl">
+        <div class="sl-band">
+          <button class="sl-toggle" type="button" aria-expanded="false">
+            <svg class="sl-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            Calendário
+          </button>
+          ${(v.lineNothing) ? html`
+            <p class="sl-nothing">Nada a fazer ou assistir até o fim de novembro</p>
+          ` : null}
+          ${(v.lineNewsOnly) ? html`
+            <span class="sl-newslead">Inscrições abertas</span>
+            <ul class="sl-cells" aria-label="Inscrições abertas, por categoria">
+              ${(v.groups || []).map((g, __i0) => html`
+                <li><button class="sl-cell sl-cell--news" type="button" onClick=${g.pick}><span class="sl-lab">${g.name}</span><span class="sl-chip">${g.count}</span></button></li>
+              `)}
+            </ul>
+          ` : null}
+          ${(v.lineWork) ? html`
+            <ul class="sl-cells" aria-label="O seu calendário, por período">
+              <li><button class="sl-cell sl-cell--late" type="button"><span class="sl-lab">Atrasadas</span><span class="sl-chip">0</span></button></li>
+              <li><button class="sl-cell sl-cell--today" type="button"><span class="sl-lab">Hoje</span><span class="sl-chip">2</span></button></li>
+              <li><button class="sl-cell sl-h1" type="button"><span class="sl-lab">Amanhã</span><span class="sl-chip">1</span></button></li>
+              <li><button class="sl-cell sl-h2" type="button"><span class="sl-lab">Esta semana</span><span class="sl-chip">4</span></button></li>
+              <li><button class="sl-cell sl-h1" type="button"><span class="sl-lab">Depois</span><span class="sl-chip">7</span></button></li>
+              ${(v.lineNewsTail) ? html`
+                <li class="sl-div" aria-hidden="true"></li>
+                <li><button class="sl-cell sl-cell--newsquiet" type="button" onClick=${v.togglePop}><span class="sl-lab">Inscrições</span><span class="sl-chip">6</span></button></li>
+              ` : null}
+            </ul>
+          ` : null}
+        </div>
+        ${(v.aFlag) ? html`
+          <p style="margin: 6px 0 0;"><span class="warnflag">${v.aFlagText}</span></p>
+        ` : null}
+        ${(v.aPop) ? html`
+          <div style="position: relative; height: 0;">
+            <div class="pop" role="dialog" aria-label="Inscrições abertas" style="top: 4px;">
+              <p class="pop-h">Começam entre 21 de outubro e 27 de novembro</p>
+              ${(v.groups || []).map((g, __i0) => html`
+                <button class="pop-row" type="button" onClick=${g.pick}><span><span>${g.name}</span><span class="pop-sub">${g.sub}</span></span><span class="nv-gn">${g.count}</span></button>
+              `)}
+            </div>
+          </div>
+        ` : null}
+      </div>
+
+      ${(v.showUp) ? html`
+      <section class="up" aria-label="Em seguida">
+        <h3 class="up-h">Em seguida</h3>
+        <span class="up-rel">em 40 min</span>
+        <span class="up-name">Questionário do módulo 3 · Gestão de Crises</span>
+        <a class="btn" href="#">Responder</a>
+      </section>
+      ` : null}
+
+      ${(v.bFull) ? html`
+      <section class="nv" aria-labelledby="nv-h">
+        <span class="nv-ic" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></span>
+        <h3 class="nv-h" id="nv-h">Inscrições abertas</h3>
+        <span class="nv-sum">6 cursos começam até 27 de novembro</span>
+        <ul class="nv-gs">
+          ${(v.groups || []).map((g, __i0) => html`
+            <li><a class=${`nv-g ${g.cls}`} href="#" title=${g.title} onClick=${g.pick}><span class="nv-gname">${g.label}</span><span class="nv-gn">${g.count}</span></a></li>
+          `)}
+        </ul>
+        <button class="iconbtn" type="button" aria-label="Ocultar até o próximo acesso" title="Ocultar até o próximo acesso" onClick=${v.markSeen}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </section>
+      ` : null}
+
+      ${(v.bCompact) ? html`
+      <div class="hp">
+        <section class="nv nv--compact" aria-label="Inscrições abertas">
+          <span class="nv-ic" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/></svg></span>
+          <span class="nv-sum">6 cursos com inscrição aberta começam até 27 de novembro</span>
+          <button class="linkbtn" type="button" aria-expanded=${v.popOpen} onClick=${v.togglePop}>Ver</button>
+        </section>
+        ${(v.popShown) ? html`
+        <div class="pop pop--left" role="dialog" aria-label="Inscrições abertas">
+          <p class="pop-h">Começam entre 21 de outubro e 27 de novembro</p>
+          ${(v.groups || []).map((g, __i0) => html`
+            <button class="pop-row" type="button" onClick=${g.pick}><span><span>${g.name}</span><span class="pop-sub">${g.sub}</span></span><span class="nv-gn">${g.count}</span></button>
+          `)}
+          <div class="pop-foot"><button class="linkbtn" type="button" onClick=${v.pickAll}>Ver todos os cursos abertos</button><button class="linkbtn" type="button" onClick=${v.markSeen}>Ocultar até o próximo acesso</button></div>
+        </div>
+        ` : null}
+      </div>
+      ` : null}
+
+      ${(v.bSeen) ? html`
+      <div class="nv-seen">Inscrições abertas fica oculto até o seu próximo acesso. <button class="linkbtn" type="button" onClick=${v.unsee}>Desfazer</button></div>
+      ` : null}
+
+      ${(v.hasCourses) ? html`
+      <h3 class="t1-h">Continuar de onde parou</h3>
+      <div class="cards">
+        ${(v.cards || []).map((c, __i0) => html`
+          <article class="cd">
+            <div class=${`cd-img cd-img--${c.hue}`}></div>
+            <div class="cd-body"><span class="cd-cat">${c.cat}</span><span class="cd-title">${c.name}</span><span class="bar"><span style=${c.w}></span></span></div>
+          </article>
+        `)}
+      </div>
+      ` : null}
+
+      ${(v.bBelow) ? html`
+      <section class="nv nv--compact" aria-label="Inscrições abertas">
+        <span class="nv-ic" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/></svg></span>
+        <span class="nv-sum">Inscrições abertas: 6 cursos começam até 27 de novembro (Saúde 3, Tecnologia 2, Gestão Pública 1)</span>
+        <button class="linkbtn" type="button" onClick=${v.pickAll}>Ver</button>
+      </section>
+      ` : null}
+
+      ${(v.noCourses) ? html`
+      <div class="t1-empty">
+        <p class="t1-empty-t">Você ainda não está inscrito em nenhum curso.</p>
+        ${(v.emptyList) ? html`
+          <p class="nv-h" style="margin: 2px 0 0;">Com inscrição aberta para você, começando até 27 de novembro</p>
+          <ul class="nvl">
+            ${(v.groups || []).map((g, __i0) => html`
+              <li><button class="nvl-row" type="button" onClick=${g.pick}><span class="nvl-top"><span>${g.name}</span><span class="nv-gn">${g.count}</span></span><span class="nvl-sub">${g.sub}</span></button></li>
+            `)}
+          </ul>
+          <button class="linkbtn" type="button" style="align-self: flex-start;" onClick=${v.pickAll}>Ver todos os cursos com inscrição aberta</button>
+        ` : null}
+        ${(v.emptyLink) ? html`
+          <a class="dlink" href="#" onClick=${v.pickAll}>Ver cursos com inscrição aberta</a>
+        ` : null}
+      </div>
+      ` : null}
+
+      ${(v.hasCourses) ? html`
+      <div class="t3">
+        <span class="t3-ghost">Todos os meus cursos · 9</span>
+        ${(v.dFoot) ? html`
+          <a class="dlink" href="#" style="margin-left: auto;" onClick=${v.pickAll}>Ver cursos com inscrição aberta</a>
+        ` : null}
+      </div>
+      ` : null}
+    </section>
+  </div>
+
+  <aside class="side">
+    <div class="box">
+      <h3>Where the click leads</h3>
+      <p>${v.destText}</p>
+      ${(v.hasDest) ? html`<p><code>${v.destUrl}</code></p>` : null}
+    </div>
+    <div class="box">
+      <h3>Requests and reads for this option</h3>
+      <ul class="log">
+        ${(v.log || []).map((l, __i0) => html`
+          <li><span class="n">${l.n}</span><span>${l.t}</span></li>
+        `)}
+      </ul>
+    </div>
+    <div class="box">
+      <h3>The datum, in one sentence</h3>
+      <p>Courses that are visible and listed, offer the viewer a route in now (<code>get_next_actions()</code> = open), are not the viewer's own (no enrolled, scheduled, pending or waitlisted row), and whose <b>start date</b> falls between today − 7 and today + 30 days (site timezone), grouped by their category at depth 1. The same band in the showcase link reproduces the count.</p>
+    </div>
+  </aside>
+  </div>
+</div>
+`;
+};
+const TWEAKS = {"dark": {"editor": "boolean", "default": false}};
+class Shell extends PreactComponent {
+  constructor(props) { super(props); this.state = {"dark": false}; }
+  render() {
+    const rows = Object.entries(TWEAKS).map(([key, t]) => {
+      const set = (value) => this.setState({ [key]: value });
+      if (t.editor === 'boolean') {
+        return html`<label>${key} <input type="checkbox" checked=${!!this.state[key]} onChange=${(e) => set(e.target.checked)} /></label>`;
+      }
+      if (t.editor === 'enum') {
+        return html`<label>${key} <select value=${this.state[key]} onChange=${(e) => set(e.target.value)}>
+          ${t.options.map((o) => html`<option value=${o}>${o}</option>`)}</select></label>`;
+      }
+      if (t.editor === 'range' || t.editor === 'int') {
+        return html`<label>${key} <input type="number" min=${t.min} max=${t.max} step=${t.step || 1} value=${this.state[key]}
+          onChange=${(e) => set(Number(e.target.value))} style="width: 80px" /></label>`;
+      }
+      return null;
+    });
+    return html`<${Component} ...${this.state} />${rows.length ? html`<aside class="dcx-tweaks" aria-label="Mockup tweaks">
+      <b>Tweaks</b>${rows}<a href="index.html">All artboards</a></aside>` : html`<aside class="dcx-tweaks"><a href="index.html">All artboards</a></aside>`}`;
+  }
+}
+render(html`<${Shell} />`, document.getElementById('dcx-root'));
+</script>
+</body>
+</html>
