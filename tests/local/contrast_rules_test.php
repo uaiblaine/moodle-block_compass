@@ -77,13 +77,14 @@ final class contrast_rules_test extends basic_testcase {
     ];
 
     /**
-     * @var string[] The open-courses line's filled rules (ADR-017 decision 7), each declaring its paired text: the
-     *     icon's tile and the count chip (a tint of the primary), a group, "+N", the × hovered, the popover, its
-     *     rows at rest and hovered, and a tile of tier 1's empty state.
+     * @var string[] The open-courses panel's filled rules (ADR-017 decision 7, round 2), each declaring its paired text: the
+     *     panel's gradient, the icon's tile and the count chip (a tint of the primary), a group, "+N", the close
+     *     and the close hovered, "See", the popover, its rows at rest and hovered, and a tile of tier 1's empty state.
      */
     private const NEWS_FILLS = [
-        '.block_compass .compass-news-icon', '.block_compass .compass-news-count', '.block_compass .compass-news-group',
-        '.block_compass .compass-news-more', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-pop',
+        '.block_compass .compass-news', '.block_compass .compass-news-icon', '.block_compass .compass-news-count',
+        '.block_compass .compass-news-group', '.block_compass .compass-news-more', '.block_compass .compass-news-hide',
+        '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-see', '.block_compass .compass-news-pop',
         '.block_compass .compass-news-poprow', '.block_compass .compass-news-poprow:hover', '.block_compass .compass-news-tile',
     ];
 
@@ -692,21 +693,26 @@ final class contrast_rules_test extends basic_testcase {
             ['a dimmed row', '.block_compass .compass-row.compass-preview-dim', $surface, ['root']],
             ['a dimmed card', '.block_compass .compass-rowcard.compass-preview-dim', $surface, ['root']],
         ]);
-        // The open-courses line (ADR-017): its texts over the surface, the primary's tint and its ink one
-        // pair (the count chip and the icon's tile), the popover's rows at rest and hovered, a tile.
+        // The open-courses panel (ADR-017): its texts over the surface (the gradient's middle stop; the other
+        // two are computed in test_the_panel_texts_read_on_every_stop_of_its_gradient), the primary's tint and
+        // its ink one pair (the count chip and the icon's tile), the close and "See" on their own fills, the
+        // popover's rows at rest and hovered, a tile.
         $pop = '.block_compass .compass-news-pop';
         $row = '.block_compass .compass-news-poprow';
         $tile = '.block_compass .compass-news-tile';
+        $group = '.block_compass .compass-news-group';
         $pairs = array_merge($pairs, [
-            ['the line\'s title', '.block_compass .compass-news-title', $surface, ['root']],
-            ['the line\'s summary', '.block_compass .compass-news-sum', $surface, ['root']],
+            ['the panel', '.block_compass .compass-news', $surface, ['root']],
+            ['the eyebrow', '.block_compass .compass-news-title', $surface, ['root']],
+            ['the summary', '.block_compass .compass-news-sum', $surface, ['root']],
             ['the line\'s icon', '.block_compass .compass-news-icon', '.block_compass .compass-news-icon', ['root']],
-            ['a group', '.block_compass .compass-news-group', '.block_compass .compass-news-group', ['root']],
+            ['a group', $group, $group, ['root']],
+            ['a group of one\'s course', '.block_compass .compass-news-gsub', $group, ['root']],
             ['a count', '.block_compass .compass-news-count', '.block_compass .compass-news-count', ['root']],
             ['+N', '.block_compass .compass-news-more', '.block_compass .compass-news-more', ['root']],
-            ['the ×', '.block_compass .compass-news-hide', $surface, ['root']],
-            ['the × hovered', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-hide:hover', ['root']],
-            ['the compact sentence', '.block_compass .compass-news-sentence', $surface, ['root']],
+            ['the close', '.block_compass .compass-news-hide', '.block_compass .compass-news-hide', ['root']],
+            ['the close hovered', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-hide:hover', ['root']],
+            ['See', '.block_compass .compass-news-see', '.block_compass .compass-news-see', ['root']],
             ['the popover', $pop, $pop, ['root']],
             ['the popover\'s summary', '.block_compass .compass-news-pophead', $pop, ['root']],
             ['a popover row', $row, $row, ['root']],
@@ -714,7 +720,7 @@ final class contrast_rules_test extends basic_testcase {
             ['a popover row\'s course', '.block_compass .compass-news-popsub', $row, ['root']],
             ['a popover row\'s course hovered', '.block_compass .compass-news-popsub', "{$row}:hover", ['root']],
             ['every course open', '.block_compass .compass-news-all', $pop, ['root']],
-            ['the empty state\'s lead', '.block_compass .compass-news-emptylead', $surface, ['root']],
+            ['the foot link', '.block_compass .compass-news-foot .compass-news-all', $surface, ['root']],
             ['a tile', $tile, $tile, ['root']],
             ['a tile\'s course', '.block_compass .compass-news-tilesub', $tile, ['root']],
         ]);
@@ -779,6 +785,95 @@ final class contrast_rules_test extends basic_testcase {
         }
         $this->assertSame([], $failures, "pairs under their floor:\n" . implode("\n", $failures));
         $this->assertGreaterThanOrEqual(300, $computed, 'fewer than 300 pairs computed: has the list shrunk?');
+    }
+
+    /**
+     * The block root's custom properties, and the dark override's over them.
+     *
+     * @return array [root tokens, dark override tokens], each name => value.
+     */
+    private function token_scopes(): array {
+        $root = [];
+        $darkoverride = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            if ($selector === '.block_compass') {
+                $root = self::custom_properties($body) + $root;
+            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-brand-text:')) {
+                $darkoverride = self::custom_properties($body) + $darkoverride;
+            }
+        }
+
+        return [$root, $darkoverride];
+    }
+
+    /**
+     * The open-courses panel's texts read on every stop of its gradient, light and dark, for two brands.
+     *
+     * The panel paints a gradient from a warm stop through the surface to the primary's subtle tint
+     * (round 2), which the pair matrix cannot read (a gradient is not a colour). Each text is computed on
+     * each of the three stops, the close's translucent tint composited over the stop it sits on:
+     * the eyebrow (sentence case, the accent's text), the summary, the close at rest and hovered, and the
+     * foot link of the empty state. The chips' text on their surface, the count on the subtle tint and
+     * the tile are pairs of the matrix. Vacuity guards: the gradient is the three stops in this order, the
+     * warm and sand tokens have a dark value, and the pairs computed are counted.
+     *
+     * Changes that must make it fail: a stop's token changed to a colour the eyebrow does not read on,
+     * the dark warm stop dropped (the light cream behind light text), the accent's text token changed to
+     * the plain brand.
+     *
+     * @return void
+     */
+    public function test_the_panel_texts_read_on_every_stop_of_its_gradient(): void {
+        $selectors = $this->selectors();
+        [$root, $darkoverride] = $this->token_scopes();
+        [, $panel] = $this->rule($selectors, '.block_compass .compass-news');
+        $this->assertMatchesRegularExpression(
+            '/^linear-gradient\(\s*135deg,\s*var\(--block_compass-news-warm\) 0%,\s*var\(--block_compass-surface\) 60%,'
+            . '\s*var\(--block_compass-news-subtle\) 100%\s*\)$/',
+            $panel['background'] ?? '',
+            'the panel\'s three stops'
+        );
+        foreach (['--block_compass-news-warm', '--block_compass-news-sand'] as $token) {
+            $this->assertArrayHasKey($token, $root, "{$token} has a light value");
+            $this->assertArrayHasKey($token, $darkoverride, "{$token} has a dark value");
+            $this->assertNotSame($root[$token], $darkoverride[$token], "{$token} is the same in the dark");
+        }
+        $stops = [
+            'the warm stop' => 'var(--block_compass-news-warm)',
+            'the surface stop' => 'var(--block_compass-surface)',
+            'the subtle stop' => 'var(--block_compass-news-subtle)',
+        ];
+        $hide = '.block_compass .compass-news-hide';
+        $hover = '.block_compass .compass-news-hide:hover';
+        // Each pair: what it is, the text's rule, the translucent fill's rule laid over the stop (or null).
+        $pairs = [
+            ['the eyebrow', '.block_compass .compass-news-title', null],
+            ['the summary', '.block_compass .compass-news-sum', null],
+            ['the close', $hide, $hide],
+            ['the close hovered', $hover, $hover],
+            ['the foot link', '.block_compass .compass-news-foot .compass-news-all', null],
+        ];
+        $computed = 0;
+        $failures = [];
+        foreach (self::themes() as $mode => $theme) {
+            $chain = [[], $theme['dark'] ? $darkoverride + $root : $root, $theme['tokens']];
+            foreach ($pairs as [$what, $text, $fill]) {
+                foreach ($stops as $stopname => $stop) {
+                    $bg = self::over(self::evaluate($stop, $chain), self::evaluate('var(--block_compass-surface)', $chain));
+                    if ($fill !== null) {
+                        $bg = self::over($this->colour_of($selectors, $fill, 'background', $chain), $bg);
+                    }
+                    $fg = $this->colour_of($selectors, $text, 'color', $chain);
+                    $ratio = self::ratio(self::over($fg, $bg), $bg);
+                    $computed++;
+                    if ($ratio < 4.5) {
+                        $failures[] = sprintf('%s, %s, %s: %.2f:1', $mode, $stopname, $what, $ratio);
+                    }
+                }
+            }
+        }
+        $this->assertSame([], $failures, "panel pairs under their floor:\n" . implode("\n", $failures));
+        $this->assertSame(4 * count($pairs) * count($stops), $computed, 'every pair on every stop in every mode');
     }
 
     /**

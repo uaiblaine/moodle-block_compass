@@ -2469,7 +2469,7 @@ final class accessibility_rules_test extends basic_testcase {
      * The open-courses line is a named region that grows in, and its popover is a dialog.
      *
      * Decision 7's accessibility: the line is a section named by its heading; a group of several is named
-     * by a sentence that starts with its visible name (news_group_label); the × is a button named "Hide
+     * by a sentence that starts with its visible name (news_group_label); the close is a button named "Hide
      * until the next sign-in"; "See" and "+N" open a dialog that takes the keyboard, gives it back to its
      * opener, and closes on Escape and on a press outside; below 640 px of the block's measured width it is
      * a bottom sheet over a scrim. The insertion is Up next's: grid rows from 0fr to 1fr in about 200 ms,
@@ -2519,7 +2519,7 @@ final class accessibility_rules_test extends basic_testcase {
             $this->tags($source, 'button'),
             static fn(string $tag): bool => str_contains($tag, 'compass-news-hide')
         ));
-        $this->assertCount(1, $hide, 'vacuity: the ×');
+        $this->assertCount(1, $hide, 'vacuity: the close, written once for the full line and the slim panel');
         $this->assertStringContainsString('aria-label={strings.news_hide}', $hide[0]);
         $dialogs = array_values(array_filter(
             $this->tags($source, 'div'),
@@ -2559,6 +2559,135 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertGreaterThanOrEqual(30, count($styled), 'vacuity: the line\'s classes were read');
         foreach ($styled as $class) {
             $this->assertMatchesRegularExpression('/(?<![\w-])' . preg_quote($class, '/') . '(?![\w-])/', $source, $class);
+        }
+    }
+
+    /**
+     * The open-courses panel keeps its groups on a row of their own, names its close in full, folds the
+     * close to its cross on a narrow block, and never writes a label in capitals.
+     *
+     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html). The groups are a sibling of the head, never in it,
+     * and indent to the text (tile plus gap) except on a narrow block. The close shows a short label
+     * (news_hide_short) and is named by the whole sentence (news_hide) in aria-label and title; the visible
+     * word is inside the name in every language (WCAG 2.5.3). Below 640 px of the block the label is
+     * hidden and the button is its cross alone, 2rem square; the slim panel draws no label. No rule of the
+     * line transforms case, spaces its letters or uses small capitals, and the only opacity among its
+     * rules is the sparkles', which carry no text and are hidden from assistive technology. Vacuity
+     * guards: the rules and the tags are found.
+     *
+     * Changes that must make it fail: the groups moved into the head, the indent dropped, the label shown
+     * on a narrow block, the close unnamed, a text-transform on a line rule, a sparkle announced.
+     *
+     * @return void
+     */
+    public function test_the_open_courses_panel_keeps_its_groups_close_and_case(): void {
+        $bodies = [];
+        $news = 0;
+        foreach ($this->rules() as [$selector, $body]) {
+            foreach (explode(',', $selector) as $one) {
+                if (!str_contains($one, 'compass-news')) {
+                    continue;
+                }
+                $news++;
+                $this->assertDoesNotMatchRegularExpression(
+                    '/(?<![\w-])(?:text-transform|letter-spacing|font-variant-caps)\s*:/',
+                    $body,
+                    trim($one) . ' changes case or spaces its letters; the line is emphasised by weight alone'
+                );
+                $this->assertDoesNotMatchRegularExpression('/small-caps/', $body, trim($one) . ' uses small capitals');
+                if (preg_match('/(?<![\w-])opacity\s*:/', $body)) {
+                    $this->assertMatchesRegularExpression(
+                        '/\.compass-news-spark\b/',
+                        $one,
+                        trim($one) . ' fades with opacity; only the sparkles, which carry no text, may'
+                    );
+                }
+                $bodies[trim($one)] = ($bodies[trim($one)] ?? '') . $body;
+            }
+        }
+        $this->assertGreaterThanOrEqual(40, $news, 'vacuity: the line\'s rules were read');
+
+        $panel = $bodies['.block_compass .compass-news'] ?? '';
+        $this->assertMatchesRegularExpression('/flex-direction:\s*column/', $panel, 'the head and the groups are rows of a column');
+        $this->assertMatchesRegularExpression('/position:\s*relative/', $panel);
+        $this->assertMatchesRegularExpression('/overflow:\s*hidden/', $panel);
+        $this->assertMatchesRegularExpression(
+            '/flex:\s*none/',
+            $bodies['.block_compass .compass-news-hide'] ?? '',
+            'the close never shrinks: on a phone the slim row squeezed it to a sliver'
+        );
+        $this->assertMatchesRegularExpression(
+            '/margin:\s*0\.25rem 0 1rem/',
+            $bodies['.block_compass .compass-news-inner > .compass-news'] ?? '',
+            'room around the panel: the heading after it never sits on its edge'
+        );
+        $groups = $bodies['.block_compass .compass-news-groups'] ?? '';
+        $this->assertMatchesRegularExpression('/padding:\s*0 0 0 3\.375rem/', $groups, 'indented to the text: tile plus gap');
+        $this->assertMatchesRegularExpression(
+            '/padding-left:\s*0\b/',
+            $bodies['.block_compass .compass-news-narrow .compass-news-groups'] ?? '',
+            'on a narrow block the groups take the whole width'
+        );
+        $narrowhide = $bodies['.block_compass .compass-news-narrow .compass-news-hide'] ?? '';
+        $this->assertMatchesRegularExpression('/width:\s*2rem/', $narrowhide, 'the cross alone is a 32 px square');
+        $this->assertMatchesRegularExpression('/padding:\s*0;/', $narrowhide);
+        $this->assertMatchesRegularExpression(
+            '/display:\s*none/',
+            $bodies['.block_compass .compass-news-narrow .compass-news-hidelabel'] ?? '',
+            'on a narrow block the close shows its cross alone'
+        );
+        $this->assertArrayHasKey('.block_compass .compass-news-hide', $bodies, 'vacuity: the close\'s rule');
+        $this->assertMatchesRegularExpression(
+            '/width:\s*2rem/',
+            $bodies['.block_compass .compass-news-hide.compass-news-hide-icon'] ?? '',
+            'the slim panel\'s close is its cross alone too'
+        );
+
+        $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
+        $this->assertMatchesRegularExpression(
+            '/<\/div>\s*\{closer\(true\)\}\s*<ul className="compass-news-groups">/',
+            $source,
+            'the groups follow the head as a row of their own, never inside it'
+        );
+        $this->assertStringContainsString('{closer(false)}', $source, 'the slim panel draws the cross alone');
+        $this->assertStringContainsString(
+            '{labelled && <span className="compass-news-hidelabel">{strings.news_hide_short}</span>}',
+            $source,
+            'the visible label is the short string'
+        );
+        $hide = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-news-hide')
+        ));
+        $this->assertCount(1, $hide, 'vacuity: the close');
+        $this->assertStringContainsString('aria-label={strings.news_hide}', $hide[0], 'named by the whole sentence');
+        $this->assertStringContainsString('title={strings.news_hide}', $hide[0]);
+        $this->assertStringNotContainsString('news_hide_short', $hide[0], 'the short label is the text, never the name');
+        $this->assertStringContainsString("'compass-news-hide compass-news-hide-icon'", $hide[0]);
+
+        $sparks = array_values(array_filter(
+            $this->tags($source, 'span'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-news-spark')
+        ));
+        $this->assertCount(1, $sparks, 'vacuity: the sparkle, written once and placed by its class');
+        $this->assertStringContainsString('aria-hidden="true"', $sparks[0]);
+        $this->assertSame(
+            6,
+            preg_match_all('/<Spark place="compass-news-spark-[abc]" \/>/', $source),
+            'three sparkles on the full line, two on the empty state, one on the slim panel'
+        );
+
+        // The visible word is inside the accessible name, in every language the pack carries.
+        foreach (self::languages() as $lang) {
+            $string = [];
+            include(dirname(__DIR__, 2) . "/lang/{$lang}/block_compass.php");
+            $this->assertNotSame('', $string['news_hide_short'], $lang);
+            $this->assertStringContainsStringIgnoringCase(
+                $string['news_hide_short'],
+                $string['news_hide'],
+                "{$lang}: the close's visible label is not inside its accessible name"
+            );
+            $this->assertNotSame($string['news_hide'], $string['news_hide_short'], "{$lang}: the label is the short twin");
         }
     }
 

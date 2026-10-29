@@ -343,7 +343,7 @@ const SHOTS = {
             await page.eval(`document.querySelector('.block_compass .compass-news-compact').scrollIntoView({block: 'center'})`);
             await sleep(300);
             // A script click: the pointer helper aims at viewport coordinates, which the scroll above moved.
-            await page.eval(`document.querySelector('.block_compass .compass-news-compact .compass-linkbtn').click()`);
+            await page.eval(`document.querySelector('.block_compass .compass-news-compact .compass-news-see').click()`);
             await page.until(`document.querySelector('.block_compass .compass-news-pop')`, 10000);
             await sleep(400);
             await page.mouseAway();

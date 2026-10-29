@@ -73,6 +73,20 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- Open for enrolment, round 2 (2026100515; ADR-017): the line is a panel of its own, drawn in the
+  maintainer's approved design (`docs/mockup-new-courses/Rodada2.dc.html`), client only. The full
+  line, the slim panel (the compact sentence) and the empty state's tiles share one container: a
+  gradient from a warm stop through the surface to the primary's subtle tint, a soft border, radius 16
+  (14 slim), three static sparkles. The head is the 40 px icon tile (the enrolment icon at 18 px), the
+  eyebrow ("Open for enrolment", sentence case, never capitals) and the summary; the groups are chips
+  on a row of their own, indented to the text, with the count in a 26 px circle and a group of one
+  showing its course muted; the × becomes a labelled close in the corner ("Hide", new string
+  `news_hide_short`, named in full by `news_hide`), its cross alone on a block under 640 px and in the
+  slim panel, where "See" is a pill beside it. Two new tokens, `--block_compass-news-warm` and
+  `--block_compass-news-sand`, with dark values. The contrast test computes the eyebrow, the summary
+  and the close on every stop of the gradient, light and dark, two brands (lowest 5.21:1), and a new
+  rule test pins the groups' own row, the close's name, its narrow shape and the absence of any
+  case transform. Twelve new mutation gates.
 - The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,
   core's `btn btn-icon icons-collapse-expand` (2026100510), so the strip reads as expandable the
   way a section does, in each Moodle version's own look; hovering the strip's toggle rings the box
