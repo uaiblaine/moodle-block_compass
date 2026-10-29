@@ -1,4 +1,4 @@
-var h=t=>t===2?2:t===3?3:4,n=t=>h(t)===2?"h2":h(t)===3?"h3":"h4",o=t=>h(t)===2?"h3":h(t)===3?"h4":"h5";export{n as sectionTag,o as titleTag};
+var h=t=>t===2||t===3?t:4,n=t=>["h2","h3","h4"][h(t)-2],o=t=>["h3","h4","h5"][h(t)-2];export{n as sectionTag,o as titleTag};
 /**
  * Which heading tag a component writes, given where the block is.
  *

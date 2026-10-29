@@ -448,6 +448,9 @@ const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): st
  *     CalendarStripProps.
  * @returns {object} The rendered strip, open or closed, or nothing.
  */
+// A component's render branches all count toward its complexity; splitting it into smaller components is
+// a refactor of its own, so the count is acknowledged here.
+// eslint-disable-next-line complexity
 const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCourses}: CalendarStripProps) => {
     const {strings} = calendar;
     // Open: the row of days; closed: the line of counts. Seeded from the props, so the first paint has

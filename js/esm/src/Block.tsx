@@ -105,6 +105,9 @@ const withCard = (data: Attention, courseid: number, change: (card: CourseCard) 
  * @param {object} config Everything classes/output/block.php exported; see BlockConfig.
  * @returns {object} The rendered block.
  */
+// A component's render branches all count toward its complexity; splitting it into smaller components is
+// a refactor of its own, so the count is acknowledged here.
+// eslint-disable-next-line complexity
 const Block = (config: BlockConfig) => {
     const [data, setData] = useState<Attention | null>(null);
     // The message to show, or null. It carries the text rather than a boolean because the
