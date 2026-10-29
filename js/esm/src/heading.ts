@@ -40,7 +40,7 @@ export type TitleTag = 'h3' | 'h4' | 'h5';
  * @param {number} level The headinglevel prop.
  * @returns {number} 2, 3 or 4.
  */
-const rung = (level: number): 2 | 3 | 4 => (level === 2 ? 2 : (level === 3 ? 3 : 4));
+const rung = (level: number): 2 | 3 | 4 => (level === 2 || level === 3 ? level : 4);
 
 /**
  * The tag of a section title.
@@ -48,7 +48,7 @@ const rung = (level: number): 2 | 3 | 4 => (level === 2 ? 2 : (level === 3 ? 3 :
  * @param {number} level The headinglevel prop: 4 under the block title, 3 without it, 2 on the page.
  * @returns {string} h4, h3 or h2.
  */
-export const sectionTag = (level: number): SectionTag => (rung(level) === 2 ? 'h2' : (rung(level) === 3 ? 'h3' : 'h4'));
+export const sectionTag = (level: number): SectionTag => (['h2', 'h3', 'h4'] as const)[rung(level) - 2];
 
 /**
  * The tag of a card title.
@@ -56,4 +56,4 @@ export const sectionTag = (level: number): SectionTag => (rung(level) === 2 ? 'h
  * @param {number} level The headinglevel prop.
  * @returns {string} One rung under the section title: h5, h4 or h3.
  */
-export const titleTag = (level: number): TitleTag => (rung(level) === 2 ? 'h3' : (rung(level) === 3 ? 'h4' : 'h5'));
+export const titleTag = (level: number): TitleTag => (['h3', 'h4', 'h5'] as const)[rung(level) - 2];

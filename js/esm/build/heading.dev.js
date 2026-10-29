@@ -14,9 +14,9 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-const rung = /* @__PURE__ */ __name((level) => level === 2 ? 2 : level === 3 ? 3 : 4, "rung");
-const sectionTag = /* @__PURE__ */ __name((level) => rung(level) === 2 ? "h2" : rung(level) === 3 ? "h3" : "h4", "sectionTag");
-const titleTag = /* @__PURE__ */ __name((level) => rung(level) === 2 ? "h3" : rung(level) === 3 ? "h4" : "h5", "titleTag");
+const rung = /* @__PURE__ */ __name((level) => level === 2 || level === 3 ? level : 4, "rung");
+const sectionTag = /* @__PURE__ */ __name((level) => ["h2", "h3", "h4"][rung(level) - 2], "sectionTag");
+const titleTag = /* @__PURE__ */ __name((level) => ["h3", "h4", "h5"][rung(level) - 2], "titleTag");
 export {
   sectionTag,
   titleTag
