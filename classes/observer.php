@@ -25,12 +25,14 @@
 namespace block_compass;
 
 use block_compass\local\calendar_cache;
+use block_compass\local\catalogue_cache;
 use block_compass\local\category_meta;
 use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use block_compass\local\filter_fields;
 use block_compass\local\inventory;
+use block_compass\local\news_cache;
 use core\event\course_category_deleted;
 use core\event\course_category_updated;
 use core\event\course_deleted;
@@ -41,6 +43,9 @@ use core\event\user_deleted;
  * Per-key cache invalidation: each event deletes the keys it affects, never a whole definition,
  * except the rare custom field definition events, which purge the two field layers
  * ({@see observer::customfield_changed()}).
+ *
+ * The open catalogue (ADR-017 decision 4) is one key for the site: the nine events that change
+ * which courses it holds delete that key, and never a per-user entry (ADR-001's rule).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -58,6 +63,9 @@ final class observer {
         // Core's update_course() saves the custom field values before it triggers this event, so
         // one delete keeps the sibling layer honest too.
         course_fields::delete((int) $event->objectid);
+        // Visibility, start date or category may have moved; an edit that changes no row rebuilds the
+        // catalogue with the same digest, so no viewer's entry is lost to it (ADR-017 decision 5).
+        catalogue_cache::delete();
     }
 
     /**
@@ -69,6 +77,23 @@ final class observer {
     public static function course_deleted(course_deleted $event): void {
         course_meta::delete((int) $event->objectid);
         course_fields::delete((int) $event->objectid);
+        catalogue_cache::delete();
+    }
+
+    /**
+     * Something that decides which courses the open catalogue holds changed (ADR-017 decision 4).
+     *
+     * A course was created; an enrolment instance was created, updated or deleted (its status, its
+     * window, its method); or local_unlistedcourses changed a course's or a category's state. The
+     * catalogue is one key for the site, so this is a per-key delete; the per-user layer keeps its
+     * entries and compares the catalogue's digest on its next read.
+     *
+     * @param \core\event\base $event One of course_created, enrol_instance_created, enrol_instance_updated,
+     *     enrol_instance_deleted, or local_unlistedcourses' course_state_updated or category_state_updated.
+     * @return void
+     */
+    public static function catalogue_changed(\core\event\base $event): void {
+        catalogue_cache::delete();
     }
 
     /**
@@ -102,6 +127,8 @@ final class observer {
     public static function course_category_updated(course_category_updated $event): void {
         category_meta::delete((int) $event->objectid);
         category_meta::delete_descendants((int) $event->objectid);
+        // A move rewrites the category paths the catalogue filtered its rows on.
+        catalogue_cache::delete();
     }
 
     /**
@@ -137,8 +164,8 @@ final class observer {
      * cannot delete by prefix. delete_user() removes the enrolments before it raises this event
      * (lib/moodlelib.php), so the database no longer knows the courses either. Progress cached for
      * a course the entry does not list — no entry cached, or one that expired first — is out of
-     * reach here and lapses with the details TTL. The calendar strip entry is keyed by the user
-     * alone, so it goes by its key.
+     * reach here and lapses with the details TTL. The calendar strip and open-courses entries are
+     * keyed by the user alone, so they go by their keys.
      *
      * @param user_deleted $event The event; objectid is the deleted user's id.
      * @return void
@@ -149,5 +176,6 @@ final class observer {
         inventory::delete($userid);
         details::delete_many($userid, $courseids);
         calendar_cache::delete($userid);
+        news_cache::delete($userid);
     }
 }

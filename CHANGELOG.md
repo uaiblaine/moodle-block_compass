@@ -13,6 +13,64 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Added
+
+- Open for enrolment, smoke and documentation (2026100514; ADR-017 stage 14e): a Behat scenario for a
+  learner with open courses in the band and a course they teach, the demo seed's `compassdemo_open_*`
+  courses, the `news` screenshot shot and the README's bullet, four settings and two caches.
+
+- Open for enrolment, the client (2026100513; ADR-017 stage 14d). With `news_enabled` on, the
+  block draws a line of its own, *Open for enrolment*: how many courses the viewer could join start
+  by the band's last day, up to three categories as links (a category of one names its course),
+  "+N" for the rest and a × that hides the line until the next sign-in. It is asked for once, after
+  tier 1 and, with the calendar on, after the calendar's counts, and placed by what the block
+  already holds: the full line under the calendar when nothing is late, due today or tomorrow;
+  one muted sentence with "See" when there is; below tier 1's first strip while Up next shows; the
+  full line at the top when the calendar is off; and, for a viewer with no active course, tier 1's
+  empty state lists the categories as tiles with the way to every course open for enrolment. "See"
+  and "+N" open the list in a popover, a bottom sheet on a narrow block. Nothing is drawn when no
+  course counts. The line grows in as Up next does, at once under reduced motion. Every write of
+  the calendar preference now carries every member, so hiding the line keeps the calendar as the
+  viewer left it and the calendar's toggles keep the line hidden. Eleven strings in English and
+  Brazilian Portuguese.
+- Open for enrolment, the web service (2026100512; ADR-017 stage 14c, no client yet):
+  `block_compass_get_news`, the tenth read service, no parameters, current user only, read-only
+  session. It answers the band's two days, the total, the group count, whether the catalogue was
+  truncated, at most 20 groups (category, name, count, destination, and for a group of one the
+  course and its name) and the address of every open course. Off, or hidden by the user until the
+  next sign-in, it answers empty at the cost of the two reads every service pays; a fresh entry
+  costs the same. A group of one leads to its course's enrolment page; the other groups and the
+  root lead where the `category_link` hook says, in one dispatch per response, else to core's
+  category pages.
+- Open for enrolment, the server half (2026100511; ADR-017 stage 14b, no client yet). Four
+  settings in a section of their own after the calendar's: `news_enabled` (off by default),
+  `news_depth` (1 to 4), `news_past` (0, 7, 14 or 30 days) and `news_ahead` (14, 30, 60 or 90
+  days). Two cache definitions: `catalogue`, shared, the courses that are visible and listed,
+  start in the band (site-timezone days) and offer an enrolment route open now, rebuilt after any
+  course, enrolment-instance or discoverability event (`db/events.php` gains course_created, the
+  three enrol_instance events and local_unlistedcourses' two state events); and `news`, per user
+  for 30 minutes, the groups of courses the user could join, never one where they hold an
+  enrolment row of any status or a role on the course's path, deleted with the account. A new
+  hook, `\block_compass\hook\category_link`, lets a theme lead a group to a filtered category
+  page; with no listener, the line links to core's category pages. The `block_compass_calendar`
+  preference gains its `news` member (`{signin}`, the line hidden until the next sign-in), exported
+  with the rest of the preference.
+### Fixed
+
+- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
+  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
+- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
+  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
+- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
+  (2026100511). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
+  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
+  downloading, so RequireJS fetched it again under the module's name. The block's one door to
+  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
+- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
+  `block_compass_calendar` preferences (`db/uninstall.php`, 2026100508): core's uninstall drops
+  the settings, the task and the caches but leaves user preferences. The Course overview block's
+  archive rows stay, since they are that block's.
+
 ### Changed
 
 - The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,
@@ -32,18 +90,6 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   id, so every selector of `styles.css` names the plugin. The README gains *Data stored*,
   *Settings* and *Translations* sections and lists the ninth web service, `block_compass_get_soon`.
   `tests/marketplace_readiness_test.php`, the fleet's copy, holds these rules.
-
-### Fixed
-
-- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
-  (2026100511). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
-  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
-  downloading, so RequireJS fetched it again under the module's name. The block's one door to
-  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
-- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
-  `block_compass_calendar` preferences (`db/uninstall.php`, 2026100508): core's uninstall drops
-  the settings, the task and the caches but leaves user preferences. The Course overview block's
-  archive rows stay, since they are that block's.
 
 ## v5.3-r1 (2026100507) - 2026-10-22
 

@@ -109,6 +109,34 @@ class block implements renderable, templatable {
     ];
 
     /**
+     * The open-courses line's strings, every one the client shows (ADR-017 decision 10).
+     *
+     * They travel under the news key, never among the block's labels, so a site with the line off
+     * ships none of them. news_summary_one is the singular twin the client picks for one course.
+     *
+     * @var string[]
+     */
+    public const NEWS_STRINGS = [
+        'news_all', 'news_empty_lead', 'news_error', 'news_group_label', 'news_hide', 'news_hideerror', 'news_more',
+        'news_see', 'news_summary', 'news_summary_one', 'news_title',
+    ];
+
+    /**
+     * The calendar's date strings the line writes the band's last day with, when the calendar's own are absent.
+     *
+     * The line says "by 27 November" in the site language, as the strip writes its dates
+     * (js/esm/src/calendar.ts dayMonth()): the day-month template and the twelve month names. With the
+     * calendar's props shipped, the client reads them there; without them (the strip off, or not on this
+     * surface) they travel under the news key, reused rather than duplicated as news_* keys.
+     *
+     * @var string[]
+     */
+    public const NEWS_DATE_STRINGS = [
+        'cal_format_daymonth', 'cal_month_01', 'cal_month_02', 'cal_month_03', 'cal_month_04', 'cal_month_05',
+        'cal_month_06', 'cal_month_07', 'cal_month_08', 'cal_month_09', 'cal_month_10', 'cal_month_11', 'cal_month_12',
+    ];
+
+    /**
      * The shell, for the Dashboard block unless a level and a surface are given.
      *
      * @param int|null $headinglevel The level of the client's section headings: 2 on the block's
@@ -235,6 +263,12 @@ class block implements renderable, templatable {
         if ($calendar !== null) {
             $props['calendar'] = $calendar;
         }
+        // The open-courses line's props exist only while news_enabled is on: off, the key is absent, and
+        // the client mounts nothing and asks nothing (ADR-017 decision 1).
+        $news = $this->news($output, $calendar === null);
+        if ($news !== null) {
+            $props['news'] = $news;
+        }
 
         return [
             'props' => json_encode($props),
@@ -312,6 +346,56 @@ class block implements renderable, templatable {
             ],
             'strings' => $strings,
         ];
+    }
+
+    /**
+     * The open-courses line's props, or null when news_enabled is off (ADR-017 decisions 1 and 9).
+     *
+     * No read of the database or a cache: the setting comes from get_config(), the preference from the
+     * bundle get_user_preferences() loads once per request, the sign-in marker from $USER. The line's
+     * data is fetched by the client (block_compass_get_news) once tier 1 and, with the calendar, its
+     * counts have settled.
+     *
+     * signin is the marker the line was hidden under during this sign-in, or 0 when it is not hidden:
+     * a hidden line asks nothing. marker is this sign-in's own ($USER->currentlogin), the one the ×
+     * writes. The × writes the whole block_compass_calendar value, so the client must hold every other
+     * member: with the calendar's props shipped they are there (state and soon); without them they
+     * travel here, as calendar_preference reads them, so hiding the line never resets the calendar a
+     * viewer uses on another surface, and the date strings come along for the band's last day.
+     *
+     * @param renderer_base $output The renderer.
+     * @param bool $alone Whether the calendar's props are absent from this shell.
+     * @return array|null enabled, signin, marker, icon and strings; state and soon besides when alone.
+     */
+    private function news(renderer_base $output, bool $alone): ?array {
+        global $USER;
+
+        if (!config::news_enabled()) {
+            return null;
+        }
+        $marker = (int) ($USER->currentlogin ?? 0);
+        $stored = get_user_preferences(calendar_preference::NAME, null);
+        $stored = is_string($stored) ? $stored : null;
+        $hidden = calendar_preference::news($stored, $marker);
+        $keys = $alone ? array_merge(self::NEWS_STRINGS, self::NEWS_DATE_STRINGS) : self::NEWS_STRINGS;
+        $strings = [];
+        foreach ($keys as $key) {
+            $strings[$key] = get_string($key, 'block_compass');
+        }
+        $props = [
+            'enabled' => true,
+            'signin' => $hidden['signin'] ?? 0,
+            'marker' => $marker,
+            // Core's glyph for adding someone to a course, with an empty alt, so core marks it aria-hidden.
+            'icon' => $output->render(new pix_icon('i/enrolusers', '')),
+            'strings' => $strings,
+        ];
+        if ($alone) {
+            $props['state'] = calendar_preference::read();
+            $props['soon'] = calendar_preference::soon($stored, $marker);
+        }
+
+        return $props;
     }
 
     /**

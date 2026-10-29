@@ -27,12 +27,14 @@ namespace block_compass;
 
 use advanced_testcase;
 use block_compass\local\calendar_cache;
+use block_compass\local\catalogue_cache;
 use block_compass\local\category_meta;
 use block_compass\local\course_fields;
 use block_compass\local\course_meta;
 use block_compass\local\details;
 use block_compass\local\filter_fields;
 use block_compass\local\inventory;
+use block_compass\local\news_cache;
 use completion_completion;
 use completion_info;
 use core\context\course as context_course;
@@ -40,6 +42,8 @@ use core\event\course_viewed;
 use core\event\user_updated;
 use core_cache\cache;
 use core_course_category;
+use local_unlistedcourses\category_discoverability;
+use local_unlistedcourses\discoverability;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
@@ -50,8 +54,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
  * raises the event through the core code that fires it (update_course(), delete_course(),
  * core_course_category's update(), change_parent(), delete_full() and delete_move(),
  * completion_info::update_state(), completion_completion::mark_complete(), the custom field
- * handler, delete_user()) rather than calling the observer, so it also pins the db/events.php
- * entry, which a direct call would not notice missing. Each case carries a control that must
+ * handler, delete_user(), the enrolment plugin API, local_unlistedcourses' set_state()) rather than
+ * calling the observer, so it also pins the db/events.php entry, which a direct call would not
+ * notice missing; the open catalogue's course_created and course_deleted cases raise the event alone,
+ * each saying why, which pins the entry too. Each case carries a control that must
  * survive, an entry the delete had no business touching, so an observer that purged the
  * definition fails. Absence in the course, category, course-fields and inventory layers is read
  * from the raw definition: their wrappers refill a miss from the database and would hide it.
@@ -92,6 +98,45 @@ final class observer_test extends advanced_testcase {
         cache::make('block_compass', 'filterfields')->purge();
         cache::make('block_compass', 'inventory')->purge();
         cache::make('block_compass', 'calendarstrip')->purge();
+        cache::make('block_compass', 'catalogue')->purge();
+        cache::make('block_compass', 'news')->purge();
+    }
+
+    /**
+     * Seed the open catalogue and one viewer's open-courses entry, the control no catalogue event may touch.
+     *
+     * @return int The viewer whose entry is the control.
+     */
+    private function seed_open_layers(): int {
+        $userid = (int) $this->getDataGenerator()->create_user()->id;
+        catalogue_cache::set([
+            'rows' => [],
+            'truncated' => false,
+            'built' => 1760000000,
+            'until' => PHP_INT_MAX,
+            'past' => 7,
+            'ahead' => 30,
+            'timezone' => 'UTC',
+            'from' => '2026-10-22',
+            'to' => '2026-11-28',
+            'digest' => 'seeded',
+        ]);
+        news_cache::set($userid, ['groups' => [], 'total' => 0, 'groupcount' => 0, 'digest' => 'seeded']);
+        $this->assertNotFalse(catalogue_cache::get());
+        $this->assertNotFalse(news_cache::get($userid));
+
+        return $userid;
+    }
+
+    /**
+     * The event dropped the catalogue and left the viewer's entry: a per-key delete, never a per-user one.
+     *
+     * @param int $userid The viewer seed_open_layers() returned.
+     * @return void
+     */
+    private function assert_catalogue_dropped(int $userid): void {
+        $this->assertFalse(catalogue_cache::get(), 'the open catalogue outlived the event');
+        $this->assertNotFalse(news_cache::get($userid), 'a course event touched a per-user entry');
     }
 
     /**
@@ -664,5 +709,184 @@ final class observer_test extends advanced_testcase {
         $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
         $this->assertFalse(calendar_cache::get($doomedid), 'the deleted account kept its calendar strip');
         $this->assertNotFalse(calendar_cache::get($bystanderid));
+    }
+
+    /**
+     * A new course drops the open catalogue (ADR-017 decision 4).
+     *
+     * The event is raised alone: core's course creation also adds the default enrolment instances,
+     * whose own events would drop the entry and hide a missing course_created entry in db/events.php.
+     *
+     * @return void
+     */
+    public function test_course_created_drops_the_open_catalogue(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $userid = $this->seed_open_layers();
+
+        \core\event\course_created::create([
+            'objectid' => $course->id,
+            'context' => context_course::instance($course->id),
+            'other' => ['shortname' => $course->shortname, 'fullname' => $course->fullname],
+        ])->trigger();
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A course update drops the open catalogue, and no per-user entry.
+     *
+     * @return void
+     */
+    public function test_course_updated_drops_the_open_catalogue(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $userid = $this->seed_open_layers();
+
+        update_course((object) ['id' => $course->id, 'startdate' => 1760000000]);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A course deletion drops the open catalogue.
+     *
+     * The event is raised alone: delete_course() deletes the enrolment instances first, whose own
+     * events would drop the entry and hide a missing delete in observer::course_deleted().
+     *
+     * @return void
+     */
+    public function test_course_deleted_drops_the_open_catalogue(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $userid = $this->seed_open_layers();
+
+        \core\event\course_deleted::create([
+            'objectid' => $course->id,
+            'context' => context_course::instance($course->id),
+            'other' => ['shortname' => $course->shortname, 'fullname' => $course->fullname, 'idnumber' => ''],
+        ])->trigger();
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A category update (a move rewrites the paths the catalogue filtered on) drops the open catalogue.
+     *
+     * @return void
+     */
+    public function test_course_category_updated_drops_the_open_catalogue(): void {
+        $category = $this->getDataGenerator()->create_category();
+        $userid = $this->seed_open_layers();
+
+        core_course_category::get($category->id, MUST_EXIST, true)->update(['name' => 'Renamed']);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A new enrolment instance drops the open catalogue.
+     *
+     * @return void
+     */
+    public function test_enrol_instance_created_drops_the_open_catalogue(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $userid = $this->seed_open_layers();
+
+        enrol_get_plugin('self')->add_instance($course, ['status' => ENROL_INSTANCE_ENABLED, 'customint6' => 1]);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * An enrolment instance switched off drops the open catalogue.
+     *
+     * @return void
+     */
+    public function test_enrol_instance_updated_drops_the_open_catalogue(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $plugin = enrol_get_plugin('self');
+        $instanceid = $plugin->add_instance($course, ['status' => ENROL_INSTANCE_ENABLED, 'customint6' => 1]);
+        $instance = $DB->get_record('enrol', ['id' => $instanceid], '*', MUST_EXIST);
+        $userid = $this->seed_open_layers();
+
+        $plugin->update_status($instance, ENROL_INSTANCE_DISABLED);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A deleted enrolment instance drops the open catalogue.
+     *
+     * @return void
+     */
+    public function test_enrol_instance_deleted_drops_the_open_catalogue(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $plugin = enrol_get_plugin('self');
+        $instanceid = $plugin->add_instance($course, ['status' => ENROL_INSTANCE_ENABLED, 'customint6' => 1]);
+        $instance = $DB->get_record('enrol', ['id' => $instanceid], '*', MUST_EXIST);
+        $userid = $this->seed_open_layers();
+
+        $plugin->delete_instance($instance);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A course made unlisted (local_unlistedcourses' course_state_updated) drops the open catalogue.
+     *
+     * @return void
+     */
+    public function test_course_state_updated_drops_the_open_catalogue(): void {
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $userid = $this->seed_open_layers();
+
+        discoverability::set_state((int) $course->id, discoverability::STATE_UNLISTED);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * A category made unlisted (local_unlistedcourses' category_state_updated) drops the open catalogue.
+     *
+     * @return void
+     */
+    public function test_category_state_updated_drops_the_open_catalogue(): void {
+        $this->setAdminUser();
+        $category = $this->getDataGenerator()->create_category();
+        $userid = $this->seed_open_layers();
+
+        category_discoverability::set_state((int) $category->id, category_discoverability::STATE_UNLISTED);
+
+        $this->assert_catalogue_dropped($userid);
+    }
+
+    /**
+     * Deleting an account drops its open-courses entry, and only its own.
+     *
+     * The bystander's entry is the control: a purge, or a delete keyed on anything but the deleted
+     * user's id, fails on it. The account row marked deleted proves the event fired.
+     *
+     * @return void
+     */
+    public function test_deleting_an_account_drops_its_open_courses_entry(): void {
+        global $DB;
+
+        $gen = $this->getDataGenerator();
+        $doomed = $gen->create_user();
+        $doomedid = (int) $doomed->id;
+        $bystanderid = (int) $gen->create_user()->id;
+        foreach ([$doomedid, $bystanderid] as $userid) {
+            news_cache::set($userid, ['groups' => [], 'total' => 0, 'groupcount' => 0, 'digest' => 'seeded']);
+            $this->assertNotFalse(news_cache::get($userid));
+        }
+
+        delete_user($doomed);
+
+        $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
+        $this->assertFalse(news_cache::get($doomedid), 'the deleted account kept its open-courses entry');
+        $this->assertNotFalse(news_cache::get($bystanderid));
     }
 }

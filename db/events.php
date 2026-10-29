@@ -25,6 +25,32 @@
 defined('MOODLE_INTERNAL') || die();
 
 $observers = [
+    // The open catalogue (ADR-017 decision 4): course_updated, course_deleted and
+    // course_category_updated drop it beside their other deletes; these six drop only it.
+    [
+        'eventname' => '\core\event\course_created',
+        'callback' => '\block_compass\observer::catalogue_changed',
+    ],
+    [
+        'eventname' => '\core\event\enrol_instance_created',
+        'callback' => '\block_compass\observer::catalogue_changed',
+    ],
+    [
+        'eventname' => '\core\event\enrol_instance_updated',
+        'callback' => '\block_compass\observer::catalogue_changed',
+    ],
+    [
+        'eventname' => '\core\event\enrol_instance_deleted',
+        'callback' => '\block_compass\observer::catalogue_changed',
+    ],
+    [
+        'eventname' => '\local_unlistedcourses\event\course_state_updated',
+        'callback' => '\block_compass\observer::catalogue_changed',
+    ],
+    [
+        'eventname' => '\local_unlistedcourses\event\category_state_updated',
+        'callback' => '\block_compass\observer::catalogue_changed',
+    ],
     [
         'eventname' => '\core\event\course_updated',
         'callback' => '\block_compass\observer::course_updated',

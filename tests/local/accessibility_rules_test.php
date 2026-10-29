@@ -221,7 +221,7 @@ final class accessibility_rules_test extends basic_testcase {
         $components = [
             'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
             'FilterLine', 'ScopeGroup', 'StarToggle', 'OrganiseMenu', 'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip',
-            'CalendarLine', 'UpNext', 'Block',
+            'CalendarLine', 'UpNext', 'OpenCourses', 'Block',
         ];
         foreach ($components as $component) {
             $this->assertArrayHasKey("js/esm/src/{$component}.tsx", $files);
@@ -496,9 +496,10 @@ final class accessibility_rules_test extends basic_testcase {
         sort($sections);
         sort($titles);
         $this->assertSame(
-            ['js/esm/src/CalendarStrip.tsx', 'js/esm/src/Explore.tsx', 'js/esm/src/Strip.tsx'],
+            ['js/esm/src/CalendarStrip.tsx', 'js/esm/src/Explore.tsx', 'js/esm/src/OpenCourses.tsx', 'js/esm/src/Strip.tsx'],
             $sections,
-            'the section rung is the section titles: the calendar strip, a tier 1 strip and the tier 3 panel'
+            'the section rung is the section titles: the calendar strip, a tier 1 strip, the tier 3 panel and the '
+                . 'open-courses line, which is the block\'s first heading when the strip is not here'
         );
         $this->assertSame(
             ['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx', 'js/esm/src/UpNext.tsx'],
@@ -2408,6 +2409,157 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('<ul className="compass-soon-list">', $source);
         $this->assertStringNotContainsString('aria-live', $source, 'the rise goes through the strip\'s polite region');
         $this->assertStringContainsString('onAnnounce={setSummary}', $this->reactsources()['js/esm/src/CalendarStrip.tsx']);
+    }
+
+    /**
+     * The open-courses line is placed and weighed from what the block holds (ADR-017 decision 7).
+     *
+     * Regras.dc.html §5: with no active course, tier 1's empty state carries the tiles; without the
+     * calendar here, the full line at the top of the content; while Up next shows, the compact sentence
+     * below tier 1's first strip; otherwise under the calendar, the full line when the counts in hand show
+     * nothing late, today or tomorrow, the compact one when they do. The weight is the strip's report,
+     * read from its counts or its payload and Up next's rows, never a request. No JavaScript runner
+     * exists, so the decision is read where it is written. Vacuity guards: every branch is found.
+     *
+     * Changes that must make it fail: the line kept under the calendar while Up next shows, full while
+     * busy, tiles with active courses, a busy period dropped or a calm one added, the strip's report
+     * reading anything but what it holds.
+     *
+     * @return void
+     */
+    public function test_the_open_courses_line_is_placed_and_weighed_from_what_the_block_holds(): void {
+        $block = $this->reactsources()['js/esm/src/Block.tsx'];
+        $strip = $this->reactsources()['js/esm/src/CalendarStrip.tsx'];
+        $calendar = $this->reactsources()['js/esm/src/calendar.ts'];
+
+        $this->assertStringContainsString(
+            "if (data && shown === 0 && data.counts.total === 0) {\n        newsplace = 'empty';\n        newsmode = 'tiles';",
+            $block,
+            'no active course: the tiles in tier 1\'s empty state'
+        );
+        $this->assertStringContainsString("} else if (!config.calendar) {\n        newsplace = 'top';", $block);
+        $this->assertStringContainsString("} else if (weight !== null && weight.weighed) {", $block);
+        $this->assertStringContainsString("newsplace = weight.upnext && data ? 'below' : 'under';", $block);
+        $this->assertStringContainsString("newsmode = weight.upnext || weight.busy ? 'compact' : 'full';", $block);
+        $this->assertStringContainsString("{strip.name === firststrip && newsAt('below')}", $block);
+        $this->assertStringContainsString("{newsAt('empty')}", $block);
+        // Under the calendar means right after it, before tier 1; the top of the content is the same spot.
+        $this->assertMatchesRegularExpression(
+            "/onWeight=\\{onWeight\\}\\s*\\/>\\s*\\)\\}\\s*\\{newsAt\\('top'\\)\\}\\s*\\{newsAt\\('under'\\)\\}/",
+            $block
+        );
+
+        $this->assertStringContainsString("export const BUSY_PERIODS: PeriodKey[] = ['late', 'today', 'tomorrow'];", $calendar);
+        $this->assertStringContainsString(
+            'counts.views[view].periods.some((period) => BUSY_PERIODS.includes(period.key) && period.count > 0);',
+            $calendar
+        );
+        $this->assertStringContainsString('const busy = linecounts === null || busyOf(linecounts, drawn);', $strip);
+        $this->assertStringContainsString(
+            'const upnextshown = soon.rows.length > 0 && !(hiddenrank !== null && soon.level <= hiddenrank);',
+            $strip
+        );
+        $this->assertStringContainsString(
+            'const soonread = horizon <= 0 || linecounts === null || !linecounts.enabled || soon.settled || soon.failed;',
+            $strip
+        );
+    }
+
+    /**
+     * The open-courses line is a named region that grows in, and its popover is a dialog.
+     *
+     * Decision 7's accessibility: the line is a section named by its heading; a group of several is named
+     * by a sentence that starts with its visible name (news_group_label); the × is a button named "Hide
+     * until the next sign-in"; "See" and "+N" open a dialog that takes the keyboard, gives it back to its
+     * opener, and closes on Escape and on a press outside; below 640 px of the block's measured width it is
+     * a bottom sheet over a scrim. The insertion is Up next's: grid rows from 0fr to 1fr in about 200 ms,
+     * none under reduced motion, and the popover hangs outside the clip. Every class the stylesheet gives
+     * the line is one the component renders. Vacuity guards: the rules and the tags are found.
+     *
+     * @return void
+     */
+    public function test_the_open_courses_line_is_a_named_region_with_a_dialog(): void {
+        $bodies = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            $bodies[$selector] = ($bodies[$selector] ?? '') . $body;
+        }
+        $wrap = $bodies['.block_compass .compass-news-wrap'] ?? '';
+        $this->assertMatchesRegularExpression('/grid-template-rows:\s*0fr/', $wrap, 'the line starts at no height');
+        $this->assertMatchesRegularExpression('/visibility:\s*hidden/', $wrap);
+        $this->assertSame(1, preg_match('/transition:\s*grid-template-rows\s+(\d+)ms\s+ease-out/', $wrap, $ms), 'the grow');
+        $this->assertGreaterThanOrEqual(100, (int) $ms[1]);
+        $this->assertLessThanOrEqual(250, (int) $ms[1]);
+        $open = $bodies['.block_compass .compass-news-wrap.compass-news-wrap-open'] ?? '';
+        $this->assertMatchesRegularExpression('/grid-template-rows:\s*1fr/', $open);
+        $this->assertMatchesRegularExpression('/overflow:\s*hidden/', $bodies['.block_compass .compass-news-inner'] ?? '');
+        $pattern = '/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/';
+        preg_match_all($pattern, $this->css(), $media);
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-news-wrap\s*\{\s*transition:\s*none;/',
+            implode("\n", $media[1]),
+            'under reduced motion the line appears at once'
+        );
+        $sheet = $bodies['.block_compass .compass-news-pop.compass-news-sheet'] ?? '';
+        $this->assertMatchesRegularExpression('/position:\s*fixed/', $sheet, 'the bottom sheet');
+        $this->assertMatchesRegularExpression('/position:\s*relative/', $bodies['.block_compass .compass-news-anchor'] ?? '');
+
+        $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
+        $this->assertStringContainsString('export const NEWS_NARROW_PX = 640;', $source);
+        $this->assertStringContainsString('const narrow = width > 0 && width < NEWS_NARROW_PX;', $source);
+        $block = $this->reactsources()['js/esm/src/Block.tsx'];
+        $this->assertStringContainsString('width={width}', $block, 'the block\'s measured width');
+        $this->assertStringContainsString('sectionTag(config.headinglevel)', $source);
+        $sections = $this->tags($source, 'section');
+        $this->assertCount(3, $sections, 'vacuity: the full line, the compact sentence and the tiles');
+        foreach ($sections as $tag) {
+            $this->assertStringContainsString('aria-labelledby={titleid}', $tag, 'a section named by its heading');
+        }
+        $this->assertStringContainsString('<Title id={titleid}', $source);
+        $hide = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-news-hide')
+        ));
+        $this->assertCount(1, $hide, 'vacuity: the ×');
+        $this->assertStringContainsString('aria-label={strings.news_hide}', $hide[0]);
+        $dialogs = array_values(array_filter(
+            $this->tags($source, 'div'),
+            static fn(string $tag): bool => str_contains($tag, 'role="dialog"')
+        ));
+        $this->assertCount(1, $dialogs, 'vacuity: the popover');
+        $this->assertStringContainsString('aria-label={strings.news_title}', $dialogs[0]);
+        $this->assertStringContainsString('onKeyDown={onKey}', $dialogs[0]);
+        $this->assertStringContainsString("if (event.key === 'Escape') {", $source);
+        $this->assertStringContainsString("dialog.current?.querySelector<HTMLElement>('a, button')?.focus();", $source);
+        $this->assertStringContainsString('opener.current?.focus();', $source, 'the keyboard goes back to the opener');
+        $this->assertStringContainsString("document.addEventListener('pointerdown', outside);", $source);
+        $openers = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'aria-haspopup="dialog"')
+        ));
+        $this->assertCount(2, $openers, 'See and +N');
+        foreach ($openers as $tag) {
+            $this->assertStringContainsString('aria-expanded={popover}', $tag);
+        }
+        $this->assertStringContainsString(
+            'fillObject(strings.news_group_label, {name: group.name, count: String(group.count)})',
+            $source
+        );
+        $links = array_values(array_filter(
+            $this->tags($source, 'a'),
+            static fn(string $tag): bool => preg_match('/compass-news-(group|poprow|tile)\b/', $tag) === 1
+        ));
+        $this->assertCount(3, $links, 'vacuity: the group links of the line, the popover and the tiles');
+        foreach ($links as $tag) {
+            $this->assertStringContainsString('aria-label={groupLabel(strings, group)}', $tag);
+        }
+
+        // Every class the stylesheet gives the line is one the component writes.
+        preg_match_all('/(?<![\w-])\.(compass-news[\w-]*)/', $this->css(), $styled);
+        $styled = array_values(array_unique($styled[1]));
+        $this->assertGreaterThanOrEqual(30, count($styled), 'vacuity: the line\'s classes were read');
+        foreach ($styled as $class) {
+            $this->assertMatchesRegularExpression('/(?<![\w-])' . preg_quote($class, '/') . '(?![\w-])/', $source, $class);
+        }
     }
 
     /**

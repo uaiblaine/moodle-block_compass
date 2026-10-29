@@ -90,6 +90,19 @@ final class client_policy_test extends advanced_testcase {
     }
 
     /**
+     * Every write of block_compass_calendar holds Moodle's pending counter until it settles, so a reload
+     * right after hiding the open-courses line (or Up next, or closing the strip) reads the new value.
+     *
+     * @return void
+     */
+    public function test_the_calendar_preference_write_holds_the_pending_counter(): void {
+        $source = $this->source('calendarpref.ts');
+
+        $this->assertStringContainsString("const release = hold('block_compass/calendarpref');", $source);
+        $this->assertStringContainsString('return setCalendarPreference(next).finally(release);', $source);
+    }
+
+    /**
      * The remembered toolbar never carries the query, so clearing it keeps the preference true.
      *
      * @return void
@@ -121,8 +134,9 @@ final class client_policy_test extends advanced_testcase {
         $ones = array_filter(array_keys($strings['en']), static fn($key) => str_ends_with($key, '_one'));
 
         // Ten for the block's labels, twelve for the calendar's strings (the strip's and Up next's),
-        // which the shell ships under the calendar key (block::CALENDAR_STRINGS).
-        $this->assertCount(22, $ones);
+        // which the shell ships under the calendar key (block::CALENDAR_STRINGS), and one for the
+        // open-courses line's summary, under the news key (block::NEWS_STRINGS, ADR-017).
+        $this->assertCount(23, $ones);
         foreach ($ones as $key) {
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
             $this->assertSame(
@@ -187,6 +201,7 @@ final class client_policy_test extends advanced_testcase {
                 'getStripCounts' => 'block_compass_get_strip_counts',
                 'getDay' => 'block_compass_get_day',
                 'getSoon' => 'block_compass_get_soon',
+                'getNews' => 'block_compass_get_news',
             ] as $name => $service
         ) {
             $this->assertMatchesRegularExpression("/read<[^>]*>\\('{$service}'/", $source, "{$name} must go through read()");
@@ -195,6 +210,103 @@ final class client_policy_test extends advanced_testcase {
         // The strip's preference is a write, through core's route like the other two, never read().
         $this->assertStringContainsString("{name: 'block_compass_calendar', value: JSON.stringify(state), userid: 0}", $source);
         $this->assertDoesNotMatchRegularExpression('/read<[^>]*>\(\'core_/', $source);
+    }
+
+    /**
+     * The open-courses line asks once, after tier 1 and the strip's counts, and never while hidden.
+     *
+     * ADR-017 decision 5: get_news leaves once get_attention has settled and, with the calendar here, once
+     * get_strip_counts has (the line's weight depends on the counts); no timer, no ask on visibilitychange,
+     * and nothing while news_enabled is off or the shell says the line is hidden for this sign-in. Tier 1's
+     * Try again re-asks a failed line, as it does the strip. Vacuity guards: each guard is found where it is
+     * written, and getNews() is called in one place.
+     *
+     * Changes that must make it fail: the line asked while hidden, before the counts, or more than once; a
+     * timer or a visibilitychange listener in the line.
+     *
+     * @return void
+     */
+    public function test_the_open_courses_line_asks_once_after_the_weight_and_never_while_hidden(): void {
+        $line = $this->source('OpenCourses.tsx');
+        $block = $this->source('Block.tsx');
+
+        $this->assertStringContainsString(
+            'if (!news || !news.enabled || news.signin > 0 || hidden || !ready || asked.current) {',
+            $line,
+            'asked only when on, not hidden for the sign-in, once the block says so, and once'
+        );
+        $this->assertStringContainsString('asked.current = true;', $line);
+        $this->assertSame(1, substr_count($line, 'await getNews()'), 'one ask, in one place');
+        $this->assertSame(1, substr_count($line, 'const [hidden, setHidden] = useState(!news || news.signin > 0);'));
+        // The code, without its comments, which say what it never does.
+        $code = preg_replace(['#/\*.*?\*/#s', '#(?<![:/])//[^\n]*#'], '', $line);
+        foreach (['setTimeout', 'setInterval', 'visibilitychange', 'requestAnimationFrame'] as $timer) {
+            $this->assertStringNotContainsString($timer, $code, "the line asks on {$timer}");
+        }
+        $this->assertStringContainsString('await getNews()', $code, 'vacuity: the comments, not the code, were removed');
+        $this->assertStringContainsString(
+            'const newsready = calendarturn > 0 && (!config.calendar || (weight !== null && weight.counted));',
+            $block,
+            'after tier 1, and after the strip\'s counts when the calendar is here'
+        );
+        $this->assertStringContainsString('useNews(config.news, newsready, calendarturn)', $block);
+        $strip = $this->source('CalendarStrip.tsx');
+        $this->assertStringContainsString('const weightcounted = linecounts !== null || (open ? failed : countsfailed);', $strip);
+        $this->assertStringContainsString('onWeight={onWeight}', $block);
+        $this->assertStringNotContainsString('getNews', $strip, 'the strip asks nothing for the line');
+    }
+
+    /**
+     * Every write of block_compass_calendar carries every member, whoever writes it.
+     *
+     * Core's route replaces the whole value, so a write of the strip's members alone would bring a hidden
+     * line back, and the line's hide alone would reset the strip (ADR-017 decision 9). Both writers go
+     * through calendarpref.ts, which merges a change over every member the page holds, seeded from the
+     * shell's props; a failed hide puts its member back without writing. Vacuity guards: the strip's
+     * three writes and the line's one are found.
+     *
+     * Changes that must make it fail: the merge dropped, the strip writing straight to the repository,
+     * the seed leaving out the news or the soon member, the line writing its member alone.
+     *
+     * @return void
+     */
+    public function test_every_calendar_preference_write_carries_every_member(): void {
+        $store = $this->source('calendarpref.ts');
+        $strip = $this->source('CalendarStrip.tsx');
+        $line = $this->source('OpenCourses.tsx');
+
+        $this->assertStringContainsString('const next = {...(held ?? {}), ...change} as CalendarState;', $store);
+        $this->assertStringContainsString('return setCalendarPreference(next).finally(release);', $store);
+        $this->assertStringContainsString("news: news && news.signin > 0 ? {signin: news.signin} : undefined,", $store);
+        $this->assertStringContainsString('const state = calendar ? calendar.state : news?.state;', $store);
+        $this->assertStringContainsString(': (news?.soon ?? undefined);', $store);
+        $this->assertStringNotContainsString('setCalendarPreference', $strip, 'the strip writes through the store');
+        $this->assertSame(3, substr_count($strip, 'writeCalendarPreference(withSoon('));
+        $this->assertStringNotContainsString('setCalendarPreference', $line, 'the line writes through the store');
+        $this->assertStringContainsString('writeCalendarPreference({news: {signin: news.marker}})', $line);
+        $this->assertStringContainsString('putBackCalendarPreference({news: before});', $line);
+        $this->assertStringContainsString('notify(news.strings.news_hideerror', $line);
+        $this->assertStringContainsString('seedCalendarPreference(config.calendar, config.news);', $this->source('Block.tsx'));
+    }
+
+    /**
+     * The line writes the band's last day from the site language's strings, and picks the singular for one.
+     *
+     * The same rule as the calendar's dates: Intl formats nothing a reader sees. The day goes through
+     * calendar.ts dayMonth(), the month names and the day-month template the shell ships.
+     *
+     * @return void
+     */
+    public function test_the_line_writes_its_day_from_the_strings_and_its_count_in_the_singular(): void {
+        $line = $this->source('OpenCourses.tsx');
+
+        $this->assertStringNotContainsString('Intl.', $line);
+        $this->assertStringNotContainsString('toLocale', $line);
+        $this->assertStringContainsString('dayMonth(strings, dateParts(answer.to))', $line);
+        $this->assertStringContainsString('const strings = {...(config.calendar?.strings ?? {}), ...news.strings};', $line);
+        $this->assertStringContainsString('(total === 1', $line);
+        $this->assertStringContainsString('fillObject(strings.news_summary_one, {until})', $line);
+        $this->assertStringContainsString("fillObject(strings.news_summary, {count: String(total), until})", $line);
     }
 
     /**

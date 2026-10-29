@@ -626,6 +626,164 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
+     * With news_enabled off, the shell ships no open-courses props and none of the line's strings.
+     *
+     * The control is the same Dashboard with the setting on: the key appears, so its absence here is the
+     * setting's doing (ADR-017 decision 1: off costs nothing, so the client mounts and asks nothing).
+     *
+     * @return void
+     */
+    public function test_the_news_props_are_absent_while_the_line_is_off(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $props = $this->props();
+        $this->assertArrayNotHasKey('news', $props, 'off by default: no props, so nothing mounts');
+        $this->assertSame([], preg_grep('/^news_/', array_keys($props['labels'])), 'no line string among the labels');
+
+        set_config('news_enabled', 1, 'block_compass');
+        $this->assertArrayHasKey('news', $this->props(), 'the control: on, the key appears');
+
+        set_config('news_enabled', 0, 'block_compass');
+        $this->assertArrayNotHasKey('news', $this->props(), 'an explicit 0 is off too');
+    }
+
+    /**
+     * The open-courses props carry the strings, the sign-in markers and, without the calendar, its members.
+     *
+     * signin is the marker the line was hidden under during this sign-in, 0 when it shows, so a hidden
+     * line asks nothing (decision 9); marker is this sign-in's own, the one a hide writes. With the
+     * calendar's props absent, the line carries the date strings it writes the band's last day with and
+     * the calendar's stored members, which a hide writes back; with them present, neither is duplicated.
+     *
+     * @return void
+     */
+    public function test_the_news_props_carry_the_strings_and_the_hidden_marker(): void {
+        global $USER;
+
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('news_enabled', 1, 'block_compass');
+        $USER->currentlogin = 1700000000;
+        set_user_preference('block_compass_calendar', json_encode([
+            'view' => 'teaching',
+            'open' => true,
+            'soon' => ['rank' => 2, 'signin' => 1700000000],
+        ]));
+
+        $news = $this->props()['news'];
+        $this->assertTrue($news['enabled']);
+        $this->assertSame(0, $news['signin'], 'not hidden: the line asks');
+        $this->assertSame(1700000000, $news['marker'], 'the sign-in a hide is written under');
+        $this->assertStringContainsString('aria-hidden="true"', $news['icon']);
+        $keys = array_merge(shell::NEWS_STRINGS, shell::NEWS_DATE_STRINGS);
+        $this->assertSame($keys, array_keys($news['strings']), 'the calendar is off: the date strings come along');
+        foreach ($keys as $key) {
+            $this->assertSame(get_string($key, 'block_compass'), $news['strings'][$key], $key);
+        }
+        $this->assertSame(
+            ['view' => 'teaching', 'filter' => 'all', 'relevance' => true, 'open' => true],
+            $news['state'],
+            'the calendar\'s members a hide writes back, as calendar_preference reads them'
+        );
+        $this->assertSame(['rank' => 2, 'signin' => 1700000000], $news['soon']);
+
+        // Hidden under this sign-in: the marker ships, and the line asks nothing.
+        set_user_preference('block_compass_calendar', json_encode(['news' => ['signin' => 1700000000]]));
+        $this->assertSame(1700000000, $this->props()['news']['signin']);
+        $this->assertNull($this->props()['news']['soon']);
+        // Another sign-in: shown again.
+        $USER->currentlogin = 1700003600;
+        $this->assertSame(0, $this->props()['news']['signin'], 'another sign-in: shown again');
+        $this->assertSame(1700003600, $this->props()['news']['marker']);
+
+        // With the calendar here, its props carry the date strings and the members: nothing is duplicated.
+        set_config('calendar_enabled', 1, 'block_compass');
+        $props = $this->props();
+        $this->assertSame(shell::NEWS_STRINGS, array_keys($props['news']['strings']));
+        $this->assertArrayNotHasKey('state', $props['news']);
+        $this->assertArrayNotHasKey('soon', $props['news']);
+        foreach (shell::NEWS_DATE_STRINGS as $key) {
+            $this->assertArrayHasKey($key, $props['calendar']['strings'], $key);
+        }
+        // The calendar on another surface: the line carries them again.
+        set_config('calendar_where', 'page', 'block_compass');
+        $this->assertArrayHasKey('state', $this->props()['news']);
+    }
+
+    /**
+     * Every string the line shows exists in both languages with the same placeholders, and every one the
+     * client reads is shipped.
+     *
+     * The client reads them as strings.<key> from the line's props, never as labels.<key>. Vacuity guards:
+     * the scan found OpenCourses.tsx and its reads.
+     *
+     * @return void
+     */
+    public function test_the_news_strings_are_shipped_and_in_both_languages(): void {
+        $root = dirname(__DIR__);
+        $strings = [];
+        foreach (self::languages() as $lang) {
+            $string = [];
+            include($root . '/lang/' . $lang . '/block_compass.php');
+            $strings[$lang] = $string;
+        }
+        $line = array_values(array_filter(
+            array_keys($strings['en']),
+            static fn(string $key): bool => str_starts_with($key, 'news_') && in_array($key, shell::NEWS_STRINGS, true)
+        ));
+        $this->assertSame(shell::NEWS_STRINGS, $line, 'the line\'s strings, in the language file\'s order');
+        foreach (shell::NEWS_STRINGS as $key) {
+            preg_match_all('/\{\$a(?:->\w+)?\}/', $strings['en'][$key], $en);
+            sort($en[0]);
+            foreach (array_diff(array_keys($strings), ['en']) as $lang) {
+                $this->assertArrayHasKey($key, $strings[$lang], "{$lang}: {$key}");
+                preg_match_all('/\{\$a(?:->\w+)?\}/', $strings[$lang][$key], $other);
+                sort($other[0]);
+                $this->assertSame($en[0], $other[0], "{$lang}: {$key}: placeholder parity");
+            }
+        }
+        $source = file_get_contents($root . '/js/esm/src/OpenCourses.tsx');
+        $this->assertDoesNotMatchRegularExpression('/\blabels\.news_/', $source, 'a line string read as a label');
+        preg_match_all('/\bstrings\.([a-z_]+)\b/', $source, $matches);
+        $read = array_values(array_unique($matches[1]));
+        $this->assertContains('news_summary_one', $read, 'vacuity: the singular is read');
+        $this->assertContains('news_group_label', $read, 'vacuity: the group sentence is read');
+        $this->assertSame([], array_values(array_diff($read, shell::NEWS_STRINGS)), 'read but not shipped');
+        $this->assertSame([], array_values(array_diff(shell::NEWS_STRINGS, $read)), 'shipped but never read');
+    }
+
+    /**
+     * With the line on, rendering the shell still reads nothing from the database once core is warm.
+     *
+     * The protocol of test_the_shell_costs_no_database_reads_when_core_is_warm(): the setting comes from
+     * the config cache, the hidden marker from the request's preference bundle, and the line's data from
+     * the client's own request (block_compass_get_news).
+     *
+     * @return void
+     */
+    public function test_the_shell_with_the_line_costs_no_database_reads_when_core_is_warm(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('news_enabled', 1, 'block_compass');
+        set_user_preference('block_compass_calendar', json_encode(['view' => 'learning']));
+
+        $this->make_block()->get_content();
+
+        $block = $this->make_block();
+        $block->page->get_renderer('core');
+
+        $meter = budget::start();
+        $content = $block->get_content();
+        $reads = $meter->reads();
+
+        // The control: the line's props were rendered, so the zero is about a shell that built them.
+        preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
+        $this->assertArrayHasKey('news', json_decode(html_entity_decode($matches[1]), true));
+        $this->assertSame(0, $reads);
+    }
+
+    /**
      * The languages whose pack the plugin directory carries: English always, Portuguese in a git checkout.
      *
      * The release package ships English only (lang/pt_br is export-ignored, and translations reach
