@@ -11,6 +11,10 @@ implementation of 14b onwards. What led there:
   gate.
 - **The one choice at acceptance:** names stay formatted in the per-user entry (the prototype's
   correction 3, decided by the maintainer on 2026-10-29).
+- **The implementation:** stages 14a to 14g are done and merged (2026-10-29): 5.3 in
+  uaiblaine/moodle-block_compass#79 to #82, 5.2 in #83, the theme's listener in
+  uaiblaine/moodle-theme_dimensions#68. A second design round after the maintainer's look made
+  the line a panel of its own (stage 14e, round 2). M4 and part of M6 wait for the maintainer.
 **Date:** 2026-10-28
 **Phase:** 14 (5.3 first, on `main` = `MOODLE_503_STABLE`; the 5.2 port to `MOODLE_502_STABLE` is
 stage 14g)
@@ -206,6 +210,10 @@ soon* (*Começam em breve*), which is the strip of the viewer's own later enrolm
 | Calendar off, or not on this surface | The full line | Top of the content |
 | Nothing counts | Nothing: no line, no zero, no reserved space | |
 
+**Round 2** (2026-10-29, after the maintainer's look) keeps every row of this table and changes
+how the line is drawn: a panel of its own, with the groups always on a second row and the × a
+labelled close. Stage 14e, round 2, has the details.
+
 **The insertion** is the one Up next uses: about 200 ms on `grid-template-rows`, none under reduced
 motion. M6 checks the layout shift.
 
@@ -214,7 +222,8 @@ motion. M6 checks the layout shift.
 - Each group link's accessible name is a sentence (`news_group_label`).
 - The popover is a dialog: focus moves into it, Escape and the scrim close it, and focus returns to
   "See".
-- The × is a button named "Hide until the next sign-in".
+- The × is a button named "Hide until the next sign-in". Since round 2 it reads "Hide" beside its
+  cross, and the cross alone on a block under 640 px and in the slim panel.
 - Counts use `tabular-nums`, and every fill declares its text pair (ADR-014 amendment 13).
 - The count chip's fill is a tint of the primary, never the calendar's heat, which belongs to
   obligations.
@@ -746,6 +755,48 @@ counts here, in each stage's "Done".
     - the phone;
     - the layout shift.
 
+### 14e, round 2. A panel of its own
+
+The maintainer compared the mockups with the implementation on m503b and asked for more room:
+- the groups always on a second row;
+- a close that belongs to the section;
+- the enrolment icon smaller in the same container;
+- a container in the family of `feedback_tracker`'s teacher panel.
+
+They also set a rule for every label: sentence case, never capitals or small caps. The mockup is
+`docs/mockup-new-courses/Rodada2.dc.html` (`html/rodada2.html`). The maintainer chose the labelled
+close, the enrolment icon and the theme's blue.
+
+- **Done** (2026-10-29; version 2026100515, client only; uaiblaine/moodle-block_compass#81 to `main`
+  and #82 to `MOODLE_503_STABLE`):
+  - **The panel:** the full line, the slim panel (the compact sentence) and the empty state's tiles
+    share one container:
+    - a gradient from a warm stop through the surface to the primary's subtle tint;
+    - a soft border, radius 16 (14 slim), three static sparkles;
+    - the 40 px icon tile with the enrolment icon at 18 px;
+    - the eyebrow in sentence case;
+    - the groups as chips on their own row, indented to the text, each count in a 26 px circle.
+  - **The close:** "Hide" (new string `news_hide_short`, named in full by `news_hide`) in the
+    corner, with `flex: none` so the phone's slim row cannot squeeze it.
+  - **Tokens:** `--block_compass-news-warm` and `--block_compass-news-sand`, with dark values.
+  - **The popover and the bottom sheet** of "See" are in the panel's family, with their own "Hide"
+    aligned to the end.
+  - **Tests:**
+    - The contrast test computes the eyebrow, the summary and the close on every stop of the
+      gradient, light and dark, for two brands. The lowest ratio is 5.21:1.
+    - A rule test pins the groups' own row, the close's name, its narrow shape and the absence of
+      any case transform.
+  - **The gate:**
+    - `mdl ci moodle-block_compass-503 --matrix --behat`: 4 legs, each 716 tests and 8 of 8
+      scenarios. One axe "No data" flake on the Up next scenario (PHP 8.4, pgsql) passed on the
+      automatic rerun.
+    - The round's sweep: 151 gates on both families. Two close-name gates had silently retargeted
+      the popover's identical `aria-label` line and stayed green. They are now anchored on the
+      panel close's class name, and both redden.
+  - **M6 so far:** the maintainer's look on m503b covered the layout in light mode, on desktop and
+    on the phone. Still unchecked: dark mode, reduced motion, the popover's focus and the layout
+    shift.
+
 ### 14f. The theme's listener (in `theme_dimensions`, its own pull request)
 
 - **Files:** `classes/local/hook/block_compass/category_link.php` and its entry in the theme's
@@ -756,6 +807,22 @@ counts here, in each stage's "Done".
   `categorystatesort` is off, since the chip would be dropped; the block's default URL is then right.
 - **Tests and version:** a test, and the theme's version bump.
 - **When:** after 14c, since the hook class must exist. The M3 parity test is re-run against it.
+
+- **Done** (2026-10-29; `theme_dimensions` 2026100542, uaiblaine/moodle-theme_dimensions#68):
+  - `local\hook\block_compass\category_link::answer()` adds no visibility rule, since the showcase
+    runs its own. It answers nothing:
+    - when the theme is not installed;
+    - when the showcase or its state chip is off;
+    - for a visitor or the guest account, whose page draws no chips;
+    - when building a path throws.
+  - **Seven PHPUnit tests:**
+    - a category gets the filtered showcase;
+    - the root gets the bare course index;
+    - each silent case;
+    - the block's dispatcher keeps the theme's URL.
+  - **The gate:** `mdl ci moodle-theme_dimensions-categorylink --matrix --behat` on f454fb7, the
+    head rebased onto theme main 07ebbf1: 4 legs (503, PHP 8.3 and 8.4, pgsql and mariadb), each
+    1730 tests, 537779 assertions and 171 scenarios (167 passed, 4 skipped).
 
 ### 14g. The 5.2 port
 
@@ -768,6 +835,22 @@ in `~/dev/moodle-block_compass` once its sessions free it:
 
 `theme_dimensions` is 5.3 only, so on 5.2 the hook has no listener and the line links to core's
 category pages.
+
+- **Done** (2026-10-29; version 2026042015; uaiblaine/moodle-block_compass#83, 5f6a858): phase 14
+  and round 2 in one port, with the client rebuilt by `mdl grunt m502 blocks/compass` and `tsc`
+  clean. Three 5.2 differences:
+  - 5.2's `{course}` has no `deletioninprogress` column, so the catalogue's candidate statement
+    drops that predicate;
+  - `course_meta::is_being_deleted()` does not exist on 5.2, so a group of one links its course
+    once `course_meta` found it;
+  - the `news_cat_band_from` gate anchors on the `siteid` line.
+
+  The gate:
+  - `mdl ci moodle-block_compass --matrix --behat`: 4 legs, each 707 tests, 18563 assertions and
+    8 of 8 scenarios;
+  - `--only grunt`: OK;
+  - `mdl mutate --fast --changed origin/MOODLE_502_STABLE`: 253 mutations on pgsql and on mariadb,
+    every one red.
 
 ## Evidence
 
