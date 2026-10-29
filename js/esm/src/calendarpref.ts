@@ -30,6 +30,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {hold} from './pending';
 import {setCalendarPreference} from './repository';
 import type {CalendarConfig, CalendarState, NewsConfig} from './types';
 
@@ -77,7 +78,8 @@ export const seedCalendarPreference = (calendar: CalendarConfig | undefined, new
  * Write the preference with some members changed and every other one carried along.
  *
  * A member set to undefined is dropped from the value (JSON.stringify leaves it out), which is how a
- * hide is undone. A write, so never retried.
+ * hide is undone. A write, so never retried. Moodle's pending counter is held until it settles
+ * (pending.ts), so a reload right after a hide never reads the value from before it.
  *
  * @param {object} change The members to change.
  * @returns {Promise} Resolves once the preference is written.
@@ -85,8 +87,9 @@ export const seedCalendarPreference = (calendar: CalendarConfig | undefined, new
 export const writeCalendarPreference = (change: Partial<CalendarState>): Promise<void> => {
     const next = {...(held ?? {}), ...change} as CalendarState;
     held = next;
+    const release = hold('block_compass/calendarpref');
 
-    return setCalendarPreference(next);
+    return setCalendarPreference(next).finally(release);
 };
 
 /**

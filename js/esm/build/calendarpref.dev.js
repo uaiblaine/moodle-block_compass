@@ -16,6 +16,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+import { hold } from "./pending";
 import { setCalendarPreference } from "./repository";
 let held = null;
 const soonOf = /* @__PURE__ */ __name((calendar) => calendar.soon.rank === null ? void 0 : { rank: calendar.soon.rank, signin: calendar.soon.signin }, "soonOf");
@@ -38,7 +39,8 @@ const seedCalendarPreference = /* @__PURE__ */ __name((calendar, news) => {
 const writeCalendarPreference = /* @__PURE__ */ __name((change) => {
   const next = { ...held ?? {}, ...change };
   held = next;
-  return setCalendarPreference(next);
+  const release = hold("block_compass/calendarpref");
+  return setCalendarPreference(next).finally(release);
 }, "writeCalendarPreference");
 const putBackCalendarPreference = /* @__PURE__ */ __name((change) => {
   if (held !== null) {

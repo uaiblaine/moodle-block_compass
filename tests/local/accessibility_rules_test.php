@@ -496,15 +496,15 @@ final class accessibility_rules_test extends basic_testcase {
         sort($sections);
         sort($titles);
         $this->assertSame(
-            ['js/esm/src/CalendarStrip.tsx', 'js/esm/src/Explore.tsx', 'js/esm/src/Strip.tsx'],
+            ['js/esm/src/CalendarStrip.tsx', 'js/esm/src/Explore.tsx', 'js/esm/src/OpenCourses.tsx', 'js/esm/src/Strip.tsx'],
             $sections,
-            'the section rung is the section titles: the calendar strip, a tier 1 strip and the tier 3 panel'
+            'the section rung is the section titles: the calendar strip, a tier 1 strip, the tier 3 panel and the '
+                . 'open-courses line, which is the block\'s first heading when the strip is not here'
         );
         $this->assertSame(
-            ['js/esm/src/Card.tsx', 'js/esm/src/OpenCourses.tsx', 'js/esm/src/RowCard.tsx', 'js/esm/src/UpNext.tsx'],
+            ['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx', 'js/esm/src/UpNext.tsx'],
             $titles,
-            'the title rung is the card titles, the tier 1 card and the tier 3 one, Up next, a region of the calendar, '
-                . 'and the open-courses line, a region beside it'
+            'the title rung is the card titles, the tier 1 card and the tier 3 one, and Up next, a region of the calendar'
         );
     }
 
@@ -2508,7 +2508,7 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('const narrow = width > 0 && width < NEWS_NARROW_PX;', $source);
         $block = $this->reactsources()['js/esm/src/Block.tsx'];
         $this->assertStringContainsString('width={width}', $block, 'the block\'s measured width');
-        $this->assertStringContainsString('titleTag(config.headinglevel)', $source);
+        $this->assertStringContainsString('sectionTag(config.headinglevel)', $source);
         $sections = $this->tags($source, 'section');
         $this->assertCount(3, $sections, 'vacuity: the full line, the compact sentence and the tiles');
         foreach ($sections as $tag) {

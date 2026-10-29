@@ -33,7 +33,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import RetryNotice from "./RetryNotice";
 import { dateParts, dayMonth } from "./calendar";
 import { heldNews, putBackCalendarPreference, writeCalendarPreference } from "./calendarpref";
-import { titleTag } from "./heading";
+import { sectionTag } from "./heading";
 import { notify } from "./notify";
 import { hold } from "./pending";
 import { getNews } from "./repository";
@@ -119,7 +119,7 @@ const summaryOf = /* @__PURE__ */ __name((strings, total, until) => total === 1 
 const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }) => {
   const { answer, failed, retrying, hidden, retry, hide } = state;
   const strings = { ...config.calendar?.strings ?? {}, ...news.strings };
-  const Title = titleTag(config.headinglevel);
+  const Title = sectionTag(config.headinglevel);
   const baseid = useId();
   const titleid = `${baseid}-news`;
   const popid = `${baseid}-newspop`;
@@ -166,11 +166,11 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
   if (failed) {
     return /* @__PURE__ */ jsxDEV("div", { className: "compass-news-fail", children: /* @__PURE__ */ jsxDEV(RetryNotice, { message: strings.news_error, retrying, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-      lineNumber: 306,
+      lineNumber: 308,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-      lineNumber: 305,
+      lineNumber: 307,
       columnNumber: 13
     });
   }
@@ -203,7 +203,7 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
   const pop = popover && /* @__PURE__ */ jsxDEV(Fragment, { children: [
     narrow && /* @__PURE__ */ jsxDEV("div", { className: "compass-news-scrim", "aria-hidden": "true" }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-      lineNumber: 368,
+      lineNumber: 370,
       columnNumber: 24
     }),
     /* @__PURE__ */ jsxDEV(
@@ -221,48 +221,48 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
         children: [
           /* @__PURE__ */ jsxDEV("p", { className: "compass-news-pophead", children: summary }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 380,
+            lineNumber: 382,
             columnNumber: 17
           }),
           /* @__PURE__ */ jsxDEV("ul", { className: "compass-news-poplist", children: answer.groups.map((group) => /* @__PURE__ */ jsxDEV("li", { children: /* @__PURE__ */ jsxDEV("a", { className: "compass-news-poprow", href: group.url, "aria-label": groupLabel(strings, group), children: [
             /* @__PURE__ */ jsxDEV("span", { className: "compass-news-popname", children: [
               /* @__PURE__ */ jsxDEV("span", { className: "compass-news-popcat", title: group.name, children: group.name }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-                lineNumber: 386,
+                lineNumber: 388,
                 columnNumber: 37
               }),
               isOne(group) && /* @__PURE__ */ jsxDEV("span", { className: "compass-news-popsub", title: group.coursename, children: group.coursename }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-                lineNumber: 388,
+                lineNumber: 390,
                 columnNumber: 41
               })
             ] }, void 0, true, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 385,
+              lineNumber: 387,
               columnNumber: 33
             }),
             /* @__PURE__ */ jsxDEV("span", { className: "compass-news-count", children: group.count }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 391,
+              lineNumber: 393,
               columnNumber: 33
             })
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 384,
+            lineNumber: 386,
             columnNumber: 29
           }) }, group.categoryid, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 383,
+            lineNumber: 385,
             columnNumber: 25
           })) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 381,
+            lineNumber: 383,
             columnNumber: 17
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "compass-news-popfoot", children: [
             /* @__PURE__ */ jsxDEV("a", { className: "compass-news-all", href: answer.allurl, children: strings.news_all }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 397,
+              lineNumber: 399,
               columnNumber: 21
             }),
             /* @__PURE__ */ jsxDEV(
@@ -277,13 +277,13 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
               false,
               {
                 fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-                lineNumber: 398,
+                lineNumber: 400,
                 columnNumber: 21
               }
             )
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 396,
+            lineNumber: 398,
             columnNumber: 17
           })
         ]
@@ -292,29 +292,29 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
       true,
       {
         fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-        lineNumber: 369,
+        lineNumber: 371,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-    lineNumber: 367,
+    lineNumber: 369,
     columnNumber: 9
   });
   const grow = /* @__PURE__ */ __name((children) => /* @__PURE__ */ jsxDEV("div", { className: "compass-news-anchor", children: [
     /* @__PURE__ */ jsxDEV("div", { ref: wrap, className: grown ? "compass-news-wrap compass-news-wrap-open" : "compass-news-wrap", children: /* @__PURE__ */ jsxDEV("div", { className: "compass-news-inner", children }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-      lineNumber: 420,
+      lineNumber: 422,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-      lineNumber: 419,
+      lineNumber: 421,
       columnNumber: 13
     }),
     mode !== "tiles" && pop
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-    lineNumber: 418,
+    lineNumber: 420,
     columnNumber: 9
   }), "grow");
   if (mode === "tiles") {
@@ -322,59 +322,59 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
       /* @__PURE__ */ jsxDEV("section", { className: "compass-news-empty", "aria-labelledby": titleid, children: [
         /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-emptylead h6 mb-0", children: fill(strings.news_empty_lead, until) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 429,
+          lineNumber: 431,
           columnNumber: 17
         }),
         /* @__PURE__ */ jsxDEV("ul", { className: "compass-news-tiles", children: answer.groups.map((group) => /* @__PURE__ */ jsxDEV("li", { children: /* @__PURE__ */ jsxDEV("a", { className: "compass-news-tile", href: group.url, "aria-label": groupLabel(strings, group), children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-news-tiletop", children: [
             /* @__PURE__ */ jsxDEV("span", { className: "compass-news-tilename", title: group.name, children: group.name }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 435,
+              lineNumber: 437,
               columnNumber: 37
             }),
             /* @__PURE__ */ jsxDEV("span", { className: "compass-news-count", children: group.count }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 436,
+              lineNumber: 438,
               columnNumber: 37
             })
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 434,
+            lineNumber: 436,
             columnNumber: 33
           }),
           isOne(group) && /* @__PURE__ */ jsxDEV("span", { className: "compass-news-tilesub", title: group.coursename, children: group.coursename }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 439,
+            lineNumber: 441,
             columnNumber: 37
           })
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 433,
+          lineNumber: 435,
           columnNumber: 29
         }) }, group.categoryid, false, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 432,
+          lineNumber: 434,
           columnNumber: 25
         })) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 430,
+          lineNumber: 432,
           columnNumber: 17
         }),
         /* @__PURE__ */ jsxDEV("a", { className: "compass-news-all", href: answer.allurl, children: strings.news_all }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 445,
+          lineNumber: 447,
           columnNumber: 17
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-        lineNumber: 428,
+        lineNumber: 430,
         columnNumber: 13
       })
     );
   }
   const icon = /* @__PURE__ */ jsxDEV("span", { className: "compass-news-icon icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: { __html: news.icon } }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-    lineNumber: 451,
+    lineNumber: 453,
     columnNumber: 9
   });
   if (mode === "compact") {
@@ -384,7 +384,7 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
         /* @__PURE__ */ jsxDEV("div", { className: "compass-news-sentence", children: [
           /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-lead", children: strings.news_title }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 459,
+            lineNumber: 461,
             columnNumber: 21
           }),
           " \xB7 ",
@@ -405,18 +405,18 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 463,
+              lineNumber: 465,
               columnNumber: 21
             }
           )
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 458,
+          lineNumber: 460,
           columnNumber: 17
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-        lineNumber: 456,
+        lineNumber: 458,
         columnNumber: 13
       })
     );
@@ -427,12 +427,12 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
       icon,
       /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title h6 mb-0", children: strings.news_title }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-        lineNumber: 483,
+        lineNumber: 485,
         columnNumber: 13
       }),
       /* @__PURE__ */ jsxDEV("span", { className: "compass-news-sum", children: summary }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-        lineNumber: 484,
+        lineNumber: 486,
         columnNumber: 13
       }),
       /* @__PURE__ */ jsxDEV("ul", { className: "compass-news-groups", children: [
@@ -444,22 +444,22 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
             "aria-label": groupLabel(strings, group),
             children: isOne(group) ? /* @__PURE__ */ jsxDEV("span", { className: "compass-news-gname", title: `${group.name} \xB7 ${group.coursename}`, children: `${group.name} \xB7 ${group.coursename}` }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 494,
+              lineNumber: 496,
               columnNumber: 33
             }) : /* @__PURE__ */ jsxDEV(Fragment, { children: [
               /* @__PURE__ */ jsxDEV("span", { className: "compass-news-gname", title: group.name, children: group.name }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-                lineNumber: 499,
+                lineNumber: 501,
                 columnNumber: 37
               }),
               /* @__PURE__ */ jsxDEV("span", { className: "compass-news-count", children: group.count }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-                lineNumber: 500,
+                lineNumber: 502,
                 columnNumber: 37
               })
             ] }, void 0, true, {
               fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-              lineNumber: 498,
+              lineNumber: 500,
               columnNumber: 33
             })
           },
@@ -467,12 +467,12 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 488,
+            lineNumber: 490,
             columnNumber: 25
           }
         ) }, group.categoryid, false, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 487,
+          lineNumber: 489,
           columnNumber: 21
         })),
         more > 0 && /* @__PURE__ */ jsxDEV("li", { children: /* @__PURE__ */ jsxDEV(
@@ -490,17 +490,17 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 508,
+            lineNumber: 510,
             columnNumber: 25
           }
         ) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 507,
+          lineNumber: 509,
           columnNumber: 21
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-        lineNumber: 485,
+        lineNumber: 487,
         columnNumber: 13
       }),
       /* @__PURE__ */ jsxDEV(
@@ -513,7 +513,7 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
           onClick: (event) => hideFrom(event.currentTarget),
           children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: { __html: config.icons.close } }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-            lineNumber: 528,
+            lineNumber: 530,
             columnNumber: 17
           })
         },
@@ -521,13 +521,13 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, width }
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-          lineNumber: 521,
+          lineNumber: 523,
           columnNumber: 13
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
-      lineNumber: 481,
+      lineNumber: 483,
       columnNumber: 9
     })
   );

@@ -47,7 +47,7 @@ import type {FocusEvent, KeyboardEvent, ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
 import {dateParts, dayMonth} from './calendar';
 import {heldNews, putBackCalendarPreference, writeCalendarPreference} from './calendarpref';
-import {titleTag} from './heading';
+import {sectionTag} from './heading';
 import {notify} from './notify';
 import {hold} from './pending';
 import {getNews} from './repository';
@@ -236,7 +236,9 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     const {answer, failed, retrying, hidden, retry, hide} = state;
     // The calendar's date strings when it renders here, else the copies the shell ships with the line's.
     const strings = {...(config.calendar?.strings ?? {}), ...news.strings};
-    const Title = titleTag(config.headinglevel);
+    // A section of its own, never a region of the calendar's: it is the block's first heading when the
+    // strip is not here, where a card title's rung would skip a level (axe heading-order).
+    const Title = sectionTag(config.headinglevel);
     const baseid = useId();
     const titleid = `${baseid}-news`;
     const popid = `${baseid}-newspop`;

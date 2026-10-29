@@ -702,6 +702,50 @@ counts here, in each stage's "Done".
 - **The full gate:** `mdl ci moodle-block_compass-503 --matrix --behat` and the Phase 14 sweep on
   both families. Then the pull request, and the merge on the maintainer's word.
 
+- **Done** (stage 14e, 2026-10-29; branch `phase-14-open-courses`, version 2026100514 for the two client fixes):
+  - **Behat:** one scenario in `tests/behat/block_compass.feature`, the plugin's **eighth**. Whether
+    to keep it or fold it into an existing one is the maintainer's call.
+    - It shows a category of two courses, and a group of one that links to its enrolment page.
+    - It never shows a course the student teaches.
+    - The × hides the line, and a reload proves it.
+    - Axe is checked in both states.
+  - **Two defects Behat and the browser found, fixed:**
+    1. **Heading order (axe `heading-order`).** With the calendar off, the line is the block's first
+       heading, and the card-title rung skipped h3 → h5. The line now uses the section rung
+       (`sectionTag`), valid in all four positions; `accessibility_rules_test` lists it among the
+       sections.
+    2. **The × could race a reload.** The preference write held no pending counter. Every
+       `block_compass_calendar` write now holds Moodle's pending counter until it settles
+       (`calendarpref.ts`), for the strip's toggle and Up next's hide as well. It is pinned by
+       `client_policy_test::test_the_calendar_preference_write_holds_the_pending_counter` and the
+       gate `news_pref_write_holds`.
+  - **Demo and picture:**
+    - `seed_demo.php` adds six `compassdemo_open_*` courses demo.student can join, with one
+      category holding exactly one, and one band course demo.teacher teaches. It was run on m503
+      after all peers agreed, with `news_enabled` on.
+    - The `capture.mjs` `news` shot writes `docs/screenshots/open-courses.png`. The seeded week is
+      busy and Up next shows, so the picture is the compact sentence with its list open: 9 courses
+      in five groups, m503's older demo courses included.
+    - The shot scrolls the sentence into view and opens the list with a script click, because the
+      pointer helper aims at viewport coordinates. A probe confirmed that a real click opens the
+      popover (`aria-expanded` true, the dialog drawn, no error).
+  - **README:** the "Open for enrolment" feature with the picture, the four settings, and the two
+    caches (the cache count is now nine). `marketplace_readiness_test`: 9 tests OK.
+  - **The gate:**
+    - `mdl ci moodle-block_compass-503 --matrix --behat`: all 4 legs PASS (503, PHP 8.3 and 8.4,
+      pgsql and mariadb). The passing legs' logs are not kept, so no per-leg counts.
+    - `--only behat`: `8 scenarios (8 passed)`.
+    - `--only grunt`: OK, no lint warning, build identical.
+    - `mdl mutate --fast --changed main`: 231 gates on pgsql and on mariadb, all held, no named test
+      left green.
+  - **M6, the look,** waits for the maintainer on m503 as demo.student, since a password is not
+    Claude's to type:
+    - the four situations;
+    - the popover and its focus;
+    - dark mode and reduced motion;
+    - the phone;
+    - the layout shift.
+
 ### 14f. The theme's listener (in `theme_dimensions`, its own pull request)
 
 - **Files:** `classes/local/hook/block_compass/category_link.php` and its entry in the theme's

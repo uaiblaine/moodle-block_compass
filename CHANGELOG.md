@@ -15,6 +15,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- Open for enrolment, smoke and documentation (2026100514; ADR-017 stage 14e): a Behat scenario for a
+  learner with open courses in the band and a course they teach, the demo seed's `compassdemo_open_*`
+  courses, the `news` screenshot shot and the README's bullet, four settings and two caches.
+
+### Fixed
+
+- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
+  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
+- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
+  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
 - Open for enrolment, the client (2026100513; ADR-017 stage 14d). With `news_enabled` on, the
   block draws a line of its own, *Open for enrolment*: how many courses the viewer could join start
   by the band's last day, up to three categories as links (a category of one names its course),

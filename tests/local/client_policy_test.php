@@ -90,6 +90,19 @@ final class client_policy_test extends advanced_testcase {
     }
 
     /**
+     * Every write of block_compass_calendar holds Moodle's pending counter until it settles, so a reload
+     * right after hiding the open-courses line (or Up next, or closing the strip) reads the new value.
+     *
+     * @return void
+     */
+    public function test_the_calendar_preference_write_holds_the_pending_counter(): void {
+        $source = $this->source('calendarpref.ts');
+
+        $this->assertStringContainsString("const release = hold('block_compass/calendarpref');", $source);
+        $this->assertStringContainsString('return setCalendarPreference(next).finally(release);', $source);
+    }
+
+    /**
      * The remembered toolbar never carries the query, so clearing it keeps the preference true.
      *
      * @return void
@@ -263,7 +276,7 @@ final class client_policy_test extends advanced_testcase {
         $line = $this->source('OpenCourses.tsx');
 
         $this->assertStringContainsString('const next = {...(held ?? {}), ...change} as CalendarState;', $store);
-        $this->assertStringContainsString('return setCalendarPreference(next);', $store);
+        $this->assertStringContainsString('return setCalendarPreference(next).finally(release);', $store);
         $this->assertStringContainsString("news: news && news.signin > 0 ? {signin: news.signin} : undefined,", $store);
         $this->assertStringContainsString('const state = calendar ? calendar.state : news?.state;', $store);
         $this->assertStringContainsString(': (news?.soon ?? undefined);', $store);
