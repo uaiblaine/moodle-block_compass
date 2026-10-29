@@ -1,0 +1,208 @@
+ ?column? | count 
+----------+-------
+ rows     |   501
+(1 row)
+
+   until    
+------------
+ 1790001683
+(1 row)
+
+                                                                                                               QUERY PLAN                                                                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8922.73..8922.78 rows=20 width=24) (actual time=25.390..25.441 rows=501.00 loops=1)
+   Buffers: local hit=11967 read=10939
+   ->  Sort  (cost=8922.73..8922.78 rows=20 width=24) (actual time=25.389..25.416 rows=501.00 loops=1)
+         Sort Key: c.startdate, c.id
+         Sort Method: top-N heapsort  Memory: 84kB
+         Buffers: local hit=11967 read=10939
+         ->  Nested Loop Semi Join  (cost=88.60..8922.30 rows=20 width=24) (actual time=0.293..25.218 rows=1081.00 loops=1)
+               Buffers: local hit=11967 read=10939
+               ->  Hash Left Join  (cost=88.17..8765.21 rows=38 width=24) (actual time=0.289..15.941 rows=4038.00 loops=1)
+                     Hash Cond: (c.id = lus.courseid)
+                     Filter: (COALESCE((lus.state)::integer, 0) = ANY ('{0,2}'::integer[]))
+                     Rows Removed by Filter: 128
+                     Buffers: local hit=3 read=6684
+                     ->  Seq Scan on c  (cost=0.00..8667.00 rows=3824 width=24) (actual time=0.005..15.051 rows=4166.00 loops=1)
+                           Filter: ((id <> 1) AND (startdate >= 1789395200) AND (startdate < 1792678400) AND (visible = 1))
+                           Rows Removed by Filter: 95834
+                           Buffers: local hit=1 read=6666
+                     ->  Hash  (cost=50.30..50.30 rows=3030 width=10) (actual time=0.282..0.282 rows=3030.00 loops=1)
+                           Buckets: 4096  Batches: 1  Memory Usage: 175kB
+                           Buffers: local hit=2 read=18
+                           ->  Seq Scan on lus  (cost=0.00..50.30 rows=3030 width=10) (actual time=0.003..0.132 rows=3030.00 loops=1)
+                                 Buffers: local hit=2 read=18
+               ->  Index Scan using e_courseid_idx on e  (cost=0.42..4.13 rows=1 width=8) (actual time=0.002..0.002 rows=0.27 loops=4038)
+                     Index Cond: (courseid = c.id)
+                     Filter: ((status = 0) AND ((enrolstartdate = 0) OR (enrolstartdate <= 1790000000)) AND ((enrolenddate = 0) OR (enrolenddate > 1790000000)) AND ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[])))
+                     Rows Removed by Filter: 2
+                     Index Searches: 4038
+                     Buffers: local hit=11964 read=4255
+ Planning:
+   Buffers: shared hit=3, local hit=10 read=16
+ Planning Time: 0.250 ms
+ Execution Time: 25.468 ms
+(32 rows)
+
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=17633.25..17633.26 rows=1 width=8) (actual time=28.969..28.972 rows=1.00 loops=1)
+   Buffers: local hit=3 read=12202
+   ->  Hash Join  (cost=8939.98..17632.46 rows=158 width=16) (actual time=13.205..28.940 rows=307.00 loops=1)
+         Hash Cond: (c.id = e.courseid)
+         Buffers: local hit=3 read=12202
+         ->  Seq Scan on c  (cost=0.00..8667.00 rows=3824 width=8) (actual time=0.005..15.114 rows=4166.00 loops=1)
+               Filter: ((id <> 1) AND (startdate >= 1789395200) AND (startdate < 1792678400) AND (visible = 1))
+               Rows Removed by Filter: 95834
+               Buffers: local hit=1 read=6666
+         ->  Hash  (cost=8887.66..8887.66 rows=4186 width=24) (actual time=13.173..13.175 rows=7359.00 loops=1)
+               Buckets: 8192  Batches: 1  Memory Usage: 467kB
+               Buffers: local hit=2 read=5536
+               ->  Bitmap Heap Scan on e  (cost=1047.68..8887.66 rows=4186 width=24) (actual time=1.452..12.682 rows=7359.00 loops=1)
+                     Recheck Cond: ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[]))
+                     Filter: ((status = 0) AND ((enrolstartdate > 1790000000) OR (enrolenddate > 1790000000)))
+                     Rows Removed by Filter: 92641
+                     Heap Blocks: exact=5455
+                     Buffers: local hit=2 read=5536
+                     ->  Bitmap Index Scan on e_enrol_idx  (cost=0.00..1046.64 rows=100420 width=0) (actual time=1.088..1.088 rows=100000.00 loops=1)
+                           Index Cond: ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[]))
+                           Index Searches: 2
+                           Buffers: local hit=1 read=82
+ Planning:
+   Buffers: local hit=6 read=8
+ Planning Time: 0.133 ms
+ Execution Time: 28.992 ms
+(26 rows)
+
+                                                                                                               QUERY PLAN                                                                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8922.73..8922.78 rows=20 width=24) (actual time=25.053..25.102 rows=501.00 loops=1)
+   Buffers: local hit=11967 read=10939
+   ->  Sort  (cost=8922.73..8922.78 rows=20 width=24) (actual time=25.052..25.078 rows=501.00 loops=1)
+         Sort Key: c.startdate, c.id
+         Sort Method: top-N heapsort  Memory: 84kB
+         Buffers: local hit=11967 read=10939
+         ->  Nested Loop Semi Join  (cost=88.60..8922.30 rows=20 width=24) (actual time=0.307..24.879 rows=1081.00 loops=1)
+               Buffers: local hit=11967 read=10939
+               ->  Hash Left Join  (cost=88.17..8765.21 rows=38 width=24) (actual time=0.302..15.625 rows=4038.00 loops=1)
+                     Hash Cond: (c.id = lus.courseid)
+                     Filter: (COALESCE((lus.state)::integer, 0) = ANY ('{0,2}'::integer[]))
+                     Rows Removed by Filter: 128
+                     Buffers: local hit=3 read=6684
+                     ->  Seq Scan on c  (cost=0.00..8667.00 rows=3824 width=24) (actual time=0.006..14.730 rows=4166.00 loops=1)
+                           Filter: ((id <> 1) AND (startdate >= 1789395200) AND (startdate < 1792678400) AND (visible = 1))
+                           Rows Removed by Filter: 95834
+                           Buffers: local hit=1 read=6666
+                     ->  Hash  (cost=50.30..50.30 rows=3030 width=10) (actual time=0.293..0.293 rows=3030.00 loops=1)
+                           Buckets: 4096  Batches: 1  Memory Usage: 175kB
+                           Buffers: local hit=2 read=18
+                           ->  Seq Scan on lus  (cost=0.00..50.30 rows=3030 width=10) (actual time=0.003..0.140 rows=3030.00 loops=1)
+                                 Buffers: local hit=2 read=18
+               ->  Index Scan using e_courseid_idx on e  (cost=0.42..4.13 rows=1 width=8) (actual time=0.002..0.002 rows=0.27 loops=4038)
+                     Index Cond: (courseid = c.id)
+                     Filter: ((status = 0) AND ((enrolstartdate = 0) OR (enrolstartdate <= 1790000000)) AND ((enrolenddate = 0) OR (enrolenddate > 1790000000)) AND ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[])))
+                     Rows Removed by Filter: 2
+                     Index Searches: 4038
+                     Buffers: local hit=11964 read=4255
+ Planning:
+   Buffers: local hit=10 read=16
+ Planning Time: 0.232 ms
+ Execution Time: 25.131 ms
+(32 rows)
+
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=17633.25..17633.26 rows=1 width=8) (actual time=28.373..28.377 rows=1.00 loops=1)
+   Buffers: local hit=3 read=12202
+   ->  Hash Join  (cost=8939.98..17632.46 rows=158 width=16) (actual time=13.170..28.347 rows=307.00 loops=1)
+         Hash Cond: (c.id = e.courseid)
+         Buffers: local hit=3 read=12202
+         ->  Seq Scan on c  (cost=0.00..8667.00 rows=3824 width=8) (actual time=0.005..14.613 rows=4166.00 loops=1)
+               Filter: ((id <> 1) AND (startdate >= 1789395200) AND (startdate < 1792678400) AND (visible = 1))
+               Rows Removed by Filter: 95834
+               Buffers: local hit=1 read=6666
+         ->  Hash  (cost=8887.66..8887.66 rows=4186 width=24) (actual time=13.141..13.144 rows=7359.00 loops=1)
+               Buckets: 8192  Batches: 1  Memory Usage: 467kB
+               Buffers: local hit=2 read=5536
+               ->  Bitmap Heap Scan on e  (cost=1047.68..8887.66 rows=4186 width=24) (actual time=1.397..12.645 rows=7359.00 loops=1)
+                     Recheck Cond: ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[]))
+                     Filter: ((status = 0) AND ((enrolstartdate > 1790000000) OR (enrolenddate > 1790000000)))
+                     Rows Removed by Filter: 92641
+                     Heap Blocks: exact=5455
+                     Buffers: local hit=2 read=5536
+                     ->  Bitmap Index Scan on e_enrol_idx  (cost=0.00..1046.64 rows=100420 width=0) (actual time=1.045..1.045 rows=100000.00 loops=1)
+                           Index Cond: ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[]))
+                           Index Searches: 2
+                           Buffers: local hit=1 read=82
+ Planning:
+   Buffers: local hit=6 read=8
+ Planning Time: 0.129 ms
+ Execution Time: 28.397 ms
+(26 rows)
+
+                                                                                                               QUERY PLAN                                                                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=8922.73..8922.78 rows=20 width=24) (actual time=25.377..25.423 rows=501.00 loops=1)
+   Buffers: local hit=11967 read=10939
+   ->  Sort  (cost=8922.73..8922.78 rows=20 width=24) (actual time=25.376..25.399 rows=501.00 loops=1)
+         Sort Key: c.startdate, c.id
+         Sort Method: top-N heapsort  Memory: 84kB
+         Buffers: local hit=11967 read=10939
+         ->  Nested Loop Semi Join  (cost=88.60..8922.30 rows=20 width=24) (actual time=0.296..25.198 rows=1081.00 loops=1)
+               Buffers: local hit=11967 read=10939
+               ->  Hash Left Join  (cost=88.17..8765.21 rows=38 width=24) (actual time=0.292..15.482 rows=4038.00 loops=1)
+                     Hash Cond: (c.id = lus.courseid)
+                     Filter: (COALESCE((lus.state)::integer, 0) = ANY ('{0,2}'::integer[]))
+                     Rows Removed by Filter: 128
+                     Buffers: local hit=3 read=6684
+                     ->  Seq Scan on c  (cost=0.00..8667.00 rows=3824 width=24) (actual time=0.005..14.569 rows=4166.00 loops=1)
+                           Filter: ((id <> 1) AND (startdate >= 1789395200) AND (startdate < 1792678400) AND (visible = 1))
+                           Rows Removed by Filter: 95834
+                           Buffers: local hit=1 read=6666
+                     ->  Hash  (cost=50.30..50.30 rows=3030 width=10) (actual time=0.285..0.285 rows=3030.00 loops=1)
+                           Buckets: 4096  Batches: 1  Memory Usage: 175kB
+                           Buffers: local hit=2 read=18
+                           ->  Seq Scan on lus  (cost=0.00..50.30 rows=3030 width=10) (actual time=0.003..0.134 rows=3030.00 loops=1)
+                                 Buffers: local hit=2 read=18
+               ->  Index Scan using e_courseid_idx on e  (cost=0.42..4.13 rows=1 width=8) (actual time=0.002..0.002 rows=0.27 loops=4038)
+                     Index Cond: (courseid = c.id)
+                     Filter: ((status = 0) AND ((enrolstartdate = 0) OR (enrolstartdate <= 1790000000)) AND ((enrolenddate = 0) OR (enrolenddate > 1790000000)) AND ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[])))
+                     Rows Removed by Filter: 2
+                     Index Searches: 4038
+                     Buffers: local hit=11964 read=4255
+ Planning:
+   Buffers: local hit=10 read=16
+ Planning Time: 0.218 ms
+ Execution Time: 25.451 ms
+(32 rows)
+
+                                                                      QUERY PLAN                                                                      
+------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate  (cost=17633.25..17633.26 rows=1 width=8) (actual time=29.603..29.606 rows=1.00 loops=1)
+   Buffers: local hit=3 read=12202
+   ->  Hash Join  (cost=8939.98..17632.46 rows=158 width=16) (actual time=13.202..29.572 rows=307.00 loops=1)
+         Hash Cond: (c.id = e.courseid)
+         Buffers: local hit=3 read=12202
+         ->  Seq Scan on c  (cost=0.00..8667.00 rows=3824 width=8) (actual time=0.006..15.650 rows=4166.00 loops=1)
+               Filter: ((id <> 1) AND (startdate >= 1789395200) AND (startdate < 1792678400) AND (visible = 1))
+               Rows Removed by Filter: 95834
+               Buffers: local hit=1 read=6666
+         ->  Hash  (cost=8887.66..8887.66 rows=4186 width=24) (actual time=13.172..13.174 rows=7359.00 loops=1)
+               Buckets: 8192  Batches: 1  Memory Usage: 467kB
+               Buffers: local hit=2 read=5536
+               ->  Bitmap Heap Scan on e  (cost=1047.68..8887.66 rows=4186 width=24) (actual time=1.435..12.685 rows=7359.00 loops=1)
+                     Recheck Cond: ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[]))
+                     Filter: ((status = 0) AND ((enrolstartdate > 1790000000) OR (enrolenddate > 1790000000)))
+                     Rows Removed by Filter: 92641
+                     Heap Blocks: exact=5455
+                     Buffers: local hit=2 read=5536
+                     ->  Bitmap Index Scan on e_enrol_idx  (cost=0.00..1046.64 rows=100420 width=0) (actual time=1.079..1.079 rows=100000.00 loops=1)
+                           Index Cond: ((enrol)::text = ANY ('{self,apply,fee,paypal,autoenrol}'::text[]))
+                           Index Searches: 2
+                           Buffers: local hit=1 read=82
+ Planning:
+   Buffers: local hit=6 read=8
+ Planning Time: 0.149 ms
+ Execution Time: 29.627 ms
+(26 rows)
+

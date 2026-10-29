@@ -3707,3 +3707,399 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
         transform: none;
     }
 }
+
+/*
+ * Open for enrolment (ADR-017, OpenCourses.tsx): the courses the viewer could join, drawn by the block in
+ * one of three shapes (decision 7): the full line under the calendar or at the top of the content, the
+ * compact sentence when the block is busy or Up next shows, the tiles of tier 1's empty state.
+ *
+ * It arrives as Up next does, growing from no height to its own (grid rows from 0fr to 1fr, the content
+ * clipped), so tier 1 slides down rather than jumps, and at once under reduced motion. The popover hangs
+ * from the anchor beside the clip, never inside it. The count chip and the icon's tile are a tint of the
+ * primary, never the calendar's heat, which belongs to obligations; their text is the primary's ink pulled
+ * towards the body text, one pair the contrast test computes in light and dark for two brands. Counts use
+ * tabular figures.
+ */
+.block_compass {
+    --block_compass-news-fill: color-mix(in oklab, var(--block_compass-brand-ink) 12%, var(--block_compass-surface));
+    --block_compass-news-fg: color-mix(in oklab, var(--block_compass-brand-ink) 72%, var(--block_compass-cal-text));
+}
+
+.block_compass .compass-news-anchor {
+    position: relative;
+}
+
+.block_compass .compass-news-wrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows 200ms ease-out, visibility 200ms;
+}
+
+.block_compass .compass-news-wrap.compass-news-wrap-open {
+    grid-template-rows: 1fr;
+    visibility: visible;
+}
+
+.block_compass .compass-news-inner {
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* The line: the icon, the title, the summary, up to three groups, "+N" and the × at its end. */
+.block_compass .compass-news {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.625rem;
+    margin-top: 0.75rem;
+    padding: 0.125rem;
+    color: var(--block_compass-cal-text);
+}
+
+.block_compass .compass-news-icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    background: var(--block_compass-news-fill);
+    color: var(--block_compass-news-fg);
+}
+
+.block_compass .compass-news-title {
+    color: var(--block_compass-cal-text);
+    font-weight: 700;
+}
+
+.block_compass .compass-news-sum {
+    color: var(--block_compass-muted);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-news-groups {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.block_compass .compass-news-groups > li {
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* A group: its name cut to one line with its whole text in its title, and its count. */
+.block_compass .compass-news-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: 17.5rem;
+    min-height: 2.25rem;
+    padding: 0 0.375rem 0 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 999px;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-cal-text);
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.block_compass .compass-news-group.compass-news-group-one {
+    padding-right: 0.75rem;
+}
+
+.block_compass .compass-news-group:hover {
+    border-color: var(--block_compass-brand-ink);
+    text-decoration: none;
+}
+
+.block_compass .compass-news-gname {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.block_compass .compass-news-count {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.4375rem;
+    border-radius: 0.75rem;
+    background: var(--block_compass-news-fill);
+    color: var(--block_compass-news-fg);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.block_compass .compass-news-more {
+    min-height: 2.25rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 999px;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-brand-text);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.block_compass .compass-news-more:hover {
+    border-color: var(--block_compass-brand-ink);
+}
+
+.block_compass .compass-news-hide {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-inline-start: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0.5625rem;
+    background: transparent;
+    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-news-hide:hover {
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+}
+
+/* Below 640 px of block: the title row keeps the ×, and the summary and the groups wrap under it. */
+.block_compass .compass-news-narrow .compass-news-hide {
+    order: 1;
+}
+
+.block_compass .compass-news-narrow .compass-news-sum,
+.block_compass .compass-news-narrow .compass-news-groups {
+    flex-basis: 100%;
+    order: 2;
+}
+
+.block_compass .compass-news-narrow .compass-news-group {
+    max-width: 100%;
+    min-height: 2.5rem;
+}
+
+/* The compact sentence: muted, one line where it fits, "See" opening the popover. */
+.block_compass .compass-news.compass-news-compact {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.block_compass .compass-news-compact .compass-news-icon {
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 0.375rem;
+}
+
+.block_compass .compass-news-sentence {
+    min-width: 0;
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.375rem;
+}
+
+.block_compass .compass-news-lead {
+    display: inline;
+    margin: 0;
+    color: inherit;
+    font-size: inherit;
+    font-weight: 600;
+    line-height: inherit;
+}
+
+/* The popover under the line; a bottom sheet over a scrim below 640 px of block. */
+.block_compass .compass-news-pop {
+    position: absolute;
+    top: calc(100% + 0.375rem);
+    left: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 22rem;
+    max-width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.75rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-cal-text);
+    box-shadow: var(--block_compass-cal-shadow);
+}
+
+.block_compass .compass-news-pop.compass-news-sheet {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1055;
+    width: auto;
+    max-width: none;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 0.75rem 1rem 1.125rem;
+    border-radius: 1.125rem 1.125rem 0 0;
+}
+
+.block_compass .compass-news-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    background: color-mix(in oklab, var(--bs-black, #000) 35%, transparent);
+}
+
+.block_compass .compass-news-pophead {
+    margin: 0 0 0.25rem;
+    color: var(--block_compass-muted);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.block_compass .compass-news-poplist {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.block_compass .compass-news-poprow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.625rem;
+    min-height: 2.75rem;
+    padding: 0.375rem;
+    border-radius: 0.5rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-cal-text);
+    text-decoration: none;
+}
+
+.block_compass .compass-news-poprow:hover {
+    background: var(--block_compass-cal-soft);
+    color: var(--block_compass-cal-text);
+    text-decoration: none;
+}
+
+.block_compass .compass-news-popname {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.block_compass .compass-news-popcat,
+.block_compass .compass-news-popsub {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.block_compass .compass-news-popsub {
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+}
+
+.block_compass .compass-news-popfoot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+    margin-top: 0.25rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--block_compass-line);
+    font-size: 0.8125rem;
+}
+
+.block_compass .compass-news-all {
+    color: var(--block_compass-brand-text);
+    font-size: 0.875rem;
+}
+
+/* Tier 1's empty state: the lead, a tile per group, then the way to every course open for enrolment. */
+.block_compass .compass-news-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.625rem;
+    margin-top: 0.75rem;
+}
+
+.block_compass .compass-news-emptylead {
+    color: var(--block_compass-cal-text);
+    font-weight: 700;
+}
+
+.block_compass .compass-news-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    gap: 0.625rem;
+    align-self: stretch;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.block_compass .compass-news-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    height: 100%;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.625rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-cal-text);
+    text-decoration: none;
+}
+
+.block_compass .compass-news-tile:hover {
+    border-color: var(--block_compass-brand-ink);
+    text-decoration: none;
+}
+
+.block_compass .compass-news-tiletop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    font-weight: 600;
+}
+
+.block_compass .compass-news-tilename,
+.block_compass .compass-news-tilesub {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.block_compass .compass-news-tilesub {
+    color: var(--block_compass-muted);
+    font-size: 0.78rem;
+}
+
+.block_compass .compass-news-fail {
+    margin-top: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-news-wrap {
+        transition: none;
+    }
+}

@@ -118,6 +118,7 @@ final class block_compass_demo_seeder {
         $this->seed_users();
         $categories = $this->seed_categories();
         $this->seed_courses($categories);
+        $this->seed_open_courses($categories);
         $this->seed_enrolments();
         $this->seed_activities();
         $this->seed_submissions();
@@ -346,6 +347,92 @@ final class block_compass_demo_seeder {
                 );
             }
         }
+    }
+
+    /**
+     * The open-for-enrolment courses (ADR-017): key => [category key, full name, shortname, start in days].
+     *
+     * demo.student is enrolled in none of them. Health holds three, Technology two and Business one,
+     * so the line shows a group of one beside groups of several. Starts sit inside the default band
+     * (7 days back to 30 ahead) and are moved on every run.
+     *
+     * @return array
+     */
+    private static function open_courses(): array {
+        return [
+            'open_bioe' => ['health', 'Bioethics in Practice', 'OPEN-BIOE', -3],
+            'open_epid' => ['health', 'Introduction to Epidemiology', 'OPEN-EPID', 4],
+            'open_firs' => ['health', 'First Aid and Emergency Response', 'OPEN-FIRS', 15],
+            'open_dsgn' => ['technology', 'Interface Design Basics', 'OPEN-DSGN', 2],
+            'open_cloud' => ['technology', 'Cloud Computing Foundations', 'OPEN-CLOUD', 20],
+            'open_mark' => ['business', 'Marketing Fundamentals', 'OPEN-MARK', 9],
+        ];
+    }
+
+    /**
+     * Create (or re-date) the open courses, each with an enabled self enrolment accepting new
+     * enrolments, and one more that demo.teacher teaches (it must never show to demo.teacher).
+     *
+     * Course creation adds a disabled self instance; this enables it, or adds one, and opens it.
+     *
+     * @param array $categories key => category id.
+     * @return void
+     */
+    private function seed_open_courses(array $categories): void {
+        global $DB;
+
+        $self = enrol_get_plugin('self');
+        $roles = $DB->get_records_menu('role', null, '', 'shortname, id');
+        $rows = self::open_courses();
+        // The taught course: demo.teacher holds an enrolment, so the line never counts it.
+        $rows['open_taught'] = ['humanities', 'Medical Humanities Seminar', 'OPEN-TAUGHT', 6];
+        foreach ($rows as $key => [$category, $fullname, $shortname, $start]) {
+            $idnumber = self::PREFIX . '_' . $key;
+            $course = $DB->get_record('course', ['idnumber' => $idnumber]);
+            if (!$course) {
+                $course = create_course((object) [
+                    'category' => $categories[$category],
+                    'fullname' => $fullname,
+                    'shortname' => $shortname,
+                    'idnumber' => $idnumber,
+                    'summary' => '<p>Open for enrolment. (Compass demo data.)</p>',
+                    'summaryformat' => FORMAT_HTML,
+                    'format' => 'topics',
+                    'numsections' => 4,
+                    'startdate' => $this->at($start, '00:00'),
+                    'visible' => 1,
+                ]);
+                mtrace('Created course ' . $shortname);
+            } else {
+                $DB->set_field('course', 'startdate', $this->at($start, '00:00'), ['id' => $course->id]);
+            }
+            $instance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'self'], '*', IGNORE_MULTIPLE);
+            if (!$instance) {
+                $self->add_instance($course, ['roleid' => (int) $roles['student']]);
+                $instance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'self'], '*', MUST_EXIST);
+            }
+            // Open: enabled, new enrolments allowed, no dates and no key.
+            $DB->update_record('enrol', (object) [
+                'id' => $instance->id,
+                'status' => ENROL_INSTANCE_ENABLED,
+                'customint6' => 1,
+                'enrolstartdate' => 0,
+                'enrolenddate' => 0,
+                'password' => '',
+                'timemodified' => $this->now,
+            ]);
+            if ($key === 'open_taught') {
+                $manual = enrol_get_plugin('manual');
+                $minstance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'manual']);
+                if (!$minstance) {
+                    $manual->add_instance($course);
+                    $minstance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'manual'], '*', MUST_EXIST);
+                }
+                $manual->enrol_user($minstance, $this->users['demo.teacher'], (int) $roles['editingteacher']);
+            }
+        }
+        // The seeder writes the tables directly, so no event told the shared catalogue.
+        \block_compass\local\catalogue_cache::delete();
     }
 
     /**
@@ -959,7 +1046,9 @@ final class block_compass_demo_seeder {
             \block_compass\local\inventory::delete($userid);
             \block_compass\local\details::delete_many($userid, $courseids);
             \block_compass\local\calendar_cache::delete($userid);
+            \block_compass\local\news_cache::delete($userid);
         }
+        \block_compass\local\catalogue_cache::delete();
         foreach ($this->courses as $course) {
             \block_compass\local\course_meta::delete((int) $course->id);
         }

@@ -489,4 +489,74 @@ final class config {
 
         return $hours * HOURSECS;
     }
+
+    /** @var int[] The category depths the open-courses line may group under (ADR-017 decision 6). */
+    public const NEWS_DEPTHS = [1, 2, 3, 4];
+
+    /** @var int The grouping depth when nothing is stored: the top-level categories. */
+    public const DEFAULT_NEWS_DEPTH = 1;
+
+    /** @var int[] The days before today the open-courses band may reach back (ADR-017 decision 10). */
+    public const NEWS_PASTS = [0, 7, 14, 30];
+
+    /** @var int The days back when nothing is stored. */
+    public const DEFAULT_NEWS_PAST = 7;
+
+    /** @var int[] The days after today the open-courses band may reach ahead (ADR-017 decision 10). */
+    public const NEWS_AHEADS = [14, 30, 60, 90];
+
+    /** @var int The days ahead when nothing is stored. */
+    public const DEFAULT_NEWS_AHEAD = 30;
+
+    /**
+     * Whether the open-courses line is on: off unless an explicit 1 is stored (ADR-017 decision 1).
+     *
+     * @return bool
+     */
+    public static function news_enabled(): bool {
+        return (int) get_config('block_compass', 'news_enabled') === 1;
+    }
+
+    /**
+     * The category depth the open courses group under. An unset or unrecognised value means 1.
+     *
+     * @return int One of NEWS_DEPTHS.
+     */
+    public static function news_depth(): int {
+        return self::select_int('news_depth', self::NEWS_DEPTHS, self::DEFAULT_NEWS_DEPTH);
+    }
+
+    /**
+     * Days before today, in the site timezone, at which the band starts. An unset or unrecognised
+     * value means the default; a stored 0 is a choice (today only), never unset.
+     *
+     * @return int One of NEWS_PASTS.
+     */
+    public static function news_past(): int {
+        return self::select_int('news_past', self::NEWS_PASTS, self::DEFAULT_NEWS_PAST);
+    }
+
+    /**
+     * Days after today, in the site timezone, at which the band ends. An unset or unrecognised value
+     * means the default.
+     *
+     * @return int One of NEWS_AHEADS.
+     */
+    public static function news_ahead(): int {
+        return self::select_int('news_ahead', self::NEWS_AHEADS, self::DEFAULT_NEWS_AHEAD);
+    }
+
+    /**
+     * A select of integers, compared in the vocabulary's own spelling ({@see calendar_soon()}).
+     *
+     * @param string $name The setting's name.
+     * @param int[] $choices The vocabulary.
+     * @param int $default The value for an unset or unrecognised one.
+     * @return int
+     */
+    private static function select_int(string $name, array $choices, int $default): int {
+        $value = (string) get_config('block_compass', $name);
+
+        return in_array($value, array_map('strval', $choices), true) ? (int) $value : $default;
+    }
 }

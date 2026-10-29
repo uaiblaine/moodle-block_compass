@@ -78,6 +78,7 @@ const getStrip = /* @__PURE__ */ __name(() => read("block_compass_get_strip", {}
 const getStripCounts = /* @__PURE__ */ __name(() => read("block_compass_get_strip_counts", {}), "getStripCounts");
 const getDay = /* @__PURE__ */ __name((date, view) => read("block_compass_get_day", { date, view }), "getDay");
 const getSoon = /* @__PURE__ */ __name((view) => read("block_compass_get_soon", { view }), "getSoon");
+const getNews = /* @__PURE__ */ __name(() => read("block_compass_get_news", {}), "getNews");
 const setCalendarPreference = /* @__PURE__ */ __name(async (state) => {
   const repository = await amd("core_user/repository");
   await repository.setUserPreferences([{ name: "block_compass_calendar", value: JSON.stringify(state), userid: 0 }]);
@@ -115,6 +116,7 @@ export {
   getDay,
   getInventory,
   getInventoryRows,
+  getNews,
   getSoon,
   getStrip,
   getStripCounts,
