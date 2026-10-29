@@ -95,13 +95,19 @@ Breaking one is a design change: stop and raise it with the maintainer.
   events, no TTL), `inventory` (per user, enrolment rows as integers, no course data, stamp
   validation, 24 h TTL, deleted with the account), `details` (per user+course, 1 h TTL),
   `coursefields` and `filterfields` (ADR-009), `calendarstrip` (per user, the strip and its sets
-  for the sign-in, first day and timezone, 30 min TTL; ADR-014). **Never invalidate `inventory`,
-  `details` or `calendarstrip` from course or calendar events.** A `calendarstrip` entry is whole
+  for the sign-in, first day and timezone, 30 min TTL; ADR-014), `catalogue` (shared, one key, the
+  courses open for enrolment in the band, no TTL: per-key deletes from the nine course, enrol
+  instance and discoverability events, and its own `until`; ADR-017) and `news` (per user, the
+  open-courses groups, 30 min TTL, keyed to the sign-in, the band, the language, `news_depth` and
+  the catalogue's digest, deleted with the account). **Never invalidate `inventory`, `details`,
+  `calendarstrip` or `news` from course or calendar events.** A `calendarstrip` entry is whole
   or counted only (`past` false: no past, no days off, grading deferred without the ledger);
   `strip::complete()` adds the rest when the strip opens, the past to the entry's build instant.
   Names are formatted at response time with the filters of every shown context preloaded in one
   query (`filters.php`), in an explicit context, never `$PAGE`'s (a service leaves it on the user
-  context). Redis recommended for all seven.
+  context). **The one stated exception is `news`** (ADR-017, accepted 2026-10-29): its entry keeps
+  the category and course names already formatted, so a hit costs the floor; the entry is keyed to
+  the language and lives 30 minutes. Redis recommended for all nine.
 - **Stamp validation** (ADR-002): one statement of seven `userid`-indexed aggregates decides
   whether a cached inventory is valid; on a miss the stamp comes from the fill's own rows.
 - **Pre-warming** (ADR-003): the task is always scheduled and gated by `enable_prewarm` (never
@@ -122,8 +128,12 @@ Breaking one is a design change: stop and raise it with the maintainer.
   ≤ 66 learning (a new day re-validates the entry's stamp and groups, +2) (ADR-014 amendment 5);
   `get_soon` (ADR-016) never cached, its fixture stated in its budget test: learning 46 cold / 41 warm
   for three open items, teaching 16 / 11 (19 / 12 with the ledger), about 12 reads per open event
-  in the range, and a prune write adds none. Every service's floor is 2 reads (the per-request
-  preference reload and `validate_context()`'s context), so a "zero" through a service is 2.
+  in the range, and a prune write adds none. `get_news` (ADR-017; 14a's fixture, 20 band courses
+  over 4 categories): off 2, hidden 2, a fresh entry 2, a warm build 8, a cold build (catalogue
+  purged) 10, the provider's worst case (capped and cohort-restricted self instances) 10 warm / 12
+  cold, flat for 2 and 200 candidates; the hook dispatch and the URLs read nothing. Every service's
+  floor is 2 reads (the per-request preference reload and `validate_context()`'s context), so a
+  "zero" through a service is 2.
   `classes/local/budget.php` wraps `perf_get_reads()`; the measurement protocol (warm core,
   reset per-request state, purge the user's layers, keep the shared ones warm, measure the second
   call) is stated in each test's docblock. **No recordsets** (three reads on PostgreSQL, one on
@@ -157,13 +167,16 @@ line in tier 3 (table with dates in the long form).
 ```
 block_compass.php, index.php (the block's page, ADR-012), settings.php, lib.php (preference declarations,
                            the two archive icons), version.php
-classes/external/          nine READ functions in the USER context, all readonlysession, none accepting a
+classes/external/          ten READ functions in the USER context, all readonlysession, none accepting a
                            userid; writes go to core's own services from the browser
 classes/local/             THE ONLY place $DB is allowed: budget, config (reads get_config() every call),
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
                            inventory, explore, matcher, prewarm, dormancy, relationship, filter_fields,
                            course_fields, explore_preference, calendar_cache, calendar_preference,
-                           uninstall (the three preferences, which core's uninstall leaves)
+                           catalogue (the shared open catalogue, ADR-017) and catalogue_cache, news (the
+                           viewer's open-courses groups) and news_cache, category_link (the one door to
+                           the line's destinations, dispatching the hook once per response, catching
+                           \Throwable), uninstall (the three preferences, which core's uninstall leaves)
 classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
                            default active group, the counts pass and its completion, periods), day, grading
                            (mirrors count_submissions_need_grading_with_groups(), the list bound on s.assignment
@@ -174,12 +187,15 @@ classes/local/calendar/    the strip (ADR-014): strip (window, counted statement
 classes/observer.php       per-key deletes on course, category, completion, account and customfield events
 classes/hook_callbacks.php modulepreload hints (after the import map) and the start-page offer, each catching \Throwable
 classes/hook/course_badges.php the block's own hook, dispatched by local/theme_badges: course ids in, crests out
+classes/hook/category_link.php the block's own hook, dispatched by local/category_link: category ids and the band in,
+                           a local URL per id out (ADR-017 decision 8)
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
-                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext, calendar,
-                           rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
-                           str, types; .eslintrc is load-bearing
+                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext,
+                           OpenCourses (ADR-017's line), calendar, calendarpref (every member of block_compass_calendar,
+                           for every writer), rowdetails, repository, amd (the only file that knows RequireJS), notify,
+                           filter, heading, str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
 templates/ (block, page, preload), db/ (access, services, caches, events, tasks, hooks, uninstall; NO install.xml)
 docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each external test; generator)
@@ -201,8 +217,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   twin of `strip::periods()`). Then, open or closed, `get_soon` only when the view's gate lists
   open the gate (`calendar.ts` `gateOpens()`, the twin of `strip::gate_opens()`), else one timer
   to `gateNext()`; a minute timer only while an answer holds items, no request per tick, and a
-  new ask on `visibilitychange` after 15 min hidden (ADR-016, `UpNext.tsx`). Every write of
-  `block_compass_calendar` carries its `soon` member. The open/closed toggle is the `open` member of
+  new ask on `visibilitychange` after 15 min hidden (ADR-016, `UpNext.tsx`). `get_news` asks once,
+  after `get_attention` settles and, with the calendar on, after `get_strip_counts` (the line's
+  weight depends on the counts); no timer, no ask on `visibilitychange`, and nothing while the line
+  is hidden for this sign-in (the `news` member of `block_compass_calendar`; ADR-017). Every write of
+  `block_compass_calendar` carries its `soon` and `news` members (`calendarpref.ts` holds them all). The open/closed toggle is the `open` member of
   `block_compass_calendar`, written optimistically and put back with a notice on failure;
   `calendar_start` (default closed) decides for a viewer who never toggled, and the shell ships
   the state so the first paint has the right shape. The grading count comes from
@@ -213,7 +232,7 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   query. **Archived courses are the Course overview block's rows: never delete them on
   uninstall.** The plugin's own preference families are declared in `lib.php` and exported by
   the privacy provider in the same commit.
-- **Caches are wrapped, never called raw**: seven definitions, seven wrappers in `classes/local/`,
+- **Caches are wrapped, never called raw**: nine definitions, nine wrappers in `classes/local/`,
   no `invalidate()`, keys without `:`. An empty result is a cached value, not a miss (identity
   check against `false`); every per-user key carries the user id explicitly; deleting an account
   drops the per-user layers (`observer::user_deleted()` reads the cached entry first); every
@@ -236,11 +255,12 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `core_favourites\service_factory`; `course_category_updated` cannot tell a move from a rename
   (observer drops descendants); `user_deleted` fires after the enrolments are gone;
   `core_course_category::get_many()` is request-scoped, so the hot path reads `categorymeta`.
-- **Web services**: the fleet checklist; all nine are reads and declare `readonlysession`
+- **Web services**: the fleet checklist; all ten are reads and declare `readonlysession`
   (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip`, `get_day`
-  and `get_soon`; `get_strip_counts` never reaches core's vault; `get_soon`'s one write is the
+  and `get_soon`; `get_strip_counts` and `get_news` never reach core's vault; `get_soon`'s one write is the
   `calendarstrip` entry's gate lists, a MUC set, when it prunes them); course names through
-  `format_string(..., ['escape' => false])` before a `PARAM_TEXT` return; vocabularies checked
+  `format_string(..., ['escape' => false])` before a `PARAM_TEXT` return (`get_news` returns the
+  names its entry already formatted that way); vocabularies checked
   before any work; a request answerable without work returns before any check that could throw.
   One `cachedef_<name>` per definition (a missing one is fatal on 5.x); `{$a}` parity between
   lang files.
@@ -356,7 +376,7 @@ inherited Portuguese document.
 Manual only (`!mdlshield review` / `review full`, by the owner), 100 a month shared by every
 repo, 3,000 effective lines soft limit (`mdl mdlshield size`). Config and context read from
 `main` (the 5.3 branch) only; `moodle.versions: ["5.3"]`, so a review of a 5.2 pull request reads it as 5.3 code; `fail_on.severity: high`. Ask for a review early on any
-change to the seven services, the relationship door or the hooks, after the
+change to the ten services, the relationship door or the hooks, after the
 `security-diff-read` skill. Rules and reasons: fleet file, "MDL Shield reviews".
 
 ## When in doubt

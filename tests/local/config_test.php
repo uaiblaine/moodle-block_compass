@@ -58,6 +58,7 @@ final class config_test extends advanced_testcase {
             'default_view', 'dormant_months', 'filter_fields', 'enable_pending', 'show_category', 'enable_page',
             'calendar_enabled', 'calendar_where', 'calendar_sources', 'calendar_style', 'calendar_relevance',
             'calendar_start', 'calendar_grading', 'calendar_soon',
+            'news_enabled', 'news_depth', 'news_past', 'news_ahead',
         ];
         foreach ($names as $name) {
             unset_config($name, 'block_compass');
@@ -100,6 +101,10 @@ final class config_test extends advanced_testcase {
         $this->assertSame('closed', config::calendar_start());
         $this->assertSame('tracker', config::calendar_grading());
         $this->assertSame(6 * HOURSECS, config::calendar_soon());
+        $this->assertFalse(config::news_enabled());
+        $this->assertSame(1, config::news_depth());
+        $this->assertSame(7, config::news_past());
+        $this->assertSame(30, config::news_ahead());
     }
 
     /**
@@ -682,5 +687,53 @@ final class config_test extends advanced_testcase {
         $this->assertSame([], config::calendar_sources());
         set_config('calendar_sources', 'category,user,holidays,deadlines', 'block_compass');
         $this->assertSame(['deadlines', 'user', 'category'], config::calendar_sources());
+    }
+
+    /**
+     * The open-courses line is on only when an explicit 1 is stored (ADR-017 decision 1).
+     *
+     * @return void
+     */
+    public function test_the_open_courses_line_is_on_only_when_an_explicit_one_is_stored(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertFalse(config::news_enabled(), 'never set');
+        set_config('news_enabled', '1', 'block_compass');
+        $this->assertTrue(config::news_enabled());
+        foreach (['0', '', 'yes'] as $stored) {
+            set_config('news_enabled', $stored, 'block_compass');
+            $this->assertFalse(config::news_enabled(), "stored '{$stored}'");
+        }
+    }
+
+    /**
+     * The three open-courses selects keep only their vocabularies (ADR-017 decision 10); a stored 0
+     * days back is a choice, today only, never read as unset.
+     *
+     * @return void
+     */
+    public function test_the_open_courses_selects_keep_only_their_vocabulary(): void {
+        $this->resetAfterTest();
+        $this->forget_every_setting();
+
+        $this->assertSame([1, 2, 3, 4], config::NEWS_DEPTHS);
+        $this->assertSame([0, 7, 14, 30], config::NEWS_PASTS);
+        $this->assertSame([14, 30, 60, 90], config::NEWS_AHEADS);
+        $cases = [
+            'news_depth' => [config::NEWS_DEPTHS, ['0', '5', '2.0', '02', 'two', ''], 1],
+            'news_past' => [config::NEWS_PASTS, ['3', '-7', '7.0', '07', 'week', ''], 7],
+            'news_ahead' => [config::NEWS_AHEADS, ['0', '15', '30.0', '030', 'month', ''], 30],
+        ];
+        foreach ($cases as $name => [$choices, $refused, $default]) {
+            foreach ($choices as $choice) {
+                set_config($name, (string) $choice, 'block_compass');
+                $this->assertSame($choice, config::$name(), "{$name}: {$choice} is a choice");
+            }
+            foreach ($refused as $stored) {
+                set_config($name, $stored, 'block_compass');
+                $this->assertSame($default, config::$name(), "{$name}: '{$stored}' is not a choice");
+            }
+        }
     }
 }

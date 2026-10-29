@@ -198,6 +198,8 @@ export type BlockConfig = {
     // Present only where the calendar strip renders (ADR-014 decision 1): absent when the setting
     // is off or calendar_where leaves this surface out, and then nothing is mounted.
     calendar?: CalendarConfig,
+    // Present only while news_enabled is on (ADR-017 decision 1): absent, nothing is mounted or asked.
+    news?: NewsConfig,
 };
 
 /** The two views of the strip (decision 11): the courses the viewer is graded in, and the rest. */
@@ -218,7 +220,12 @@ export type CalendarState = {
     // Up next hidden by the viewer (ADR-016 decision 7), carried along by every write of the preference
     // so a toggle never drops it; absent when it is not hidden. JSON.stringify leaves an undefined out.
     soon?: SoonMember,
+    // The open-courses line hidden by the viewer (ADR-017 decision 9), carried along the same way.
+    news?: NewsMember,
 };
+
+/** The open-courses line hidden: the sign-in it holds for, as calendar_preference::news() validates it. */
+export type NewsMember = {signin: number};
 
 /**
  * Up next hidden: the level it was hidden at (1 soon, 2 imminent, 3 now) and the sign-in it holds for,
@@ -257,6 +264,67 @@ export type CalendarConfig = {
     // the calendar link's glyph and the two views' glyphs.
     icons: {prev: string, next: string, calendar: string, learning: string, teaching: string},
     strings: Record<string, string>,
+};
+
+/**
+ * The open-courses line's part of the shell's props (classes/output/block.php, news()).
+ *
+ * signin is the marker the line was hidden under during this sign-in, 0 when it shows; marker is this
+ * sign-in's own, which the hide writes. Its strings travel here rather than among the block's labels;
+ * without the calendar's props they carry the date strings too, and state and soon are the calendar's
+ * stored members, which a hide writes back.
+ */
+export type NewsConfig = {
+    enabled: boolean,
+    signin: number,
+    marker: number,
+    // Core's glyph, rendered by the shell with an empty alt (aria-hidden).
+    icon: string,
+    strings: Record<string, string>,
+    state?: CalendarState,
+    soon?: SoonMember | null,
+};
+
+/**
+ * One group of block_compass_get_news: a reference category, its formatted name and its count; for a
+ * group of one, the course and its formatted name (courseid 0 and an empty name otherwise). The url is
+ * the course's enrolment page for a group of one, else the category's (the block's hook decides).
+ */
+export type NewsGroup = {
+    categoryid: number,
+    name: string,
+    count: number,
+    url: string,
+    courseid?: number,
+    coursename?: string,
+};
+
+/**
+ * The whole block_compass_get_news answer (ADR-017 decision 5): the band's two days (Y-m-d, site
+ * timezone), the courses counted, the groups before the cut, whether the probe was cut, at most twenty
+ * groups and the link to every course open for enrolment.
+ */
+export type NewsAnswer = {
+    from: string,
+    to: string,
+    total: number,
+    groupcount: number,
+    truncated: boolean,
+    groups: NewsGroup[],
+    allurl: string,
+};
+
+/**
+ * What the calendar strip tells the block for the open-courses line's weight (ADR-017 decision 7), read
+ * from what it holds and never asked for: whether its counts have settled (answered or failed), whether
+ * Up next's first reading is over too, whether the drawn view counts work late, today or tomorrow, and
+ * whether Up next is showing.
+ */
+export type StripWeight = {
+    counted: boolean,
+    weighed: boolean,
+    busy: boolean,
+    upnext: boolean,
 };
 
 /** Every kind a day counts, in either view (strip::KINDS and strip::TEACHING_KINDS). */

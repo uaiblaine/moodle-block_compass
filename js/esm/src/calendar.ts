@@ -288,6 +288,23 @@ export const leastScroll = (index: number, row: RowFit, scroll: number, width: n
 /** The closed strip's periods, in the order the line names them (strip::PERIODS). */
 export const PERIOD_KEYS: PeriodKey[] = ['late', 'today', 'tomorrow', 'week', 'later'];
 
+/**
+ * The periods whose work makes the block busy for the open-courses line (ADR-017 decision 7): late work,
+ * today's and tomorrow's. The rest of the week and later leave it calm.
+ */
+export const BUSY_PERIODS: PeriodKey[] = ['late', 'today', 'tomorrow'];
+
+/**
+ * Whether the counts in hand say the drawn view is busy: something late, today or tomorrow. Read from the
+ * closed line's counts or the open strip's payload summed (countsOf()), never asked for.
+ *
+ * @param {object} counts The counts.
+ * @param {string} view The drawn view.
+ * @returns {boolean} Whether any of the busy periods counts work.
+ */
+export const busyOf = (counts: StripCounts, view: CalendarView): boolean =>
+    counts.views[view].periods.some((period) => BUSY_PERIODS.includes(period.key) && period.count > 0);
+
 /** Days after tomorrow that "This week" spans (strip::WEEK_DAYS). */
 const WEEK_DAYS = 5;
 

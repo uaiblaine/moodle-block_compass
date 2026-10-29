@@ -37,12 +37,15 @@ use core_privacy\local\request\writer;
  * Everything else it shows is core's — courses, enrolments, favourites, the archived-course
  * preferences of the Course overview block — and stays core's to export and to delete.
  *
- * Three caches keyed by user hold copies derived from that core data: the inventory (each
- * enrolment's dates and status, the last access, the star), the progress per course, and the
- * calendar strip (counts per day of core's calendar events, completion and grading). They are
- * not exported, since they say nothing core's own export does not. When an account is
+ * Four caches keyed by user hold copies derived from that core data: the inventory (each
+ * enrolment's dates and status, the last access, the star), the progress per course, the
+ * calendar strip (counts per day of core's calendar events, completion and grading) and the
+ * open-courses line (the courses open for enrolment the user holds no row or role in, ADR-017).
+ * They are not exported, since they say nothing core's own export does not. When an account is
  * deleted, {@see \block_compass\observer::user_deleted()} drops the user's inventory entry, the
- * progress entries of every course it lists and the calendar strip entry. Whatever the observer cannot reach is bounded
+ * progress entries of every course it lists, the calendar strip entry and the open-courses entry.
+ * The calendar preference's news member, the sign-in the user hid that line for, is part of the
+ * preference and exported with it. Whatever the observer cannot reach is bounded
  * by the TTLs in db/caches.php: an hour for progress in a course no cached inventory entry
  * lists, a day for an inventory entry left behind by any deletion that does not go through
  * delete_user().
