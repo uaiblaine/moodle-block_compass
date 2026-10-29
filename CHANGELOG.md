@@ -19,12 +19,6 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   learner with open courses in the band and a course they teach, the demo seed's `compassdemo_open_*`
   courses, the `news` screenshot shot and the README's bullet, four settings and two caches.
 
-### Fixed
-
-- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
-  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
-- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
-  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
 - Open for enrolment, the client (2026100513; ADR-017 stage 14d). With `news_enabled` on, the
   block draws a line of its own, *Open for enrolment*: how many courses the viewer could join start
   by the band's last day, up to three categories as links (a category of one names its course),
@@ -61,6 +55,21 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   page; with no listener, the line links to core's category pages. The `block_compass_calendar`
   preference gains its `news` member (`{signin}`, the line hidden until the next sign-in), exported
   with the rest of the preference.
+### Fixed
+
+- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
+  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
+- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
+  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
+- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
+  (2026100511). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
+  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
+  downloading, so RequireJS fetched it again under the module's name. The block's one door to
+  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
+- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
+  `block_compass_calendar` preferences (`db/uninstall.php`, 2026100508): core's uninstall drops
+  the settings, the task and the caches but leaves user preferences. The Course overview block's
+  archive rows stay, since they are that block's.
 
 ### Changed
 
@@ -81,13 +90,6 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   id, so every selector of `styles.css` names the plugin. The README gains *Data stored*,
   *Settings* and *Translations* sections and lists the ninth web service, `block_compass_get_soon`.
   `tests/marketplace_readiness_test.php`, the fleet's copy, holds these rules.
-
-### Fixed
-
-- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
-  `block_compass_calendar` preferences (`db/uninstall.php`, 2026100508): core's uninstall drops
-  the settings, the task and the caches but leaves user preferences. The Course overview block's
-  archive rows stay, since they are that block's.
 
 ## v5.3-r1 (2026100507) - 2026-10-22
 
