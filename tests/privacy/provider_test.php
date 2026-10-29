@@ -161,7 +161,8 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
     }
 
     /**
-     * The remembered calendar strip, open or closed included, is exported as the JSON the viewer's own browser wrote.
+     * The remembered calendar strip, open or closed included, is exported as the JSON the viewer's own browser wrote,
+     * Up next's soon member and the open-courses line's news member (ADR-017 decision 9) with it.
      *
      * The first half is the control: a viewer with no stored state has nothing to export.
      *
@@ -174,7 +175,8 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
         provider::export_user_preferences((int) $user->id);
         $this->assertFalse(writer::with_context(\context_system::instance())->has_any_data());
 
-        $json = '{"view":"teaching","filter":"events","relevance":false,"open":true}';
+        $json = '{"view":"teaching","filter":"events","relevance":false,"open":true,'
+            . '"soon":{"rank":2,"signin":1700000000},"news":{"signin":1700000000}}';
         set_user_preference('block_compass_calendar', $json, $user);
         provider::export_user_preferences((int) $user->id);
         $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');

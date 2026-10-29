@@ -53,7 +53,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * path. get_strip_counts gets no tolerance: its counts pass never reaches core's vault. Every other
  * key still fails; test_the_tolerance_is_one_key_for_the_vault_services is the control. get_soon is
  * the third: its learning view is get_day's pipeline over a range (day::learning_kept()), the same
- * api::get_events() call.
+ * api::get_events() call. get_news gets no tolerance either: it reads the catalogue, the provider's
+ * next actions and listing filter, and dispatches the category_link hook, none of which reaches the
+ * vault.
  *
  * @package    block_compass
  * @category   test
@@ -69,6 +71,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 #[CoversClass(get_strip_counts::class)]
 #[CoversClass(get_day::class)]
 #[CoversClass(get_soon::class)]
+#[CoversClass(get_news::class)]
 final class readonly_session_test extends advanced_testcase {
     /** @var string[] Services that reach core's calendar filter memo, and may add the one key below. */
     private const CALENDAR_SERVICES = ['block_compass_get_strip', 'block_compass_get_day', 'block_compass_get_soon'];
@@ -102,6 +105,7 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_get_strip_counts',
             'block_compass_get_day',
             'block_compass_get_soon',
+            'block_compass_get_news',
         ];
 
         return array_combine($names, array_map(fn(string $name): array => [$name], $names));
@@ -155,7 +159,7 @@ final class readonly_session_test extends advanced_testcase {
      */
     public function test_every_service_is_a_read_declared_read_only(): void {
         $functions = self::declared_functions();
-        $this->assertCount(9, $functions);
+        $this->assertCount(10, $functions);
 
         foreach (array_keys($functions) as $name) {
             $this->assertSame('read', $functions[$name]['type'], $name);
@@ -219,7 +223,7 @@ final class readonly_session_test extends advanced_testcase {
      */
     #[DataProvider('service_provider')]
     public function test_a_read_only_service_leaves_the_session_untouched(string $name): void {
-        global $CFG;
+        global $CFG, $DB;
 
         $this->resetAfterTest();
         $gen = $this->getDataGenerator();
@@ -251,6 +255,16 @@ final class readonly_session_test extends advanced_testcase {
         $plugin->access_at((int) $user->id, (int) $courses['recent']->id, $now - HOURSECS);
         $plugin->favourite((int) $user->id, (int) $courses['starred']->id);
         $plugin->hide((int) $user->id, (int) $courses['archived']->id);
+        if ($name === 'block_compass_get_news') {
+            // A course the user could join: listed, visible, starting tomorrow, a self instance open now.
+            set_config('news_enabled', 1, 'block_compass');
+            $open = $gen->create_course(['category' => $category->id, 'startdate' => $now + DAYSECS, 'enddate' => 0]);
+            enrol_get_plugin('self')->add_instance($open, [
+                'status' => ENROL_INSTANCE_ENABLED,
+                'customint6' => 1,
+                'roleid' => (int) $DB->get_field('role', 'id', ['shortname' => 'student']),
+            ]);
+        }
         $this->setUser($user);
 
         $args = match ($name) {
@@ -265,7 +279,10 @@ final class readonly_session_test extends advanced_testcase {
         };
         $CFG->enable_read_only_sessions = true;
         set_config('calendar_enabled', 1, 'block_compass');
-        $definitions = ['coursemeta', 'categorymeta', 'coursefields', 'filterfields', 'inventory', 'details', 'calendarstrip'];
+        $definitions = [
+            'coursemeta', 'categorymeta', 'coursefields', 'filterfields', 'inventory', 'details', 'calendarstrip',
+            'catalogue', 'news',
+        ];
         foreach ($definitions as $definition) {
             cache::make('block_compass', $definition)->purge();
         }
@@ -294,6 +311,8 @@ final class readonly_session_test extends advanced_testcase {
             'block_compass_get_day' => $this->assertSame('learning', $data['view']),
             // A horizon above 0 is the control that the domain ran rather than the off answer.
             'block_compass_get_soon' => $this->assertGreaterThan(0, $data['horizon']),
+            // The course the user could join is listed: the catalogue and the entry were built.
+            'block_compass_get_news' => $this->assertSame(1, $data['total']),
         };
         $this->assertSame([], self::unexpected_keys($name, self::changed_keys($before, $after)), "$name changed \$SESSION");
     }

@@ -33,6 +33,9 @@
  * calendar-styles.png; pulse also writes calendar-pulse.png and calendar-pulse-card.png). Output goes to the
  * parent directory, docs/screenshots/, or to COMPASS_OUT.
  *
+ * The news shot (open-courses.png) needs news_enabled=1 and the seeder's open courses; it waits for the line's
+ * data and says on stdout whether it got the full line or the compact sentence.
+ *
  * The tier 3 shots (explore, filtered, search, filters, organise, preview, phone, narrow) write
  * explore.png and explore-<shot>.png. The filter line remembers its scope, star, fields, sort and
  * panel per user (block_compass_explore): a shot that presses a filter releases it before it ends.
@@ -324,6 +327,33 @@ const SHOTS = {
         save('calendar-line.png', await page.shot(await page.box(STRIP, 12)));
     },
 
+    // Open for enrolment (ADR-017) under the closed line, for demo.student. The line is drawn full only on a calm
+    // day (nothing late, due today or tomorrow, no Up next); the seeded week is busy, so the shot is usually the
+    // compact sentence, and it says which one it got. A calm picture needs the strip's tomorrow and today empty.
+    async news(browser) {
+        const page = await open(browser, 'demo.student', '/my/', {strip: 'closed'});
+        await page.until(`document.querySelector('.block_compass .compass-news-wrap-open')`, 30000);
+        await sleep(800);
+        const compact = await page.eval(`!!document.querySelector('.block_compass .compass-news-compact')`);
+        if (compact) {
+            // eslint-disable-next-line no-console
+            console.log('NOTE open-courses.png: the compact sentence (a busy day) with its list open; the full line shows on a calm one');
+            // A busy day puts the sentence under tier 1's first strip, or below it while Up next shows: the picture is
+            // the sentence and the list its "See" opens, not the strip above it.
+            await page.eval(`document.querySelector('.block_compass .compass-news-compact').scrollIntoView({block: 'center'})`);
+            await sleep(300);
+            // A script click: the pointer helper aims at viewport coordinates, which the scroll above moved.
+            await page.eval(`document.querySelector('.block_compass .compass-news-compact .compass-news-see').click()`);
+            await page.until(`document.querySelector('.block_compass .compass-news-pop')`, 10000);
+            await sleep(400);
+            await page.mouseAway();
+            save('open-courses.png', await page.shot(await page.box(['.compass-news-wrap-open', '.compass-news-pop'], 12)));
+            return;
+        }
+        await page.mouseAway();
+        save('open-courses.png', await page.shot(await page.box([...STRIP, '.compass-news-wrap-open'], 12)));
+    },
+
     // Up next under the closed line: the assignments about to close and the event on now, the strip and the section boxed.
     async soon(browser) {
         const page = await open(browser, 'demo.student', '/my/', {strip: 'closed'});
@@ -546,7 +576,7 @@ const SHOTS = {
     },
 };
 
-const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'soon', 'lineteaching', 'dim', 'dark', 'explore', 'filtered', 'search',
+const DEFAULT = ['dashboard', 'strip', 'card', 'teaching', 'line', 'soon', 'news', 'lineteaching', 'dim', 'dark', 'explore', 'filtered', 'search',
     'filters', 'organise', 'preview', 'phone', 'narrow', 'page', 'mobile', 'settings'];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : DEFAULT;
 const browser = await launch();

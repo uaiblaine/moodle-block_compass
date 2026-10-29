@@ -290,3 +290,61 @@ Feature: The Compass block puts the courses that need attention first
     And ".compass-page h1.visually-hidden" "css_element" should exist
     And I should see "Continue where you left off" in the ".compass-page" "css_element"
     And the ".compass-page" "css_element" should meet accessibility standards with "best-practice" extra tests
+
+  @javascript
+  Scenario: The open-for-enrolment line lists a course I can join and never one I teach, opens its page and hides until the next sign-in
+    # The calendar stays off (its default), so the line is drawn full at the top of the content: its
+    # place does not depend on the strip's counts. The courses below are created after the status is
+    # set, so the self enrolment instance that course creation adds by default starts enabled and open
+    # to new enrolments (the plugin's default status is disabled). Background's C1 to C3 were created
+    # before it, with the instance disabled, and student1 is enrolled in them anyway.
+    Given the following config values are set as admin:
+      | news_enabled | 1 | block_compass |
+      | status       | 0 | enrol_self    |
+    And the following "categories" exist:
+      | name       | category | idnumber |
+      | Cat Open   | 0        | CATOPEN  |
+      | Cat Solo   | 0        | CATSOLO  |
+      | Cat Taught | 0        | CATTEACH |
+    And the following "courses" exist:
+      | fullname      | shortname | category | startdate    |
+      | Open course 1 | OPEN1     | CATOPEN  | ##tomorrow## |
+      | Open course 2 | OPEN2     | CATOPEN  | ##tomorrow## |
+      | Solo course   | SOLO      | CATSOLO  | ##tomorrow## |
+      | Taught course | TAUGHT    | CATTEACH | ##tomorrow## |
+    # student1 is a teacher of TAUGHT, whose self enrolment is as open as the others': the line must
+    # name its category nowhere, because the user already holds an enrolment there.
+    And the following "course enrolments" exist:
+      | user     | course | role           |
+      | student1 | TAUGHT | editingteacher |
+    And I am on the "C1" "Course" page logged in as "student1"
+    And I follow "Dashboard"
+    And I turn editing mode on
+    And I add the "Compass" block
+    And I turn editing mode off
+    # Three courses are open to student1, in two categories: the group of two is a link named by its
+    # accessible label and carries the count, the group of one names its course.
+    # TAUGHT is a card of tier 1 like any enrolment, so the line's claims are scoped to the line.
+    Then I should see "Open for enrolment" in the "//section[contains(@class, 'compass-news')]" "xpath_element"
+    And I should see "3 courses start by" in the "//section[contains(@class, 'compass-news')]" "xpath_element"
+    And "//a[@aria-label='Cat Open: 2 courses open for enrolment']" "xpath_element" should exist
+    And I should see "2" in the "//a[@aria-label='Cat Open: 2 courses open for enrolment']" "xpath_element"
+    And I should see "Cat Solo · Solo course" in the "//section[contains(@class, 'compass-news')]" "xpath_element"
+    And I should not see "Cat Taught" in the "//section[contains(@class, 'compass-news')]" "xpath_element"
+    And I should not see "Taught course" in the "//section[contains(@class, 'compass-news')]" "xpath_element"
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
+    # A group of one leads to the course's enrolment page, and back returns to the Dashboard.
+    When I click on "Cat Solo · Solo course" "link" in the "Compass" "block"
+    Then I should see "Enrolment options"
+    And I should see "Solo course"
+    When I press the "back" button in the browser
+    Then I should see "3 courses start by" in the "//section[contains(@class, 'compass-news')]" "xpath_element"
+    # The × hides the line at once and writes the hiding to the sign-in marker, so a reload keeps it
+    # hidden. The page is back (tier 1 is drawn) before the absence is asserted.
+    When I click on "Hide until the next sign-in" "button" in the "Compass" "block"
+    Then I should not see "Open for enrolment" in the "Compass" "block"
+    When I reload the page
+    Then I should see "Continue where you left off" in the "Compass" "block"
+    And I should not see "Open for enrolment" in the "Compass" "block"
+    And "//section[contains(@class, 'compass-news')]" "xpath_element" should not exist
+    And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests

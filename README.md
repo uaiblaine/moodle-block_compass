@@ -17,6 +17,14 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
 - **Calendar strip** (optional). Closed, one line of counts by period; open, a scrolling row of
   days, from ten days ago to the end of next month (it opens on the last five, three on a
   phone), each coloured by what it holds and weighted by relevance. Pointing at a day opens its items with the actions the Timeline block offers.
+- **Open for enrolment** (optional, `news_enabled`). A line of its own that tells each user
+  which courses they could join start soon, grouped by a reference category (a category of one
+  names its course), with a link to each and a × that hides it until the next sign-in. It counts
+  only courses that are visible and listed, start inside a band of days around today and offer
+  the user a way to enrol now, and never one where the user already holds an enrolment of any
+  status or a role.
+
+  ![The open-for-enrolment line: a title, how many courses start by a date, the categories as links with their counts and a button that hides the line](docs/screenshots/open-courses.png)
 - **Tier 1, attention.** Full cards (image, progress, button) in four strips: *Continue where
   you left off*, *New enrolments*, *Starts soon* and *My favourites*. A strip that overflows
   says so in its heading ("+4 new").
@@ -301,6 +309,15 @@ Settings
 | `calendar_start` | closed | How the strip first shows to someone who never opened or closed it: open (the row of days) or closed (counts by period). |
 | `calendar_grading` | Feedback Flow where it tracks the course | Offered only with `block_feedback_tracker`: where the teaching view's count of submissions waiting comes from. |
 
+**Open for enrolment**
+
+| Setting | Default | What it does |
+|---|---|---|
+| `block_compass/news_enabled` | off | Show the line. Off, it costs no request and no query. |
+| `block_compass/news_depth` | 1 | The category level, counted from the top, that courses group under (1 to 4). A course in a shallower category groups under its own. |
+| `block_compass/news_past` | 7 days | How many days after its start date a course still counts (none: from today, 7, 14 or 30), in the site timezone. |
+| `block_compass/news_ahead` | 30 days | How many days after today a start date still counts (14, 30, 60 or 90), in the site timezone. |
+
 **`block_feedback_tracker` integration.** When that plugin is installed, the strip reads its
 academic calendar for weekends, holidays, recesses and school days on a weekend; without it,
 weekends are core's *Weekend days* calendar setting. It also counts the submissions waiting to be
@@ -327,8 +344,8 @@ multi-node site without one, the cron node warms a file cache no web node reads.
 
 ### Cache stores
 
-Compass keeps seven MUC application caches (`coursemeta`, `categorymeta`, `coursefields`,
-`filterfields`, `inventory`, `details`, `calendarstrip`). Map all seven to a **shared in-memory
+Compass keeps nine MUC application caches (`coursemeta`, `categorymeta`, `coursefields`,
+`filterfields`, `inventory`, `details`, `calendarstrip`, `catalogue`, `news`). Map all nine to a **shared in-memory
 store, Redis by preference**, under *Site administration > Plugins > Caching > Configuration*:
 add a Redis store instance, then use *Edit mappings* on each Compass definition, or set the
 store as the default application store. The block works without it, but every web node then
@@ -403,10 +420,12 @@ Data stored
 |---|---|---|---|---|
 | `block_compass_view` | User preference | The view of *All courses* the user chose: list or cards. | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_explore` | User preference | The filter line of *All courses* as the user left it: scope, star, filters, sort and whether the panel is open (never the search text). | Until changed | Uninstalling the plugin; deleting the account |
-| `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next, for that sign-in. | Until changed | Uninstalling the plugin; deleting the account |
+| `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next and whether the user hid the open-for-enrolment line, each for that sign-in. | Until changed | Uninstalling the plugin; deleting the account |
 | `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star), no course data. | 24 hours | Its TTL; deleting the account; purging caches |
 | `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; deleting the account; purging caches |
 | `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link) and the sign-in marker, language and catalogue digest it was built from. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `catalogue` | MUC cache, shared | The courses that are visible and listed, start inside the band and offer an enrolment route open now: course, category and start date, up to 500. No personal data. | Rebuilt after a course, enrolment method or discoverability change, and at most every 10 minutes | Core's events; purging caches |
 | `coursemeta`, `categorymeta`, `coursefields`, `filterfields` | MUC caches, shared | Course and category names, dates and custom field values: no personal data. | Until the course, category or field changes | Core's events; purging caches |
 | `prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep` | Plugin configuration | Where the pre-warming task stopped (a user id), the activity window it walks and when it last finished a sweep. Site state. | Until the next run | Uninstalling the plugin |
 
@@ -455,7 +474,7 @@ Troubleshooting
 
 - **The block is not shown.** It renders only for logged-in, non-guest users.
 - **"JavaScript is required".** The browser renders the block; JavaScript is not optional.
-- **Slow Dashboard on a large site.** Check that the seven cache definitions are mapped to a
+- **Slow Dashboard on a large site.** Check that the nine cache definitions are mapped to a
   shared in-memory store, not the default file store.
 - **All courses opens with every group closed.** The learner has more than `inventory_max`
   courses: that is paged mode.

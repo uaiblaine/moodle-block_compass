@@ -99,4 +99,12 @@ $functions = [
         'ajax' => true,
         'readonlysession' => true,
     ],
+    'block_compass_get_news' => [
+        'classname' => 'block_compass\\external\\get_news',
+        'methodname' => 'execute',
+        'description' => 'Open for enrolment: the groups of courses the current user could join, starting in the band.',
+        'type' => 'read',
+        'ajax' => true,
+        'readonlysession' => true,
+    ],
 ];

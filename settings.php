@@ -290,6 +290,59 @@ if ($ADMIN->fulltree) {
         ));
     }
 
+    // The open-courses line (ADR-017): off by default, and free while off.
+    $settings->add(new admin_setting_heading(
+        'block_compass/news',
+        get_string('news', 'block_compass'),
+        get_string('news_desc', 'block_compass')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'block_compass/news_enabled',
+        get_string('news_enabled', 'block_compass'),
+        get_string('news_enabled_desc', 'block_compass'),
+        0
+    ));
+
+    // Selects, each compared against its vocabulary in config; one literal string per label shape.
+    $newsdepths = [];
+    foreach (\block_compass\local\config::NEWS_DEPTHS as $depth) {
+        $newsdepths[$depth] = get_string('news_depth_level', 'block_compass', $depth);
+    }
+    $settings->add(new admin_setting_configselect(
+        'block_compass/news_depth',
+        get_string('news_depth', 'block_compass'),
+        get_string('news_depth_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_NEWS_DEPTH,
+        $newsdepths
+    ));
+
+    $newspasts = [];
+    foreach (\block_compass\local\config::NEWS_PASTS as $days) {
+        $newspasts[$days] = $days === 0
+            ? get_string('news_past_today', 'block_compass')
+            : get_string('news_days', 'block_compass', $days);
+    }
+    $settings->add(new admin_setting_configselect(
+        'block_compass/news_past',
+        get_string('news_past', 'block_compass'),
+        get_string('news_past_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_NEWS_PAST,
+        $newspasts
+    ));
+
+    $newsaheads = [];
+    foreach (\block_compass\local\config::NEWS_AHEADS as $days) {
+        $newsaheads[$days] = get_string('news_days', 'block_compass', $days);
+    }
+    $settings->add(new admin_setting_configselect(
+        'block_compass/news_ahead',
+        get_string('news_ahead', 'block_compass'),
+        get_string('news_ahead_desc', 'block_compass'),
+        \block_compass\local\config::DEFAULT_NEWS_AHEAD,
+        $newsaheads
+    ));
+
     // Pre-warming: the scheduled task is always registered and gated by enable_prewarm below.
     $settings->add(new admin_setting_heading(
         'block_compass/prewarm',
