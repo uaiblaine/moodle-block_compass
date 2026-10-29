@@ -52,7 +52,13 @@ declare global {
 }
 
 /**
- * Load one AMD module through RequireJS.
+ * Load one AMD module through RequireJS, once core/first has loaded.
+ *
+ * With the JS cache on, lib/requirejs.php answers every module name that is not lazy with the
+ * whole AMD bundle, and the page reaches it as core/first. A component can run while that bundle
+ * is still downloading, and RequireJS, not yet told the module is inside it, would fetch the
+ * module by its own name: a second copy of the bundle. The footer has already asked for
+ * core/first, so waiting for it costs no request.
  *
  * @param {string} name AMD module name, e.g. 'core/notification'.
  * @returns {Promise} Resolves with the module, rejects when RequireJS is absent or the load fails.
@@ -63,5 +69,5 @@ export const amd = <T>(name: string): Promise<T> => new Promise<T>((resolve, rej
         reject(new Error(`block_compass: RequireJS is not on this page, cannot load ${name}`));
         return;
     }
-    loader([name], (loaded: unknown) => resolve(loaded as T), reject);
+    loader(['core/first'], () => loader([name], (loaded: unknown) => resolve(loaded as T), reject), reject);
 });
