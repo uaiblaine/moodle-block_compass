@@ -136,4 +136,33 @@ $definitions = [
         'staticaccelerationsize' => 2,
         'ttl' => 1800,
     ],
+
+    // The open catalogue (ADR-017 decision 4). One key for the whole site. Value: at most
+    // catalogue::CATALOGUE_LIMIT rows [courseid, categoryid, startdate] that may be named on a push surface,
+    // start in the band and have an offering instance open now; the truncated flag, the build
+    // instant, the instant the answer changes without an event (until), the band settings, the site
+    // timezone and a digest of the rows. Served while now < until and the band and timezone are
+    // unchanged; deleted per key by the course, enrol instance and discoverability observers. No
+    // personal data, shared by every user, no TTL.
+    'catalogue' => [
+        'mode' => \core_cache\store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 1,
+    ],
+
+    // The open courses for one viewer (ADR-017 decision 5). Key: userid. Value: at most 20 groups
+    // (category id, formatted name, count, and for a group of one its course), the band's days, the
+    // sign-in marker, the language, the catalogue digest it was built from and the build instant.
+    // Never invalidated from course events (the user-layer rule above): a changed catalogue changes
+    // the digest, and what is only the viewer's waits for the TTL. Dropped with the account.
+    'news' => [
+        'mode' => \core_cache\store::MODE_APPLICATION,
+        'simplekeys' => true,
+        'simpledata' => true,
+        'staticacceleration' => true,
+        'staticaccelerationsize' => 2,
+        'ttl' => 1800,
+    ],
 ];
