@@ -373,6 +373,7 @@ $string['news_enabled_desc'] = 'Desligada, a linha não custa nada: nenhuma requ
 $string['news_error'] = 'Não foi possível carregar os cursos com inscrição aberta.';
 $string['news_group_label'] = '{$a->name}: {$a->count} cursos com inscrição aberta';
 $string['news_hide'] = 'Ocultar até o próximo acesso';
+$string['news_hide_short'] = 'Ocultar';
 $string['news_hideerror'] = 'Não foi possível ocultar a linha, então ela voltou.';
 $string['news_more'] = '+{$a}';
 $string['news_past'] = 'Dias para trás';

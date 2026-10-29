@@ -80,6 +80,9 @@ body[data-bs-theme="dark"] .block_compass,
     --block_compass-scheduled-text: var(--bs-body-color, #dee2e6);
     --block_compass-awaiting-bg: var(--bs-warning-bg-subtle, #3a2c0c);
     --block_compass-awaiting-text: var(--bs-body-color, #dee2e6);
+    /* The open-courses panel's warm gradient stop and the sand of its middle sparkle (decoration). */
+    --block_compass-news-warm: #24211d;
+    --block_compass-news-sand: #e8c67a;
 }
 
 /* Bootstrap's outline buttons inside the block, in dark mode. A card's "Continue" or "Access" is
@@ -3710,19 +3713,30 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 /*
  * Open for enrolment (ADR-017, OpenCourses.tsx): the courses the viewer could join, drawn by the block in
- * one of three shapes (decision 7): the full line under the calendar or at the top of the content, the
- * compact sentence when the block is busy or Up next shows, the tiles of tier 1's empty state.
+ * one of three shapes (decision 7), all three in one panel (round 2, docs/mockup-new-courses/Rodada2.dc.html):
+ * the full line under the calendar or at the top of the content, the slim panel when the block is busy or
+ * Up next shows, the head and tiles of tier 1's empty state.
+ *
+ * The panel is a gradient from a warm stop through the surface to the primary's subtle tint, a soft
+ * border, three static sparkles (decoration: aria-hidden, no text, the only opacity among these rules),
+ * the head (the icon's tile, the eyebrow, the summary), a labelled close in its corner and the groups on a
+ * row of their own. The eyebrow is sentence case, weight alone emphasises it. The accent is the primary's
+ * ink (--block_compass-news-accent) and its text the ink pulled towards the body text (-news-fg), one
+ * pair the contrast test computes on every stop of the gradient, light and dark, for two brands. Counts
+ * use tabular figures.
  *
  * It arrives as Up next does, growing from no height to its own (grid rows from 0fr to 1fr, the content
  * clipped), so tier 1 slides down rather than jumps, and at once under reduced motion. The popover hangs
- * from the anchor beside the clip, never inside it. The count chip and the icon's tile are a tint of the
- * primary, never the calendar's heat, which belongs to obligations; their text is the primary's ink pulled
- * towards the body text, one pair the contrast test computes in light and dark for two brands. Counts use
- * tabular figures.
+ * from the anchor beside the clip, never inside it.
  */
 .block_compass {
-    --block_compass-news-fill: color-mix(in oklab, var(--block_compass-brand-ink) 12%, var(--block_compass-surface));
-    --block_compass-news-fg: color-mix(in oklab, var(--block_compass-brand-ink) 72%, var(--block_compass-cal-text));
+    --block_compass-news-accent: var(--block_compass-brand-ink);
+    --block_compass-news-tint: color-mix(in oklab, var(--block_compass-news-accent) 12%, var(--block_compass-surface));
+    --block_compass-news-subtle: var(--bs-primary-bg-subtle, var(--block_compass-news-tint));
+    --block_compass-news-fill: var(--block_compass-news-subtle);
+    --block_compass-news-fg: color-mix(in oklab, var(--block_compass-news-accent) 72%, var(--block_compass-cal-text));
+    --block_compass-news-warm: #fdfbf7;
+    --block_compass-news-sand: #8a6420;
 }
 
 .block_compass .compass-news-anchor {
@@ -3746,46 +3760,179 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     overflow: hidden;
 }
 
-/* The line: the icon, the title, the summary, up to three groups, "+N" and the × at its end. */
+/* Room around the panel, inside the clip so the insertion animates it too: the heading that follows
+   never sits on the panel's edge. */
+.block_compass .compass-news-inner > .compass-news {
+    margin: 0.25rem 0 1rem;
+}
+
+/* The panel: the container of all three shapes. */
 .block_compass .compass-news {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.375rem 0.625rem;
+    flex-direction: column;
+    gap: 0.875rem;
     margin-top: 0.75rem;
-    padding: 0.125rem;
+    padding: 1.125rem 1.375rem 1.25rem;
+    overflow: hidden;
+    border: 1px solid var(--bs-secondary-bg, #e9ecef);
+    border-radius: 1rem;
+    background:
+        linear-gradient(
+            135deg,
+            var(--block_compass-news-warm) 0%,
+            var(--block_compass-surface) 60%,
+            var(--block_compass-news-subtle) 100%
+        );
     color: var(--block_compass-cal-text);
+}
+
+/* The sparkles sit under the content: whatever is positioned after them paints above. */
+.block_compass .compass-news-head,
+.block_compass .compass-news-groups,
+.block_compass .compass-news-tiles,
+.block_compass .compass-news-foot,
+.block_compass .compass-news-sentence,
+.block_compass .compass-news-see {
+    position: relative;
+}
+
+.block_compass .compass-news-spark {
+    position: absolute;
+    opacity: 0.35;
+    color: var(--block_compass-news-accent);
+    line-height: 0;
+    pointer-events: none;
+}
+
+.block_compass .compass-news-spark svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.block_compass .compass-news-spark.compass-news-spark-a {
+    top: 0.75rem;
+    left: 0.75rem;
+    width: 0.75rem;
+    height: 0.75rem;
+}
+
+.block_compass .compass-news-spark.compass-news-spark-b {
+    top: 1rem;
+    right: 9.375rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    color: var(--block_compass-news-sand);
+}
+
+.block_compass .compass-news-spark.compass-news-spark-c {
+    right: 1.375rem;
+    bottom: 0.75rem;
+    width: 0.625rem;
+    height: 0.625rem;
+}
+
+/* The head keeps clear of the close in the corner. */
+.block_compass .compass-news-head {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding-right: 7.375rem;
+}
+
+.block_compass .compass-news-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
 }
 
 .block_compass .compass-news-icon {
     display: inline-grid;
     flex: none;
     place-items: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 0.5rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
     background: var(--block_compass-news-fill);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--block_compass-news-accent) 14%, transparent);
     color: var(--block_compass-news-fg);
 }
 
+.block_compass .compass-news-icon .icon,
+.block_compass .compass-news-icon svg,
+.block_compass .compass-news-icon img {
+    width: 1.125rem;
+    height: 1.125rem;
+    margin: 0;
+    font-size: 1.125rem;
+    line-height: 1;
+}
+
 .block_compass .compass-news-title {
-    color: var(--block_compass-cal-text);
+    margin: 0;
+    color: var(--block_compass-news-fg);
+    font-size: 0.8125rem;
     font-weight: 700;
+    line-height: 1.4;
 }
 
 .block_compass .compass-news-sum {
-    color: var(--block_compass-muted);
-    font-size: 0.875rem;
+    color: var(--block_compass-cal-text);
+    font-size: 1.03125rem;
     font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+/* The close: a cross and a short label, the corner a teacher's "collapse" takes elsewhere. */
+.block_compass .compass-news-hide {
+    position: absolute;
+    top: 1rem;
+    right: 1.125rem;
+    z-index: 2;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 2rem;
+    padding: 0 0.6875rem 0 0.5625rem;
+    border: 1px solid color-mix(in oklab, var(--block_compass-news-accent) 22%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--block_compass-news-accent) 8%, transparent);
+    color: var(--block_compass-news-fg);
+    font-size: 0.78125rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.block_compass .compass-news-hide:hover {
+    background: color-mix(in oklab, var(--block_compass-news-accent) 14%, transparent);
+    color: var(--block_compass-news-fg);
+}
+
+.block_compass .compass-news-hide .icon {
+    width: 0.875rem;
+    height: 0.875rem;
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.block_compass .compass-news-hide.compass-news-hide-icon {
+    justify-content: center;
+    width: 2rem;
+    padding: 0;
 }
 
 .block_compass .compass-news-groups {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.375rem;
+    gap: 0.5rem 0.625rem;
     min-width: 0;
     margin: 0;
-    padding: 0;
+    padding: 0 0 0 3.375rem;
     list-style: none;
 }
 
@@ -3798,20 +3945,21 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-news-group {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    max-width: 17.5rem;
-    min-height: 2.25rem;
-    padding: 0 0.375rem 0 0.75rem;
+    gap: 0.625rem;
+    max-width: 20rem;
+    min-height: 2.375rem;
+    padding: 0 0.375rem 0 0.875rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 999px;
     background: var(--block_compass-surface);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--bs-emphasis-color, #000) 6%, transparent);
     color: var(--block_compass-cal-text);
     font-size: 0.875rem;
     text-decoration: none;
 }
 
 .block_compass .compass-news-group.compass-news-group-one {
-    padding-right: 0.75rem;
+    padding-right: 0.875rem;
 }
 
 .block_compass .compass-news-group:hover {
@@ -3826,14 +3974,18 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     white-space: nowrap;
 }
 
+.block_compass .compass-news-gsub {
+    color: var(--block_compass-muted);
+}
+
 .block_compass .compass-news-count {
     display: inline-grid;
     flex: none;
     place-items: center;
-    min-width: 1.5rem;
-    height: 1.5rem;
+    min-width: 1.625rem;
+    height: 1.625rem;
     padding: 0 0.4375rem;
-    border-radius: 0.75rem;
+    border-radius: 0.8125rem;
     background: var(--block_compass-news-fill);
     color: var(--block_compass-news-fg);
     font-size: 0.78rem;
@@ -3842,12 +3994,12 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 .block_compass .compass-news-more {
-    min-height: 2.25rem;
-    padding: 0 0.75rem;
-    border: 1px solid var(--block_compass-line);
+    min-height: 2.375rem;
+    padding: 0 0.875rem;
+    border: 1px dashed var(--block_compass-line);
     border-radius: 999px;
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-news-fg);
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
     font-weight: 600;
@@ -3857,71 +4009,107 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     border-color: var(--block_compass-brand-ink);
 }
 
-.block_compass .compass-news-hide {
-    display: grid;
-    place-items: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    margin-inline-start: auto;
-    padding: 0;
-    border: 0;
-    border-radius: 0.5625rem;
-    background: transparent;
-    color: var(--block_compass-muted);
+/* Below 640 px of block: the icon's column folds, the groups and the tiles take the whole width and the
+   close keeps its cross alone (its name stays whole in aria-label and title). */
+.block_compass .compass-news-narrow {
+    padding: 1rem 1rem 1.125rem;
 }
 
-.block_compass .compass-news-hide:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+.block_compass .compass-news-narrow .compass-news-head {
+    padding-right: 2.875rem;
 }
 
-/* Below 640 px of block: the title row keeps the ×, and the summary and the groups wrap under it. */
 .block_compass .compass-news-narrow .compass-news-hide {
-    order: 1;
+    top: 0.875rem;
+    right: 0.75rem;
+    justify-content: center;
+    width: 2rem;
+    padding: 0;
 }
 
-.block_compass .compass-news-narrow .compass-news-sum,
-.block_compass .compass-news-narrow .compass-news-groups {
-    flex-basis: 100%;
-    order: 2;
+.block_compass .compass-news-narrow .compass-news-hidelabel {
+    display: none;
+}
+
+.block_compass .compass-news-narrow .compass-news-groups,
+.block_compass .compass-news-narrow .compass-news-tiles,
+.block_compass .compass-news-narrow .compass-news-foot {
+    padding-left: 0;
 }
 
 .block_compass .compass-news-narrow .compass-news-group {
     max-width: 100%;
-    min-height: 2.5rem;
 }
 
-/* The compact sentence: muted, one line where it fits, "See" opening the popover. */
+/* The slim panel: one row, the eyebrow and the summary on a line that wraps when it must, "See" and the close. */
 .block_compass .compass-news.compass-news-compact {
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    gap: 0.5rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3.5rem;
+    padding: 0.625rem 0.75rem 0.625rem 0.875rem;
+    border-radius: 0.875rem;
 }
 
 .block_compass .compass-news-compact .compass-news-icon {
-    width: 1.375rem;
-    height: 1.375rem;
-    border-radius: 0.375rem;
+    width: 2.125rem;
+    height: 2.125rem;
+    border-radius: 0.625rem;
+}
+
+.block_compass .compass-news-compact .compass-news-icon .icon,
+.block_compass .compass-news-compact .compass-news-icon svg,
+.block_compass .compass-news-compact .compass-news-icon img {
+    width: 1rem;
+    height: 1rem;
+    font-size: 1rem;
 }
 
 .block_compass .compass-news-sentence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.125rem 0.625rem;
     min-width: 0;
-    color: var(--block_compass-muted);
+}
+
+.block_compass .compass-news-compact .compass-news-title {
+    white-space: nowrap;
+}
+
+.block_compass .compass-news-compact .compass-news-sum {
+    font-size: 0.875rem;
+    font-weight: 400;
+}
+
+.block_compass .compass-news-see {
+    margin-inline-start: auto;
+    height: 2rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.5rem;
+    background: var(--block_compass-surface);
+    color: var(--block_compass-news-fg);
     font-size: 0.8125rem;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.375rem;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
-.block_compass .compass-news-lead {
-    display: inline;
-    margin: 0;
-    color: inherit;
-    font-size: inherit;
-    font-weight: 600;
-    line-height: inherit;
+.block_compass .compass-news-see:hover {
+    border-color: var(--block_compass-brand-ink);
 }
 
-/* The popover under the line; a bottom sheet over a scrim below 640 px of block. */
+.block_compass .compass-news-compact .compass-news-hide {
+    position: static;
+}
+
+.block_compass .compass-news-compact .compass-news-spark.compass-news-spark-b {
+    top: 0.5rem;
+    right: 7.5rem;
+}
+
+/* The popover under the line, in the panel's family: the same gradient, soft border and sparkle; a bottom sheet
+   over a scrim below 640 px of block. Its children paint above the sparkle. */
 .block_compass .compass-news-pop {
     position: absolute;
     top: calc(100% + 0.375rem);
@@ -3929,13 +4117,19 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     z-index: 1000;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.75rem;
     width: 22rem;
     max-width: 100%;
-    padding: 0.625rem 0.75rem;
-    border: 1px solid var(--block_compass-line);
-    border-radius: 0.75rem;
-    background: var(--block_compass-surface);
+    padding: 0.875rem 1rem 0.75rem;
+    border: 1px solid var(--bs-secondary-bg, #e9ecef);
+    border-radius: 0.875rem;
+    background:
+        linear-gradient(
+            135deg,
+            var(--block_compass-news-warm) 0%,
+            var(--block_compass-surface) 60%,
+            var(--block_compass-news-subtle) 100%
+        );
     color: var(--block_compass-cal-text);
     box-shadow: var(--block_compass-cal-shadow);
 }
@@ -3951,8 +4145,20 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     max-width: none;
     max-height: 70vh;
     overflow-y: auto;
-    padding: 0.75rem 1rem 1.125rem;
     border-radius: 1.125rem 1.125rem 0 0;
+}
+
+.block_compass .compass-news-pop .compass-news-pophead,
+.block_compass .compass-news-pop .compass-news-poplist,
+.block_compass .compass-news-pop .compass-news-popfoot {
+    position: relative;
+}
+
+.block_compass .compass-news-pop .compass-news-spark.compass-news-spark-d {
+    top: 0.75rem;
+    right: 1rem;
+    width: 0.625rem;
+    height: 0.625rem;
 }
 
 .block_compass .compass-news-scrim {
@@ -3963,35 +4169,70 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 .block_compass .compass-news-pophead {
-    margin: 0 0 0.25rem;
-    color: var(--block_compass-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.block_compass .compass-news-pop .compass-news-icon {
+    width: 2.125rem;
+    height: 2.125rem;
+    border-radius: 0.625rem;
+}
+
+.block_compass .compass-news-pop .compass-news-icon .icon,
+.block_compass .compass-news-pop .compass-news-icon svg,
+.block_compass .compass-news-pop .compass-news-icon img {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.block_compass .compass-news-popeyebrow {
+    margin: 0;
+    color: var(--block_compass-news-fg);
     font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.block_compass .compass-news-popsum {
+    margin: 0;
+    color: var(--block_compass-cal-text);
+    font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
+    line-height: 1.3;
 }
 
 .block_compass .compass-news-poplist {
     display: flex;
     flex-direction: column;
+    gap: 0.375rem;
     margin: 0;
     padding: 0;
     list-style: none;
 }
 
+/* A group is a card on the surface; the hover border is the accent at 55 %. */
 .block_compass .compass-news-poprow {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.625rem;
-    min-height: 2.75rem;
-    padding: 0.375rem;
-    border-radius: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--block_compass-line);
+    border-radius: 0.75rem;
     background: var(--block_compass-surface);
     color: var(--block_compass-cal-text);
     text-decoration: none;
 }
 
 .block_compass .compass-news-poprow:hover {
-    background: var(--block_compass-cal-soft);
+    border-color: color-mix(in oklab, var(--block_compass-news-accent) 55%, transparent);
+    background: var(--block_compass-surface);
     color: var(--block_compass-cal-text);
     text-decoration: none;
 }
@@ -4017,51 +4258,75 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-news-popfoot {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     justify-content: space-between;
-    gap: 0.25rem 0.75rem;
-    margin-top: 0.25rem;
-    padding-top: 0.5rem;
-    border-top: 1px solid var(--block_compass-line);
-    font-size: 0.8125rem;
+    gap: 0.5rem 0.75rem;
 }
 
-.block_compass .compass-news-all {
-    color: var(--block_compass-brand-text);
+.block_compass .compass-news-popfoot .compass-news-all {
+    color: var(--block_compass-news-fg);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+/* The popover's hide, the panel's close as a pill: the tint, the cross and the short label. */
+.block_compass .compass-news-pophide {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    /* The close stays at the right edge when the foot wraps, as the panel's close holds its corner. */
+    margin-left: auto;
+    gap: 0.375rem;
+    height: 2rem;
+    padding: 0 0.6875rem 0 0.5625rem;
+    border: 1px solid color-mix(in oklab, var(--block_compass-news-accent) 22%, transparent);
+    border-radius: 0.5rem;
+    background: color-mix(in oklab, var(--block_compass-news-accent) 8%, transparent);
+    color: var(--block_compass-news-fg);
+    font-size: 0.78125rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.block_compass .compass-news-pophide:hover {
+    background: color-mix(in oklab, var(--block_compass-news-accent) 14%, transparent);
+    color: var(--block_compass-news-fg);
+}
+
+.block_compass .compass-news-pophide .icon {
+    width: 0.875rem;
+    height: 0.875rem;
+    margin: 0;
     font-size: 0.875rem;
 }
 
-/* Tier 1's empty state: the lead, a tile per group, then the way to every course open for enrolment. */
-.block_compass .compass-news-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.625rem;
-    margin-top: 0.75rem;
-}
-
-.block_compass .compass-news-emptylead {
-    color: var(--block_compass-cal-text);
-    font-weight: 700;
+/* Tier 1's empty state: the panel holds the head and a tile per group, then the way to every course open. */
+.block_compass .compass-news-empty .compass-news-head {
+    padding-right: 0;
 }
 
 .block_compass .compass-news-tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.625rem;
-    align-self: stretch;
     margin: 0;
-    padding: 0;
+    padding: 0 0 0 3.375rem;
     list-style: none;
+}
+
+.block_compass .compass-news-narrow .compass-news-tiles {
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .block_compass .compass-news-tile {
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
+    gap: 0.1875rem;
     height: 100%;
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 0.875rem;
     border: 1px solid var(--block_compass-line);
-    border-radius: 0.625rem;
+    border-radius: 0.75rem;
     background: var(--block_compass-surface);
     color: var(--block_compass-cal-text);
     text-decoration: none;
@@ -4078,7 +4343,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     justify-content: space-between;
     gap: 0.5rem;
     min-width: 0;
-    font-weight: 600;
+    font-weight: 650;
 }
 
 .block_compass .compass-news-tilename,
@@ -4092,6 +4357,17 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-news-tilesub {
     color: var(--block_compass-muted);
     font-size: 0.78rem;
+}
+
+.block_compass .compass-news-foot {
+    margin: 0;
+    padding-left: 3.375rem;
+    font-size: 0.8125rem;
+}
+
+.block_compass .compass-news-foot .compass-news-all {
+    color: var(--block_compass-news-fg);
+    font-weight: 600;
 }
 
 .block_compass .compass-news-fail {
