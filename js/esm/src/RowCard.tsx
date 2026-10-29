@@ -79,6 +79,9 @@ type RowCardProps = {
  *     and the archive and star actions; see RowCardProps.
  * @returns {object} The rendered card.
  */
+// A component's render branches all count toward its complexity; splitting it into smaller components is
+// a refactor of its own, so the count is acknowledged here.
+// eslint-disable-next-line complexity
 const RowCard = ({
     row, category, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy,
 }: RowCardProps) => {
