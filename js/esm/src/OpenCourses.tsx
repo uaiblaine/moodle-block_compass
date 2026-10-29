@@ -25,9 +25,10 @@
  * calendarpref.ts, which carries every other member of the preference; a failed write puts it back with
  * news_hideerror.
  *
- * OpenCourses is the drawing, in the shape the block chose (decision 7): the full line (title, the
- * summary, up to three groups as links, "+N" and the ×), the compact sentence with "See", or tier 1's
- * empty state as tiles. "See" and "+N" open the groups in a popover, a dialog that takes the keyboard and
+ * OpenCourses is the drawing, in the shape the block chose (decision 7), all three in one panel (round 2,
+ * docs/mockup-new-courses/Rodada2.dc.html): the full line (the eyebrow and the summary over a head, up to
+ * three groups as links on a row of their own, "+N", and a labelled close), the slim panel with "See", or
+ * tier 1's empty state as tiles. "See" and "+N" open the groups in a popover, a dialog that takes the keyboard and
  * gives it back, closed by Escape and by a press outside it; below 640 px of the block's width it is a
  * bottom sheet over a scrim. Nothing is drawn when no course counts: no line, no zero, no reserved space.
  * The line grows in from no height (styles.css, grid rows from 0fr to 1fr, Up next's way), at once under
@@ -214,6 +215,21 @@ const summaryOf = (strings: Record<string, string>, total: number, until: string
         ? fillObject(strings.news_summary_one, {until})
         : fillObject(strings.news_summary, {count: String(total), until}));
 
+/** The four-point star of the panel's decoration, from the mockup. */
+const SPARK_PATH = 'M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z';
+
+/**
+ * One decorative sparkle: static, hidden from assistive technology, its place and size in styles.css.
+ *
+ * @param {object} props The variant's class: compass-news-spark-a, -b or -c, written whole.
+ * @returns {object} The sparkle.
+ */
+const Spark = ({place}: {place: string}) => (
+    <span className={`compass-news-spark ${place}`} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor" focusable="false"><path d={SPARK_PATH} /></svg>
+    </span>
+);
+
 type OpenCoursesProps = {
     config: BlockConfig,
     news: NewsConfig,
@@ -379,7 +395,18 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                 onKeyDown={onKey}
                 onBlur={onLeave}
             >
-                <p className="compass-news-pophead">{summary}</p>
+                <Spark place="compass-news-spark-d" />
+                <div className="compass-news-pophead">
+                    <span
+                        className="compass-news-icon icon-no-margin"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{__html: news.icon}}
+                    />
+                    <div className="compass-news-copy">
+                        <p className="compass-news-popeyebrow">{strings.news_title}</p>
+                        <p className="compass-news-popsum">{summary}</p>
+                    </div>
+                </div>
                 <ul className="compass-news-poplist">
                     {answer.groups.map((group) => (
                         <li key={group.categoryid}>
@@ -399,10 +426,17 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                     <a className="compass-news-all" href={answer.allurl}>{strings.news_all}</a>
                     <button
                         type="button"
-                        className="btn btn-link btn-sm p-0 compass-linkbtn"
+                        className="compass-news-pophide"
+                        aria-label={strings.news_hide}
+                        title={strings.news_hide}
                         onClick={(event) => hideFrom(event.currentTarget)}
                     >
-                        {strings.news_hide}
+                        <span
+                            className="icon-no-margin"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: config.icons.close}}
+                        />
+                        <span className="compass-news-pophidelabel">{strings.news_hide_short}</span>
                     </button>
                 </div>
             </div>
@@ -425,10 +459,46 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
         </div>
     );
 
+    const icon = (
+        <span className="compass-news-icon icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: news.icon}} />
+    );
+
+    /**
+     * The close, in the corner of the panel: a cross and a short visible label, named in full for
+     * assistive technology (the label is inside the name, WCAG 2.5.3). The slim panel draws the cross
+     * alone; below 640 px of the block the stylesheet hides the label.
+     *
+     * @param {boolean} labelled Whether to draw the short label beside the cross.
+     * @returns {object} The button.
+     */
+    const closer = (labelled: boolean) => (
+        <button
+            type="button"
+            className={labelled ? 'compass-news-hide' : 'compass-news-hide compass-news-hide-icon'}
+            aria-label={strings.news_hide}
+            title={strings.news_hide}
+            onClick={(event) => hideFrom(event.currentTarget)}
+        >
+            <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: config.icons.close}} />
+            {labelled && <span className="compass-news-hidelabel">{strings.news_hide_short}</span>}
+        </button>
+    );
+
     if (mode === 'tiles') {
         return grow(
-            <section className="compass-news-empty" aria-labelledby={titleid}>
-                <Title id={titleid} className="compass-news-emptylead h6 mb-0">{fill(strings.news_empty_lead, until)}</Title>
+            <section
+                className={narrow ? 'compass-news compass-news-empty compass-news-narrow' : 'compass-news compass-news-empty'}
+                aria-labelledby={titleid}
+            >
+                <Spark place="compass-news-spark-a" />
+                <Spark place="compass-news-spark-c" />
+                <div className="compass-news-head">
+                    {icon}
+                    <div className="compass-news-copy">
+                        <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                        <span className="compass-news-sum">{fill(strings.news_empty_lead, until)}</span>
+                    </div>
+                </div>
                 <ul className="compass-news-tiles">
                     {answer.groups.map((group) => (
                         <li key={group.categoryid}>
@@ -444,35 +514,31 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                         </li>
                     ))}
                 </ul>
-                <a className="compass-news-all" href={answer.allurl}>{strings.news_all}</a>
+                <p className="compass-news-foot"><a className="compass-news-all" href={answer.allurl}>{strings.news_all}</a></p>
             </section>
         );
     }
 
-    const icon = (
-        <span className="compass-news-icon icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: news.icon}} />
-    );
-
     if (mode === 'compact') {
         return grow(
             <section className="compass-news compass-news-compact" aria-labelledby={titleid}>
+                <Spark place="compass-news-spark-b" />
                 {icon}
                 <div className="compass-news-sentence">
-                    <Title id={titleid} className="compass-news-lead">{strings.news_title}</Title>
-                    {' · '}
-                    {summary}
-                    {' · '}
-                    <button
-                        type="button"
-                        className="btn btn-link btn-sm p-0 align-baseline compass-linkbtn"
-                        aria-haspopup="dialog"
-                        aria-expanded={popover}
-                        aria-controls={popover ? popid : undefined}
-                        onClick={(event) => openFrom(event.currentTarget)}
-                    >
-                        {strings.news_see}
-                    </button>
+                    <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                    <span className="compass-news-sum">{summary}</span>
                 </div>
+                <button
+                    type="button"
+                    className="compass-news-see"
+                    aria-haspopup="dialog"
+                    aria-expanded={popover}
+                    aria-controls={popover ? popid : undefined}
+                    onClick={(event) => openFrom(event.currentTarget)}
+                >
+                    {strings.news_see}
+                </button>
+                {closer(false)}
             </section>
         );
     }
@@ -481,9 +547,17 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
 
     return grow(
         <section className={narrow ? 'compass-news compass-news-narrow' : 'compass-news'} aria-labelledby={titleid}>
-            {icon}
-            <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
-            <span className="compass-news-sum">{summary}</span>
+            <Spark place="compass-news-spark-a" />
+            <Spark place="compass-news-spark-b" />
+            <Spark place="compass-news-spark-c" />
+            <div className="compass-news-head">
+                {icon}
+                <div className="compass-news-copy">
+                    <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                    <span className="compass-news-sum">{summary}</span>
+                </div>
+            </div>
+            {closer(true)}
             <ul className="compass-news-groups">
                 {answer.groups.slice(0, LINE_GROUPS).map((group) => (
                     <li key={group.categoryid}>
@@ -494,7 +568,8 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                         >
                             {isOne(group) ? (
                                 <span className="compass-news-gname" title={`${group.name} · ${group.coursename}`}>
-                                    {`${group.name} · ${group.coursename}`}
+                                    {group.name}
+                                    <span className="compass-news-gsub">{` · ${group.coursename}`}</span>
                                 </span>
                             ) : (
                                 <>
@@ -520,15 +595,6 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                     </li>
                 )}
             </ul>
-            <button
-                type="button"
-                className="compass-news-hide"
-                aria-label={strings.news_hide}
-                title={strings.news_hide}
-                onClick={(event) => hideFrom(event.currentTarget)}
-            >
-                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: config.icons.close}} />
-            </button>
         </section>
     );
 };
