@@ -15,6 +15,20 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- Open for enrolment, the client (2026100513; ADR-017 stage 14d). With `news_enabled` on, the
+  block draws a line of its own, *Open for enrolment*: how many courses the viewer could join start
+  by the band's last day, up to three categories as links (a category of one names its course),
+  "+N" for the rest and a × that hides the line until the next sign-in. It is asked for once, after
+  tier 1 and, with the calendar on, after the calendar's counts, and placed by what the block
+  already holds: the full line under the calendar when nothing is late, due today or tomorrow;
+  one muted sentence with "See" when there is; below tier 1's first strip while Up next shows; the
+  full line at the top when the calendar is off; and, for a viewer with no active course, tier 1's
+  empty state lists the categories as tiles with the way to every course open for enrolment. "See"
+  and "+N" open the list in a popover, a bottom sheet on a narrow block. Nothing is drawn when no
+  course counts. The line grows in as Up next does, at once under reduced motion. Every write of
+  the calendar preference now carries every member, so hiding the line keeps the calendar as the
+  viewer left it and the calendar's toggles keep the line hidden. Eleven strings in English and
+  Brazilian Portuguese.
 - Open for enrolment, the web service (2026100512; ADR-017 stage 14c, no client yet):
   `block_compass_get_news`, the tenth read service, no parameters, current user only, read-only
   session. It answers the band's two days, the total, the group count, whether the catalogue was

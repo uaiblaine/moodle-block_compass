@@ -101,6 +101,8 @@ const leastScroll = /* @__PURE__ */ __name((index, row, scroll, width) => {
   return Math.max(0, (index - row.whole + 1) * row.pitch);
 }, "leastScroll");
 const PERIOD_KEYS = ["late", "today", "tomorrow", "week", "later"];
+const BUSY_PERIODS = ["late", "today", "tomorrow"];
+const busyOf = /* @__PURE__ */ __name((counts, view) => counts.views[view].periods.some((period) => BUSY_PERIODS.includes(period.key) && period.count > 0), "busyOf");
 const WEEK_DAYS = 5;
 const LEARNING_COUNTED = ["gradedsoon", "graded", "todo", "late", "event"];
 const TEACHING_COUNTED_CORE = ["class", "event"];
@@ -465,6 +467,7 @@ const clockTime = /* @__PURE__ */ __name((strings, parts) => {
 }, "clockTime");
 export {
   BOUND_KINDS,
+  BUSY_PERIODS,
   DAY_PITCH_PX,
   EDGE_INSET_PX,
   IMMINENT_S,
@@ -480,6 +483,7 @@ export {
   RING_PITCH_PX,
   TEACHING_KINDS,
   addDays,
+  busyOf,
   clockTime,
   countsOf,
   dateParts,

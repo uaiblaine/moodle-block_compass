@@ -201,9 +201,10 @@ classes/hook/category_link.php the block's own hook, dispatched by local/categor
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
-                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext, calendar,
-                           rowdetails, repository, amd (the only file that knows RequireJS), notify, filter, heading,
-                           str, types; .eslintrc is load-bearing
+                           RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext,
+                           OpenCourses (ADR-017's line), calendar, calendarpref (every member of block_compass_calendar,
+                           for every writer), rowdetails, repository, amd (the only file that knows RequireJS), notify,
+                           filter, heading, str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
 templates/ (block, page, preload), db/ (access, services, caches, events, tasks, hooks, uninstall; NO install.xml)
 docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each external test; generator)
@@ -229,7 +230,7 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   after `get_attention` settles and, with the calendar on, after `get_strip_counts` (the line's
   weight depends on the counts); no timer, no ask on `visibilitychange`, and nothing while the line
   is hidden for this sign-in (the `news` member of `block_compass_calendar`; ADR-017). Every write of
-  `block_compass_calendar` carries its `soon` member. The open/closed toggle is the `open` member of
+  `block_compass_calendar` carries its `soon` and `news` members (`calendarpref.ts` holds them all). The open/closed toggle is the `open` member of
   `block_compass_calendar`, written optimistically and put back with a notice on failure;
   `calendar_start` (default closed) decides for a viewer who never toggled, and the shell ships
   the state so the first paint has the right shape. The grading count comes from

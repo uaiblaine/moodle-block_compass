@@ -636,6 +636,52 @@ counts here, in each stage's "Done".
   - `js/esm/build` and the bundle in the same commit;
   - a version bump.
 
+- **Done** (stage 14d, 2026-10-29; branch `phase-14-open-courses`, version 2026100513):
+  - **The shell** (`classes/output/block.php`) ships `news` only when the line is on, carrying:
+    - `enabled`;
+    - `signin`: the hidden marker for this sign-in, or 0;
+    - `marker`: this sign-in's `currentlogin`, which the × writes;
+    - `icon` (core's `i/enrolusers`);
+    - `NEWS_STRINGS` (the eleven `news_*`, back in both lang files);
+    - with the calendar's props absent, `NEWS_DATE_STRINGS` (the day-month template and the twelve
+      months) and the calendar members `state` and `soon`, so hiding the line never resets the
+      calendar of another surface.
+  - **The client:**
+    - `OpenCourses.tsx`: the full line, the compact sentence with its popover (a bottom sheet below
+      640 px of the block), the empty-state tiles (every group, at most 20), RetryNotice, and the ×
+      written optimistically and put back with `news_hideerror`;
+    - `calendarpref.ts`, a new module: one held copy of every `block_compass_calendar` member that the
+      strip's three writes and the line's write merge into, so each write carries the others;
+    - `repository.ts` `getNews()`.
+  - **Weight and placement:** `CalendarStrip` reports `{counted, weighed, busy, upnext}` from what it
+    already holds, where busy means late, today or tomorrow in the drawn view, or no counts in hand.
+    `Block.tsx` then places the line:
+    - no active course: the tiles;
+    - the calendar not here: the full line at the top;
+    - Up next showing: the compact sentence below the first strip with cards;
+    - busy: the compact sentence under the calendar line;
+    - calm: the full line under the calendar line.
+
+    `get_news` is asked once, after `get_attention` and after the counts when the calendar is here,
+    never while the line is off or hidden, with no timer. The line is drawn once Up next's first
+    reading is done, so it does not jump.
+  - **Deviation from Regras §5:** the empty state lists every group, not three, as decision 7 says.
+  - **Build:** `mdl grunt m503 blocks/compass`, 41 sources in the bundle's manifest, tsc clean for the
+    plugin. The CI build step first FAILED on one `no-nested-ternary` warning in `calendarpref.ts`,
+    which `mdl grunt` does not refuse; a helper `soonOf()` replaced the nested ternary. It then
+    passed: `mdl ci moodle-block_compass-503 --branch MOODLE_503_STABLE --php 8.4 --only grunt`,
+    `grunt: OK`, the committed build byte-identical to a fresh one.
+  - **Tests** on m503b, after `mdl upgrade` m503/m503b and `phpunit-init` (all peers asked):
+    - `accessibility_rules_test` 51, `contrast_rules_test` 4, `client_policy_test` 13 (the `_one`
+      census now 23), `block_compass_test` 16;
+    - the whole suite: `Tests: 710, Assertions: 17724, Skipped: 22`.
+  - **Gates:** 19 new ones (shell, asking, weight, placement, the preference merge, the ×'s label,
+    reduced motion, the chip's colour pair). The whole spec's dry-run applies 505 patterns. `mdl mutate
+    --fast --changed main` ran 230 gates on pgsql and on mariadb: every one held, and no named test
+    stayed green.
+  - **Not checked here:** the look in a browser, the popover's focus, dark mode and the layout shift.
+    They are M6, in 14e with the maintainer.
+
 ### 14e. Smoke, look and the full gate
 
 - **Behat:** one scenario, for a learner with an open course in the band and another course they
