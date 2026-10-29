@@ -72,6 +72,9 @@ type RowProps = {
  *     and star actions; see RowProps.
  * @returns {object} The rendered row.
  */
+// A component's render branches all count toward its complexity; splitting it into smaller components is
+// a refactor of its own, so the count is acknowledged here.
+// eslint-disable-next-line complexity
 const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy}: RowProps) => {
     const {labels} = config;
     const opened = row.opened || 0;

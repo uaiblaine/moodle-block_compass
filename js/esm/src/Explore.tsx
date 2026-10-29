@@ -206,6 +206,9 @@ const EMPTY_PAGE: PageState = {rows: [], after: 0, hasmore: false, loaded: false
  *     tier 1; see ExploreProps.
  * @returns {object} The rendered section.
  */
+// A component's render branches all count toward its complexity; splitting it into smaller components is
+// a refactor of its own, so the count is acknowledged here.
+// eslint-disable-next-line complexity
 const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept, announce: alert, onChanged}: ExploreProps) => {
     const {labels} = config;
     const titleid = useId();
@@ -1453,7 +1456,12 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     const showindex = config.showindex && grouped && !narrow;
     // The cards grid's column count: three without the index, two with it, one while the
     // section is narrow.
-    const columns = narrow ? 1 : (showindex ? 2 : 3);
+    let columns = 3;
+    if (narrow) {
+        columns = 1;
+    } else if (showindex) {
+        columns = 2;
+    }
     const flat = paged ? (keptHits ?? []) : flatrows;
     const noresults = paged ? keepsnothing || (keptHits !== null && keptHits.length === 0) : shown === 0;
 

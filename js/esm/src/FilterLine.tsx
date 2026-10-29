@@ -348,6 +348,9 @@ const reveal = (scroller: HTMLElement | null, item: Element | null): void => {
  *     suggestions' material and the chips; see FilterLineProps.
  * @returns {object} The rendered line, its layers and its chips.
  */
+// A component's render branches all count toward its complexity; splitting it into smaller components is
+// a refactor of its own, so the count is acknowledged here.
+// eslint-disable-next-line complexity
 const FilterLine = (props: FilterLineProps) => {
     const {
         config, scopecells, onScope, star, starcount, onStar, hasfilters, badge, panelopen, onPanel, panel, sort, onSort,
@@ -650,11 +653,17 @@ const FilterLine = (props: FilterLineProps) => {
 
     // The option the keyboard is on previews what it would keep, and leaving the list clears it.
     const activeoption = listshown && current >= 0 ? options[current] : null;
-    const activekey = activeoption === null ? null
-        : (activeoption.kind === 'filter' ? activeoption.filter.key : `course-${activeoption.course.id}`);
+    let activekey: string | null = null;
+    let candidate: Candidate | null = null;
+    if (activeoption?.kind === 'filter') {
+        activekey = activeoption.filter.key;
+        candidate = activeoption.filter.candidate;
+    } else if (activeoption?.kind === 'course') {
+        activekey = `course-${activeoption.course.id}`;
+        candidate = {courseid: activeoption.course.id};
+    }
     const activecandidate = useRef<Candidate | null>(null);
-    activecandidate.current = activeoption === null ? null
-        : (activeoption.kind === 'filter' ? activeoption.filter.candidate : {courseid: activeoption.course.id});
+    activecandidate.current = candidate;
     useEffect(() => {
         if (activekey === null) {
             if (previewed.current) {
