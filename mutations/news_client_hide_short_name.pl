@@ -1,1 +1,1 @@
-s/aria-label=\{strings\.news_hide\}/aria-label={strings.news_hide_short}/;
+s/(className=\{labelled \? 'compass-news-hide' : 'compass-news-hide compass-news-hide-icon'\}\n\s*)aria-label=\{strings\.news_hide\}/$1aria-label={strings.news_hide_short}/;
