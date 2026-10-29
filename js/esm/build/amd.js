@@ -17,4 +17,4 @@
  * @module     block_compass/amd
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const s=o=>new Promise((n,e)=>{const r=window.require;if(!r){e(new Error(`block_compass: RequireJS is not on this page, cannot load ${o}`));return}r([o],i=>n(i),e)});export{s as amd};
+ */const s=e=>new Promise((n,o)=>{const r=window.require;if(!r){o(new Error(`block_compass: RequireJS is not on this page, cannot load ${e}`));return}r(["core/first"],()=>r([e],i=>n(i),o),o)});export{s as amd};

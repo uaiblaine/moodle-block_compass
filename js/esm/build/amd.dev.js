@@ -26,7 +26,7 @@ const amd = /* @__PURE__ */ __name((name) => new Promise((resolve, reject) => {
     reject(new Error(`block_compass: RequireJS is not on this page, cannot load ${name}`));
     return;
   }
-  loader([name], (loaded) => resolve(loaded), reject);
+  loader(["core/first"], () => loader([name], (loaded) => resolve(loaded), reject), reject);
 }), "amd");
 export {
   amd
