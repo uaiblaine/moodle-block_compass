@@ -28,7 +28,10 @@
  * decision 3), and get_soon is asked only when it opens (UpNext.tsx, useUpNext()); the region is the
  * section's last child, under the line or the row, so it sits between the calendar's head and tier 1
  * in either shape and stays mounted across a toggle, and its highest rung rings today's chip or disc.
- * Every write of the preference carries Up next's hide (the soon member) along. The toggle is
+ * Every write of the preference carries Up next's hide (the soon member) along, and the open-courses
+ * line's (news) through calendarpref.ts, which holds every member. The strip tells the block what the
+ * line's weight is (ADR-017 decision 7) from what it holds, never with a request: whether its counts
+ * have settled, whether they count work late, today or tomorrow, and whether Up next shows. The toggle is
  * written to the preference at once and put back, with a notice, if the write fails. Each zone loads,
  * fails and retries on its own, so a failed strip never blanks the cards; a request that failed is
  * asked again by its own Try again, or by tier 1's.
@@ -69,19 +72,20 @@ import CalendarLine, {LineNotes, summaryOf} from './CalendarLine';
 import RetryNotice from './RetryNotice';
 import UpNext, {useUpNext} from './UpNext';
 import {
-    BOUND_KINDS, LEVEL_CALM, LEVEL_IMMINENT, addDays, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit,
+    BOUND_KINDS, LEVEL_CALM, LEVEL_IMMINENT, addDays, busyOf, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit,
     fromPayload, homeIndex, itemKinds, kindsOf, leastScroll, longDay, marks, monthName, monthShort, monthYear, periodSpan, score,
     ringClass, settle, shortWeekday, shownKinds, step, stepOf, whollyInView, windowDays,
 } from './calendar';
 import type {DayCounts, DayOff, RowFit} from './calendar';
 import {sectionTag} from './heading';
 import {notify} from './notify';
-import {getDay, getStrip, getStripCounts, setCalendarPreference} from './repository';
+import {writeCalendarPreference} from './calendarpref';
+import {getDay, getStrip, getStripCounts} from './repository';
 import {hold} from './pending';
 import {fill, fillCount, fillObject} from './str';
 import type {
     BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, LineTarget, SoonMember, StripCounts,
-    StripPayload,
+    StripPayload, StripWeight,
 } from './types';
 
 /** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
@@ -122,6 +126,8 @@ type CalendarStripProps = {
     pointedCourse: number | null,
     // Told the course ids of the open day (empty when none is open), for the cards' outline.
     onOpenCourses: (courseids: number[]) => void,
+    // Told the open-courses line's weight whenever it changes; see StripWeight.
+    onWeight: (weight: StripWeight) => void,
 };
 
 /**
@@ -451,7 +457,7 @@ const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): st
 // A component's render branches all count toward its complexity; splitting it into smaller components is
 // a refactor of its own, so the count is acknowledged here.
 // eslint-disable-next-line complexity
-const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCourses}: CalendarStripProps) => {
+const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCourses, onWeight}: CalendarStripProps) => {
     const {strings} = calendar;
     // Open: the row of days; closed: the line of counts. Seeded from the props, so the first paint has
     // the remembered shape and never flashes the other (amendment 11).
@@ -607,6 +613,18 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     );
     // The course of the Up next row pointed at, for the cards' outline; null for none.
     const [soonpoint, setSoonpoint] = useState<number[] | null>(null);
+
+    // The open-courses line's weight (ADR-017 decision 7), from what the strip holds. Counted once the
+    // counts are in hand or failed (open, the payload's); weighed once Up next's first reading is over too,
+    // so the line is drawn where it stays. Without counts in hand nothing says the block is calm, so the
+    // line recedes. Up next shows when it has rows above the rung it was hidden at.
+    const weightcounted = linecounts !== null || (open ? failed : countsfailed);
+    const soonread = horizon <= 0 || linecounts === null || !linecounts.enabled || soon.settled || soon.failed;
+    const busy = linecounts === null || busyOf(linecounts, drawn);
+    const upnextshown = soon.rows.length > 0 && !(hiddenrank !== null && soon.level <= hiddenrank);
+    useEffect(() => {
+        onWeight({counted: weightcounted, weighed: weightcounted && soonread, busy, upnext: upnextshown});
+    }, [weightcounted, soonread, busy, upnextshown, onWeight]);
 
     // The row, once the strip is open and tier 1 has settled, and again on Try again or on tier 1's
     // Try again while it has failed. A new payload starts a new memory of days.
@@ -828,7 +846,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
      */
     const remember = (state: CalendarState): void => {
         writeseq.current += 1;
-        setCalendarPreference(withSoon(state)).catch(() => notify(strings.cal_prefererror || ''));
+        writeCalendarPreference(withSoon(state)).catch(() => notify(strings.cal_prefererror || ''));
     };
 
     /**
@@ -1339,7 +1357,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         setOpen(next);
         writeseq.current += 1;
         const mine = writeseq.current;
-        setCalendarPreference(withSoon({view, filter, relevance, open: next})).catch(() => {
+        writeCalendarPreference(withSoon({view, filter, relevance, open: next})).catch(() => {
             if (writeseq.current !== mine) {
                 return;
             }
@@ -1362,7 +1380,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         setHiddenrank(rank);
         writeseq.current += 1;
         const mine = writeseq.current;
-        setCalendarPreference(withSoon({view, filter, relevance, open})).catch(() => {
+        writeCalendarPreference(withSoon({view, filter, relevance, open})).catch(() => {
             if (writeseq.current !== mine) {
                 return;
             }

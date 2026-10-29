@@ -76,6 +76,17 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-line-chip',
     ];
 
+    /**
+     * @var string[] The open-courses line's filled rules (ADR-017 decision 7), each declaring its paired text: the
+     *     icon's tile and the count chip (a tint of the primary), a group, "+N", the × hovered, the popover, its
+     *     rows at rest and hovered, and a tile of tier 1's empty state.
+     */
+    private const NEWS_FILLS = [
+        '.block_compass .compass-news-icon', '.block_compass .compass-news-count', '.block_compass .compass-news-group',
+        '.block_compass .compass-news-more', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-pop',
+        '.block_compass .compass-news-poprow', '.block_compass .compass-news-poprow:hover', '.block_compass .compass-news-tile',
+    ];
+
     /** @var string The scope of a dimmed column of the open row. */
     private const COL_DIM = '.block_compass .compass-cal-col.compass-cal-col-dim';
 
@@ -445,7 +456,7 @@ final class contrast_rules_test extends basic_testcase {
         ];
         // The filter line's fills (ADR-015): the scope's track, cells and counts, the search, the icon
         // buttons, Filters and its badge, the floating layers, a hovered option, the mark and a chip.
-        $filled = array_merge($filled, self::LINE_FILLS);
+        $filled = array_merge($filled, self::LINE_FILLS, self::NEWS_FILLS);
         foreach ($filled as $selector) {
             [, $body] = $this->rule($selectors, $selector);
             $this->assertArrayHasKey('background', $body, "{$selector} no longer fills: is it still a pair?");
@@ -680,6 +691,32 @@ final class contrast_rules_test extends basic_testcase {
             ['Clear all', '.block_compass .compass-line-clearall', $surface, ['root']],
             ['a dimmed row', '.block_compass .compass-row.compass-preview-dim', $surface, ['root']],
             ['a dimmed card', '.block_compass .compass-rowcard.compass-preview-dim', $surface, ['root']],
+        ]);
+        // The open-courses line (ADR-017): its texts over the surface, the primary's tint and its ink one
+        // pair (the count chip and the icon's tile), the popover's rows at rest and hovered, a tile.
+        $pop = '.block_compass .compass-news-pop';
+        $row = '.block_compass .compass-news-poprow';
+        $tile = '.block_compass .compass-news-tile';
+        $pairs = array_merge($pairs, [
+            ['the line\'s title', '.block_compass .compass-news-title', $surface, ['root']],
+            ['the line\'s summary', '.block_compass .compass-news-sum', $surface, ['root']],
+            ['the line\'s icon', '.block_compass .compass-news-icon', '.block_compass .compass-news-icon', ['root']],
+            ['a group', '.block_compass .compass-news-group', '.block_compass .compass-news-group', ['root']],
+            ['a count', '.block_compass .compass-news-count', '.block_compass .compass-news-count', ['root']],
+            ['+N', '.block_compass .compass-news-more', '.block_compass .compass-news-more', ['root']],
+            ['the ×', '.block_compass .compass-news-hide', $surface, ['root']],
+            ['the × hovered', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-hide:hover', ['root']],
+            ['the compact sentence', '.block_compass .compass-news-sentence', $surface, ['root']],
+            ['the popover', $pop, $pop, ['root']],
+            ['the popover\'s summary', '.block_compass .compass-news-pophead', $pop, ['root']],
+            ['a popover row', $row, $row, ['root']],
+            ['a popover row hovered', "{$row}:hover", "{$row}:hover", ['root']],
+            ['a popover row\'s course', '.block_compass .compass-news-popsub', $row, ['root']],
+            ['a popover row\'s course hovered', '.block_compass .compass-news-popsub', "{$row}:hover", ['root']],
+            ['every course open', '.block_compass .compass-news-all', $pop, ['root']],
+            ['the empty state\'s lead', '.block_compass .compass-news-emptylead', $surface, ['root']],
+            ['a tile', $tile, $tile, ['root']],
+            ['a tile\'s course', '.block_compass .compass-news-tilesub', $tile, ['root']],
         ]);
         // Marks, 3:1 against the surface they sit on: the dots, the late diamond, the ring.
         $marks = [

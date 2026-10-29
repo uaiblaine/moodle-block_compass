@@ -31,6 +31,13 @@
  * then, and Try again on tier 1 bumps it once tier 1 has been asked again, so the strip asks again
  * for whatever of its own failed.
  *
+ * Where the shell shipped the news props, the open-courses line (ADR-017, OpenCourses.tsx) is asked for
+ * once tier 1 has settled and, with the calendar, once the strip's counts have, and drawn where decision 7
+ * puts it, from what the block already holds and with no request for it: with no active course, in tier
+ * 1's empty state as tiles; without the calendar here, the full line at the top of the content; while Up
+ * next shows, the compact sentence below tier 1's first strip; otherwise under the calendar, the full line
+ * when the counts in hand show nothing late, today or tomorrow, the compact sentence when they do.
+ *
  * @module     block_compass/Block
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -38,6 +45,8 @@
 
 import {Fragment, useCallback, useEffect, useRef, useState} from 'react';
 import CalendarStrip from './CalendarStrip';
+import OpenCourses, {useNews} from './OpenCourses';
+import type {NewsMode} from './OpenCourses';
 import Strip from './Strip';
 import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
@@ -47,8 +56,9 @@ import type {GhostKind} from './Ghost';
 import {notify} from './notify';
 import {cardColumns} from './columns';
 import {fill, fillCount, fillObject} from './str';
+import {seedCalendarPreference} from './calendarpref';
 import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
-import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange} from './types';
+import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange, StripWeight} from './types';
 
 /**
  * The chip tier 3 opens on, per kind of control that opened it.
@@ -64,6 +74,12 @@ const CHIP_OF_KIND: Record<GhostKind, string | null> = {
     pending: 'pending',
     scheduled: 'scheduled',
 };
+
+/**
+ * Where the open-courses line is drawn (ADR-017 decision 7): at the top of the content, under the calendar,
+ * below tier 1's first strip, or in tier 1's empty state.
+ */
+type NewsPlace = 'top' | 'under' | 'below' | 'empty';
 
 /** The card details service refuses more ids than this in one call (cards::DETAILS_BATCH). */
 const DETAILS_BATCH = 24;
@@ -147,7 +163,31 @@ const Block = (config: BlockConfig) => {
     // calendar day holds. Both come from data already in memory; neither costs a request.
     const [pointed, setPointed] = useState<number | null>(null);
     const [dayCourses, setDayCourses] = useState<number[]>([]);
+    // The open-courses line's weight, as the calendar strip reports it from what it holds; null until it
+    // reports, and weighed stays true once it has been (a switch of view never takes the line away).
+    const [weight, setWeight] = useState<StripWeight | null>(null);
     const {labels} = config;
+    // Every member of block_compass_calendar, held for the strip's writes and the line's (calendarpref.ts):
+    // seeded once, in the first render, before any child can write.
+    useState(() => {
+        seedCalendarPreference(config.calendar, config.news);
+
+        return true;
+    });
+    // The line asks once tier 1 has settled and, with the calendar here, once the strip's counts have: the
+    // line's weight depends on them (decision 5).
+    const newsready = calendarturn > 0 && (!config.calendar || (weight !== null && weight.counted));
+    const news = useNews(config.news, newsready, calendarturn);
+
+    /**
+     * Keep the strip's report of the line's weight, latching weighed.
+     *
+     * @param {object} next The report; see StripWeight.
+     * @returns {void}
+     */
+    const onWeight = useCallback((next: StripWeight): void => {
+        setWeight((current) => ({...next, weighed: next.weighed || (current?.weighed ?? false)}));
+    }, []);
 
     /**
      * Say something through the assertive live region, even when it repeats.
@@ -412,6 +452,37 @@ const Block = (config: BlockConfig) => {
     const columns = cardColumns(width);
     const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
 
+    /*
+     * Where the open-courses line goes and in which shape (decision 7; Regras.dc.html §5), from what the
+     * block holds: tier 1's payload, whether the calendar renders here and the strip's report. No request
+     * is made for it. Under the calendar it waits for the strip's report to be weighed (counts and Up
+     * next's first reading), so it is drawn where it stays.
+     */
+    let newsplace: NewsPlace | null = null;
+    let newsmode: NewsMode = 'full';
+    if (data && shown === 0 && data.counts.total === 0) {
+        newsplace = 'empty';
+        newsmode = 'tiles';
+    } else if (!config.calendar) {
+        newsplace = 'top';
+    } else if (weight !== null && weight.weighed) {
+        // Below tier 1's first strip needs tier 1: a failed first paint keeps the line under the calendar.
+        newsplace = weight.upnext && data ? 'below' : 'under';
+        newsmode = weight.upnext || weight.busy ? 'compact' : 'full';
+    }
+    // Below tier 1's first strip that holds cards; with none, after the strips.
+    const firststrip = data ? config.strips.find((strip) => data[strip.name].length > 0)?.name ?? null : null;
+
+    /**
+     * The open-courses line at a place, when it is drawn there.
+     *
+     * @param {string} place Where the caller stands.
+     * @returns {object|null} The line, or nothing.
+     */
+    const newsAt = (place: NewsPlace) => (config.news && newsplace === place ? (
+        <OpenCourses config={config} news={config.news} state={news} mode={newsmode} width={width} />
+    ) : null);
+
     /**
      * The line tier 1 gives the applications, which only tier 3 lists: under New enrolments - or
      * where that strip would be - and a link-styled button, because it acts on the page and
@@ -450,8 +521,11 @@ const Block = (config: BlockConfig) => {
                     width={width}
                     pointedCourse={pointed}
                     onOpenCourses={setDayCourses}
+                    onWeight={onWeight}
                 />
             )}
+            {newsAt('top')}
+            {newsAt('under')}
             {reconnecting !== null && (
                 <div className="compass-status compass-reconnecting text-muted small" role="status" aria-live="polite">
                     {fillObject(labels.reconnecting, {
@@ -491,8 +565,10 @@ const Block = (config: BlockConfig) => {
                         labels.pendingnoticelabel,
                         labels.pendingnoticeview
                     )}
+                    {strip.name === firststrip && newsAt('below')}
                 </Fragment>
             ))}
+            {data && firststrip === null && newsAt('below')}
             {/* No active strip has cards, yet there are courses: the ghost has no grid to close and
                 stands alone, after every strip as before. */}
             {ghost && laststrip === null && (
@@ -505,6 +581,7 @@ const Block = (config: BlockConfig) => {
                     {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
                 </p>
             )}
+            {newsAt('empty')}
             {exploring && (
                 <div className="compass-explore-wrap mt-3">
                     <Explore

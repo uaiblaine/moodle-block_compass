@@ -27,8 +27,8 @@
 
 import {amd} from './amd';
 import type {
-    Attention, CalendarState, CalendarView, CardDetail, DayAnswer, ExploreState, FilterParam, Inventory, RowPage, SearchHits,
-    SoonAnswer, StripCounts, StripPayload,
+    Attention, CalendarState, CalendarView, CardDetail, DayAnswer, ExploreState, FilterParam, Inventory, NewsAnswer, RowPage,
+    SearchHits, SoonAnswer, StripCounts, StripPayload,
 } from './types';
 
 type AjaxRequest = {methodname: string, args: Record<string, unknown>};
@@ -130,7 +130,7 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
 /**
  * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.
  *
- * Reads only: the nine services below answer questions, so asking again changes nothing. Writes
+ * Reads only: the ten services below answer questions, so asking again changes nothing. Writes
  * are never retried - the star goes through call(), the view, the toolbar and the archive through
  * core_user/repository - because a write that may have landed must not be sent again. The
  * callers' sequence numbers already drop an answer that arrives after they moved on.
@@ -295,8 +295,21 @@ export const getSoon = (view: CalendarView): Promise<SoonAnswer> =>
     read<SoonAnswer>('block_compass_get_soon', {view});
 
 /**
+ * The courses open for enrolment for the current user, grouped by reference category (ADR-017).
+ *
+ * A read like the others, so it gets the bounded retry. Asked once, after tier 1 has settled and, with
+ * the calendar on, after its counts have; never on a timer, and never while the line is hidden for this
+ * sign-in (OpenCourses.tsx, useNews()).
+ *
+ * @returns {Promise} The band, the count, the groups and the link to everything open.
+ */
+export const getNews = (): Promise<NewsAnswer> =>
+    read<NewsAnswer>('block_compass_get_news', {});
+
+/**
  * Remember the calendar strip as the viewer left it: the view, the filter, the relevance switch,
- * whether it is open, and Up next hidden (soon) when it is.
+ * whether it is open, Up next hidden (soon) and the open-courses line hidden (news) when they are.
+ * Called only through calendarpref.ts, which holds every member so that no writer drops another's.
  *
  * One JSON object through core's preference route, as the tier 3 toolbar is; the shell validates
  * its shape when it reads it back (classes/local/calendar_preference.php). A write, so never retried.

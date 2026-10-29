@@ -6,7 +6,7 @@ Development sites only; written for the m503 stack (`http://localhost:8503`, con
 
 | File | What it does |
 |---|---|
-| `seed_demo.php` | Idempotent CLI seeder: 16 courses in four top-level categories (idnumbers `compassdemo_*`), ten demo users, activities, submissions, completion, events, stars, an archived course, an application awaiting approval, and a Dashboard holding Compass alone for `demo.student` and `demo.teacher`. Each run moves the dates so they sit around the day it runs. |
+| `seed_demo.php` | Idempotent CLI seeder: 16 courses in four top-level categories (idnumbers `compassdemo_*`), seven more `compassdemo_open_*` courses with an open self enrolment (six that `demo.student` can join, three in Health, two in Technology, one in Business, and one that `demo.teacher` teaches, which the line never counts), re-dated to start from 3 days back to 20 ahead, ten demo users, activities, submissions, completion, events, stars, an archived course, an application awaiting approval, and a Dashboard holding Compass alone for `demo.student` and `demo.teacher`. Each run moves the dates so they sit around the day it runs. |
 | `holidays.php` | `--add` writes a recess (today + 5) and a holiday (today + 9) into `block_feedback_tracker_cday` and records their ids in `holidays-state.json`; `--remove` deletes exactly those ids. Both purge the `calendarstrip` cache. |
 | `session.php` | Prints a session cookie for a user without a password (`--username=`), or ends one (`--destroy=SID`). |
 | `cdp.mjs`, `capture.mjs` | Headless Chrome over the DevTools protocol; one function per screenshot. |
@@ -42,6 +42,7 @@ T=/var/www/html/public/blocks/compass/docs/screenshots/tools
 docker exec m503-webserver-1 php $T/seed_demo.php           # refresh the dates
 docker exec m503-webserver-1 php $T/holidays.php --add      # only where block_feedback_tracker is installed (not on m503)
 # block_compass settings the strip needs: calendar_enabled=1, calendar_sources with "user"
+# and the open-courses line (the news shot): news_enabled=1 (defaults for the band: 7 days back, 30 ahead)
 # One cookie per user, in a JSON file outside the repository:
 #   {"demo.student": "MoodleSession503=...", "demo.teacher": "...", "admin": "..."}
 COMPASS_SESSIONS=/path/sessions.json node capture.mjs        # every shot but ring and pulse
@@ -54,7 +55,7 @@ Each shot puts the strip in the state it needs (open or closed) by pressing the 
 which writes the user's `block_compass_calendar` preference, and waits for that state's data: the
 open row's days, or the closed line's counts. Note each demo user's `open` value before a run and
 restore it afterwards. The shots are `dashboard`, `strip` (open, student), `card`, `teaching`
-(open, a day with submissions to grade pinned), `line` (closed, student), `lineteaching` (closed,
+(open, a day with submissions to grade pinned), `line` (closed, student), `news` (closed strip, student: `open-courses.png`, the open-for-enrolment line; the full line only on a calm day, else the compact sentence, and the shot prints which), `lineteaching` (closed,
 teacher; the *To grade* cell is there only with block_feedback_tracker, which m503 lacks, so the shot
 shows the line without it and prints a NOTE), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, the tier 3 shots, `page`,
 `mobile` and `settings`, plus `ring` and `pulse`.
