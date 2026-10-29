@@ -395,7 +395,18 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                 onKeyDown={onKey}
                 onBlur={onLeave}
             >
-                <p className="compass-news-pophead">{summary}</p>
+                <Spark place="compass-news-spark-d" />
+                <div className="compass-news-pophead">
+                    <span
+                        className="compass-news-icon icon-no-margin"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{__html: news.icon}}
+                    />
+                    <div className="compass-news-copy">
+                        <p className="compass-news-popeyebrow">{strings.news_title}</p>
+                        <p className="compass-news-popsum">{summary}</p>
+                    </div>
+                </div>
                 <ul className="compass-news-poplist">
                     {answer.groups.map((group) => (
                         <li key={group.categoryid}>
@@ -415,10 +426,17 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                     <a className="compass-news-all" href={answer.allurl}>{strings.news_all}</a>
                     <button
                         type="button"
-                        className="btn btn-link btn-sm p-0 compass-linkbtn"
+                        className="compass-news-pophide"
+                        aria-label={strings.news_hide}
+                        title={strings.news_hide}
                         onClick={(event) => hideFrom(event.currentTarget)}
                     >
-                        {strings.news_hide}
+                        <span
+                            className="icon-no-margin"
+                            aria-hidden="true"
+                            dangerouslySetInnerHTML={{__html: config.icons.close}}
+                        />
+                        <span className="compass-news-pophidelabel">{strings.news_hide_short}</span>
                     </button>
                 </div>
             </div>

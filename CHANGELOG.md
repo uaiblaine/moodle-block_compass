@@ -87,6 +87,12 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   and the close on every stop of the gradient, light and dark, two brands (lowest 5.21:1), and a new
   rule test pins the groups' own row, the close's name, its narrow shape and the absence of any
   case transform. Twelve new mutation gates.
+  The popover and the bottom sheet of "See" are the same family (same 2026100515): the panel's
+  gradient and soft border, radius 14 (18 on top for the sheet), one sparkle, a head of the 34 px tile,
+  the eyebrow and the summary, each group a card on the surface (the accent at 55 % on hover), the
+  foot link in the accent's text at 700 and "Hide until the next sign-in" as the close's pill (cross
+  and `news_hide_short`, still named by `news_hide`). The contrast test reads the popover's texts on
+  every stop and on the row surface (lowest 5.21:1), and nine new mutation gates pin it.
 - The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,
   core's `btn btn-icon icons-collapse-expand` (2026100510), so the strip reads as expandable the
   way a section does, in each Moodle version's own look; hovering the strip's toggle rings the box

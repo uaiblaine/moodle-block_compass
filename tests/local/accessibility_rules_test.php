@@ -2692,6 +2692,105 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
+     * The open-courses popover and its sheet are the panel's family: the gradient, the cards and the pill.
+     *
+     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4). The popover paints the panel's
+     * gradient with a soft border, radius 14 (the sheet keeps its top-only 18), one decorative sparkle
+     * and a head of the 34 px tile, the eyebrow and the summary. A group is a card on the surface (border,
+     * radius 12, 10px 12px, 6 px between cards, the accent at 55 % on hover). "Hide until the next
+     * sign-in" is the close's pill with the short visible label and keeps the whole sentence as its name
+     * (aria-label and title, WCAG 2.5.3). No rule of the popover changes case. Vacuity guards: the rules
+     * and the tags are found.
+     *
+     * Changes that must make it fail: the old plain card back, a flat row, the pill unnamed or named by
+     * its short label, a text-transform on a popover rule, the sparkle announced.
+     *
+     * @return void
+     */
+    public function test_the_open_courses_popover_is_in_the_panels_family(): void {
+        $bodies = [];
+        $seen = 0;
+        $panel = '';
+        foreach ($this->rules() as [$selector, $body]) {
+            if (trim($selector) === '.block_compass .compass-news') {
+                $panel .= $body;
+            }
+            foreach (explode(',', $selector) as $one) {
+                if (!str_contains($one, 'compass-news-pop')) {
+                    continue;
+                }
+                $seen++;
+                $this->assertDoesNotMatchRegularExpression(
+                    '/(?<![\w-])(?:text-transform|letter-spacing|font-variant-caps)\s*:|small-caps/',
+                    $body,
+                    trim($one) . ' shouts: no uppercase or small capitals in the popover'
+                );
+                $bodies[trim($one)] = ($bodies[trim($one)] ?? '') . $body;
+            }
+        }
+        $this->assertGreaterThanOrEqual(15, $seen, 'vacuity: the popover\'s rules were read');
+
+        $pop = $bodies['.block_compass .compass-news-pop'] ?? '';
+        $gradient = '/linear-gradient\(\s*135deg,\s*var\(--block_compass-news-warm\) 0%,\s*var\(--block_compass-surface\) 60%,'
+            . '\s*var\(--block_compass-news-subtle\) 100%\s*\)/';
+        $this->assertMatchesRegularExpression($gradient, $panel, 'vacuity: the panel\'s gradient');
+        $this->assertMatchesRegularExpression($gradient, $pop, 'the popover uses the panel gradient');
+        $this->assertMatchesRegularExpression('/border-radius:\s*0\.875rem/', $pop);
+        $this->assertMatchesRegularExpression('/padding:\s*0\.875rem 1rem 0\.75rem/', $pop);
+        $this->assertMatchesRegularExpression(
+            '/border-radius:\s*1\.125rem 1\.125rem 0 0/',
+            $bodies['.block_compass .compass-news-pop.compass-news-sheet'] ?? '',
+            'the sheet keeps its top-only radius'
+        );
+        $row = $bodies['.block_compass .compass-news-poprow'] ?? '';
+        $this->assertMatchesRegularExpression('/border:\s*1px solid var\(--block_compass-line\)/', $row, 'the rows are cards');
+        $this->assertMatchesRegularExpression('/border-radius:\s*0\.75rem/', $row);
+        $this->assertMatchesRegularExpression('/padding:\s*0\.625rem 0\.75rem/', $row);
+        $this->assertMatchesRegularExpression('/background:\s*var\(--block_compass-surface\)/', $row);
+        $this->assertMatchesRegularExpression(
+            '/gap:\s*0\.375rem/',
+            $bodies['.block_compass .compass-news-poplist'] ?? '',
+            '6 px between the cards'
+        );
+        $this->assertMatchesRegularExpression(
+            '/border-color:\s*color-mix\(in oklab, var\(--block_compass-news-accent\) 55%, transparent\)/',
+            $bodies['.block_compass .compass-news-poprow:hover'] ?? '',
+            'the hover border is the accent at 55 %'
+        );
+        $this->assertMatchesRegularExpression(
+            '/width:\s*2\.125rem/',
+            $bodies['.block_compass .compass-news-pop .compass-news-icon'] ?? '',
+            'the 34 px tile'
+        );
+        $this->assertMatchesRegularExpression(
+            '/font-weight:\s*700/',
+            $bodies['.block_compass .compass-news-popfoot .compass-news-all'] ?? '',
+            'the foot link is bold'
+        );
+        $this->assertMatchesRegularExpression('/flex-wrap:\s*wrap/', $bodies['.block_compass .compass-news-popfoot'] ?? '');
+        $this->assertMatchesRegularExpression(
+            '/justify-content:\s*space-between/',
+            $bodies['.block_compass .compass-news-popfoot'] ?? ''
+        );
+
+        $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
+        $this->assertStringContainsString('<Spark place="compass-news-spark-d" />', $source, 'the popover\'s one sparkle');
+        $pill = array_values(array_filter(
+            $this->tags($source, 'button'),
+            static fn(string $tag): bool => str_contains($tag, 'compass-news-pophide')
+        ));
+        $this->assertCount(1, $pill, 'vacuity: the popover\'s hide');
+        $this->assertStringContainsString('aria-label={strings.news_hide}', $pill[0], 'the pill keeps news_hide as its name');
+        $this->assertStringContainsString('title={strings.news_hide}', $pill[0]);
+        $this->assertStringNotContainsString('news_hide_short', $pill[0]);
+        $this->assertStringContainsString(
+            '<span className="compass-news-pophidelabel">{strings.news_hide_short}</span>',
+            $source,
+            'the pill\'s visible word is the short string, inside the name'
+        );
+    }
+
+    /**
      * A failure notice wraps, and its two controls never break inside.
      *
      * In the day card on a phone, "Try again" and "Reload page" each stood in two lines beside the

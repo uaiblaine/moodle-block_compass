@@ -86,6 +86,7 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-news-group', '.block_compass .compass-news-more', '.block_compass .compass-news-hide',
         '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-see', '.block_compass .compass-news-pop',
         '.block_compass .compass-news-poprow', '.block_compass .compass-news-poprow:hover', '.block_compass .compass-news-tile',
+        '.block_compass .compass-news-pophide', '.block_compass .compass-news-pophide:hover',
     ];
 
     /** @var string The scope of a dimmed column of the open row. */
@@ -697,10 +698,10 @@ final class contrast_rules_test extends basic_testcase {
         // two are computed in test_the_panel_texts_read_on_every_stop_of_its_gradient), the primary's tint and
         // its ink one pair (the count chip and the icon's tile), the close and "See" on their own fills, the
         // popover's rows at rest and hovered, a tile.
-        $pop = '.block_compass .compass-news-pop';
         $row = '.block_compass .compass-news-poprow';
         $tile = '.block_compass .compass-news-tile';
         $group = '.block_compass .compass-news-group';
+        $pophide = '.block_compass .compass-news-pophide';
         $pairs = array_merge($pairs, [
             ['the panel', '.block_compass .compass-news', $surface, ['root']],
             ['the eyebrow', '.block_compass .compass-news-title', $surface, ['root']],
@@ -713,13 +714,15 @@ final class contrast_rules_test extends basic_testcase {
             ['the close', '.block_compass .compass-news-hide', '.block_compass .compass-news-hide', ['root']],
             ['the close hovered', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-hide:hover', ['root']],
             ['See', '.block_compass .compass-news-see', '.block_compass .compass-news-see', ['root']],
-            ['the popover', $pop, $pop, ['root']],
-            ['the popover\'s summary', '.block_compass .compass-news-pophead', $pop, ['root']],
+            ['the popover\'s eyebrow on a row', '.block_compass .compass-news-popeyebrow', $row, ['root']],
+            ['the popover\'s summary on a row', '.block_compass .compass-news-popsum', $row, ['root']],
+            ['the popover\'s hide', $pophide, $pophide, ['root']],
+            ['the popover\'s hide hovered', "{$pophide}:hover", "{$pophide}:hover", ['root']],
             ['a popover row', $row, $row, ['root']],
             ['a popover row hovered', "{$row}:hover", "{$row}:hover", ['root']],
             ['a popover row\'s course', '.block_compass .compass-news-popsub', $row, ['root']],
             ['a popover row\'s course hovered', '.block_compass .compass-news-popsub', "{$row}:hover", ['root']],
-            ['every course open', '.block_compass .compass-news-all', $pop, ['root']],
+            ['every course open on a row', '.block_compass .compass-news-popfoot .compass-news-all', $row, ['root']],
             ['the foot link', '.block_compass .compass-news-foot .compass-news-all', $surface, ['root']],
             ['a tile', $tile, $tile, ['root']],
             ['a tile\'s course', '.block_compass .compass-news-tilesub', $tile, ['root']],
@@ -845,6 +848,13 @@ final class contrast_rules_test extends basic_testcase {
         ];
         $hide = '.block_compass .compass-news-hide';
         $hover = '.block_compass .compass-news-hide:hover';
+        $pophide = '.block_compass .compass-news-pophide';
+        $pophover = '.block_compass .compass-news-pophide:hover';
+        $row = '.block_compass .compass-news-poprow';
+        $count = '.block_compass .compass-news-count';
+        // The popover paints the same gradient, so its texts read on the same three stops.
+        [, $pop] = $this->rule($selectors, '.block_compass .compass-news-pop');
+        $this->assertSame($panel['background'], $pop['background'] ?? '', 'the popover uses the panel\'s gradient');
         // Each pair: what it is, the text's rule, the translucent fill's rule laid over the stop (or null).
         $pairs = [
             ['the eyebrow', '.block_compass .compass-news-title', null],
@@ -852,6 +862,14 @@ final class contrast_rules_test extends basic_testcase {
             ['the close', $hide, $hide],
             ['the close hovered', $hover, $hover],
             ['the foot link', '.block_compass .compass-news-foot .compass-news-all', null],
+            ['the popover\'s eyebrow', '.block_compass .compass-news-popeyebrow', null],
+            ['the popover\'s summary', '.block_compass .compass-news-popsum', null],
+            ['a popover row\'s text', $row, null],
+            ['a popover row\'s course', '.block_compass .compass-news-popsub', null],
+            ['a popover row\'s count', $count, $count],
+            ['the popover\'s foot link', '.block_compass .compass-news-popfoot .compass-news-all', null],
+            ['the popover\'s hide', $pophide, $pophide],
+            ['the popover\'s hide hovered', $pophover, $pophover],
         ];
         $computed = 0;
         $failures = [];
