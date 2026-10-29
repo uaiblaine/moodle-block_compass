@@ -1,1 +1,1 @@
-s/if \(\$marker !== \$signin\) \{/if (\$marker === null) {/;
+s/if \(\$signin <= 0 \|\| \$marker !== \$signin\) \{/if (\$signin <= 0 || \$marker === null) {/;

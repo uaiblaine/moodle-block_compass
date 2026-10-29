@@ -15,6 +15,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- Open for enrolment, the web service (2026100512; ADR-017 stage 14c, no client yet):
+  `block_compass_get_news`, the tenth read service, no parameters, current user only, read-only
+  session. It answers the band's two days, the total, the group count, whether the catalogue was
+  truncated, at most 20 groups (category, name, count, destination, and for a group of one the
+  course and its name) and the address of every open course. Off, or hidden by the user until the
+  next sign-in, it answers empty at the cost of the two reads every service pays; a fresh entry
+  costs the same. A group of one leads to its course's enrolment page; the other groups and the
+  root lead where the `category_link` hook says, in one dispatch per response, else to core's
+  category pages.
 - Open for enrolment, the server half (2026100511; ADR-017 stage 14b, no client yet). Four
   settings in a section of their own after the calendar's: `news_enabled` (off by default),
   `news_depth` (1 to 4), `news_past` (0, 7, 14 or 30 days) and `news_ahead` (14, 30, 60 or 90

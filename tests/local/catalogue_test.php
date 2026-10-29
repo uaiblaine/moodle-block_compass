@@ -79,6 +79,34 @@ final class catalogue_test extends \advanced_testcase {
     }
 
     /**
+     * The entry get() serves is cut in the SITE timezone even when the viewer lives in another, as
+     * the showcase reads its from and to (decision 3); uncapped() passes the zone itself, so this
+     * test is the one that reads get()'s choice of it.
+     *
+     * @return void
+     */
+    public function test_get_cuts_the_band_in_the_site_timezone(): void {
+        $user = $this->getDataGenerator()->create_user(['timezone' => self::USER_TZ]);
+        $this->setUser($user);
+
+        $entry = catalogue::get($this->now());
+
+        $this->assertSame(self::SITE_TZ, $entry['timezone']);
+        $this->assertSame('2026-10-22', $entry['from']);
+        $this->assertSame('2026-11-28', $entry['to']);
+    }
+
+    /**
+     * A build whose life cap is far away, to read the midnight and window edges of until.
+     *
+     * @param int $now Unix time to treat as now.
+     * @return array The entry.
+     */
+    private function uncapped(int $now): array {
+        return catalogue::build($now, 7, 30, new \DateTimeZone(self::SITE_TZ), catalogue::CATALOGUE_LIMIT, 7 * DAYSECS);
+    }
+
+    /**
      * The course ids of an entry's rows.
      *
      * @param array $entry A catalogue entry.
@@ -107,7 +135,7 @@ final class catalogue_test extends \advanced_testcase {
         $after = $this->open_course($to);
         $rolling = $this->open_course(0);
 
-        $entry = catalogue::get($this->now());
+        $entry = $this->uncapped($this->now());
 
         $this->assertSame([(int) $first->id, (int) $last->id], $this->ids($entry));
         $this->assertSame('2026-10-22', $entry['from']);
@@ -168,7 +196,7 @@ final class catalogue_test extends \advanced_testcase {
         $this->add_route($later, 'self', ['enrolstartdate' => $now + HOURSECS]);
         $hidden = $this->open_course($start + 5, 0, 'self', ['visible' => 0]);
 
-        $entry = catalogue::get($now);
+        $entry = $this->uncapped($now);
 
         $this->assertSame([(int) $self->id, (int) $fee->id], $this->ids($entry));
         $this->assertSame($now + HOURSECS, $entry['until'], 'A window opening before midnight ends the entry.');
@@ -190,7 +218,7 @@ final class catalogue_test extends \advanced_testcase {
         $closing = $this->open_course($start + 1, 0, 'none');
         $instanceid = $this->add_route($closing, 'self', ['enrolenddate' => $now + 2 * HOURSECS]);
 
-        $entry = catalogue::get($now);
+        $entry = $this->uncapped($now);
         $this->assertSame([(int) $open->id, (int) $closing->id], $this->ids($entry), 'A window closing later is open now.');
         $this->assertSame($now + 2 * HOURSECS, $entry['until'], 'A window closing before midnight ends the entry.');
 
@@ -200,7 +228,7 @@ final class catalogue_test extends \advanced_testcase {
         $this->add_route($later, 'self', ['enrolstartdate' => $this->midnight('2026-10-30') + HOURSECS]);
         catalogue_cache::delete();
 
-        $entry = catalogue::get($now);
+        $entry = $this->uncapped($now);
         $this->assertSame([(int) $open->id, (int) $closing->id], $this->ids($entry), 'The later window is not open yet.');
         $this->assertSame($this->midnight('2026-10-30'), $entry['until'], 'Every edge beyond midnight: the band moves first.');
     }
@@ -292,5 +320,72 @@ final class catalogue_test extends \advanced_testcase {
         $this->assertFalse(catalogue_cache::is_fresh($changed, $changed['until'], 7, 30, self::SITE_TZ));
         $this->assertFalse(catalogue_cache::is_fresh($changed, $now + 300, 7, 30, 'UTC'));
         $this->assertTrue(catalogue_cache::is_fresh($changed, $now + 300, 7, 30, self::SITE_TZ));
+    }
+
+    /**
+     * An entry is a miss MAX_AGE after it was built, though nothing else changed: a build that raced
+     * an observer's delete cannot live to midnight. Control: one second before, it is a hit.
+     *
+     * @return void
+     */
+    public function test_an_entry_expires_max_age_after_it_was_built(): void {
+        $now = $this->now();
+        $this->open_course($now + DAYSECS);
+        $entry = catalogue::get($now);
+
+        $this->assertSame($now + catalogue::MAX_AGE, $entry['until'], 'The cap is nearer than midnight.');
+        $this->assertTrue(catalogue_cache::is_fresh($entry, $now + catalogue::MAX_AGE - 1, 7, 30, self::SITE_TZ));
+        $this->assertFalse(catalogue_cache::is_fresh($entry, $now + catalogue::MAX_AGE, 7, 30, self::SITE_TZ));
+        $this->assertSame($now + catalogue::MAX_AGE, catalogue::get($now + catalogue::MAX_AGE - 1)['until'], 'A hit.');
+        $this->assertSame(
+            $now + 2 * catalogue::MAX_AGE,
+            catalogue::get($now + catalogue::MAX_AGE)['until'],
+            'A miss: rebuilt, for another MAX_AGE.',
+        );
+    }
+
+    /**
+     * Moving a category changes no row of the entry but its path, and the digest follows the path, so
+     * the per-user entries grouped under the old tree are rebuilt.
+     *
+     * @return void
+     */
+    public function test_moving_a_category_changes_the_digest(): void {
+        $now = $this->now();
+        $generator = $this->getDataGenerator();
+        $top = $generator->create_category();
+        $other = $generator->create_category();
+        $this->open_course($now + DAYSECS, (int) $top->id);
+        $before = catalogue::get($now);
+
+        $rename = catalogue::build($now, 7, 30, new \DateTimeZone(self::SITE_TZ));
+        $this->assertSame($before['digest'], $rename['digest'], 'Control: the same tree, the same digest.');
+
+        \core_course_category::get((int) $top->id, MUST_EXIST, true)->change_parent((int) $other->id);
+        $moved = catalogue::build($now, 7, 30, new \DateTimeZone(self::SITE_TZ));
+
+        $this->assertSame($before['rows'], $moved['rows'], 'Control: no row member changed.');
+        $this->assertNotSame($before['digest'], $moved['digest']);
+        $this->assertCount(3, $moved['rows'][0], 'The path does not travel in the rows.');
+    }
+
+    /**
+     * A visible course in a hidden category is not offered. The column is set directly, without core's
+     * cascade to the courses, to isolate the statement's own condition.
+     *
+     * @return void
+     */
+    public function test_a_course_in_a_hidden_category_is_not_offered(): void {
+        global $DB;
+
+        $now = $this->now();
+        $category = $this->getDataGenerator()->create_category();
+        $course = $this->open_course($now + DAYSECS, (int) $category->id);
+        $this->assertSame([(int) $course->id], $this->ids(catalogue::get($now)), 'Control: offered while the category shows.');
+
+        $DB->set_field('course_categories', 'visible', 0, ['id' => $category->id]);
+        $this->assertSame(1, (int) $DB->get_field('course', 'visible', ['id' => $course->id]), 'The course itself is visible.');
+
+        $this->assertSame([], $this->ids(catalogue::build($now, 7, 30, new \DateTimeZone(self::SITE_TZ))));
     }
 }

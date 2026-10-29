@@ -185,6 +185,20 @@ final class calendar_preference_test extends advanced_testcase {
     }
 
     /**
+     * A stored marker of 0 never hides: a viewer whose currentlogin is unset reads 0 and 0 as equal.
+     * Control: the same member under a real sign-in is hidden.
+     *
+     * @return void
+     */
+    public function test_a_zero_sign_in_never_hides_the_news_line(): void {
+        $json = json_encode(['news' => ['signin' => 0]]);
+
+        $this->assertNull(calendar_preference::news($json, 0));
+        $this->assertNull(calendar_preference::news(json_encode(['news' => ['signin' => 5]]), 0));
+        $this->assertSame(['signin' => 5], calendar_preference::news(json_encode(['news' => ['signin' => 5]]), 5));
+    }
+
+    /**
      * news_hidden() reads the current viewer's member against the viewer's own sign-in.
      *
      * @return void

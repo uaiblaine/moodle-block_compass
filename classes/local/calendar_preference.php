@@ -168,7 +168,8 @@ final class calendar_preference {
      * The news member of a stored value when it holds for this sign-in, in the shape the client writes.
      *
      * The marker is kept only as a JSON integer equal to this sign-in's: "5", 5.0, a missing marker,
-     * a member that is not an object, or a marker of another sign-in all read as null, so the line
+     * a member that is not an object, or a marker of another sign-in all read as null, and so does
+     * any marker when this sign-in is 0 (currentlogin unset: 0 equals 0 would hide for good), so the line
      * shows (decision 9: until the next sign-in), and a client writing back what this returns drops
      * a stale member.
      *
@@ -180,7 +181,7 @@ final class calendar_preference {
         $decoded = ($json === null || $json === '') ? null : json_decode($json, true);
         $news = is_array($decoded) ? ($decoded['news'] ?? null) : null;
         $marker = is_array($news) ? ($news['signin'] ?? null) : null;
-        if ($marker !== $signin) {
+        if ($signin <= 0 || $marker !== $signin) {
             return null;
         }
 

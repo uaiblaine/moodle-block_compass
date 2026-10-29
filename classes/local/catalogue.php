@@ -47,6 +47,15 @@ final class catalogue {
     public const CATALOGUE_LIMIT = 500;
 
     /**
+     * @var int The longest an entry lives, in seconds, whatever its until says.
+     *
+     * A build that read its rows before a commit can be stored after the observer's delete for that
+     * commit, and would then be served until the next site midnight. The cap bounds that staleness
+     * to ten minutes, at three reads per site in that time.
+     */
+    public const MAX_AGE = 600;
+
+    /**
      * @var string[] The enrol methods that offer a route a viewer can take now (decision 2, condition 3).
      *
      * The routes of local_unlistedcourses' next action; guest access is not enrolment and
@@ -117,13 +126,22 @@ final class catalogue {
      * @param int $ahead Days ahead, config::news_ahead().
      * @param \DateTimeZone $tz The site timezone.
      * @param int $limit The most rows kept, CATALOGUE_LIMIT; a test passes a small one instead of creating 501 courses.
+     * @param int $maxage The longest the entry lives, MAX_AGE; a test passes a long one to read the midnight and window edges.
      * @return array The entry ({@see catalogue_cache}).
      */
-    public static function build(int $now, int $past, int $ahead, \DateTimeZone $tz, int $limit = self::CATALOGUE_LIMIT): array {
+    public static function build(
+        int $now,
+        int $past,
+        int $ahead,
+        \DateTimeZone $tz,
+        int $limit = self::CATALOGUE_LIMIT,
+        int $maxage = self::MAX_AGE,
+    ): array {
         $band = self::band($now, $past, $ahead, $tz);
         [$rows, $truncated] = self::candidates($band['from'], $band['to'], $now, $limit);
-        $rows = self::without_unlisted_paths($rows);
-        $until = min($band['midnight'], self::next_change($band['from'], $band['to'], $now));
+        $withpath = self::without_unlisted_paths($rows);
+        $until = min($band['midnight'], self::next_change($band['from'], $band['to'], $now), $now + $maxage);
+        $rows = array_map(fn(array $row): array => array_slice($row, 0, 3), $withpath);
 
         return [
             'rows' => $rows,
@@ -135,7 +153,7 @@ final class catalogue {
             'timezone' => $tz->getName(),
             'from' => $band['firstday'],
             'to' => $band['lastday'],
-            'digest' => self::digest($rows, $truncated),
+            'digest' => self::digest($withpath, $truncated),
         ];
     }
 
@@ -166,12 +184,14 @@ final class catalogue {
         ];
         // Index: none on course.startdate (a sequential scan of {course}, measured as ADR-017 M2); the
         // EXISTS rides enrol (enrol) and enrol (courseid); course_categories by its primary key; the state
-        // table by its courseid unique key. Bound: LIMIT $limit + 1 (CATALOGUE_LIMIT + 1), ordered startdate, id.
+        // table by its courseid unique key. cc.visible reads the row that
+        // join fetches anyway. Bound: LIMIT $limit + 1 (CATALOGUE_LIMIT + 1), ordered startdate, id.
         $sql = "SELECT c.id, c.category, c.startdate, cc.path
                   FROM {course} c
                   JOIN {course_categories} cc ON cc.id = c.category
                   {$state['join']}
                  WHERE c.visible = 1
+                   AND cc.visible = 1
                    AND c.id <> :siteid
                    AND COALESCE(c.deletioninprogress, 0) = 0
                    AND c.startdate >= :bandfrom
@@ -199,10 +219,10 @@ final class catalogue {
     }
 
     /**
-     * Drop the rows whose category path holds an unlisted category, and the path column with them.
+     * Drop the rows whose category path holds an unlisted category.
      *
      * @param array $rows Rows [courseid, categoryid, startdate, path].
-     * @return array Rows [courseid, categoryid, startdate].
+     * @return array The rows kept, still [courseid, categoryid, startdate, path]: the path stays for the digest.
      */
     private static function without_unlisted_paths(array $rows): array {
         $unlisted = array_flip(category_discoverability::unlisted_ids());
@@ -215,7 +235,7 @@ final class catalogue {
                     }
                 }
             }
-            $kept[] = [$courseid, $categoryid, $startdate];
+            $kept[] = [$courseid, $categoryid, $startdate, $path];
         }
 
         return $kept;
@@ -270,7 +290,10 @@ final class catalogue {
     /**
      * The digest of the rows: the same rows give the same digest, any change of a row another.
      *
-     * @param array $rows Rows [courseid, categoryid, startdate].
+     * The category path is part of a row here, though the entry's rows omit it: moving a category
+     * changes no other member, and a per-user entry grouped under the old tree must not outlive it.
+     *
+     * @param array $rows Rows [courseid, categoryid, startdate, path].
      * @param bool $truncated The truncated flag.
      * @return string
      */

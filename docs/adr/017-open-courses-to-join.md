@@ -533,6 +533,50 @@ counts here, in each stage's "Done".
   review only on the maintainer's word.
 - **CLAUDE.md:** ten services, nine caches and the new budgets in "Scale rules".
 
+- **Done** (stage 14c, 2026-10-29; branch `phase-14-open-courses`, version 2026100512):
+  - **The service:** `block_compass_get_news` in `classes/external/get_news.php` (read, ajax,
+    readonlysession).
+    - Order of checks: guest refused, `validate_context(user)`, empty when off, empty when hidden
+      for this sign-in, then `news::get(time())`.
+    - Links: a group of one goes to `/enrol/index.php?id=`; the other groups and the root go through
+      one `category_link::urls()` call.
+    - The answer is an allowlist: `from`, `to`, `total`, `groupcount`, `truncated`, `groups`
+      (`categoryid`, `name`, `count`, `url`, `courseid`, `coursename`; the last two always sent, 0
+      and empty without a single course) and `allurl`.
+  - **The repository's CLAUDE.md:** ten services and nine caches, the stated exception for formatted
+    names, the `get_news` budgets, the data flow, and the layout lines.
+  - **The security read** (`security-diff-read`, six questions over `git diff main -- classes db`)
+    found no high or medium defect and four low ones, all fixed in the stage, each with a test and a
+    gate:
+    1. a catalogue build racing a course edit could store a stale entry until midnight; an entry
+       now lives at most `catalogue::MAX_AGE` (600 s);
+    2. a category move left the digest unchanged; the category path is now part of what it hashes;
+    3. category visibility was read only through `course.visible`; the statement also requires
+       `cc.visible = 1`;
+    4. a sign-in marker of 0 could match a stored 0; a marker hides only when it is above 0.
+
+    Accepted as stated: a viewer newly enrolled or given a role stays counted for up to the
+    entry's 30 minutes (decision 5), and the hook hands its listener the current user's id.
+  - **Tests** on m503b, after `mdl upgrade` m503/m503b and `phpunit-init` (all peers asked):
+    - `get_news_test` 9, `get_news_budget_test` 4, `readonly_session_test` 14, `catalogue_test` 11,
+      `calendar_preference_test` 12;
+    - the whole suite: `Tests: 700, Assertions: 16920, Skipped: 22`;
+    - the budget test pins, through the service: off 2, hidden 2, fresh 2, warm build ≤ 8, cold
+      ≤ 10, worst case ≤ 10 / 12, and flat for 2 and 200 candidates.
+  - **Gates:** `mdl mutate --fast --changed main` selected 90 gates (24 new in this stage: 20 for
+    the service and 4 for the security fixes), on pgsql and on mariadb.
+    - The first run stopped on three patterns the fixes had moved (`news_cat_until_window`,
+      `news_cat_until_midnight`, `news_pref_signin`). They were rewritten, and the whole spec's
+      dry-run applies all 486.
+    - 89 held on both families.
+    - `news_cat_site_timezone` reddened nothing: the band test now builds through a helper that
+      hands the zone in. A new `test_get_cuts_the_band_in_the_site_timezone` reads `get()`'s choice
+      and holds the gate on both families.
+  - **Corrected during the stage:**
+    - `get_news_test`'s category helper is typed `core_course_category`, which 5.3's generator
+      returns;
+    - the budget test hides the line with a real sign-in marker.
+
 ### 14d. The client
 
 - **`repository.ts`:** `getNews`, with the bounded retry every read has.

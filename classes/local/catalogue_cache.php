@@ -35,7 +35,8 @@ use core_cache\cache;
  * - truncated: whether the candidate statement found more rows than the limit, so counts are a floor;
  * - built: the build instant;
  * - until: the first instant the answer can change without an event, the next site midnight or an
- *   offering instance's window opening or closing, whichever comes first;
+ *   offering instance's window opening or closing, whichever comes first, and never later than
+ *   {@see catalogue::MAX_AGE} after built;
  * - past, ahead and timezone: the band settings and the site timezone name it was built under;
  * - from and to: the band's first and last day, Y-m-d in the site timezone;
  * - digest: a hash of the rows, which the per-user layer compares ({@see news_cache::is_fresh()}).
