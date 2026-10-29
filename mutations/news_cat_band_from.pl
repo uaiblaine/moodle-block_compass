@@ -1,1 +1,1 @@
-s/(deletioninprogress, 0\) = 0\n\s*AND c\.startdate )>= :bandfrom/$1> :bandfrom/;
+s/(AND c\.id <> :siteid\n\s*AND c\.startdate )>= :bandfrom/$1> :bandfrom/;

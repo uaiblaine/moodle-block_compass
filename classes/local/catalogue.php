@@ -193,7 +193,6 @@ final class catalogue {
                  WHERE c.visible = 1
                    AND cc.visible = 1
                    AND c.id <> :siteid
-                   AND COALESCE(c.deletioninprogress, 0) = 0
                    AND c.startdate >= :bandfrom
                    AND c.startdate < :bandto
                    AND {$state['column']} IN (:stdefault, :stpublic)

@@ -294,7 +294,7 @@ final class news {
         foreach (array_slice($order, 0, self::MAX_GROUPS) as $groupid) {
             $item = ['categoryid' => $groupid, 'name' => $names[$groupid], 'count' => $groups[$groupid]['count']];
             $single = $groups[$groupid]['count'] === 1 ? $groups[$groupid]['courseids'][0] : 0;
-            if ($single && isset($courses[$single]) && !course_meta::is_being_deleted($courses[$single])) {
+            if ($single && isset($courses[$single])) {
                 $item['courseid'] = $single;
                 $item['coursename'] = format_string(
                     $courses[$single]['fullname'],
