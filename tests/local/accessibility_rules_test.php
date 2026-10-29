@@ -1492,8 +1492,11 @@ final class accessibility_rules_test extends basic_testcase {
      * region. The region is rendered closed too, empty and hidden, so the id the button names always
      * exists. Vacuity guards: the toggle, the heading and the region were found.
      *
+     * The chevron carries core's btn-icon icons-collapse-expand, the box a course section's toggle
+     * is drawn in, so the strip reads as expandable the way a section does.
+     *
      * Changes that must make it fail: aria-expanded or aria-controls dropped; the toggle out of the
-     * heading; the region rendered only when open.
+     * heading; the region rendered only when open; the chevron out of core's toggle box.
      *
      * @return void
      */
@@ -1506,6 +1509,11 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertCount(1, $toggles, 'the strip\'s toggle was not found');
         $this->assertMatchesRegularExpression('/\saria-expanded=\{open\}/', $toggles[0], 'the toggle states its state');
         $this->assertMatchesRegularExpression('/\saria-controls=\{bodyid\}/', $toggles[0], 'the toggle names its region');
+        $this->assertSame(
+            2,
+            substr_count($source, "'compass-cal-togglechev btn btn-icon icons-collapse-expand"),
+            'the chevron is drawn in core\'s section toggle box, open and closed'
+        );
 
         $this->assertMatchesRegularExpression(
             '/<Heading className="compass-cal-title[^"]*">\s*<button\s[^>]*compass-cal-toggle/s',
