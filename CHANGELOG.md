@@ -16,9 +16,14 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 ### Changed
 
 - The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,
-  core's `btn btn-icon icons-collapse-expand` (2026100509), so the strip reads as expandable the
+  core's `btn btn-icon icons-collapse-expand` (2026100510), so the strip reads as expandable the
   way a section does, in each Moodle version's own look; hovering the strip's toggle rings the box
   as hovering a section's does.
+- The React sources lint with no warning under core's eslint, which `mdl ci` runs over
+  `js/esm/src` too (2026100509): the nested ternaries in `heading.ts`, the tier 3 column count and
+  the filter line's active option became plain conditions or lookups, and the six component bodies
+  whose render branches pass core's complexity cap (`Block`, `CalendarStrip`, `Explore`,
+  `FilterLine`, `Row`, `RowCard`) carry an acknowledged `complexity` exception. No behaviour changes.
 - Plugins directory readiness (2026100508): the package carries `LICENSE` beside `COPYING.txt`,
   both the GPL v3 text, and ships English only: `lang/pt_br` stays in git, in step with `lang/en`,
   but is left out of the release zip, and Portuguese reaches sites through AMOS. The tests that
