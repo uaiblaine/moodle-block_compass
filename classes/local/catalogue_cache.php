@@ -108,7 +108,8 @@ final class catalogue_cache {
     }
 
     /**
-     * Drop the entry, from the events that change the answer (stage 14b wires the observers).
+     * Drop the entry, from the nine events that change the answer ({@see \block_compass\observer::catalogue_changed()}
+     * and the course and category callbacks beside it). A per-key delete: no per-user layer goes with it.
      *
      * @return void
      */

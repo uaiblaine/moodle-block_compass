@@ -13,6 +13,22 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Added
+
+- Open for enrolment, the server half (2026100511; ADR-017 stage 14b, no client yet). Four
+  settings in a section of their own after the calendar's: `news_enabled` (off by default),
+  `news_depth` (1 to 4), `news_past` (0, 7, 14 or 30 days) and `news_ahead` (14, 30, 60 or 90
+  days). Two cache definitions: `catalogue`, shared, the courses that are visible and listed,
+  start in the band (site-timezone days) and offer an enrolment route open now, rebuilt after any
+  course, enrolment-instance or discoverability event (`db/events.php` gains course_created, the
+  three enrol_instance events and local_unlistedcourses' two state events); and `news`, per user
+  for 30 minutes, the groups of courses the user could join, never one where they hold an
+  enrolment row of any status or a role on the course's path, deleted with the account. A new
+  hook, `\block_compass\hook\category_link`, lets a theme lead a group to a filtered category
+  page; with no listener, the line links to core's category pages. The `block_compass_calendar`
+  preference gains its `news` member (`{signin}`, the line hidden until the next sign-in), exported
+  with the rest of the preference.
+
 ### Changed
 
 - The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,

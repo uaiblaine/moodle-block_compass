@@ -116,11 +116,12 @@ final class catalogue {
      * @param int $past Days back, config::news_past().
      * @param int $ahead Days ahead, config::news_ahead().
      * @param \DateTimeZone $tz The site timezone.
+     * @param int $limit The most rows kept, CATALOGUE_LIMIT; a test passes a small one instead of creating 501 courses.
      * @return array The entry ({@see catalogue_cache}).
      */
-    public static function build(int $now, int $past, int $ahead, \DateTimeZone $tz): array {
+    public static function build(int $now, int $past, int $ahead, \DateTimeZone $tz, int $limit = self::CATALOGUE_LIMIT): array {
         $band = self::band($now, $past, $ahead, $tz);
-        [$rows, $truncated] = self::candidates($band['from'], $band['to'], $now);
+        [$rows, $truncated] = self::candidates($band['from'], $band['to'], $now, $limit);
         $rows = self::without_unlisted_paths($rows);
         $until = min($band['midnight'], self::next_change($band['from'], $band['to'], $now));
 
@@ -144,10 +145,11 @@ final class catalogue {
      * @param int $from The band's first second.
      * @param int $to The second after the band's last.
      * @param int $now Unix time to treat as now.
+     * @param int $limit The most rows kept.
      * @return array The rows, each [courseid, categoryid, startdate, path], and whether the database held
-     *     more than CATALOGUE_LIMIT.
+     *     more than $limit.
      */
-    private static function candidates(int $from, int $to, int $now): array {
+    private static function candidates(int $from, int $to, int $now, int $limit): array {
         global $DB;
 
         $state = discoverability::state_sql('c', 'lus');
@@ -164,7 +166,7 @@ final class catalogue {
         ];
         // Index: none on course.startdate (a sequential scan of {course}, measured as ADR-017 M2); the
         // EXISTS rides enrol (enrol) and enrol (courseid); course_categories by its primary key; the state
-        // table by its courseid unique key. Bound: LIMIT CATALOGUE_LIMIT + 1, ordered startdate, id.
+        // table by its courseid unique key. Bound: LIMIT $limit + 1 (CATALOGUE_LIMIT + 1), ordered startdate, id.
         $sql = "SELECT c.id, c.category, c.startdate, cc.path
                   FROM {course} c
                   JOIN {course_categories} cc ON cc.id = c.category
@@ -185,15 +187,15 @@ final class catalogue {
                           AND (e.enrolenddate = 0 OR e.enrolenddate > :closes)
                    )
               ORDER BY c.startdate, c.id";
-        $records = $DB->get_records_sql($sql, $params, 0, self::CATALOGUE_LIMIT + 1);
+        $records = $DB->get_records_sql($sql, $params, 0, $limit + 1);
 
         $rows = [];
         foreach ($records as $record) {
             $rows[] = [(int) $record->id, (int) $record->category, (int) $record->startdate, (string) $record->path];
         }
-        $truncated = count($rows) > self::CATALOGUE_LIMIT;
+        $truncated = count($rows) > $limit;
 
-        return [array_slice($rows, 0, self::CATALOGUE_LIMIT), $truncated];
+        return [array_slice($rows, 0, $limit), $truncated];
     }
 
     /**

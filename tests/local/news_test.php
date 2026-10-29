@@ -139,6 +139,186 @@ final class news_test extends \advanced_testcase {
     }
 
     /**
+     * A role at the course's own context, with no enrolment, excludes it; the control course counts.
+     *
+     * @return void
+     */
+    public function test_a_role_at_the_course_without_enrolment_excludes(): void {
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $category = $gen->create_category();
+        $teaching = $this->open_course($start, (int) $category->id);
+        $control = $this->open_course($start + 1, (int) $category->id);
+        $user = $gen->create_user();
+        $this->assign_role((int) $user->id, 'editingteacher', \core\context\course::instance($teaching->id));
+
+        $entry = $this->entry_for($user);
+
+        $this->assertSame(1, $entry['total']);
+        $this->assertSame((int) $control->id, $entry['groups'][0]['courseid']);
+    }
+
+    /**
+     * An enrolment row with no role on the course still excludes it (decision 2, condition 4): the
+     * enrolment half of the statement holds this case alone, since the role half sees nothing.
+     *
+     * @return void
+     */
+    public function test_an_enrolment_row_without_a_role_excludes(): void {
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $category = $gen->create_category();
+        $held = $this->open_course($start, (int) $category->id);
+        $control = $this->open_course($start + 1, (int) $category->id);
+        $user = $gen->create_user();
+        $gen->enrol_user($user->id, $held->id, 'student', 'manual');
+        // The participant keeps the row and loses the role, as when a teacher removes it: only the
+        // enrolment half of the statement can see the course is theirs.
+        role_unassign_all(['userid' => $user->id, 'contextid' => \context_course::instance($held->id)->id]);
+
+        $entry = $this->entry_for($user);
+
+        $this->assertSame(1, $entry['total']);
+        $this->assertSame((int) $control->id, $entry['groups'][0]['courseid']);
+    }
+
+    /**
+     * A student row that has ended still excludes the course: the line never offers a course back to
+     * someone who held it (decision 2, condition 4); the control course counts.
+     *
+     * @return void
+     */
+    public function test_an_expired_student_row_excludes(): void {
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $category = $gen->create_category();
+        $held = $this->open_course($start, (int) $category->id);
+        $control = $this->open_course($start + 1, (int) $category->id);
+        $user = $gen->create_user();
+        $gen->get_plugin_generator('block_compass')->enrol_at(
+            (int) $user->id,
+            (int) $held->id,
+            time() - 30 * DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            time() - 30 * DAYSECS,
+            time() - DAYSECS
+        );
+
+        $entry = $this->entry_for($user);
+
+        $this->assertSame(1, $entry['total']);
+        $this->assertSame((int) $control->id, $entry['groups'][0]['courseid']);
+    }
+
+    /**
+     * An enrol_apply instance that accepts applications counts; one that refuses them (the plugin's
+     * own default, new enrolments off) does not.
+     *
+     * Configured the way enrol_apply's allow_apply() accepts: enabled, new enrolments on (customint6),
+     * no cohort (customint5), no cap (customint3), no window. Skipped where enrol_apply is not installed.
+     *
+     * @return void
+     */
+    public function test_an_application_route_that_accepts_counts(): void {
+        if (!enrol_get_plugin('apply')) {
+            $this->markTestSkipped('enrol_apply is not installed.');
+        }
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $category = $gen->create_category();
+        $accepts = $this->open_course($start, (int) $category->id, 'none');
+        $this->add_route($accepts, 'apply', ['customint6' => 1, 'customint5' => 0, 'customint3' => 0]);
+        $refuses = $this->open_course($start + 1, (int) $category->id, 'none');
+        $this->add_route($refuses, 'apply', ['customint6' => 0, 'customint5' => 0, 'customint3' => 0]);
+        $user = $gen->create_user();
+
+        $entry = $this->entry_for($user);
+
+        $this->assertSame(1, $entry['total']);
+        $this->assertSame((int) $accepts->id, $entry['groups'][0]['courseid']);
+        $this->assertNotContains((int) $refuses->id, array_column($entry['groups'], 'courseid'));
+    }
+
+    /**
+     * The provider's listing filter has the last word: a course the catalogue still holds, its
+     * category unlisted since without the event reaching the observer, is dropped; the control counts.
+     *
+     * @return void
+     */
+    public function test_the_providers_listing_filter_has_the_last_word(): void {
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $withheld = $gen->create_category();
+        $listed = $gen->create_category();
+        $inside = $this->open_course($start, (int) $withheld->id);
+        $control = $this->open_course($start + 1, (int) $listed->id);
+        $user = $gen->create_user();
+        $this->setUser($user);
+        catalogue::get(time());
+
+        $sink = $this->redirectEvents();
+        $this->unlist_category((int) $withheld->id);
+        $sink->close();
+        $this->assertContains(
+            (int) $inside->id,
+            array_column(catalogue_cache::get()['rows'], 0),
+            'The precondition: the cached catalogue still holds it.'
+        );
+
+        $entry = $this->entry_for($user);
+
+        $this->assertSame([(int) $listed->id => 1], $this->counts($entry));
+        $this->assertSame((int) $control->id, $entry['groups'][0]['courseid']);
+    }
+
+    /**
+     * Groups of equal size and equal first start date are ordered by name, in the collator's order.
+     *
+     * The course of the later name is created first, so the catalogue's order (start date, then id)
+     * would put its group first: only the name puts it second.
+     *
+     * @return void
+     */
+    public function test_ties_are_ordered_by_name(): void {
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $zeta = $gen->create_category(['name' => 'Zeta']);
+        $eta = $gen->create_category(['name' => 'Eta']);
+        $this->open_course($start, (int) $zeta->id);
+        $this->open_course($start, (int) $eta->id);
+
+        $entry = $this->entry_for($gen->create_user());
+
+        $this->assertSame(['Eta', 'Zeta'], array_column($entry['groups'], 'name'));
+    }
+
+    /**
+     * At most twenty groups are carried, the cut taking the latest starts; the total and the group
+     * count are the whole, before the cut.
+     *
+     * @return void
+     */
+    public function test_twenty_groups_at_most(): void {
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $categoryids = [];
+        for ($i = 0; $i < news::MAX_GROUPS + 1; $i++) {
+            $category = $gen->create_category();
+            $categoryids[] = (int) $category->id;
+            $this->open_course($start + $i * HOURSECS, (int) $category->id);
+        }
+
+        $entry = $this->entry_for($gen->create_user());
+
+        $this->assertSame(20, news::MAX_GROUPS);
+        $this->assertCount(news::MAX_GROUPS, $entry['groups']);
+        $this->assertSame(news::MAX_GROUPS + 1, $entry['total']);
+        $this->assertSame(news::MAX_GROUPS + 1, $entry['groupcount']);
+        $this->assertSame(array_slice($categoryids, 0, news::MAX_GROUPS), array_column($entry['groups'], 'categoryid'));
+    }
+
+    /**
      * A priced fee route counts; guest access beside a self instance that refuses new enrolments
      * does not, although the prefilter lets the course into the catalogue.
      *

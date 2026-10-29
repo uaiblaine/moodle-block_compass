@@ -140,6 +140,71 @@ final class calendar_preference_test extends advanced_testcase {
     }
 
     /**
+     * The news member (ADR-017 decision 9) holds for its own sign-in only.
+     *
+     * The control is the same member under the next sign-in: the line is hidden until then only.
+     *
+     * @return void
+     */
+    public function test_the_news_member_holds_for_its_own_sign_in(): void {
+        $json = json_encode(['open' => true, 'news' => ['signin' => 1700000000]]);
+
+        $this->assertSame(['signin' => 1700000000], calendar_preference::news($json, 1700000000));
+        $this->assertNull(calendar_preference::news($json, 1700003600), 'another sign-in: shown again');
+    }
+
+    /**
+     * A missing or malformed news member is not hidden, and never changes what the other members read.
+     *
+     * @return void
+     */
+    public function test_a_malformed_news_member_is_not_hidden_and_breaks_nothing(): void {
+        $members = [
+            'missing' => [],
+            'not an object' => ['news' => 5],
+            'a string' => ['news' => 'hidden'],
+            'a list' => ['news' => [5]],
+            'signin as a string' => ['news' => ['signin' => '5']],
+            'signin as a float' => ['news' => ['signin' => 5.5]],
+            'signin as a boolean' => ['news' => ['signin' => true]],
+            'no signin' => ['news' => ['hidden' => true]],
+        ];
+        $others = ['view' => 'teaching', 'filter' => 'todo', 'relevance' => false, 'open' => true];
+        foreach ($members as $case => $member) {
+            $json = json_encode($others + $member);
+            $this->assertNull(calendar_preference::news($json, 5), $case);
+            $this->assertSame($others, calendar_preference::validate($json, true), "{$case}: the other members stand");
+        }
+        foreach ([null, '', 'not json', '[]', '"news"'] as $stored) {
+            $this->assertNull(calendar_preference::news($stored, 5), var_export($stored, true));
+        }
+        $valid = json_encode($others + ['soon' => ['rank' => 2, 'signin' => 5], 'news' => ['signin' => 5]]);
+        $this->assertSame(['signin' => 5], calendar_preference::news($valid, 5), 'Control: a well-formed member is read.');
+        $this->assertSame(2, calendar_preference::soon($valid, 5)['rank'], 'Up next\'s member beside it stands.');
+        $this->assertSame($others, calendar_preference::validate($valid, true), 'A well-formed member changes nothing either.');
+    }
+
+    /**
+     * news_hidden() reads the current viewer's member against the viewer's own sign-in.
+     *
+     * @return void
+     */
+    public function test_news_hidden_reads_the_viewers_own_sign_in(): void {
+        global $USER;
+
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $USER->currentlogin = 1700000000;
+
+        $this->assertFalse(calendar_preference::news_hidden(), 'nothing stored');
+        set_user_preference(calendar_preference::NAME, json_encode(['news' => ['signin' => 1700000000]]), $user);
+        $this->assertTrue(calendar_preference::news_hidden());
+        $USER->currentlogin = 1700086400;
+        $this->assertFalse(calendar_preference::news_hidden(), 'the next sign-in shows it again');
+    }
+
+    /**
      * hidden_rank() reads the current viewer's member against the viewer's own sign-in.
      *
      * @return void

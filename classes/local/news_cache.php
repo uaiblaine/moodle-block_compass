@@ -121,7 +121,7 @@ final class news_cache {
     }
 
     /**
-     * Drop the user's entry, on the deletion of their account (stage 14b wires the observer).
+     * Drop the user's entry, on the deletion of their account ({@see \block_compass\observer::user_deleted()}).
      *
      * @param int $userid The user.
      * @return void

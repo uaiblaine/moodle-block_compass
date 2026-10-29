@@ -455,9 +455,10 @@ counts here, in each stage's "Done".
   `db/hooks.php` is unchanged: the block dispatches and does not listen.
 - **The preference:** the `news` member (`{signin}`) of `block_compass_calendar`, validated member by
   member in `calendar_preference` and written with the others. The privacy export test covers it.
-- **Strings:** lang `en` and `pt_br` in lockstep. `cachedef_catalogue` and `cachedef_news`, each
-  setting's pair, and the `news_*` strings of decision 10, with their wording from `Regras.dc.html`
-  §8.
+- **Strings:** lang `en` and `pt_br` in lockstep. `cachedef_catalogue` and `cachedef_news`, and
+  each setting's pair with its option labels. The line's own `news_*` strings move to 14d (corrected
+  during 14b, 2026-10-29). `client_policy_test` requires every `_one` string to be exported by the
+  shell, and the shell's export is 14d's. A string arrives with the code that ships it.
 - **Tests:**
   - `catalogue_test`: every condition and the band's edges in the site timezone, with the user in
     another timezone; `until` at midnight and at a window opening; truncation; unlisted (own,
@@ -474,6 +475,43 @@ counts here, in each stage's "Done".
 - **Version:** bumped to the next `20261005XX`, because `db/caches.php` and `db/events.php` are read
   at upgrade. `CHANGELOG.md` is updated. Ask the peers before `mdl upgrade m503`/`m503b` and
   `mdl phpunit-init`.
+
+- **Done** (stage 14b, 2026-10-29; branch `phase-14-open-courses`, version 2026100511):
+  - **What landed:**
+    - the four settings in their own section;
+    - six new observer entries, with the catalogue delete added to `course_updated`,
+      `course_deleted` and `course_category_updated`, and `user_deleted` dropping the news entry;
+    - the hook `\block_compass\hook\category_link` and its dispatcher, which keeps only a local URL
+      under `wwwroot` and falls back to core's category page;
+    - the `news` member of `block_compass_calendar`, exported by the privacy provider;
+    - the settings' strings;
+    - 37 Phase 14 gates.
+  - **Tests** (m503b, after `mdl upgrade` m503/m503b and `phpunit-init`, all peers asked):
+    - `catalogue_test` 7, `news_test` 13, `category_link_test` 4, `observer_test` 24,
+      `config_test` 56, `calendar_preference_test` 11, `provider_test` 6;
+    - the whole suite: `Tests: 681, Assertions: 16813, Skipped: 22`;
+    - the enrol_apply case runs, with an instance that accepts applications.
+  - **Gates:** `mdl mutate --fast --changed main` selected 63 gates (the 37 new ones and 26 on touched
+    files), on pgsql and on mariadb.
+    - 62 held on both.
+    - `news_history_enrolments` reddened nothing on either. Every test's enrolment also carried a role
+      in the course, which the role half already catches. A new test,
+      `test_an_enrolment_row_without_a_role_excludes` (a row whose role was removed), holds it on both
+      families. The gate now names that test only, since the two tests it claimed stay green under it.
+  - **Corrected during the stage:**
+    - the line's eleven client strings move to 14d, beside their exporter (see 14b's strings and
+      14d's shell);
+    - one observer test read a category as a viewer who may not see it, and now asks for it as its
+      siblings do.
+  - **Deviations reported by the implementer, accepted:**
+    - no gate on `(int) SITEID`, because the category join already drops the site course;
+    - no gates inside `offers_route()`: its type and kind checks are redundant, so the call site is
+      gated;
+    - the apply route's test skips where enrol_apply is not installed, so the fast sweep image holds no
+      gate on it;
+    - the dispatcher is stricter than the spec (a relative path or `//host` falls back);
+    - `course_created` and `course_deleted` are triggered directly in `observer_test`, because core's
+      own paths also fire instance events that would hide a missing entry.
 
 ### 14c. The service
 
@@ -509,7 +547,37 @@ counts here, in each stage's "Done".
   `OpenCourses`, then tier 1; below tier 1's first strip while Up next shows; tier 1's empty
   state with no active course; the top of the content when the calendar is off.
 - **The shell:** `classes/output/block.php` ships `news: {enabled, signin}` and the strings, so a
-  hidden line asks nothing.
+  hidden line asks nothing. The strings are the eleven below, written during 14b and held here until their
+  exporter lands (alphabetical in each lang file, `client_policy_test`'s `_one` census goes from 22
+  to 23):
+
+  ```php
+  // lang/en/block_compass.php
+  $string['news_all'] = 'See every course open for enrolment';
+  $string['news_empty_lead'] = 'Open for enrolment for you, starting by {$a}';
+  $string['news_error'] = 'The courses open for enrolment could not be loaded.';
+  $string['news_group_label'] = '{$a->name}: {$a->count} courses open for enrolment';
+  $string['news_hide'] = 'Hide until the next sign-in';
+  $string['news_hideerror'] = 'The line could not be hidden, so it is back.';
+  $string['news_more'] = '+{$a}';
+  $string['news_see'] = 'See';
+  $string['news_summary'] = '{$a->count} courses start by {$a->until}';
+  $string['news_summary_one'] = '1 course starts by {$a->until}';
+  $string['news_title'] = 'Open for enrolment';
+
+  // lang/pt_br/block_compass.php
+  $string['news_all'] = 'Ver todos os cursos abertos';
+  $string['news_empty_lead'] = 'Com inscrição aberta para você, começando até {$a}';
+  $string['news_error'] = 'Não foi possível carregar os cursos com inscrição aberta.';
+  $string['news_group_label'] = '{$a->name}: {$a->count} cursos com inscrição aberta';
+  $string['news_hide'] = 'Ocultar até o próximo acesso';
+  $string['news_hideerror'] = 'Não foi possível ocultar a linha, então ela voltou.';
+  $string['news_more'] = '+{$a}';
+  $string['news_see'] = 'Ver';
+  $string['news_summary'] = '{$a->count} cursos começam até {$a->until}';
+  $string['news_summary_one'] = '1 curso começa até {$a->until}';
+  $string['news_title'] = 'Inscrições abertas';
+  ```
 - **Request order:** after `get_attention`, and after `get_strip_counts` when the calendar is on.
   Once, with no timer.
 - **`styles.css`:**

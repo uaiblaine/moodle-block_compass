@@ -176,6 +176,88 @@ final class catalogue_test extends \advanced_testcase {
     }
 
     /**
+     * until is the earliest recorded change ahead: a window closing before midnight ends the entry there;
+     * with every window edge beyond the next site midnight, or behind now, the midnight ends it.
+     *
+     * @return void
+     */
+    public function test_until_is_the_earliest_recorded_change_ahead(): void {
+        global $DB;
+
+        $now = $this->now();
+        $start = $now + DAYSECS;
+        $open = $this->open_course($start);
+        $closing = $this->open_course($start + 1, 0, 'none');
+        $instanceid = $this->add_route($closing, 'self', ['enrolenddate' => $now + 2 * HOURSECS]);
+
+        $entry = catalogue::get($now);
+        $this->assertSame([(int) $open->id, (int) $closing->id], $this->ids($entry), 'A window closing later is open now.');
+        $this->assertSame($now + 2 * HOURSECS, $entry['until'], 'A window closing before midnight ends the entry.');
+
+        $DB->set_field('enrol', 'enrolenddate', $now + 3 * DAYSECS, ['id' => $instanceid]);
+        $DB->set_field('enrol', 'enrolstartdate', $now - DAYSECS, ['id' => $instanceid]);
+        $later = $this->open_course($start + 2, 0, 'none');
+        $this->add_route($later, 'self', ['enrolstartdate' => $this->midnight('2026-10-30') + HOURSECS]);
+        catalogue_cache::delete();
+
+        $entry = catalogue::get($now);
+        $this->assertSame([(int) $open->id, (int) $closing->id], $this->ids($entry), 'The later window is not open yet.');
+        $this->assertSame($this->midnight('2026-10-30'), $entry['until'], 'Every edge beyond midnight: the band moves first.');
+    }
+
+    /**
+     * Past the limit the entry keeps the first rows by start date and says it was truncated; at the
+     * limit it keeps every row and does not. The limit is injected: 501 courses would make a slow test.
+     *
+     * @return void
+     */
+    public function test_past_the_limit_the_entry_is_truncated(): void {
+        $now = $this->now();
+        $tz = new \DateTimeZone(self::SITE_TZ);
+        $third = $this->open_course($now + 3 * DAYSECS);
+        $first = $this->open_course($now + DAYSECS);
+        $second = $this->open_course($now + 2 * DAYSECS);
+
+        $cut = catalogue::build($now, 7, 30, $tz, 2);
+        $whole = catalogue::build($now, 7, 30, $tz, 3);
+
+        $this->assertSame([(int) $first->id, (int) $second->id], $this->ids($cut));
+        $this->assertTrue($cut['truncated']);
+        $this->assertSame([(int) $first->id, (int) $second->id, (int) $third->id], $this->ids($whole));
+        $this->assertFalse($whole['truncated'], 'Control: at the limit nothing was left out.');
+        $this->assertNotSame($cut['digest'], $whole['digest']);
+        $this->assertSame(500, catalogue::CATALOGUE_LIMIT);
+    }
+
+    /**
+     * An edit that changes no row drops the entry through its event and rebuilds it with the same
+     * digest, so no viewer's entry is lost to it; a row that leaves (the course unlisted) changes it.
+     *
+     * @return void
+     */
+    public function test_an_edit_that_changes_no_row_keeps_the_digest_and_a_row_that_leaves_changes_it(): void {
+        global $CFG;
+
+        require_once($CFG->dirroot . '/course/lib.php');
+        $now = $this->now();
+        $course = $this->open_course($now + DAYSECS);
+        $other = $this->open_course($now + 2 * DAYSECS);
+        $first = catalogue::get($now);
+
+        update_course((object) ['id' => $course->id, 'fullname' => 'A different name']);
+        $this->assertFalse(catalogue_cache::get(), 'The edit dropped the entry.');
+        $rebuilt = catalogue::get($now + 60);
+        $this->assertSame($now + 60, $rebuilt['built'], 'It was rebuilt.');
+        $this->assertSame($first['digest'], $rebuilt['digest'], 'No row changed: the same digest.');
+
+        $this->course_state((int) $other->id, discoverability::STATE_UNLISTED);
+        $this->assertFalse(catalogue_cache::get(), 'The state change dropped the entry.');
+        $changed = catalogue::get($now + 120);
+        $this->assertSame([(int) $course->id], $this->ids($changed));
+        $this->assertNotSame($first['digest'], $changed['digest'], 'A row that leaves changes the digest.');
+    }
+
+    /**
      * A hit costs no read; a moved setting, a changed timezone or the until instant rebuilds; an
      * unchanged rebuild keeps the digest, a row that leaves changes it.
      *

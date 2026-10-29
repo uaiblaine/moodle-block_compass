@@ -41,6 +41,12 @@ namespace block_compass\local;
  * own ({@see soon()}), never through validate(), so it can neither break nor be broken by the other
  * members: a missing or malformed member, or one written under another sign-in, is not hidden.
  *
+ * The news member (ADR-017 decision 9) is the open-courses line hidden by the viewer: {signin},
+ * $USER->currentlogin when it was written. It is read on its own as well ({@see news()}), with the
+ * same rule: an unknown shape, or another sign-in, is not hidden. The client writes every member
+ * it holds back with each write, so a change of view keeps the line hidden and hiding the line
+ * keeps the view.
+ *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -156,6 +162,45 @@ final class calendar_preference {
         }
 
         return ['rank' => $member['rank'], 'signin' => $member['signin']];
+    }
+
+    /**
+     * The news member of a stored value when it holds for this sign-in, in the shape the client writes.
+     *
+     * The marker is kept only as a JSON integer equal to this sign-in's: "5", 5.0, a missing marker,
+     * a member that is not an object, or a marker of another sign-in all read as null, so the line
+     * shows (decision 9: until the next sign-in), and a client writing back what this returns drops
+     * a stale member.
+     *
+     * @param string|null $json The stored JSON, or null when nothing is stored.
+     * @param int $signin The sign-in marker now, $USER->currentlogin.
+     * @return array|null signin (equal to $signin), or null: not hidden.
+     */
+    public static function news(?string $json, int $signin): ?array {
+        $decoded = ($json === null || $json === '') ? null : json_decode($json, true);
+        $news = is_array($decoded) ? ($decoded['news'] ?? null) : null;
+        $marker = is_array($news) ? ($news['signin'] ?? null) : null;
+        if ($marker !== $signin) {
+            return null;
+        }
+
+        return ['signin' => $marker];
+    }
+
+    /**
+     * Whether the current viewer hid the open-courses line during this sign-in.
+     *
+     * The service that answers the line (ADR-017 stage 14c) returns early on true; the domain never
+     * reads this, so a hidden line costs the floor and nothing else.
+     *
+     * @return bool
+     */
+    public static function news_hidden(): bool {
+        global $USER;
+
+        $stored = get_user_preferences(self::NAME, null);
+
+        return self::news(is_string($stored) ? $stored : null, (int) ($USER->currentlogin ?? 0)) !== null;
     }
 
     /**
