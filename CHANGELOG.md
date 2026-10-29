@@ -35,6 +35,11 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Fixed
 
+- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
+  (2026100511). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
+  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
+  downloading, so RequireJS fetched it again under the module's name. The block's one door to
+  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
 - Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
   `block_compass_calendar` preferences (`db/uninstall.php`, 2026100508): core's uninstall drops
   the settings, the task and the caches but leaves user preferences. The Course overview block's
