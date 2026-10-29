@@ -373,6 +373,7 @@ $string['news_enabled_desc'] = 'When off, the line costs nothing: no request, no
 $string['news_error'] = 'The courses open for enrolment could not be loaded.';
 $string['news_group_label'] = '{$a->name}: {$a->count} courses open for enrolment';
 $string['news_hide'] = 'Hide until the next sign-in';
+$string['news_hide_short'] = 'Hide';
 $string['news_hideerror'] = 'The line could not be hidden, so it is back.';
 $string['news_more'] = '+{$a}';
 $string['news_past'] = 'Days back';

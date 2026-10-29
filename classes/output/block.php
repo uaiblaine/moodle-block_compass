@@ -117,8 +117,8 @@ class block implements renderable, templatable {
      * @var string[]
      */
     public const NEWS_STRINGS = [
-        'news_all', 'news_empty_lead', 'news_error', 'news_group_label', 'news_hide', 'news_hideerror', 'news_more',
-        'news_see', 'news_summary', 'news_summary_one', 'news_title',
+        'news_all', 'news_empty_lead', 'news_error', 'news_group_label', 'news_hide', 'news_hide_short',
+        'news_hideerror', 'news_more', 'news_see', 'news_summary', 'news_summary_one', 'news_title',
     ];
 
     /**

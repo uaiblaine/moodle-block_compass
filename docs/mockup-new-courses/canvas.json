@@ -31,12 +31,21 @@
       "w": 1300,
       "h": 900,
       "title": "Phone: option B calm, busy (bottom sheet) and with no course"
+    },
+    "Rodada2.dc.html": {
+      "x": 1520,
+      "y": 2320,
+      "w": 1440,
+      "h": 2600,
+      "title": "Round 2: a panel of its own, after the feedback_tracker hero (chips on line two, close in the corner)",
+      "is_interactive": true
     }
   },
   "order": [
     "Main.dc.html",
     "Regras.dc.html",
-    "Celular.dc.html"
+    "Celular.dc.html",
+    "Rodada2.dc.html"
   ],
   "notes": {
     "headline": {
