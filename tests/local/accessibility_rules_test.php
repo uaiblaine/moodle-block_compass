@@ -472,17 +472,17 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertArrayHasKey('js/esm/src/heading.ts', $sources, 'heading.ts is where the rungs are chosen');
         $helper = $sources['js/esm/src/heading.ts'];
         $this->assertMatchesRegularExpression(
-            '/rung\(level\) === 2 \? \'h2\' : \(rung\(level\) === 3 \? \'h3\' : \'h4\'\)/',
+            '/SectionTag => \(\[\'h2\', \'h3\', \'h4\'\] as const\)\[rung\(level\) - 2\]/',
             $helper,
             'sections: h2 on the page, h3 without the block title, h4 under it'
         );
         $this->assertMatchesRegularExpression(
-            '/rung\(level\) === 2 \? \'h3\' : \(rung\(level\) === 3 \? \'h4\' : \'h5\'\)/',
+            '/TitleTag => \(\[\'h3\', \'h4\', \'h5\'\] as const\)\[rung\(level\) - 2\]/',
             $helper,
             'card titles: one rung under the sections'
         );
         $this->assertMatchesRegularExpression(
-            '/level === 2 \? 2 : \(level === 3 \? 3 : 4\)/',
+            '/level === 2 \|\| level === 3 \? level : 4/',
             $helper,
             'an unknown level is the Dashboard\'s'
         );
