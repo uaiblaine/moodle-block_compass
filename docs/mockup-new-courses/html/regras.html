@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compass: open courses, the rules</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.cc-root{
+  --cc-page:#f4f5f7;--cc-surface:#fff;--cc-surface-2:#f6f7f9;--cc-text:#1d2125;--cc-text-2:#454c53;--cc-muted:#5f6870;
+  --cc-line:#e4e7eb;--cc-line-2:#d5dade;--cc-accent:#0f6cbf;--cc-on-accent:#fff;--cc-danger:#ca3120;
+  --cc-new-bg:#e7f0fa;--cc-new-fg:#0b4f8c;--cc-ink:#121518;--cc-on-ink:#fff;
+  font-family:'Noto Sans',system-ui,sans-serif;background:var(--cc-page);color:var(--cc-text);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.45;
+}
+.cc-root.cc-dark{
+  --cc-page:#0f1113;--cc-surface:#1a1d20;--cc-surface-2:#22262a;--cc-text:#eceef0;--cc-text-2:#c4c9ce;--cc-muted:#9aa2aa;
+  --cc-line:#2c3135;--cc-line-2:#3a4045;--cc-accent:#7fb4e8;--cc-on-accent:#0b1a29;--cc-danger:#ff7b6b;
+  --cc-new-bg:#13263a;--cc-new-fg:#a9d0f5;--cc-ink:#f3f4f6;--cc-on-ink:#111417;
+}
+.cc-root *{box-sizing:border-box}
+.kicker{font-size:12.5px;font-weight:600;color:var(--cc-accent);margin:0}
+.panel{background:var(--cc-surface);border:1px solid var(--cc-line);border-radius:16px;padding:22px 26px;display:flex;flex-direction:column;gap:12px}
+.h{margin:0;font-size:20px;font-weight:600}
+.p{margin:0;color:var(--cc-text-2);font-size:14px;line-height:1.55}
+.p b{color:var(--cc-text)}
+code{font-size:12.5px;background:var(--cc-surface-2);border:1px solid var(--cc-line);border-radius:4px;padding:0 4px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.funnel{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fn{display:grid;grid-template-columns:150px minmax(0,1fr) 120px;align-items:center;gap:12px;font-size:13.5px}
+.fn-bar{height:26px;border-radius:6px;background:var(--cc-new-bg);color:var(--cc-new-fg);font-weight:700;display:flex;align-items:center;padding:0 10px;font-size:12.5px}
+.fn-who{color:var(--cc-muted);font-size:12.5px}
+.fn b{font-weight:600}
+.band{position:relative;height:96px;margin:6px 4px 0}
+.band-axis{position:absolute;left:0;right:0;top:48px;height:2px;background:var(--cc-line-2)}
+.band-win{position:absolute;top:30px;height:38px;border-radius:8px;background:var(--cc-new-bg);border:1.5px solid var(--cc-accent)}
+.band-today{position:absolute;top:22px;width:2px;height:54px;background:var(--cc-ink)}
+.band-lab{position:absolute;font-size:12px;color:var(--cc-muted);white-space:nowrap;transform:translateX(-50%)}
+.band-dot{position:absolute;top:42px;width:14px;height:14px;border-radius:50%;margin-left:-7px;border:2px solid var(--cc-surface)}
+.in{background:var(--cc-accent)}.out{background:var(--cc-line-2)}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}
+table.t th{text-align:left;font-weight:600;color:var(--cc-muted);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--cc-line);vertical-align:bottom}
+table.t td{padding:8px 10px;border-bottom:1px solid var(--cc-line);color:var(--cc-text-2);vertical-align:top}
+table.t td b{color:var(--cc-text);font-weight:600}
+.tree{list-style:none;margin:0;padding:0;font-size:13.5px;display:flex;flex-direction:column;gap:3px}
+.tree li{display:flex;align-items:center;gap:8px}
+.lv{display:inline-grid;place-items:center;width:22px;height:20px;border-radius:5px;background:var(--cc-surface-2);border:1px solid var(--cc-line);font-size:11.5px;color:var(--cc-muted)}
+.cnt{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:var(--cc-new-bg);color:var(--cc-new-fg);font-size:12px;font-weight:700}
+.line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;padding:8px 10px;border:1px solid var(--cc-line);border-radius:10px;background:var(--cc-surface-2)}
+.chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--cc-line-2);border-radius:999px;padding:2px 4px 2px 10px;background:var(--cc-surface)}
+.no{color:var(--cc-danger);font-weight:600}
+</style>
+
+<style>
+.dcx-tweaks{position:fixed;right:16px;bottom:16px;z-index:9999;background:#fff;color:#1d2125;border:1px solid #d5dade;
+  border-radius:12px;padding:10px 12px;font:13px system-ui,sans-serif;box-shadow:0 10px 30px -12px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;min-width:190px}
+.dcx-tweaks b{font-weight:600}
+.dcx-tweaks label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dcx-tweaks a{color:#0f6cbf}
+</style>
+</head>
+<body>
+<div id="dcx-root"></div>
+<script type="module">
+import { h, render, Component as PreactComponent } from 'https://cdn.jsdelivr.net/npm/preact@10.24.3/dist/preact.module.js';
+import htm from 'https://cdn.jsdelivr.net/npm/htm@3.1.1/dist/htm.module.js';
+const html = htm.bind(h);
+class DCLogic extends PreactComponent {}
+
+class Component extends DCLogic {
+  renderVals() {
+    const F = [
+      ['1. Site', 'every course', 2400, 'shared'],
+      ['2. Visible, listed', 'not hidden, not unlisted, no unlisted category above', 2130, 'shared · state_sql, unlisted_ids'],
+      ['3. Starts in the band', '21 Oct to 27 Nov', 61, 'shared · c.startdate'],
+      ['   with an open route', 'self, apply, fee, paypal, autoenrol; window open now', 38, 'shared · {enrol}'],
+      ['4. Not the viewer’s', 'no enrolled, scheduled, pending or waitlisted row', 33, 'viewer · 1 read'],
+      ['5. Open to this viewer', 'get_next_actions() = open; then filter_courses()', 6, 'viewer · ≤ 4 + ~2'],
+      ['6. Grouped at depth 1', 'Saúde 3, Tecnologia 2, Gestão Pública 1', 3, 'viewer · categorymeta'],
+    ];
+    const max = Math.log(2400);
+    return {
+      darkClass: this.props.dark ? 'cc-dark' : '',
+      funnel: F.map(([step, what, n, who]) => ({step, n: n + ' · ' + what, who, w: 'width: ' + Math.round(45 + 55 * Math.log(n + 1) / max) + '%'})),
+    };
+  }
+}
+
+Component.prototype.render = function () {
+  const v = this.renderVals();
+  return html`
+<div class=${`cc-root ${v.darkClass}`} style="min-height: 2200px; padding: 40px 44px; display: flex; flex-direction: column; gap: 20px;">
+  <header>
+    <p class="kicker">block_compass · open courses to join · the rules behind option B</p>
+    <h1 style="margin: 4px 0 0; font-size: 28px; font-weight: 700;">What counts, where a click leads, what it costs</h1>
+  </header>
+
+  <section class="panel">
+    <h2 class="h">1. What counts: from the catalogue to six courses</h2>
+    <p class="p">Steps 1 to 3 are the same for everybody and are computed once per change into the shared <code>catalogue</code>; steps 4 to 6 are the viewer's, over at most 200 candidates, cached per sign-in in <code>news</code>. Numbers are the mockup's.</p>
+    <ul class="funnel">
+      ${(v.funnel || []).map((f, __i0) => html`
+        <li class="fn"><b>${f.step}</b><span class="fn-bar" style=${f.w}>${f.n}</span><span class="fn-who">${f.who}</span></li>
+      `)}
+    </ul>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2 class="h">2. The band: the start date as the reference</h2>
+      <p class="p">A course counts when its start date falls between <b>today − <code>news_past</code></b> and <b>today + <code>news_ahead</code></b> (7 and 30 days by default), in site-timezone days, as the showcase reads <code>from</code> and <code>to</code>. The band moves every day; nothing is stored to make it move.</p>
+      <div class="band" aria-hidden="true">
+        <div class="band-axis"></div>
+        <div class="band-win" style="left: 22%; width: 56%;"></div>
+        <div class="band-today" style="left: 32%;"></div>
+        <span class="band-lab" style="left: 22%; top: 76px;">21 out</span>
+        <span class="band-lab" style="left: 32%; top: 2px; color: inherit; font-weight: 700;">hoje, 28 out</span>
+        <span class="band-lab" style="left: 78%; top: 76px;">27 nov</span>
+        <span class="band-dot out" style="left: 8%;"></span>
+        <span class="band-dot in" style="left: 27%;"></span>
+        <span class="band-dot in" style="left: 45%;"></span>
+        <span class="band-dot in" style="left: 60%;"></span>
+        <span class="band-dot in" style="left: 71%;"></span>
+        <span class="band-dot out" style="left: 90%;"></span>
+      </div>
+      <table class="t">
+        <tr><th>Course</th><th>Counts?</th></tr>
+        <tr><td>Started 25 Oct, self enrolment open</td><td><b>yes</b>: just started, still joinable</td></tr>
+        <tr><td>Starts 10 Nov, created hidden in March, shown today</td><td><b>yes</b>: the start date says when it runs; the visibility flip needs no recorded fact</td></tr>
+        <tr><td>Starts 15 Jan</td><td>not yet: enters the band on 16 Dec</td></tr>
+        <tr><td>Rolling course, no start date (or 2024)</td><td class="no">never (gap G1, Q2): reached by "Ver todos os cursos abertos"</td></tr>
+        <tr><td>Starts 2 Nov, enrolment window opens 5 Nov</td><td>not until 5 Nov: <code>until</code> expires the catalogue then</td></tr>
+        <tr><td>Starts 3 Nov, the viewer applied already</td><td>no: a shown relationship (pending)</td></tr>
+        <tr><td>Starts 4 Nov, unlisted, open self enrolment</td><td>no: never named on a surface the viewer did not ask for (fails closed)</td></tr>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2 class="h">3. Depth: which category is the reference</h2>
+      <p class="p"><code>news_depth</code> picks the level a course is grouped under (<code>category_meta::group_id()</code>, the same helper tier 3's <code>group_depth</code> uses). A course above that depth groups under its own category.</p>
+      <ul class="tree">
+        <li><span class="lv">1</span>Saúde</li>
+        <li style="padding-left: 28px;"><span class="lv">2</span>Enfermagem</li>
+        <li style="padding-left: 56px;"><span class="lv">3</span>Urgência e Emergência · Primeiros Socorros <span class="cnt">1</span></li>
+        <li style="padding-left: 28px;"><span class="lv">2</span>Vigilância Sanitária · Biossegurança <span class="cnt">1</span>, Saúde Mental no Trabalho <span class="cnt">1</span></li>
+        <li><span class="lv">1</span>Tecnologia · Python para Análise de Dados <span class="cnt">1</span>, LGPD na Prática <span class="cnt">1</span></li>
+        <li><span class="lv">1</span>Gestão Pública · Licitações e Contratos <span class="cnt">1</span></li>
+      </ul>
+      <p class="p" style="margin-top: 6px;"><b>Depth 1</b> (default, a field of knowledge)</p>
+      <div class="line"><b>Inscrições abertas</b> 6 cursos começam até 27 de novembro <span class="chip">Saúde <span class="cnt">3</span></span><span class="chip">Tecnologia <span class="cnt">2</span></span><span class="chip">Gestão Pública · Licitações e Contratos</span></div>
+      <p class="p"><b>Depth 2</b></p>
+      <div class="line"><b>Inscrições abertas</b> 6 cursos começam até 27 de novembro <span class="chip">Vigilância Sanitária <span class="cnt">2</span></span><span class="chip">Tecnologia <span class="cnt">2</span></span><span class="chip">Enfermagem · Primeiros Socorros</span> +1</div>
+      <p class="p">At most three groups, the largest first (ties by the earliest start date); the rest is "+N", which opens the popover. A group's name is formatted with the filters of its context, like every other category name in the block.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2 class="h">4. Where a click leads</h2>
+    <table class="t">
+      <tr><th style="width: 22%">Element</th><th style="width: 38%">With a theme answering <code>\block_compass\hook\category_link</code> (theme_dimensions)</th><th>Without (the default)</th></tr>
+      <tr><td><b>A group of one course</b></td><td colspan="2"><code>/enrol/index.php?id=418</code>, the Starts-soon strip's link; the theme's landing page intercepts it where it does, and the provider's discoverability gate applies as for any link. No hook involved.</td></tr>
+      <tr><td><b>A group of several</b></td><td><code>/course/index.php?categoryid=12&amp;chip=open&amp;from=2026-10-21&amp;to=2026-11-27</code>: the showcase, filtered on first paint, the viewer's remembered filter neither read nor overwritten; it lists the same courses the line counted.</td><td><code>/course/index.php?categoryid=12</code>: core's category page, unfiltered (core ignores the theme's parameters, so the same URL would also do).</td></tr>
+      <tr><td><b>"Ver todos os cursos abertos"</b></td><td>The hook asked for the root: <code>/course/index.php?chip=open&amp;from=…&amp;to=…</code></td><td><code>/course/index.php</code></td></tr>
+      <tr><td><b>×, "Ocultar até o próximo acesso"</b></td><td colspan="2">No navigation. The line leaves at once; the sign-in marker is written as a <code>news: {signin}</code> member of <code>block_compass_calendar</code>, beside Up next's <code>soon</code>, optimistically, put back with a notice on failure. While it matches, <code>get_news</code> is not even asked.</td></tr>
+    </table>
+    <p class="p">The hook carries the category id, the band's two days and the viewer; it returns a URL or nothing, and catches <code>\Throwable</code> like <code>course_badges</code>: a listener's failure costs the filter, never the line. The block never names a theme or a parameter vocabulary.</p>
+  </section>
+
+  <section class="panel">
+    <h2 class="h">5. Weight: when the line speaks up, and when it recedes</h2>
+    <table class="t">
+      <tr><th>The block's state</th><th>What option B draws</th><th>Why</th></tr>
+      <tr><td><b>Calm</b>: nothing late, today or tomorrow, no Up next</td><td>The full line under the calendar: title, sentence, up to three groups, ×</td><td>Nothing pressing; the block's most useful sentence is the offer</td></tr>
+      <tr><td><b>Busy</b>: work late, today or tomorrow</td><td>One muted sentence and "Ver" (popover)</td><td>The maintainer's "less weight when there is work", without touching the calendar's cells</td></tr>
+      <tr><td><b>Up next showing</b> (ADR-016)</td><td>The muted sentence moves below tier 1's first strip</td><td>Nothing may sit above urgency</td></tr>
+      <tr><td><b>No active course</b></td><td>Tier 1's empty state lists the groups as three tiles</td><td>The place it matters most: a new account</td></tr>
+      <tr><td><b>Calendar off</b> or not on this surface</td><td>Always the full line, at the top of the content: without the calendar (and so without Up next) the block has no due signal to recede for</td><td>The datum does not depend on the calendar; no strip request is made for it</td></tr>
+      <tr><td><b>Nothing counts</b></td><td>Nothing at all: no line, no "0", no reserved space</td><td>An empty offer is not news; drawing it would be noise</td></tr>
+    </table>
+    <p class="p">The line appears after tier 1 has painted and pushes nothing that was already read: it is inserted between the calendar line and tier 1's heading with the ~200 ms grid-rows animation Up next uses (reduced motion: none), the CLS check of ADR-016's M5 applied again.</p>
+  </section>
+
+  <section class="panel">
+    <h2 class="h">6. Cost of each option (estimates until M1 and M2)</h2>
+    <table class="t">
+      <tr><th></th><th>A. In the strip</th><th>B. Own line</th><th>C. Head pill</th><th>D. Link</th></tr>
+      <tr><td><b>Request</b></td><td>inside <code>get_strip_counts</code></td><td colspan="2"><code>get_news</code>, readonlysession, after <code>get_attention</code></td><td>none</td></tr>
+      <tr><td><b>Reads, fresh entry</b></td><td>2 (unchanged)</td><td colspan="2">2</td><td>0</td></tr>
+      <tr><td><b>Reads, per-user build</b></td><td>11 → about 20</td><td colspan="2">about 11 (catalogue warm), about 14 (cold)</td><td>0</td></tr>
+      <tr><td><b>Shared catalogue build</b></td><td colspan="3">3 statements per change, shared by everybody; measured 38 ms first run at 20,000 courses / 60,000 instances (PG 18.6, TEMP tables)</td><td>none</td></tr>
+      <tr><td><b>Caches</b></td><td><code>catalogue</code> + inside <code>calendarstrip</code></td><td colspan="2"><code>catalogue</code> + <code>news</code> (8th and 9th definitions)</td><td>none</td></tr>
+      <tr><td><b>Exists when the calendar is off</b></td><td class="no">no</td><td colspan="2">yes</td><td>yes</td></tr>
+    </table>
+  </section>
+
+  <div class="grid2">
+    <section class="panel">
+      <h2 class="h">7. Settings</h2>
+      <table class="t">
+        <tr><th>Key</th><th>Type, default</th><th>Note</th></tr>
+        <tr><td><code>news_enabled</code></td><td>checkbox, 0</td><td>Off costs nothing: no prop, no component, no request, zero reads</td></tr>
+        <tr><td><code>news_depth</code></td><td>select 1 to 4, 1</td><td>The reference category's level</td></tr>
+        <tr><td><code>news_past</code></td><td>select 0, 7, 14, 30 days; 7</td><td>How long after its start a course still counts</td></tr>
+        <tr><td><code>news_ahead</code></td><td>select 14, 30, 60, 90 days; 30</td><td>How far ahead a start counts</td></tr>
+      </table>
+    </section>
+    <section class="panel">
+      <h2 class="h">8. Strings (en / pt_br)</h2>
+      <table class="t">
+        <tr><th>Key</th><th>en</th><th>pt_br</th></tr>
+        <tr><td><code>news_title</code></td><td>Open for enrolment</td><td>Inscrições abertas</td></tr>
+        <tr><td><code>news_summary</code></td><td>{$a->count} courses start by {$a->until}</td><td>{$a->count} cursos começam até {$a->until}</td></tr>
+        <tr><td><code>news_summary_one</code></td><td>1 course starts by {$a->until}</td><td>1 curso começa até {$a->until}</td></tr>
+        <tr><td><code>news_group_label</code></td><td>{$a->name}: {$a->count} courses open for enrolment</td><td>{$a->name}: {$a->count} cursos com inscrição aberta</td></tr>
+        <tr><td><code>news_all</code></td><td>See every course open for enrolment</td><td>Ver todos os cursos abertos</td></tr>
+        <tr><td><code>news_hide</code></td><td>Hide until the next sign-in</td><td>Ocultar até o próximo acesso</td></tr>
+        <tr><td><code>news_empty_lead</code></td><td>Open for enrolment for you, starting by {$a}</td><td>Com inscrição aberta para você, começando até {$a}</td></tr>
+      </table>
+    </section>
+  </div>
+</div>
+`;
+};
+const TWEAKS = {"dark": {"editor": "boolean", "default": false}};
+class Shell extends PreactComponent {
+  constructor(props) { super(props); this.state = {"dark": false}; }
+  render() {
+    const rows = Object.entries(TWEAKS).map(([key, t]) => {
+      const set = (value) => this.setState({ [key]: value });
+      if (t.editor === 'boolean') {
+        return html`<label>${key} <input type="checkbox" checked=${!!this.state[key]} onChange=${(e) => set(e.target.checked)} /></label>`;
+      }
+      if (t.editor === 'enum') {
+        return html`<label>${key} <select value=${this.state[key]} onChange=${(e) => set(e.target.value)}>
+          ${t.options.map((o) => html`<option value=${o}>${o}</option>`)}</select></label>`;
+      }
+      if (t.editor === 'range' || t.editor === 'int') {
+        return html`<label>${key} <input type="number" min=${t.min} max=${t.max} step=${t.step || 1} value=${this.state[key]}
+          onChange=${(e) => set(Number(e.target.value))} style="width: 80px" /></label>`;
+      }
+      return null;
+    });
+    return html`<${Component} ...${this.state} />${rows.length ? html`<aside class="dcx-tweaks" aria-label="Mockup tweaks">
+      <b>Tweaks</b>${rows}<a href="index.html">All artboards</a></aside>` : html`<aside class="dcx-tweaks"><a href="index.html">All artboards</a></aside>`}`;
+  }
+}
+render(html`<${Shell} />`, document.getElementById('dcx-root'));
+</script>
+</body>
+</html>

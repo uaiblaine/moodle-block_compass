@@ -1,0 +1,51 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-28T23:30:00Z"
+  },
+  "title": "Compass: open courses to join",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1500,
+      "title": "Compare: four placements in four situations (interactive)",
+      "is_interactive": true
+    },
+    "Regras.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1200,
+      "h": 2200,
+      "title": "The rules: what counts, the band, depth, clicks, weight, cost, settings, strings"
+    },
+    "Celular.dc.html": {
+      "x": 0,
+      "y": 1620,
+      "w": 1300,
+      "h": 900,
+      "title": "Phone: option B calm, busy (bottom sheet) and with no course"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Regras.dc.html",
+    "Celular.dc.html"
+  ],
+  "notes": {
+    "headline": {
+      "x": 0,
+      "y": -300,
+      "text": "Compass: open courses the viewer can join",
+      "kind": "title1",
+      "maxW": 2720
+    }
+  },
+  "designSystems": []
+}
