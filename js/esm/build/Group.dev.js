@@ -13,7 +13,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import RetryNotice from "./RetryNotice";
 import RowList from "./RowList";
 import { fillCount } from "./str";
@@ -162,12 +162,12 @@ const Group = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 158,
+            lineNumber: 162,
             columnNumber: 17
           }
         ) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-          lineNumber: 157,
+          lineNumber: 161,
           columnNumber: 13
         }),
         (hasmore || loading) && !failed && /* @__PURE__ */ jsxDEV(
@@ -184,7 +184,7 @@ const Group = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 177,
+            lineNumber: 181,
             columnNumber: 17
           }
         )
@@ -199,7 +199,7 @@ const Group = /* @__PURE__ */ __name(({
     }
   );
 }, "Group");
-var Group_default = Group;
+var Group_default = memo(Group);
 export {
   Group_default as default
 };

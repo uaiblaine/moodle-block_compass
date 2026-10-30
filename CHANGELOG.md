@@ -83,6 +83,17 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- Typing in tier 3 renders only what the keystroke changed (2026100518; the performance audit's item 2,
+  `docs/performance-audit/PLAN.md`). The rows, the cards, their list and the category groups are memoised,
+  and every prop tier 3 hands them is kept between renders (the group handlers, the Archive all bar, the
+  empty lists, the details store's object). Full mode filters from deferred copies of the applied term and
+  of the search box (React's `useDeferredValue`), so the keystroke commits first and the rows, the counts and
+  the suggestions follow in a render React may interrupt for the next key; the 150 / 300 ms debounces, paged
+  mode's requests and their sequence numbers are unchanged. The facet count normalises the query and reads the
+  selection once per count, not per row. Same rows, order, counts, announcements, focus and preview lighting;
+  a closed group still holds its rows, so the browser's find in page still opens it. Measurements to follow.
+  Held by `tests/local/explore_render_rules_test.php` and mutation gates.
+
 - The client's web service calls go straight to core's ES module `@moodle/lms/core/ajax` (`fetchOne`),
   no longer through the AMD bridge (2026100517; the performance audit's item 3, Moodle 5.3 only: 5.2 has no
   such module). The bridge waits for `core/first`, RequireJS's bundle of every AMD module, before it asks for a

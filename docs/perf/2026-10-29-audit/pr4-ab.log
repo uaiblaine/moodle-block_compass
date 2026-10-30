@@ -1,0 +1,33 @@
+load { 4.25 3.81 3.99 }
+y1-before-c0 [5x cpu4 1358px]: ttfb=98 fcp=220 lcp=220 dcl=252 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=37.6 dom=686 req=94 kb=0 esm=77 | 
+load { 4.78 3.97 4.04 }
+y1-before-p1 [5x cpu4 1358px]: ttfb=87 fcp=204 lcp=504 dcl=230 cls=0.713 tbt=0 lt=0 forced=0 inp=0 heap=43.4 dom=871 req=101 kb=2 esm=78 | mount@158 card@467 ghost@467 cal@281 news@600
+load { 4.75 4.02 4.05 }
+y1-before-d1 [5x cpu4 1358px]: ttfb=252 fcp=384 lcp=1120 dcl=523 cls=0.386 tbt=97 lt=2 forced=260 inp=0 heap=54.5 dom=2900 req=126 kb=20 esm=92 | mount@423 card@1069 ghost@1069 cal@630 news@1533
+load { 3.58 3.81 3.97 }
+y1-before-d1s50 [5x cpu4 1358px]: ttfb=162 fcp=324 lcp=828 dcl=409 cls=0.38 tbt=9 lt=1 forced=75 inp=0 heap=57.2 dom=2000 req=130 kb=15 esm=92 | mount@283 card@782 ghost@782 cal@493 news@1148
+load { 5.00 4.11 4.08 }
+y1-after-c0 [5x cpu4 1358px]: ttfb=117 fcp=236 lcp=236 dcl=231 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=29.8 dom=375 req=49 kb=0 esm=36 | 
+load { 5.04 4.25 4.13 }
+y1-after-p1 [5x cpu4 1358px]: ttfb=123 fcp=264 lcp=696 dcl=311 cls=0.752 tbt=0 lt=0 forced=67 inp=0 heap=43.7 dom=871 req=101 kb=2 esm=78 | mount@234 card@391 ghost@391 cal@391 news@824
+load { 5.62 4.44 4.20 }
+y1-after-d1 [5x cpu4 1358px]: ttfb=301 fcp=452 lcp=1540 dcl=671 cls=0.351 tbt=240 lt=7 forced=347 inp=0 heap=49.5 dom=2900 req=126 kb=20 esm=92 | mount@546 card@853 ghost@853 cal@853 news@2011
+load { 5.50 4.56 4.25 }
+y1-after-d1s50 [5x cpu4 1358px]: ttfb=160 fcp=320 lcp=972 dcl=427 cls=0.345 tbt=41 lt=2 forced=174 inp=0 heap=54.8 dom=2000 req=130 kb=15 esm=92 | mount@304 card@551 ghost@551 cal@551 news@1175
+load { 5.28 4.60 4.28 }
+y2-before-c0 [5x cpu4 1358px]: ttfb=95 fcp=224 lcp=224 dcl=243 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=29.1 dom=375 req=49 kb=0 esm=36 | 
+load { 5.35 4.71 4.33 }
+y2-before-p1 [5x cpu4 1358px]: ttfb=101 fcp=228 lcp=532 dcl=282 cls=0.714 tbt=0 lt=0 forced=23 inp=0 heap=45.7 dom=871 req=101 kb=2 esm=78 | mount@193 card@503 ghost@503 cal@356 news@651
+load { 5.42 4.77 4.36 }
+y2-before-d1 [5x cpu4 1358px]: ttfb=277 fcp=424 lcp=1240 dcl=574 cls=0.385 tbt=81 lt=4 forced=297 inp=0 heap=54.5 dom=2900 req=126 kb=20 esm=92 | mount@473 card@1178 ghost@1178 cal@718 news@1712
+load { 5.85 4.92 4.43 }
+y2-before-d1s50 [5x cpu4 1358px]: ttfb=160 fcp=304 lcp=872 dcl=407 cls=0.383 tbt=13 lt=1 forced=100 inp=0 heap=53.5 dom=2000 req=130 kb=15 esm=92 | mount@290 card@815 ghost@815 cal@503 news@1143
+load { 5.62 4.94 4.45 }
+y2-after-c0 [5x cpu4 1358px]: ttfb=93 fcp=212 lcp=212 dcl=231 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=37.8 dom=686 req=94 kb=0 esm=77 | 
+load { 5.68 5.09 4.53 }
+y2-after-p1 [5x cpu4 1358px]: ttfb=117 fcp=252 lcp=608 dcl=295 cls=0.98 tbt=0 lt=0 forced=68 inp=0 heap=46.8 dom=871 req=101 kb=2 esm=78 | mount@215 card@383 ghost@383 cal@383 news@730
+load { 5.30 5.05 4.53 }
+y2-after-d1 [5x cpu4 1358px]: ttfb=306 fcp=480 lcp=1324 dcl=660 cls=0.351 tbt=145 lt=6 forced=318 inp=0 heap=55.7 dom=2900 req=126 kb=20 esm=92 | mount@538 card@809 ghost@809 cal@810 news@1734
+load { 5.53 5.13 4.58 }
+y2-after-d1s50 [5x cpu4 1358px]: ttfb=156 fcp=316 lcp=900 dcl=427 cls=0.346 tbt=33 lt=1 forced=187 inp=0 heap=53.9 dom=2000 req=130 kb=15 esm=92 | mount@322 card@538 ghost@538 cal@538 news@1171
+DONE

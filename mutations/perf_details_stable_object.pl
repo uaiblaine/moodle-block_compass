@@ -1,0 +1,1 @@
+s/return useMemo\(\n\s+\(\): RowDetails => \(\{records, waiting, failed, retry, observe\}\),\n\s+\[records, waiting, failed, retry, observe\]\n\s+\);/return {records, waiting, failed, retry, observe};/;

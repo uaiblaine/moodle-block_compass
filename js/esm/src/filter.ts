@@ -74,17 +74,32 @@ export const normalise = (text: string): string => String(text || '')
     .trim();
 
 /**
+ * The words of a query, normalised: what matches() looks for.
+ *
+ * Split out so a caller judging many rows against one query normalises the query once, not once per row.
+ *
+ * @param {string} query Raw query.
+ * @returns {string[]} The normalised words; none for an empty or blank query.
+ */
+export const wordsOf = (query: string): string[] => normalise(query).split(/\s+/).filter(Boolean);
+
+/**
+ * Whether every word appears in the (normalised) haystack; no words, and it does.
+ *
+ * @param {string} haystack Normalised text to search.
+ * @param {string[]} words The words, from wordsOf().
+ * @returns {boolean} Whether it holds them all.
+ */
+export const holdsWords = (haystack: string, words: string[]): boolean => words.every((word) => haystack.includes(word));
+
+/**
  * Whether every word of the query appears in the (normalised) haystack.
  *
  * @param {string} haystack Normalised text to search.
  * @param {string} query Raw query.
  * @returns {boolean} Whether it matches.
  */
-export const matches = (haystack: string, query: string): boolean => {
-    const words = normalise(query).split(/\s+/).filter(Boolean);
-
-    return words.every((word) => haystack.includes(word));
-};
+export const matches = (haystack: string, query: string): boolean => holdsWords(haystack, wordsOf(query));
 
 /**
  * "3 days ago" in the page language, from a unix timestamp - the browser's own
@@ -194,7 +209,19 @@ export const valueOf = (cf: number[], index: number): number | null => {
  * @returns {boolean} Whether it passes.
  */
 export const passesSelection = (cf: number[], keys: string[], selection: Selection): boolean =>
-    Object.entries(selection).every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value);
+    passesPairs(cf, keys, Object.entries(selection));
+
+/**
+ * PassesSelection() over a selection already read into its pairs, for a caller judging many rows against
+ * one selection: the pairs are built once, not once per row.
+ *
+ * @param {number[]} cf The row's cf list.
+ * @param {string[]} keys The field keys of the payload's fields array, in order.
+ * @param {Array} pairs The selection's [field key, value key] pairs.
+ * @returns {boolean} Whether it passes.
+ */
+export const passesPairs = (cf: number[], keys: string[], pairs: [string, number][]): boolean =>
+    pairs.every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value);
 
 /**
  * Whether a row passes every criterion of the line: the scope, the star, the field selection and
@@ -203,13 +230,19 @@ export const passesSelection = (cf: number[], keys: string[], selection: Selecti
  * @param {object} row The row facts; its name already normalised.
  * @param {object} criteria The scope, the star, the selection and the query.
  * @param {string[]} keys The field keys of the payload's fields array, in order.
+ * @param {string[]} words The query's words (wordsOf()), when the caller judges many rows against one query.
  * @returns {boolean} Whether it passes.
  */
-export const passesCriteria = (row: RowFacts, criteria: Criteria, keys: string[]): boolean =>
+export const passesCriteria = (
+    row: RowFacts,
+    criteria: Criteria,
+    keys: string[],
+    words: string[] = wordsOf(criteria.query)
+): boolean =>
     passesChip(criteria.scope, row)
     && passesStar(criteria.star, row)
     && passesSelection(row.cf, keys, criteria.selection)
-    && (criteria.query === '' || matches(row.name, criteria.query));
+    && (criteria.query === '' || holdsWords(row.name, words));
 
 /**
  * How well a normalised text holds a normalised term: 0 where a word starts with it, 1 where it is

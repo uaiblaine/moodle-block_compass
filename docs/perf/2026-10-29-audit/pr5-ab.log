@@ -1,0 +1,31 @@
+load { 7.78 6.10 6.05 }
+z1-before-i2s50 [5x cpu4 1358px]: ttfb=108 fcp=348 lcp=568 dcl=375 cls=0.714 tbt=187 lt=3 forced=186 inp=184 heap=30.5 dom=1631 req=109 kb=4 esm=78 | mount@321 card@533 ghost@533 cal@403 news@786 explore@3217 row@3442
+load { 6.20 6.00 6.01 }
+z1-before-i2s250 [5x cpu4 1358px]: ttfb=133 fcp=344 lcp=672 dcl=399 cls=0.714 tbt=1124 lt=10 forced=482 inp=552 heap=33.1 dom=4157 req=106 kb=6 esm=78 | mount@310 card@599 ghost@599 cal@450 news@788 explore@3228 row@3549
+load { 6.44 6.19 6.09 }
+z1-before-i1s250 [5x cpu4 1358px]: ttfb=98 fcp=228 lcp=544 dcl=290 cls=0.714 tbt=472 lt=6 forced=376 inp=112 heap=42.3 dom=4153 req=106 kb=6 esm=78 | mount@195 card@510 ghost@510 cal@357 news@666 explore@3032 row@3354
+load { 5.64 6.02 6.03 }
+load { 5.21 5.87 5.97 }
+z1-after-i2s250 [5x cpu4 1358px]: ttfb=171 fcp=352 lcp=704 dcl=436 cls=0.714 tbt=821 lt=11 forced=514 inp=296 heap=29.8 dom=4157 req=106 kb=6 esm=78 | mount@323 card@668 ghost@668 cal@511 news@838 explore@3408 row@3783
+load { 6.90 6.17 6.07 }
+z1-after-i1s250 [5x cpu4 1358px]: ttfb=166 fcp=420 lcp=840 dcl=517 cls=0.716 tbt=490 lt=8 forced=441 inp=96 heap=48.1 dom=4153 req=106 kb=6 esm=78 | mount@392 card@798 ghost@798 cal@611 news@1010 explore@3577 row@4008
+load { 6.30 6.11 6.05 }
+load { 6.90 6.23 6.10 }
+z2-before-i2s250 [5x cpu4 1358px]: ttfb=483 fcp=732 lcp=1404 dcl=820 cls=0.89 tbt=1789 lt=13 forced=692 inp=720 heap=43.3 dom=4157 req=106 kb=6 esm=78 | mount@704 card@1356 ghost@1356 cal@1112 news@1741 explore@4345 row@4715
+load { 9.46 7.25 6.49 }
+z2-before-i1s250 [5x cpu4 1358px]: ttfb=175 fcp=332 lcp=700 dcl=406 cls=0.714 tbt=690 lt=6 forced=460 inp=200 heap=43.2 dom=4153 req=106 kb=6 esm=78 | mount@298 card@665 ghost@665 cal@494 news@940 explore@3273 row@3648
+load { 7.19 6.97 6.43 }
+load { 6.18 6.75 6.37 }
+z2-after-i2s250 [5x cpu4 1358px]: ttfb=157 fcp=340 lcp=796 dcl=478 cls=0.714 tbt=554 lt=12 forced=482 inp=288 heap=29.6 dom=4157 req=106 kb=6 esm=78 | mount@301 card@765 ghost@765 cal@583 news@1029 explore@3504 row@3802
+load { 7.31 7.01 6.50 }
+z2-after-i1s250 [5x cpu4 1358px]: ttfb=132 fcp=284 lcp=604 dcl=327 cls=0.714 tbt=452 lt=6 forced=433 inp=120 heap=37.8 dom=4153 req=106 kb=6 esm=78 | mount@243 card@574 ghost@574 cal@395 news@778 explore@3196 row@3521
+DONE
+load { 5.68 6.56 6.37 }
+w1-before-i2s50 [5x cpu4 1358px]: ttfb=203 fcp=608 lcp=1004 dcl=681 cls=0.714 tbt=338 lt=7 forced=265 inp=248 heap=30.9 dom=1631 req=109 kb=4 esm=78 | mount@571 card@964 ghost@964 cal@781 news@1121 explore@3570 row@3834
+load { 8.36 7.17 6.61 }
+w1-after-i2s50 [5x cpu4 1358px]: ttfb=148 fcp=440 lcp=1032 dcl=487 cls=0.714 tbt=218 lt=7 forced=245 inp=152 heap=29.7 dom=1631 req=109 kb=4 esm=78 | mount@409 card@945 ghost@945 cal@531 news@1177 explore@3638 row@3826
+load { 6.34 6.82 6.53 }
+w2-before-i2s50 [5x cpu4 1358px]: ttfb=130 fcp=300 lcp=652 dcl=365 cls=0.714 tbt=217 lt=5 forced=230 inp=200 heap=32.4 dom=1631 req=109 kb=4 esm=78 | mount@268 card@621 ghost@621 cal@431 news@804 explore@3171 row@3299
+load { 5.88 6.64 6.49 }
+w2-after-i2s50 [5x cpu4 1358px]: ttfb=124 fcp=248 lcp=548 dcl=274 cls=0.714 tbt=139 lt=4 forced=201 inp=144 heap=41.7 dom=1631 req=109 kb=4 esm=78 | mount@216 card@519 ghost@519 cal@344 news@662 explore@3058 row@3225
+DONE

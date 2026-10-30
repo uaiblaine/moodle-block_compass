@@ -27,7 +27,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCardDetails } from "./repository";
 const BATCH = 24;
 const BUFFER_PX = 200;
@@ -182,7 +182,10 @@ const useRowDetails = /* @__PURE__ */ __name(() => {
       timer.current = null;
     }
   }, []);
-  return { records, waiting, failed, retry, observe };
+  return useMemo(
+    () => ({ records, waiting, failed, retry, observe }),
+    [records, waiting, failed, retry, observe]
+  );
 }, "useRowDetails");
 export {
   useRowDetails

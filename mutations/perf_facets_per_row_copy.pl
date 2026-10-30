@@ -1,0 +1,1 @@
+s/if \(!passesPairs\(facts\.cf, fieldkeys, otherpairs\[index\]\)\) \{/const others = {...selection};\n                delete others[key];\n                if (!passesSelection(facts.cf, fieldkeys, others)) {/;

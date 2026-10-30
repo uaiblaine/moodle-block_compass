@@ -23,10 +23,9 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 const normalise = /* @__PURE__ */ __name((text) => String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim(), "normalise");
-const matches = /* @__PURE__ */ __name((haystack, query) => {
-  const words = normalise(query).split(/\s+/).filter(Boolean);
-  return words.every((word) => haystack.includes(word));
-}, "matches");
+const wordsOf = /* @__PURE__ */ __name((query) => normalise(query).split(/\s+/).filter(Boolean), "wordsOf");
+const holdsWords = /* @__PURE__ */ __name((haystack, words) => words.every((word) => haystack.includes(word)), "holdsWords");
+const matches = /* @__PURE__ */ __name((haystack, query) => holdsWords(haystack, wordsOf(query)), "matches");
 const relativeTime = /* @__PURE__ */ __name((timestamp, now, lang) => {
   const seconds = timestamp - now;
   const units = [
@@ -70,8 +69,9 @@ const valueOf = /* @__PURE__ */ __name((cf, index) => {
   }
   return null;
 }, "valueOf");
-const passesSelection = /* @__PURE__ */ __name((cf, keys, selection) => Object.entries(selection).every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value), "passesSelection");
-const passesCriteria = /* @__PURE__ */ __name((row, criteria, keys) => passesChip(criteria.scope, row) && passesStar(criteria.star, row) && passesSelection(row.cf, keys, criteria.selection) && (criteria.query === "" || matches(row.name, criteria.query)), "passesCriteria");
+const passesSelection = /* @__PURE__ */ __name((cf, keys, selection) => passesPairs(cf, keys, Object.entries(selection)), "passesSelection");
+const passesPairs = /* @__PURE__ */ __name((cf, keys, pairs) => pairs.every(([key, value]) => valueOf(cf, keys.indexOf(key)) === value), "passesPairs");
+const passesCriteria = /* @__PURE__ */ __name((row, criteria, keys, words = wordsOf(criteria.query)) => passesChip(criteria.scope, row) && passesStar(criteria.star, row) && passesSelection(row.cf, keys, criteria.selection) && (criteria.query === "" || holdsWords(row.name, words)), "passesCriteria");
 const matchOf = /* @__PURE__ */ __name((text, term) => {
   let at = text.indexOf(term);
   if (at < 0) {
@@ -104,6 +104,7 @@ const markParts = /* @__PURE__ */ __name((text, term) => {
   return [text.slice(0, start), text.slice(start, end), text.slice(end)];
 }, "markParts");
 export {
+  holdsWords,
   isEnrolled,
   markParts,
   matchOf,
@@ -111,9 +112,11 @@ export {
   normalise,
   passesChip,
   passesCriteria,
+  passesPairs,
   passesSelection,
   passesStar,
   relativeTime,
-  valueOf
+  valueOf,
+  wordsOf
 };
 //# sourceMappingURL=filter.dev.js.map
