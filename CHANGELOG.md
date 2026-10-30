@@ -15,6 +15,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- A Performance overview check for read-only sessions (2026042019 on this branch, ported from the 5.3 branch,
+  #91; the performance audit's item 7). The block's web services declare `readonlysession`, which core
+  honours only with `$CFG->enable_read_only_sessions` in config.php; the check warns while it is unset
+  (four concurrent reads on one session, measured on the 5.3 branch: 95th percentile 989 ms, against 75 ms on
+  separate sessions) and passes once it is set. Core 5.2 collects it the same way, through
+  `block_compass_performance_checks()`. It links to no page, because the flag is not an admin setting. The
+  README gains a *Sizing* section: the block's requests per load, the bootstrap floor and the flag's
+  prerequisite.
+
 - Open for enrolment, smoke and documentation (2026042015 on this branch; ADR-017 stage 14e): a Behat scenario for a
   learner with open courses in the band and a course they teach, the demo seed's `compassdemo_open_*`
   courses, the `news` screenshot shot and the README's bullet, four settings and two caches.

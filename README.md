@@ -468,6 +468,25 @@ database time. One cached course list of 2 000 enrolments occupies about 272 KB 
 Redis store (122 KB with igbinary). Methods, numbers and their dates are in
 [`docs/perf/`](docs/perf/); the reasoning in [`docs/adr/`](docs/adr/README.md).
 
+### Sizing
+
+A Dashboard load makes these requests of the block's own: `get_attention`; `get_card_details`, only
+when a card's progress is still pending; `get_strip_counts`, or `get_strip` when the calendar strip
+is open; `get_news`; and `get_soon`, only when its gate opens. Each pays Moodle's per-request
+bootstrap. On the development stack (Moodle 5.3) the cheapest web service (`core_session_time_remaining`)
+took 24.5 ms, and the block's reads 26 to 65 ms warm; that is a development-stack number, so measure on
+your own hardware. The cache stores that keep the reads cheap are under *Cache stores* above.
+
+The block's web services declare `readonlysession`, which core honours only when config.php sets
+`$CFG->enable_read_only_sessions = true;`. It is not an admin setting. Without it, one viewer's
+requests wait for each other on the session lock, and on a Dashboard the block's reads also wait
+for core's own. Measured on Moodle 5.3, whose session handling 5.2 shares, with four concurrent
+`get_attention` calls: sharing one session, 19 requests a second and a 95th percentile of 989 ms
+(1,467 ms at eight calls); on separate sessions, 59 to 69 requests a second and 75 to 192 ms. Before
+enabling it, map every cache definition in session mode to a store other than the session store:
+core refuses to start a session otherwise.
+*Site administration > Reports > Performance overview* shows a check that says whether the flag is set.
+
 
 Troubleshooting
 ---------------
