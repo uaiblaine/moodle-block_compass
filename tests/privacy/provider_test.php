@@ -30,7 +30,7 @@ use core_privacy\local\request\writer;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The block stores three preferences of its own, and the provider declares and exports them.
+ * The block stores four preferences of its own, and the provider declares and exports them.
  *
  * Preferences are exported into the system context, not the user's: that is where
  * writer::export_user_preference() puts every preference
@@ -45,19 +45,31 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(provider::class)]
 final class provider_test extends \core_privacy\tests\provider_testcase {
     /**
-     * The metadata names the three preferences and nothing else.
+     * The metadata names the four preferences and nothing else.
+     *
+     * Every preference lib.php declares is one the metadata names: the declaration and the export
+     * change together (ADR-018 decision 9).
      *
      * @return void
      */
-    public function test_the_three_preferences_are_the_only_things_declared(): void {
+    public function test_the_four_preferences_are_the_only_things_declared(): void {
+        global $CFG;
+
         $this->resetAfterTest();
+        require_once($CFG->dirroot . '/blocks/compass/lib.php');
 
         $items = provider::get_metadata(new collection('block_compass'))->get_collection();
 
-        $this->assertCount(3, $items);
+        $this->assertCount(4, $items);
         $this->assertSame('block_compass_view', $items[0]->get_name());
         $this->assertSame('block_compass_explore', $items[1]->get_name());
         $this->assertSame('block_compass_calendar', $items[2]->get_name());
+        $this->assertSame('block_compass_tier1', $items[3]->get_name());
+        $this->assertSame(
+            array_keys(block_compass_user_preferences()),
+            array_map(fn($item) => $item->get_name(), $items),
+            'a declared preference the metadata does not name'
+        );
     }
 
     /**
@@ -187,5 +199,33 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
             $exported->block_compass_calendar->description
         );
         $this->assertObjectNotHasProperty('block_compass_explore', $exported);
+    }
+
+    /**
+     * Tier 1's remembered shape is exported as the JSON the viewer's own browser wrote (ADR-018 decision 9).
+     *
+     * The first half is the control: a viewer with no stored shape has nothing to export.
+     *
+     * @return void
+     */
+    public function test_a_stored_tier1_shape_is_exported_as_it_stands_and_an_unset_one_is_not(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+
+        provider::export_user_preferences((int) $user->id);
+        $this->assertFalse(writer::with_context(\context_system::instance())->has_any_data());
+
+        $json = '{"v":1,"dashboard":{"strips":[["continue",3,true],["new",1,false]],"ghost":true,"pending":true},'
+            . '"page":{"strips":[],"ghost":false,"pending":false}}';
+        set_user_preference('block_compass_tier1', $json, $user);
+        provider::export_user_preferences((int) $user->id);
+        $exported = writer::with_context(\context_system::instance())->get_user_preferences('block_compass');
+
+        $this->assertSame($json, $exported->block_compass_tier1->value);
+        $this->assertSame(
+            get_string('privacy:metadata:preference:block_compass_tier1', 'block_compass'),
+            $exported->block_compass_tier1->description
+        );
+        $this->assertObjectNotHasProperty('block_compass_calendar', $exported);
     }
 }

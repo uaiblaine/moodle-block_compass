@@ -13,6 +13,13 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * and the amber notice with a way back from a failed first paint. There is no permanent reload
  * control: a way back appears only once a load has failed, as RetryNotice (ADR-014 amendment 11).
  *
+ * While tier 1's request travels, its place is held by the skeleton the shell drew before any JavaScript ran
+ * (ADR-018): Tier1Skeleton draws the same markup from the model in the props, so React's mount swaps like for
+ * like, and the cards then replace it. The loading announcement is a visually hidden status region, so it
+ * leaves no height behind. Once tier 1 has settled (answered, no card's progress still on its way, no
+ * failure), the shape it settled to is written to the block_compass_tier1 preference, only when it differs
+ * from the one the shell shipped (tier1shape.ts), for the next first paint.
+ *
  * Where the shell shipped the calendar props, the calendar strip sits first, above the status line
  * (ADR-014 decision 2). It reserves its place from the first paint and asks for its counts or its
  * days only once tier 1's request has settled, answered or failed: the turn handed down is 0 until
@@ -40,10 +47,12 @@ import Strip from "./Strip";
 import Ghost from "./Ghost";
 import Explore from "./Explore";
 import RetryNotice from "./RetryNotice";
+import Tier1Skeleton from "./Tier1Skeleton";
 import { notify } from "./notify";
 import { cardColumns } from "./columns";
 import { fill, fillCount, fillObject } from "./str";
 import { seedCalendarPreference } from "./calendarpref";
+import { rememberShape, settledShape } from "./tier1shape";
 import { getAttention, getCardDetails, getStripWithNews, isTransportFailure, onRetry, setFavourite } from "./repository";
 const CHIP_OF_KIND = {
   tier2: null,
@@ -161,6 +170,12 @@ const Block = /* @__PURE__ */ __name((config) => {
     load();
   }, [load]);
   useEffect(() => {
+    const shape = data && error === null ? settledShape(data, config.strips, config.favouritesenabled, config.pendingenabled) : null;
+    if (shape) {
+      rememberShape(config.tier1, shape);
+    }
+  }, [data, error, config.strips, config.favouritesenabled, config.pendingenabled, config.tier1]);
+  useEffect(() => {
     const element = root.current;
     if (!element || typeof ResizeObserver === "undefined") {
       return void 0;
@@ -242,7 +257,7 @@ const Block = /* @__PURE__ */ __name((config) => {
   const firststrip = data ? config.strips.find((strip) => data[strip.name].length > 0)?.name ?? null : null;
   const newsAt = /* @__PURE__ */ __name((place) => config.news && newsplace === place ? /* @__PURE__ */ jsxDEV(OpenCourses, { config, news: config.news, state: news, mode: newsmode, width }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 515,
+    lineNumber: 536,
     columnNumber: 9
   }) : null, "newsAt");
   const notice = /* @__PURE__ */ __name((kind, text, label, view) => /* @__PURE__ */ jsxDEV("p", { className: "compass-strip-note small text-muted", "data-region": `${kind}-notice`, children: [
@@ -261,13 +276,13 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 533,
+        lineNumber: 554,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 530,
+    lineNumber: 551,
     columnNumber: 9
   }), "notice");
   return /* @__PURE__ */ jsxDEV("div", { ref: root, className: "compass-body", tabIndex: -1, children: [
@@ -288,7 +303,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 549,
+        lineNumber: 570,
         columnNumber: 17
       }
     ),
@@ -299,17 +314,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       attempts: String(reconnecting.attempts)
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 564,
+      lineNumber: 585,
       columnNumber: 17
     }),
-    !data && error === null && reconnecting === null && /* @__PURE__ */ jsxDEV("div", { className: "compass-status text-muted small", role: "status", "aria-live": "polite", children: labels.loading }, void 0, false, {
+    !data && error === null && reconnecting === null && /* @__PURE__ */ jsxDEV("div", { className: "compass-status visually-hidden", role: "status", "aria-live": "polite", children: labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 572,
+      lineNumber: 595,
       columnNumber: 17
+    }),
+    !data && error === null && /* @__PURE__ */ jsxDEV(Tier1Skeleton, { skeleton: config.tier1.skeleton }, void 0, false, {
+      fileName: "public/blocks/compass/js/esm/src/Block.tsx",
+      lineNumber: 599,
+      columnNumber: 41
     }),
     error !== null && /* @__PURE__ */ jsxDEV(RetryNotice, { message: error, retrying: false, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 577,
+      lineNumber: 601,
       columnNumber: 17
     }),
     data && config.strips.map((strip) => /* @__PURE__ */ jsxDEV(Fragment, { children: [
@@ -332,7 +352,7 @@ const Block = /* @__PURE__ */ __name((config) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-          lineNumber: 581,
+          lineNumber: 605,
           columnNumber: 21
         }
       ),
@@ -345,22 +365,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       strip.name === firststrip && newsAt("below")
     ] }, strip.name, true, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 580,
+      lineNumber: 604,
       columnNumber: 17
     })),
     data && firststrip === null && newsAt("below"),
     ghost && laststrip === null && /* @__PURE__ */ jsxDEV("div", { className: `compass-ghost-wrap compass-cards-${columns}`, children: /* @__PURE__ */ jsxDEV(Ghost, { count: ghost.count, text: ghost.text, cta: ghost.cta, kind: "tier2", onExplore: explore }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 610,
+      lineNumber: 634,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 609,
+      lineNumber: 633,
       columnNumber: 17
     }),
     data && shown === 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-empty text-muted", children: data.counts.total === 0 ? labels.nocourses : labels.emptyattention }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 614,
+      lineNumber: 638,
       columnNumber: 17
     }),
     newsAt("empty"),
@@ -380,22 +400,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 621,
+        lineNumber: 645,
         columnNumber: 21
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 620,
+      lineNumber: 644,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "alert", "aria-live": "assertive", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 635,
+      lineNumber: 659,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 547,
+    lineNumber: 568,
     columnNumber: 9
   });
 }, "Block");

@@ -20,6 +20,14 @@
     The block shell: one React mount point, and nothing else of the block's own. Every
     tier, tier 3 included, renders inside the component.
 
+    The mount point's inner content is what the first paint shows until React commits, which
+    replaces it (core's mount.ts, createRoot().render()). It holds tier 1's place (ADR-018): the
+    calendar's head where the strip renders (block_compass/calendar_skeleton) and tier 1's
+    skeleton in the shape it last settled to (block_compass/tier1_skeleton), which React's first
+    render draws alike, so the mount swaps like for like. All of it is aria-hidden, and shown only
+    under body.jsenabled, which core sets at the top of the body: without JavaScript the two
+    sentences below show, as before.
+
     The props arrive already JSON-encoded from the renderable, in one value, through a
     triple stash: the quote helper corrupts any value carrying a doubled-brace pair, and
     json_encode() in the renderable does not. Nothing between here and React is an HTML
@@ -27,8 +35,10 @@
 
     The section's trailing content is what a reader sees if the component never
     mounts, which is silent apart from a console message. It says the block could not
-    load, which is then true, and offers nothing to press. Only the mounted component
-    renders course cards, so a step asserting a course name asserts that React ran.
+    load, which is then true, and offers nothing to press. With JavaScript on it waits,
+    hidden, behind the skeleton, and a CSS step about 10 s after the first paint swaps the
+    two (styles.css, .compass-preload), so no shimmer lasts for ever. Only the mounted
+    component renders course cards, so a step asserting a course name asserts that React ran.
 
     The noscript beside it covers the other way this block shows nothing. With
     JavaScript off both messages appear, and both are true: one says what happened,
@@ -41,11 +51,34 @@
 
     Context variables required for this template:
     * props - the component's props, JSON-encoded by block_compass\output\block:
-      labels, icons, strips, favouritesenabled, showsearch, showindex and headinglevel.
+      labels, icons, strips, favouritesenabled, showsearch, showindex, headinglevel and tier1.
+    * tier1 - tier 1's skeleton (block_compass/tier1_skeleton's context).
+    * calendarhead - the calendar's head (block_compass/calendar_skeleton's context), or null
+      where the strip does not render.
 
     Example context (json):
     {
-        "props": "{\"labels\": {\"loaderror\": \"Your courses could not be loaded.\"}, \"strips\": []}"
+        "props": "{\"labels\": {\"loaderror\": \"Your courses could not be loaded.\"}, \"strips\": []}",
+        "tier1": {
+            "slots": [
+                {
+                    "strip": {
+                        "hastitle": false,
+                        "title": "",
+                        "later": false,
+                        "completion": true,
+                        "closing": false,
+                        "onerow": true,
+                        "cards": [{"card": true}, {"card": true}, {"card": true}]
+                    },
+                    "note": false
+                }
+            ],
+            "ghostalone": false,
+            "empty": false,
+            "category": true
+        },
+        "calendarhead": null
     }
 }}
 <div class="compass-root" data-region="block_compass">
@@ -54,6 +87,10 @@
         "component": "@moodle/lms/block_compass/bundle",
         "props": {{{props}}}
     }
+    <div class="compass-preload" aria-hidden="true">
+        {{#calendarhead}}{{> block_compass/calendar_skeleton}}{{/calendarhead}}
+        {{#tier1}}{{> block_compass/tier1_skeleton}}{{/tier1}}
+    </div>
     <p class="compass-noscript">{{#str}}loaderror, block_compass{{/str}}</p>
     {{/react}}
     <noscript>

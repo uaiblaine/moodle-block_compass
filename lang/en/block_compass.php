@@ -405,6 +405,7 @@ $string['prewarm_days_desc'] = 'Number of days: only users who logged in within 
 $string['prewarm_desc'] = 'Optionally fill the caches of recently active users off-peak, so their first Dashboard visit of the day costs what every later one does.';
 $string['privacy:metadata:preference:block_compass_calendar'] = 'The calendar strip as the user left it: the studying or the teaching view, which items it shows, whether days are weighed by relevance, whether the strip is open or closed; when the user hid Up next, the level it was hidden at and the sign-in it holds for; and, when the user hid the open-for-enrolment line, the sign-in it is hidden for.';
 $string['privacy:metadata:preference:block_compass_explore'] = 'How the full course list was left: the sort order, the scope, whether the favourites star was pressed, the course field chips and whether the filter panel was open.';
+$string['privacy:metadata:preference:block_compass_tier1'] = 'The shape the user\'s courses block last settled to on the Dashboard and on its own page, so the next page can hold its place: which strips showed, how many cards each and whether any showed progress, whether the more-courses card showed and whether the applications notice showed. It names no course.';
 $string['privacy:metadata:preference:block_compass_view'] = 'The viewer\'s choice between the list and the cards view of the full course list.';
 $string['progresserror'] = 'Some progress could not be loaded.';
 $string['progressloading'] = 'Loading progress';

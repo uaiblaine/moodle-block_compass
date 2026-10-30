@@ -89,6 +89,10 @@ const setCalendarPreference = /* @__PURE__ */ __name(async (state) => {
   const repository = await amd("core_user/repository");
   await repository.setUserPreferences([{ name: "block_compass_calendar", value: JSON.stringify(state), userid: 0 }]);
 }, "setCalendarPreference");
+const setTier1Preference = /* @__PURE__ */ __name(async (value) => {
+  const repository = await amd("core_user/repository");
+  await repository.setUserPreferences([{ name: "block_compass_tier1", value: JSON.stringify(value), userid: 0 }]);
+}, "setTier1Preference");
 const setExplorePreference = /* @__PURE__ */ __name(async (state) => {
   const repository = await amd("core_user/repository");
   await repository.setUserPreferences([{ name: "block_compass_explore", value: JSON.stringify(state), userid: 0 }]);
@@ -134,6 +138,7 @@ export {
   setCalendarPreference,
   setExplorePreference,
   setFavourite,
+  setTier1Preference,
   setViewPreference
 };
 //# sourceMappingURL=repository.dev.js.map
