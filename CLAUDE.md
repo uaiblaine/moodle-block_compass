@@ -13,10 +13,10 @@ card with a count) and exploration (a light inventory grouped by category, filte
 Sized for a million users, so **every endpoint has a query budget enforced by a test**.
 **Moodle 5.2 only on this branch** (`$plugin->supported = [502, 502]`, version `20260420XX`; the 5.3 branch is `main`, `20261005XX`); **one hard dependency,
 `local_unlistedcourses`** (ADR-013), which decides what every enrolment row means through
-`classes/local/relationship.php` and nowhere else. No own tables: MUC entries, three user
+`classes/local/relationship.php` and nowhere else. No own tables: MUC entries, four user
 preferences (`block_compass_view`, `block_compass_explore`, `block_compass_calendar`: one JSON of
-`view`, `filter`, `relevance` and `open`, validated member by member on read) and three
-`prewarm_*` config rows.
+`view`, `filter`, `relevance` and `open`, and `block_compass_tier1`: tier 1's settled shape per surface,
+ADR-018; each JSON validated member by member on read) and three `prewarm_*` config rows.
 Favourites are core's course star; archiving writes the Course overview block's
 `block_myoverview_hidden_course_*` preferences. CI: one MAH job (`MOODLE_502_STABLE`, full
 matrix, `plugin-dependencies: local_unlistedcourses`). Development on m502, m502b for parallel
@@ -173,10 +173,11 @@ classes/local/             THE ONLY place $DB is allowed: budget, config (reads 
                            hidden_courses, attention, cards, filters, course_meta, category_meta, details,
                            inventory, explore, matcher, prewarm, dormancy, relationship, filter_fields,
                            course_fields, explore_preference, calendar_cache, calendar_preference,
+                           tier1_preference (tier 1's settled shape per surface, ADR-018),
                            catalogue (the shared open catalogue, ADR-017) and catalogue_cache, news (the
                            viewer's open-courses groups) and news_cache, category_link (the one door to
                            the line's destinations, dispatching the hook once per response, catching
-                           \Throwable), uninstall (the three preferences, which core's uninstall leaves)
+                           \Throwable), uninstall (the four preferences, which core's uninstall leaves)
 classes/local/calendar/    the strip (ADR-014): strip (window, counted statement, past vault path, the grader's
                            default active group, the counts pass and its completion, periods), day, grading
                            (mirrors count_submissions_need_grading_with_groups(), the list bound on s.assignment
@@ -193,19 +194,30 @@ classes/task/warm_active_users.php, classes/output/ (block, page), classes/priva
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
                            RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext,
-                           OpenCourses (ADR-017's line), calendar, calendarpref (every member of block_compass_calendar,
-                           for every writer), rowdetails, repository, amd (the only file that knows RequireJS), notify,
+                           OpenCourses (ADR-017's line), Tier1Skeleton (the shell's skeleton, drawn alike; ADR-018),
+                           calendar, calendarpref (every member of block_compass_calendar, for every writer), tier1shape
+                           (the settled shape, written on change), rowdetails, repository, amd (the only file that knows
+                           RequireJS), notify,
                            filter, heading, str, types; .eslintrc is load-bearing
 js/esm/bundle.json, js/esm/build/ (tracked: per-file outputs, bundle.js, its map and manifest)
-templates/ (block, page, preload), db/ (access, services, caches, events, tasks, hooks, uninstall; NO install.xml)
+templates/ (block, page, preload, tier1_skeleton and calendar_skeleton: the shell's skeleton)
+db/ (access, services, caches, events, tasks, hooks, uninstall; NO install.xml)
 docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each external test; generator)
 ```
 
 ## Architecture rules
 
 - **The block class is a shell**: `['my' => true]`, no multiples, labels exported once as one
-  JSON props object through `data-react-props` (triple stash; never `quote`; never nested).
-- **Data flow**: `get_attention` on first paint; `get_inventory` on the ghost; `get_card_details`
+  JSON props object through `data-react-props` (triple stash; never `quote`; never nested). Inside
+  the mount point, tier 1's skeleton and the calendar's head (ADR-018): aria-hidden, no heading and no
+  control, shown only under `body.jsenabled`, given way to the never-mounts sentence by a CSS step about
+  10 s after the first paint; its two copies (`templates/tier1_skeleton.mustache`, `Tier1Skeleton.tsx`)
+  name the same class sequence (`tier1_skeleton_rules_test`), and its grid is CSS, never the measured count.
+- **Data flow**: the shell draws tier 1's skeleton in the shape it last settled to on this surface
+  (`tier1_preference`, ADR-018), and React's first render draws the same markup from the props; `get_attention`
+  on first paint; once tier 1 has settled (no card's progress pending, no failure), the client writes
+  `block_compass_tier1` through `core_user/repository` only when the shape differs from the one the shell
+  shipped, carrying the other surface's member (`tier1shape.ts`); `get_inventory` on the ghost; `get_card_details`
   in batches ≤ 24 for rows entering the viewport; paged mode adds `get_inventory_rows` per
   group/page and `search_inventory` per settled query. Writes go to core: the star through
   `core_course_set_favourite_courses`, preferences and the archive through

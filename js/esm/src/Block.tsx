@@ -25,6 +25,13 @@
  * and the amber notice with a way back from a failed first paint. There is no permanent reload
  * control: a way back appears only once a load has failed, as RetryNotice (ADR-014 amendment 11).
  *
+ * While tier 1's request travels, its place is held by the skeleton the shell drew before any JavaScript ran
+ * (ADR-018): Tier1Skeleton draws the same markup from the model in the props, so React's mount swaps like for
+ * like, and the cards then replace it. The loading announcement is a visually hidden status region, so it
+ * leaves no height behind. Once tier 1 has settled (answered, no card's progress still on its way, no
+ * failure), the shape it settled to is written to the block_compass_tier1 preference, only when it differs
+ * from the one the shell shipped (tier1shape.ts), for the next first paint.
+ *
  * Where the shell shipped the calendar props, the calendar strip sits first, above the status line
  * (ADR-014 decision 2). It reserves its place from the first paint and asks for its counts or its
  * days only once tier 1's request has settled, answered or failed: the turn handed down is 0 until
@@ -55,11 +62,13 @@ import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
 import Explore from './Explore';
 import RetryNotice from './RetryNotice';
+import Tier1Skeleton from './Tier1Skeleton';
 import type {GhostKind} from './Ghost';
 import {notify} from './notify';
 import {cardColumns} from './columns';
 import {fill, fillCount, fillObject} from './str';
 import {seedCalendarPreference} from './calendarpref';
+import {rememberShape, settledShape} from './tier1shape';
 import {getAttention, getCardDetails, getStripWithNews, isTransportFailure, onRetry, setFavourite} from './repository';
 import type {StripWithNews} from './repository';
 import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange, StripWeight} from './types';
@@ -336,6 +345,18 @@ const Block = (config: BlockConfig) => {
         load();
     }, [load]);
 
+    // Remember the shape tier 1 settled to, from an effect on the answer: settledShape() is null while a card's
+    // progress travels, a failure (the load's or the progress's) writes nothing, and tier1shape.ts writes only
+    // when the shape differs from the one held.
+    useEffect(() => {
+        const shape = data && error === null
+            ? settledShape(data, config.strips, config.favouritesenabled, config.pendingenabled)
+            : null;
+        if (shape) {
+            rememberShape(config.tier1, shape);
+        }
+    }, [data, error, config.strips, config.favouritesenabled, config.pendingenabled, config.tier1]);
+
     useEffect(() => {
         const element = root.current;
         if (!element || typeof ResizeObserver === 'undefined') {
@@ -568,11 +589,14 @@ const Block = (config: BlockConfig) => {
                     })}
                 </div>
             )}
+            {/* Tier 1's place, held while its request travels, through a retry too: the skeleton is hidden from
+                assistive technology, and the announcement is visually hidden, so neither leaves a height behind. */}
             {!data && error === null && reconnecting === null && (
-                <div className="compass-status text-muted small" role="status" aria-live="polite">
+                <div className="compass-status visually-hidden" role="status" aria-live="polite">
                     {labels.loading}
                 </div>
             )}
+            {!data && error === null && <Tier1Skeleton skeleton={config.tier1.skeleton} />}
             {error !== null && (
                 <RetryNotice message={error} retrying={false} config={config} onRetry={retry} />
             )}

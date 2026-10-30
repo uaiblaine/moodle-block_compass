@@ -1,0 +1,1 @@
+s/(\@media \(prefers-reduced-motion: reduce\) \{\n    \.block_compass \.compass-skeleton \{\n        animation: none;\n    \}\n)/$1\n    .block_compass .compass-preload {\n        animation: none;\n    }\n/;

@@ -1,0 +1,105 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template block_compass/calendar_skeleton
+
+    The calendar's head before any JavaScript runs (ADR-018 decision 5): it sits above tier 1, so
+    without it the mount would push tier 1's skeleton down. Drawn as the strip's first render draws
+    it (CalendarStrip.tsx, CalendarLine.tsx), with the same classes and no control: closed, the
+    toggle, the line's five waiting cells and the calendar link on one row; open, the toggle, the
+    month's bar and the link, then the row's waiting skeleton (its day columns clipped by the row,
+    so their number changes no height), the map's line and the waiting note. The view switch is in
+    neither, as in React's first render, which knows the views only from the answer.
+
+    What this cannot know is a measurement: on a block under 640 px the strip takes its narrow form
+    once the block's width is read, after the first paint, and the closed line moves its cells to a
+    row of their own then (CalendarStrip.tsx NARROW_PX). Both this and React's first render draw the
+    wide form.
+
+    Context variables required for this template (block_compass\output\block::calendar_head()):
+    * style - dots, ring or pulse.
+    * open - whether the strip starts open.
+    * region - the strip's name, the toggle's text.
+    * waiting - the open row's waiting note.
+    * icons - expanded, collapsed and collapsedrtl (the toggle's chevrons) and calendar (the link's glyph), core's markup.
+    * periods - five items, the closed line's waiting cells.
+    * days - the open row's waiting columns.
+
+    Example context (json):
+    {
+        "style": "dots",
+        "open": false,
+        "region": "Calendar",
+        "waiting": "Loading the calendar",
+        "icons": {
+            "expanded": "<i class=\"icon fa fa-chevron-down fa-fw\" aria-hidden=\"true\"></i>",
+            "collapsed": "<i class=\"icon fa fa-chevron-right fa-fw\" aria-hidden=\"true\"></i>",
+            "collapsedrtl": "<i class=\"icon fa fa-chevron-left fa-fw\" aria-hidden=\"true\"></i>",
+            "calendar": "<i class=\"icon fa fa-calendar fa-fw\" aria-hidden=\"true\"></i>"
+        },
+        "periods": [{"cell": true}, {"cell": true}, {"cell": true}, {"cell": true}, {"cell": true}],
+        "days": [{"day": true}, {"day": true}, {"day": true}]
+    }
+}}
+<div class="compass-cal compass-cal-style-{{style}} {{#open}}compass-cal-isopen{{/open}}{{^open}}compass-cal-closed{{/open}}" aria-hidden="true">
+    <div class="compass-cal-head">
+        <div class="compass-cal-title h6 mb-0">
+            <span class="compass-cal-toggle">
+                <span class="compass-cal-togglechev btn btn-icon icons-collapse-expand{{^open}} collapsed{{/open}}">
+                    <span class="expanded-icon icon-no-margin">{{{icons.expanded}}}</span>
+                    <span class="collapsed-icon icon-no-margin">
+                        <span class="dir-rtl-hide">{{{icons.collapsed}}}</span>
+                        <span class="dir-ltr-hide">{{{icons.collapsedrtl}}}</span>
+                    </span>
+                </span>
+                {{region}}
+            </span>
+        </div>
+        {{^open}}
+        <div class="compass-cal-line">
+            <ul class="compass-cal-periods compass-cal-periods-waiting">
+                {{#periods}}
+                <li class="compass-cal-psk"><span class="compass-cal-sk compass-cal-sk-plabel"></span><span class="compass-cal-sk compass-cal-sk-pchip"></span></li>
+                {{/periods}}
+            </ul>
+        </div>
+        {{/open}}
+        {{#open}}
+        <span class="compass-cal-sk compass-cal-sk-month"></span>
+        {{/open}}
+        <div class="compass-cal-controls">
+            <span class="compass-cal-link"><span class="compass-cal-glyph icon-no-margin">{{{icons.calendar}}}</span></span>
+        </div>
+    </div>
+    {{#open}}
+    <div class="compass-cal-body">
+        <div class="compass-cal-waiting">
+            <div class="compass-cal-daysbox">
+                <div class="compass-cal-days compass-cal-days-waiting">
+                    {{#days}}
+                    <div class="compass-cal-col"><span class="compass-cal-sk compass-cal-sk-disc"></span><span class="compass-cal-dots"></span><span class="compass-cal-sk compass-cal-sk-wd"></span></div>
+                    {{/days}}
+                </div>
+                <div class="compass-cal-map"><span class="compass-cal-mapline"></span></div>
+            </div>
+            <div class="compass-cal-foot">
+                <p class="compass-cal-note small">{{waiting}}</p>
+            </div>
+        </div>
+    </div>
+    {{/open}}
+</div>

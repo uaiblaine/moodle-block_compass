@@ -381,6 +381,21 @@ export const setCalendarPreference = async(state: CalendarState): Promise<void> 
 };
 
 /**
+ * Remember the shape tier 1 settled to (ADR-018), every surface's member in one value. Called only through
+ * tier1shape.ts, which writes only on a change and carries the other surface's member along.
+ *
+ * One JSON object through core's preference route, as the strip's state is; the shell validates it member by
+ * member when it reads it back (classes/local/tier1_preference.php). A write, so never retried.
+ *
+ * @param {object} value The version and the members, keyed by surface.
+ * @returns {Promise} Resolves once the preference is written.
+ */
+export const setTier1Preference = async(value: Record<string, unknown>): Promise<void> => {
+    const repository = await amd<UserRepository>('core_user/repository');
+    await repository.setUserPreferences([{name: 'block_compass_tier1', value: JSON.stringify(value), userid: 0}]);
+};
+
+/**
  * Remember the tier 3 toolbar as the viewer left it.
  *
  * One JSON object through the same route as the view. It is declared PARAM_RAW, so cleaning

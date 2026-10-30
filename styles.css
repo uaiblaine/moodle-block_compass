@@ -682,6 +682,119 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     }
 }
 
+/* Tier 1's skeleton (ADR-018; templates/tier1_skeleton.mustache and Tier1Skeleton.tsx draw the same
+   markup) uses the cards' own elements, each holding a bar where its text will be. The bar is an inline
+   block shorter than the line it sits on, so the line keeps the height its text will give it; a pill and
+   an action keep a non-breaking space for the same reason and take a width. */
+.block_compass .compass-skeleton.compass-skeleton-line {
+    display: inline-block;
+    width: 60%;
+    min-height: 0;
+    height: 0.75em;
+    vertical-align: middle;
+}
+
+.block_compass .compass-skeleton-line.compass-skeleton-wide {
+    width: 85%;
+}
+
+.block_compass .compass-skeleton-line.compass-skeleton-narrow {
+    width: 35%;
+}
+
+/* A strip title sizes to its content, so its bar has a width of its own rather than a share of nothing. */
+.block_compass .compass-skeleton-line.compass-skeleton-title {
+    width: 9rem;
+}
+
+.block_compass .compass-skeleton-pill {
+    width: 7rem;
+}
+
+.block_compass .compass-skeleton-action {
+    width: 6rem;
+}
+
+/* The skeleton's grid takes, before any JavaScript, the track count cardColumns() will (columns.ts:
+   a 264 px narrowest track, a 16 px gap, three tracks at most), from the same width, the block's own:
+   auto-fill counts floor((W + 16) / (T + 16)) tracks of T, and T is 264 px (W itself on a block narrower
+   than that), or (W - 32) / 3 once three tracks of 264 fit, so never a fourth. The cap is the cards
+   grid's per count (.compass-cards-1 to -3): 373 px, then 762 from 544 px of block, then 1151 from 824;
+   each clamp() below is a step of 0 or 1 px, multiplied by 389 (a 373 px track and its gap). Both
+   expressions live in custom properties read through var(): the fleet's stylelint forbids min(), max()
+   and clamp() in a length property, and no @container is involved. accessibility_rules_test reads the
+   numbers against columns.ts. */
+.block_compass .compass-sk-cards {
+    --block_compass-sk-track: max(min(264px, 100%), calc((100% - 32px) / 3));
+    --block_compass-sk-cap:
+        calc(
+            373px
+            + 389 * clamp(0px, (100% - 543.99px) * 1000, 1px)
+            + 389 * clamp(0px, (100% - 823.99px) * 1000, 1px)
+        );
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(var(--block_compass-sk-track), 1fr));
+    max-width: var(--block_compass-sk-cap);
+}
+
+/* With no stored shape, the one strip that stands in is one row at any count: its three cards in one
+   explicit row, every implicit row sized 0 and clipped. */
+.block_compass .compass-sk-onerow {
+    grid-template-rows: auto;
+    grid-auto-rows: 0;
+    row-gap: 0;
+    overflow: hidden;
+}
+
+/* The shell's own skeleton (block.mustache): only with JavaScript, which core marks on the body before
+   the block is parsed; without it the two sentences show. If the bundle never runs, a step about 10 s
+   after the first paint takes the skeleton out of the flow and brings the "could not be loaded"
+   sentence back in its place, so no shimmer lasts for ever. A step, not motion: it is kept under
+   reduced motion. React's first commit replaces all of it, so a mounted block never reaches the step. */
+.block_compass .compass-preload {
+    display: none;
+}
+
+body.jsenabled .block_compass .compass-preload {
+    display: block;
+    animation: block_compass-preload-out 100ms step-start 10s forwards;
+}
+
+body.jsenabled .block_compass .compass-preload + .compass-noscript {
+    position: absolute;
+    visibility: hidden;
+    animation: block_compass-preload-in 100ms step-start 10s forwards;
+}
+
+@keyframes block_compass-preload-out {
+    from,
+    to {
+        position: absolute;
+        visibility: hidden;
+    }
+}
+
+@keyframes block_compass-preload-in {
+    from,
+    to {
+        position: static;
+        visibility: visible;
+    }
+}
+
+/* The calendar's head in the shell has no inline geometry (the client sets it from calendar.ts fit() on
+   the row it draws): the defaults are the dots style's, and these are the other two styles' at a wide
+   block, the pulse's smaller disc being the one that changes the row's height. */
+.block_compass .compass-preload .compass-cal-style-pulse {
+    --block_compass-cal-disc: 30px;
+}
+
+.block_compass .compass-preload .compass-cal-style-ring {
+    --block_compass-cal-col: 48px;
+    --block_compass-cal-gap: 12px;
+}
+
 /* Archiving: one icon-only control per row, on the row's own line, and above the card's
    stretched link so the click is the button's and not the card's.
    btn-link btn-sm p-0 computes to about 23 px tall, one under the 24 px minimum of WCAG

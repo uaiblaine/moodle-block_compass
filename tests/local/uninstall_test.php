@@ -41,7 +41,7 @@ use PHPUnit\Framework\Attributes\CoversFunction;
 #[CoversFunction('xmldb_block_compass_uninstall')]
 final class uninstall_test extends advanced_testcase {
     /**
-     * The three preferences go for every user; the archive and a name sharing the prefix stay.
+     * The four preferences go for every user; the archive and a name sharing the prefix stay.
      *
      * The archive rows are the Course overview block's, which Compass shares and must leave to it,
      * and block_compassion is another component's name that a prefix match would reach. The control
@@ -56,18 +56,19 @@ final class uninstall_test extends advanced_testcase {
         require_once($CFG->dirroot . '/blocks/compass/db/uninstall.php');
         $this->resetAfterTest();
         $users = [$this->getDataGenerator()->create_user(), $this->getDataGenerator()->create_user()];
-        $ours = ['block_compass_view', explore_preference::NAME, calendar_preference::NAME];
+        $ours = ['block_compass_view', explore_preference::NAME, calendar_preference::NAME, tier1_preference::NAME];
         foreach ($users as $user) {
             set_user_preference('block_compass_view', 'cards', $user);
             set_user_preference(explore_preference::NAME, '{"sort":"az"}', $user);
             set_user_preference(calendar_preference::NAME, '{"open":true}', $user);
+            set_user_preference(tier1_preference::NAME, '{"v":1}', $user);
             set_user_preference('block_myoverview_hidden_course_42', 1, $user);
             set_user_preference('block_compassion', 'kept', $user);
         }
         [$insql, $params] = $DB->get_in_or_equal(array_column($users, 'id'), SQL_PARAMS_NAMED);
         $select = "userid {$insql} ORDER BY name, userid";
         $names = fn(): array => $DB->get_fieldset_select('user_preferences', 'name', $select, $params);
-        $this->assertCount(6, array_intersect($names(), $ours), 'control: both users hold the three preferences');
+        $this->assertCount(8, array_intersect($names(), $ours), 'control: both users hold the four preferences');
 
         $this->assertTrue(xmldb_block_compass_uninstall());
 

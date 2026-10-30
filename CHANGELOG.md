@@ -92,6 +92,22 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- Tier 1 holds its place from the first paint (2026042022 on this branch, ported from the 5.3 branch, #94;
+  ADR-018, the performance audit's item 4). The shell draws, inside the React mount point, a skeleton of the
+  strips in the shape they last settled to for this viewer on this surface (which strips, how many cards,
+  whether a completion area, the ghost and the pending notice), with the calendar's head above it where the
+  strip renders; React's first render draws the same markup from the props, so the mount no longer moves the
+  page, and the cards then replace it. Its columns come from CSS (`cardColumns()`'s 264 px track, 16 px gap and
+  three-track cap, and the 373 px card cap, as custom properties), so they need no measure. Without a
+  remembered shape one strip of one row stands in. It shows only with JavaScript; if the bundle never runs, a
+  CSS step about 10 s after the first paint replaces it with the "could not be loaded" sentence. The loading
+  line becomes a visually hidden status region. A new user preference, `block_compass_tier1`, keeps the shape
+  per surface: written by the browser through core's preference route only when the settled shape differs from
+  the stored one (never after a failure), validated member by member on read
+  (`classes/local/tier1_preference.php`), exported by the privacy provider and deleted on uninstall. The shell
+  still reads nothing from the database. Core 5.2 keeps the react helper's inner content in the mount `<div>`,
+  mounts with `createRoot` and sets `body.jsenabled` at the top of the body, as 5.3 does (ADR-018 decision 10).
+
 - Up next idles lighter (2026042021 on this branch, ported from the 5.3 branch, #93; the performance audit's
   item 8). The minute tick moved from the strip's hook into the Up next region, so a minute re-renders that
   region alone and the strip hears of it only when the rows' count or the level changes; the tick pauses while

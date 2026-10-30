@@ -26,13 +26,16 @@ namespace block_compass\privacy;
 
 use block_compass\local\calendar_preference;
 use block_compass\local\explore_preference;
+use block_compass\local\tier1_preference;
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\user_preference_provider;
 use core_privacy\local\request\writer;
 
 /**
- * The three things the plugin stores of its own: the viewer's choice of tier 3 view, the tier 3
- * toolbar as they left it, and the calendar strip as they left it.
+ * The four things the plugin stores of its own: the viewer's choice of tier 3 view, the tier 3
+ * toolbar as they left it, the calendar strip as they left it, and the shape tier 1 last settled to
+ * on each surface (ADR-018: strip names, card counts, whether a completion area, the ghost and
+ * pending flags; no course is named, yet a count says a little, so it is the viewer's data).
  *
  * Everything else it shows is core's — courses, enrolments, favourites, the archived-course
  * preferences of the Course overview block — and stays core's to export and to delete.
@@ -80,6 +83,10 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
             calendar_preference::NAME,
             'privacy:metadata:preference:block_compass_calendar'
         );
+        $collection->add_user_preference(
+            tier1_preference::NAME,
+            'privacy:metadata:preference:block_compass_tier1'
+        );
 
         return $collection;
     }
@@ -93,8 +100,8 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
      * Anything outside the vocabulary is exported verbatim, on purpose. The rest of the plugin
      * falls back to a default for a stored view it cannot draw
      * ({@see \block_compass\output\block::view()}); an export answers a different question —
-     * what is held about this person — so it must not name a view they never chose. The toolbar
-     * and calendar states are exported as stored for the same reason: each is the JSON the
+     * what is held about this person — so it must not name a view they never chose. The toolbar,
+     * calendar and tier 1 states are exported as stored for the same reason: each is the JSON the
      * viewer's own browser wrote.
      *
      * @param int $userid The user whose data is being exported.
@@ -133,6 +140,16 @@ class provider implements \core_privacy\local\metadata\provider, user_preference
                 calendar_preference::NAME,
                 $calendar,
                 get_string('privacy:metadata:preference:block_compass_calendar', 'block_compass')
+            );
+        }
+
+        $tier1 = get_user_preferences(tier1_preference::NAME, null, $userid);
+        if ($tier1 !== null) {
+            writer::export_user_preference(
+                'block_compass',
+                tier1_preference::NAME,
+                $tier1,
+                get_string('privacy:metadata:preference:block_compass_tier1', 'block_compass')
             );
         }
     }
