@@ -2370,8 +2370,8 @@ final class accessibility_rules_test extends basic_testcase {
         $open = $bodies['.block_compass .compass-soon-wrap.compass-soon-wrap-open'] ?? '';
         $this->assertMatchesRegularExpression('/grid-template-rows:\s*1fr/', $open, 'open, the region has its own height');
         $this->assertMatchesRegularExpression('/overflow:\s*hidden/', $bodies['.block_compass .compass-soon-inner'] ?? '');
-        $dot = $bodies['.block_compass .compass-soon-dot'] ?? '';
-        $this->assertMatchesRegularExpression('/animation:\s*block_compass-soon-pulse\b/', $dot, 'the dot on now pulses');
+        $ring = $bodies['.block_compass .compass-soon-dot::after'] ?? '';
+        $this->assertMatchesRegularExpression('/animation:\s*block_compass-soon-pulse\b/', $ring, 'the dot on now pulses');
 
         $pattern = '/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/';
         preg_match_all($pattern, $this->css(), $media);
@@ -2382,7 +2382,7 @@ final class accessibility_rules_test extends basic_testcase {
             'under reduced motion the region appears at once'
         );
         $this->assertMatchesRegularExpression(
-            '/\.block_compass \.compass-soon-dot\s*\{\s*animation:\s*none;/',
+            '/\.block_compass \.compass-soon-dot::after\s*\{\s*animation:\s*none;/',
             $reduced,
             'under reduced motion the dot on now holds still'
         );

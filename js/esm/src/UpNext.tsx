@@ -22,7 +22,10 @@
  * calm day costs no request; otherwise it sets one timer to the instant the gate would open
  * (gateNext()). An answer replaces the view's gate lists with the pruned ones it carries and sets the
  * offset of the server's clock, which every countdown follows. One timer aligned to the minute
- * re-evaluates the ladder while an answer holds items, with no request per tick; a page hidden for 15
+ * re-evaluates the ladder while an answer holds items, with no request per tick. The timer lives in
+ * the region (UpNext), not in the hook: each minute re-renders the region alone, and the strip, which
+ * hosts the hook, re-renders only when the rows' count or the level changes (advance()). The timer
+ * stops while the page is hidden and evaluates at once when it is shown. A page hidden for 15
  * minutes or more asks again through the gate when it is shown, and a timer that fired while it was
  * hidden asks then. Nothing else polls (decision 5).
  *
@@ -80,7 +83,7 @@ export type UpNextState = {
     level: number,
     // The open items not drawn: the answer's own past the rows, and its more.
     later: number,
-    // The server's clock at the last evaluation, Unix time.
+    // The server's clock at the last evaluation the strip rendered, Unix time; the region keeps its own minute.
     now: number,
     // The view the rows belong to: the announcement's memory is per view.
     view: CalendarView,
@@ -89,6 +92,52 @@ export type UpNextState = {
     failed: boolean,
     retrying: boolean,
     retry: () => void,
+    // The answer for the view, and the horizon it is read against: the region evaluates them each minute.
+    answer: SoonAnswer | null,
+    horizon: number,
+    // The region's minute: stores the clock, asks the refill when due and re-renders the strip only when
+    // the rows' count or the level moved. Returns the server's now.
+    advance: () => number,
+    // The server's clock in milliseconds, to align the minute to the server's.
+    serverMs: () => number,
+};
+
+/**
+ * What the strip draws from an evaluation: the rows' count and the level, the only parts it reads.
+ *
+ * @param {object[]} rows The rows drawn.
+ * @param {number} level Their highest rung.
+ * @returns {string} A key that changes only when the count or the level does.
+ */
+const shapeOf = (rows: SoonRow[], level: number): string => `${rows.length}:${level}`;
+
+/**
+ * The open items on the ladder at an instant.
+ *
+ * @param {object|null} answer The view's answer, once it is in.
+ * @param {string} view The view.
+ * @param {number} now Unix time, on the server's clock.
+ * @param {number} horizon The horizon in seconds.
+ * @returns {object} The rows drawn, their highest rung and the open items not drawn.
+ */
+export const evaluateSoon = (
+    answer: SoonAnswer | null,
+    view: CalendarView,
+    now: number,
+    horizon: number
+): {rows: SoonRow[], level: number, later: number} => {
+    const open = answer
+        ? answer.items
+            .map((item) => ({item, level: soonLevel(item, view, now, horizon)}))
+            .filter((row) => row.level !== LEVEL_PASSED)
+        : [];
+    const rows = open.filter((row) => row.level > LEVEL_CALM).slice(0, ROWS);
+
+    return {
+        rows,
+        level: rows.reduce((max, row) => Math.max(max, row.level), LEVEL_CALM),
+        later: open.length - rows.length + (answer ? answer.more : 0),
+    };
 };
 
 /**
@@ -138,8 +187,11 @@ export const useUpNext = (horizon: number, view: CalendarView, source: GateSourc
     // The answer a refill was asked for, so its last item passing asks once, not every minute.
     const refilled = useRef<SoonAnswer | null>(null);
     const turnseen = useRef(turn);
-    const latest = useRef({view, horizon});
-    latest.current = {view, horizon};
+    const latest = useRef<{view: CalendarView, horizon: number, answer: SoonAnswer | null}>({
+        view, horizon, answer: null,
+    });
+    // The rows' count and level as the strip last rendered them, so a minute that changes neither renders nothing here.
+    const drawn = useRef('');
 
     /**
      * Now on the server's clock.
@@ -147,6 +199,13 @@ export const useUpNext = (horizon: number, view: CalendarView, source: GateSourc
      * @returns {number} Unix time.
      */
     const serverNow = (): number => Math.floor((Date.now() + offset.current) / 1000);
+
+    /**
+     * Now on the server's clock, in milliseconds.
+     *
+     * @returns {number} Unix time in milliseconds.
+     */
+    const serverMs = (): number => Date.now() + offset.current;
 
     /**
      * Set the clock's offset from an instant the server stated.
@@ -290,37 +349,46 @@ export const useUpNext = (horizon: number, view: CalendarView, source: GateSourc
     }, [gatever, view, horizon]);
 
     const answer = answers[view] ?? null;
-    const active = !!answer && answer.items.length > 0;
+    latest.current = {view, horizon, answer};
 
-    // The minute: one timer aligned to the server's minute while an answer holds items, re-evaluating
-    // the ladder and the countdowns. It asks nothing.
-    useEffect(() => {
-        if (!active) {
-            return undefined;
-        }
-        let interval: number | undefined;
-        const into = (Date.now() + offset.current) % 60000;
-        const timeout = window.setTimeout(() => {
-            setClock(serverNow());
-            interval = window.setInterval(() => setClock(serverNow()), 60000);
-        }, 60000 - into + 50);
-
-        return () => {
-            window.clearTimeout(timeout);
-            window.clearInterval(interval);
-        };
-    }, [active]);
-
-    // An answer cut at its ten whose last item has come inside the horizon may hold back the next row:
-    // ask once more through the gate, once per answer.
-    useEffect(() => {
-        if (!answer || answer.items.length < ANSWER_LIMIT || answer.more <= 0 || refilled.current === answer) {
+    /**
+     * Ask once more through the gate when an answer cut at its ten has its last item inside the horizon.
+     *
+     * @param {object|null} current The view's answer.
+     * @param {number} now Unix time, on the server's clock.
+     * @returns {void}
+     */
+    const refill = (current: SoonAnswer | null, now: number): void => {
+        if (!current || current.items.length < ANSWER_LIMIT || current.more <= 0 || refilled.current === current) {
             return;
         }
-        if (answer.items[answer.items.length - 1].timestart <= clock + latest.current.horizon) {
-            refilled.current = answer;
+        if (current.items[current.items.length - 1].timestart <= now + latest.current.horizon) {
+            refilled.current = current;
             api.current.consider(latest.current.view);
         }
+    };
+
+    /**
+     * The region's minute (the tick lives in UpNext, not here).
+     *
+     * @returns {number} The server's now.
+     */
+    const advance = (): number => {
+        const now = serverNow();
+        const {view: drawnview, horizon: drawnhorizon, answer: held} = latest.current;
+        const next = evaluateSoon(held, drawnview, now, drawnhorizon);
+        refill(held, now);
+        if (shapeOf(next.rows, next.level) !== drawn.current) {
+            setClock(now);
+        }
+
+        return now;
+    };
+
+    // An answer cut at its ten whose last item has come inside the horizon may hold back the next row:
+    // ask once more through the gate, once per answer (the minute checks it too, in advance()).
+    useEffect(() => {
+        refill(answer, clock);
     }, [clock, answer]);
 
     // The page shown again: the ladder at once, and the gate when it was hidden 15 minutes or more, or
@@ -372,23 +440,23 @@ export const useUpNext = (horizon: number, view: CalendarView, source: GateSourc
     };
 
     const now = clock > 0 ? clock : serverNow();
-    const open = answer
-        ? answer.items
-            .map((item) => ({item, level: soonLevel(item, view, now, horizon)}))
-            .filter((row) => row.level !== LEVEL_PASSED)
-        : [];
-    const rows = open.filter((row) => row.level > LEVEL_CALM).slice(0, ROWS);
+    const {rows, level, later} = evaluateSoon(answer, view, now, horizon);
+    drawn.current = shapeOf(rows, level);
 
     return {
         rows,
-        level: rows.reduce((max, row) => Math.max(max, row.level), LEVEL_CALM),
-        later: open.length - rows.length + (answer ? answer.more : 0),
+        level,
+        later,
         now,
         view,
         settled: !!settled[view],
         failed: failed === view,
         retrying,
         retry,
+        answer,
+        horizon,
+        advance,
+        serverMs,
     };
 };
 
@@ -505,7 +573,14 @@ const UpNext = ({
     config, calendar, soon, hiddenrank, tipsoff, onTipsOn, onHide, onShow, onOpenToday, onPoint, onAnnounce,
 }: UpNextProps) => {
     const {strings, timezone} = calendar;
-    const {rows, level, later, now, view, settled, failed, retrying, retry} = soon;
+    const {view, settled, failed, retrying, retry, answer, horizon} = soon;
+    // The region's own minute: the strip's clock moves only when the rows' count or the level does.
+    const [minute, setMinute] = useState({from: 0, at: 0});
+    const now = minute.from === soon.now ? minute.at : soon.now;
+    const {rows, level, later} = evaluateSoon(answer, view, now, horizon);
+    const live = useRef(soon);
+    live.current = soon;
+    const active = !!answer && answer.items.length > 0;
     const hidden = hiddenrank !== null && level <= hiddenrank;
     const shown = rows.length > 0 && !hidden;
     const Title = titleTag(config.headinglevel);
@@ -522,6 +597,70 @@ const UpNext = ({
     // first paint, a retry's or a first appearance from calm, read in order and never spoken. A switch of
     // view starts the memory over, so it never announces.
     const spoken = useRef<{view: CalendarView, level: number} | null>(null);
+
+    // The minute: one timer aligned to the server's minute while an answer holds items, re-evaluating the
+    // ladder and the countdowns. It asks nothing, and it stops while the page is hidden: shown again, it
+    // evaluates at once and takes the minute up from there.
+    useEffect(() => {
+        if (!active) {
+            return undefined;
+        }
+        let timeout: number | undefined;
+        let interval: number | undefined;
+        /**
+         * Evaluate now: the strip hears of it only when its rows' count or level moved.
+         *
+         * @returns {void}
+         */
+        const tick = (): void => {
+            const at = live.current.advance();
+            setMinute({from: live.current.now, at});
+        };
+        /**
+         * Stop the timers.
+         *
+         * @returns {void}
+         */
+        const stop = (): void => {
+            window.clearTimeout(timeout);
+            window.clearInterval(interval);
+        };
+        /**
+         * Start the minute at the next server minute, unless the page is hidden.
+         *
+         * @returns {void}
+         */
+        const start = (): void => {
+            stop();
+            if (document.hidden) {
+                return;
+            }
+            timeout = window.setTimeout(() => {
+                tick();
+                interval = window.setInterval(tick, 60000);
+            }, 60000 - (live.current.serverMs() % 60000) + 50);
+        };
+        /**
+         * Pause on hiding; evaluate at once and resume on showing.
+         *
+         * @returns {void}
+         */
+        const onchange = (): void => {
+            if (document.hidden) {
+                stop();
+                return;
+            }
+            tick();
+            start();
+        };
+        document.addEventListener('visibilitychange', onchange);
+        start();
+
+        return () => {
+            document.removeEventListener('visibilitychange', onchange);
+            stop();
+        };
+    }, [active]);
 
     useLayoutEffect(() => {
         if (!shown) {

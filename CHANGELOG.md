@@ -13,6 +13,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Changed
+
+- Up next idles lighter (2026100521; the performance audit's item 8, `docs/performance-audit/PLAN.md`). The
+  minute tick moved from the strip's hook into the Up next region, so a minute re-renders that region alone
+  and the strip hears of it only when the rows' count or the level changes; the tick pauses while the tab
+  is hidden and evaluates at once when it is shown. The "now" dot's pulse is a pseudo-element animating
+  `transform` and `opacity` (the compositor's), where a `box-shadow` keyframe restyled the page every frame.
+  The look, the levels, the texts and the requests are unchanged.
+
 ### Added
 
 - A Performance overview check for read-only sessions (2026100519; the performance audit's item 7,

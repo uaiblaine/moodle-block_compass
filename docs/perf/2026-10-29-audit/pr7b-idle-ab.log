@@ -1,0 +1,38 @@
+before warm extra="none"
+load { 10.20 7.93 6.53 }
+r1-before-1-upnext [65s cpu4]: task=9313 ms script=52 ms style=3893 (1548 ms) layout=1 (6 ms) mutations=6 | soon rows=2 dot=yes
+r1-before-1-upnext-hidden [65s cpu4 hidden]: task=782 ms script=49 ms style=5 (100 ms) layout=1 (4 ms) mutations=17 | soon rows=2 dot=yes
+r1-before-1-control-s50 [65s cpu4]: task=487 ms script=0 ms style=377 (59 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+load { 4.44 6.18 6.10 }
+r1-before-2-upnext [65s cpu4]: task=8492 ms script=26 ms style=3894 (1297 ms) layout=1 (5 ms) mutations=6 | soon rows=2 dot=yes
+r1-before-2-upnext-hidden [65s cpu4 hidden]: task=492 ms script=33 ms style=4 (94 ms) layout=1 (6 ms) mutations=18 | soon rows=2 dot=yes
+r1-before-2-control-s50 [65s cpu4]: task=497 ms script=0 ms style=320 (59 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+captured before
+after warm extra="block_compass-soon-pulse"
+load { 6.17 5.77 5.89 }
+r1-after-1-upnext [65s cpu4]: task=1679 ms script=46 ms style=578 (308 ms) layout=2 (9 ms) mutations=3 | soon rows=2 dot=yes
+r1-after-1-upnext-hidden [65s cpu4 hidden]: task=490 ms script=51 ms style=3 (65 ms) layout=1 (5 ms) mutations=17 | soon rows=2 dot=yes
+r1-after-1-control-s50 [65s cpu4]: task=588 ms script=0 ms style=324 (65 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+load { 5.74 5.49 5.71 }
+r1-after-2-upnext [65s cpu4]: task=1482 ms script=8 ms style=576 (234 ms) layout=1 (1 ms) mutations=1 | soon rows=2 dot=yes
+r1-after-2-upnext-hidden [65s cpu4 hidden]: task=400 ms script=28 ms style=4 (66 ms) layout=2 (5 ms) mutations=17 | soon rows=2 dot=yes
+r1-after-2-control-s50 [65s cpu4]: task=604 ms script=0 ms style=378 (75 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+captured after
+load { 5.77 5.59 5.67 }
+r2-before-1-upnext [65s cpu4]: task=8792 ms script=25 ms style=3897 (1398 ms) layout=1 (6 ms) mutations=6 | soon rows=2 dot=yes
+r2-before-1-upnext-hidden [65s cpu4 hidden]: task=602 ms script=49 ms style=5 (126 ms) layout=2 (9 ms) mutations=17 | soon rows=2 dot=yes
+r2-before-1-control-s50 [65s cpu4]: task=520 ms script=0 ms style=319 (55 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+load { 6.48 5.78 5.70 }
+r2-before-2-upnext [65s cpu4]: task=8735 ms script=32 ms style=3897 (1426 ms) layout=1 (5 ms) mutations=6 | soon rows=2 dot=yes
+r2-before-2-upnext-hidden [65s cpu4 hidden]: task=980 ms script=69 ms style=5 (99 ms) layout=1 (6 ms) mutations=18 | soon rows=2 dot=yes
+r2-before-2-control-s50 [65s cpu4]: task=642 ms script=0 ms style=320 (65 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+load { 11.86 7.59 6.42 }
+r2-after-1-upnext [65s cpu4]: task=1284 ms script=25 ms style=448 (207 ms) layout=1 (4 ms) mutations=1 | soon rows=2 dot=yes
+r2-after-1-upnext-hidden [65s cpu4 hidden]: task=585 ms script=57 ms style=3 (67 ms) layout=1 (8 ms) mutations=17 | soon rows=2 dot=yes
+r2-after-1-control-s50 [65s cpu4]: task=654 ms script=0 ms style=314 (80 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+load { 10.05 8.41 7.04 }
+r2-after-2-upnext [65s cpu4]: task=1444 ms script=24 ms style=475 (233 ms) layout=1 (2 ms) mutations=2 | soon rows=2 dot=yes
+r2-after-2-upnext-hidden [65s cpu4 hidden]: task=702 ms script=42 ms style=4 (67 ms) layout=1 (6 ms) mutations=12 | soon rows=2 dot=yes
+r2-after-2-control-s50 [65s cpu4]: task=422 ms script=0 ms style=323 (39 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+RESTORED
+DONE

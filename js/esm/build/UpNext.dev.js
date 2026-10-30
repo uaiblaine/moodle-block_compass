@@ -10,7 +10,10 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * calm day costs no request; otherwise it sets one timer to the instant the gate would open
  * (gateNext()). An answer replaces the view's gate lists with the pruned ones it carries and sets the
  * offset of the server's clock, which every countdown follows. One timer aligned to the minute
- * re-evaluates the ladder while an answer holds items, with no request per tick; a page hidden for 15
+ * re-evaluates the ladder while an answer holds items, with no request per tick. The timer lives in
+ * the region (UpNext), not in the hook: each minute re-renders the region alone, and the strip, which
+ * hosts the hook, re-renders only when the rows' count or the level changes (advance()). The timer
+ * stops while the page is hidden and evaluates at once when it is shown. A page hidden for 15
  * minutes or more asks again through the gate when it is shown, and a timer that fired while it was
  * hidden asks then. Nothing else polls (decision 5).
  *
@@ -50,6 +53,16 @@ const ROWS = 2;
 const ANSWER_LIMIT = 10;
 const TIMER_MAX_MS = 2147483647;
 const VIEWS = ["learning", "teaching"];
+const shapeOf = /* @__PURE__ */ __name((rows, level) => `${rows.length}:${level}`, "shapeOf");
+const evaluateSoon = /* @__PURE__ */ __name((answer, view, now, horizon) => {
+  const open = answer ? answer.items.map((item) => ({ item, level: soonLevel(item, view, now, horizon) })).filter((row) => row.level !== LEVEL_PASSED) : [];
+  const rows = open.filter((row) => row.level > LEVEL_CALM).slice(0, ROWS);
+  return {
+    rows,
+    level: rows.reduce((max, row) => Math.max(max, row.level), LEVEL_CALM),
+    later: open.length - rows.length + (answer ? answer.more : 0)
+  };
+}, "evaluateSoon");
 const sameLists = /* @__PURE__ */ __name((a, b) => !!a && JSON.stringify([a.upcoming, a.events]) === JSON.stringify([b.upcoming, b.events]), "sameLists");
 const useUpNext = /* @__PURE__ */ __name((horizon, view, source, turn) => {
   const [answers, setAnswers] = useState({});
@@ -70,9 +83,14 @@ const useUpNext = /* @__PURE__ */ __name((horizon, view, source, turn) => {
   const due = useRef(false);
   const refilled = useRef(null);
   const turnseen = useRef(turn);
-  const latest = useRef({ view, horizon });
-  latest.current = { view, horizon };
+  const latest = useRef({
+    view,
+    horizon,
+    answer: null
+  });
+  const drawn = useRef("");
   const serverNow = /* @__PURE__ */ __name(() => Math.floor((Date.now() + offset.current) / 1e3), "serverNow");
+  const serverMs = /* @__PURE__ */ __name(() => Date.now() + offset.current, "serverMs");
   const setOffset = /* @__PURE__ */ __name((now2) => {
     if (now2 > 0) {
       offset.current = now2 * 1e3 - Date.now();
@@ -177,30 +195,28 @@ const useUpNext = /* @__PURE__ */ __name((horizon, view, source, turn) => {
     return () => window.clearTimeout(timer);
   }, [gatever, view, horizon]);
   const answer = answers[view] ?? null;
-  const active = !!answer && answer.items.length > 0;
-  useEffect(() => {
-    if (!active) {
-      return void 0;
-    }
-    let interval;
-    const into = (Date.now() + offset.current) % 6e4;
-    const timeout = window.setTimeout(() => {
-      setClock(serverNow());
-      interval = window.setInterval(() => setClock(serverNow()), 6e4);
-    }, 6e4 - into + 50);
-    return () => {
-      window.clearTimeout(timeout);
-      window.clearInterval(interval);
-    };
-  }, [active]);
-  useEffect(() => {
-    if (!answer || answer.items.length < ANSWER_LIMIT || answer.more <= 0 || refilled.current === answer) {
+  latest.current = { view, horizon, answer };
+  const refill = /* @__PURE__ */ __name((current, now2) => {
+    if (!current || current.items.length < ANSWER_LIMIT || current.more <= 0 || refilled.current === current) {
       return;
     }
-    if (answer.items[answer.items.length - 1].timestart <= clock + latest.current.horizon) {
-      refilled.current = answer;
+    if (current.items[current.items.length - 1].timestart <= now2 + latest.current.horizon) {
+      refilled.current = current;
       api.current.consider(latest.current.view);
     }
+  }, "refill");
+  const advance = /* @__PURE__ */ __name(() => {
+    const now2 = serverNow();
+    const { view: drawnview, horizon: drawnhorizon, answer: held } = latest.current;
+    const next = evaluateSoon(held, drawnview, now2, drawnhorizon);
+    refill(held, now2);
+    if (shapeOf(next.rows, next.level) !== drawn.current) {
+      setClock(now2);
+    }
+    return now2;
+  }, "advance");
+  useEffect(() => {
+    refill(answer, clock);
   }, [clock, answer]);
   useEffect(() => {
     const onchange = /* @__PURE__ */ __name(() => {
@@ -234,18 +250,22 @@ const useUpNext = /* @__PURE__ */ __name((horizon, view, source, turn) => {
     ask(latest.current.view);
   }, "retry");
   const now = clock > 0 ? clock : serverNow();
-  const open = answer ? answer.items.map((item) => ({ item, level: soonLevel(item, view, now, horizon) })).filter((row) => row.level !== LEVEL_PASSED) : [];
-  const rows = open.filter((row) => row.level > LEVEL_CALM).slice(0, ROWS);
+  const { rows, level, later } = evaluateSoon(answer, view, now, horizon);
+  drawn.current = shapeOf(rows, level);
   return {
     rows,
-    level: rows.reduce((max, row) => Math.max(max, row.level), LEVEL_CALM),
-    later: open.length - rows.length + (answer ? answer.more : 0),
+    level,
+    later,
     now,
     view,
     settled: !!settled[view],
     failed: failed === view,
     retrying,
-    retry
+    retry,
+    answer,
+    horizon,
+    advance,
+    serverMs
   };
 }, "useUpNext");
 const afterToday = /* @__PURE__ */ __name((time, now, timezone) => {
@@ -296,7 +316,13 @@ const UpNext = /* @__PURE__ */ __name(({
   onAnnounce
 }) => {
   const { strings, timezone } = calendar;
-  const { rows, level, later, now, view, settled, failed, retrying, retry } = soon;
+  const { view, settled, failed, retrying, retry, answer, horizon } = soon;
+  const [minute, setMinute] = useState({ from: 0, at: 0 });
+  const now = minute.from === soon.now ? minute.at : soon.now;
+  const { rows, level, later } = evaluateSoon(answer, view, now, horizon);
+  const live = useRef(soon);
+  live.current = soon;
+  const active = !!answer && answer.items.length > 0;
   const hidden = hiddenrank !== null && level <= hiddenrank;
   const shown = rows.length > 0 && !hidden;
   const Title = titleTag(config.headinglevel);
@@ -307,6 +333,45 @@ const UpNext = /* @__PURE__ */ __name(({
   const showbutton = useRef(null);
   const focusnext = useRef(null);
   const spoken = useRef(null);
+  useEffect(() => {
+    if (!active) {
+      return void 0;
+    }
+    let timeout;
+    let interval;
+    const tick = /* @__PURE__ */ __name(() => {
+      const at = live.current.advance();
+      setMinute({ from: live.current.now, at });
+    }, "tick");
+    const stop = /* @__PURE__ */ __name(() => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    }, "stop");
+    const start = /* @__PURE__ */ __name(() => {
+      stop();
+      if (document.hidden) {
+        return;
+      }
+      timeout = window.setTimeout(() => {
+        tick();
+        interval = window.setInterval(tick, 6e4);
+      }, 6e4 - live.current.serverMs() % 6e4 + 50);
+    }, "start");
+    const onchange = /* @__PURE__ */ __name(() => {
+      if (document.hidden) {
+        stop();
+        return;
+      }
+      tick();
+      start();
+    }, "onchange");
+    document.addEventListener("visibilitychange", onchange);
+    start();
+    return () => {
+      document.removeEventListener("visibilitychange", onchange);
+      stop();
+    };
+  }, [active]);
   useLayoutEffect(() => {
     if (!shown) {
       setGrown(false);
@@ -346,11 +411,11 @@ const UpNext = /* @__PURE__ */ __name(({
   if (failed) {
     return /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-fail", children: /* @__PURE__ */ jsxDEV(RetryNotice, { message: strings.cal_soon_error, retrying, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 574,
+      lineNumber: 713,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 573,
+      lineNumber: 712,
       columnNumber: 13
     });
   }
@@ -362,12 +427,12 @@ const UpNext = /* @__PURE__ */ __name(({
       /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-head", children: [
         /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-soon-title h6 mb-0", children: strings.cal_soon_title }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-          lineNumber: 588,
+          lineNumber: 727,
           columnNumber: 29
         }),
         /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-sub", children: fill(strings.cal_soon_horizon, String(calendar.soon.hours)) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-          lineNumber: 589,
+          lineNumber: 728,
           columnNumber: 29
         }),
         /* @__PURE__ */ jsxDEV(
@@ -395,13 +460,13 @@ const UpNext = /* @__PURE__ */ __name(({
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 605,
+                  lineNumber: 744,
                   columnNumber: 33
                 }
               ),
               /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-tip", "aria-hidden": "true", children: strings.cal_soon_hide }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                lineNumber: 610,
+                lineNumber: 749,
                 columnNumber: 33
               })
             ]
@@ -410,13 +475,13 @@ const UpNext = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-            lineNumber: 593,
+            lineNumber: 732,
             columnNumber: 29
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-        lineNumber: 587,
+        lineNumber: 726,
         columnNumber: 25
       }),
       /* @__PURE__ */ jsxDEV("ul", { className: "compass-soon-list", children: rows.map((row) => {
@@ -434,24 +499,24 @@ const UpNext = /* @__PURE__ */ __name(({
               /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-when", children: [
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-time", children: clockOf(strings, item.timestart, now, timezone) }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 628,
+                  lineNumber: 767,
                   columnNumber: 45
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: countdownClass(row.level), children: [
                   row.level === LEVEL_NOW && /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-dot", "aria-hidden": "true" }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                    lineNumber: 633,
+                    lineNumber: 772,
                     columnNumber: 53
                   }),
                   countdownOf(strings, row, now, timezone)
                 ] }, void 0, true, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 631,
+                  lineNumber: 770,
                   columnNumber: 45
                 })
               ] }, void 0, true, {
                 fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                lineNumber: 627,
+                lineNumber: 766,
                 columnNumber: 41
               }),
               /* @__PURE__ */ jsxDEV(
@@ -461,7 +526,7 @@ const UpNext = /* @__PURE__ */ __name(({
                   "data-purpose": item.purpose,
                   children: item.iconurl && /* @__PURE__ */ jsxDEV("img", { className: "activityicon", src: item.iconurl, alt: "" }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                    lineNumber: 642,
+                    lineNumber: 781,
                     columnNumber: 62
                   })
                 },
@@ -469,31 +534,31 @@ const UpNext = /* @__PURE__ */ __name(({
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 638,
+                  lineNumber: 777,
                   columnNumber: 41
                 }
               ),
               /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-what", children: [
                 /* @__PURE__ */ jsxDEV("a", { className: "compass-soon-name", href: item.viewurl, title: item.name, children: item.name }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 645,
+                  lineNumber: 784,
                   columnNumber: 45
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-meta", children: [
                   item.courseshortname && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-course", title: item.courseshortname, children: item.courseshortname }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                    lineNumber: 648,
+                    lineNumber: 787,
                     columnNumber: 53
                   }),
                   kindPillOf(item, strings, istoday, timezone)
                 ] }, void 0, true, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 646,
+                  lineNumber: 785,
                   columnNumber: 45
                 })
               ] }, void 0, true, {
                 fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                lineNumber: 644,
+                lineNumber: 783,
                 columnNumber: 41
               }),
               actionOf(item, strings, row.level === LEVEL_NOW)
@@ -503,13 +568,13 @@ const UpNext = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-            lineNumber: 619,
+            lineNumber: 758,
             columnNumber: 37
           }
         );
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-        lineNumber: 613,
+        lineNumber: 752,
         columnNumber: 25
       }),
       later > 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-soon-more", children: [
@@ -527,26 +592,26 @@ const UpNext = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-            lineNumber: 664,
+            lineNumber: 803,
             columnNumber: 33
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-        lineNumber: 661,
+        lineNumber: 800,
         columnNumber: 29
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 586,
+      lineNumber: 725,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 585,
+      lineNumber: 724,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 584,
+      lineNumber: 723,
       columnNumber: 13
     }),
     hidden && /* @__PURE__ */ jsxDEV("p", { className: "compass-soon-quiet", children: [
@@ -568,24 +633,25 @@ const UpNext = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-          lineNumber: 680,
+          lineNumber: 819,
           columnNumber: 21
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 677,
+      lineNumber: 816,
       columnNumber: 17
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-    lineNumber: 583,
+    lineNumber: 722,
     columnNumber: 9
   });
 }, "UpNext");
 var UpNext_default = UpNext;
 export {
   UpNext_default as default,
+  evaluateSoon,
   useUpNext
 };
 //# sourceMappingURL=UpNext.dev.js.map
