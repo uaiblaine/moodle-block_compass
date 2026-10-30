@@ -27,7 +27,9 @@ namespace block_compass\local\calendar;
 
 use advanced_testcase;
 use block_compass\local\budget;
+use block_compass\local\calendar_cache;
 use block_compass\local\config;
+use block_compass\local\inventory;
 use core_cache\cache;
 use core_calendar\local\event\container;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -73,6 +75,110 @@ final class strip_test extends advanced_testcase {
         foreach (['inventory', 'details', 'calendarstrip'] as $area) {
             cache::make('block_compass', $area)->purge();
         }
+    }
+
+    /**
+     * A course visit leaves an unbounded entry as it was: the access field is not compared.
+     *
+     * The learner's entry is built over two courses (inventory_max is far above), then the learner opens
+     * one of them, as core's user_accesstime_log() records it. The control: the inventory's stamp moved
+     * (its last access is the visit). The entry handed back is the one cached, with the stamp it was built
+     * under; a rebuild would carry the new stamp. This is the commonest path there is, a course page and
+     * back to the Dashboard, where Up next revalidates the entry (the performance audit's item 5).
+     *
+     * @return void
+     */
+    public function test_a_course_visit_leaves_an_unbounded_entry_as_it_was(): void {
+        [$userid, $courses, $tz] = $this->revalidation_fixture();
+        $now = time();
+        $entry = strip::entry($userid, $now, 1700000000, $tz);
+        $this->assertFalse($entry['payload']['bounded'], 'Precondition: the set is not bounded.');
+
+        $this->visit($userid, (int) $courses[0]->id, $now + MINSECS);
+        $this->new_request();
+        $stamp = inventory::get($userid)['stamp'];
+        $this->assertNotSame($entry['stamp']['maxaccess'], $stamp['maxaccess'], 'Control: the visit moved the stamp.');
+
+        $kept = strip::revalidated($userid, $entry, $now, 1700000000, $tz);
+        $this->assertSame($entry['stamp'], $kept['stamp'], 'A visit must not rebuild an unbounded entry.');
+        $this->assertSame($entry, calendar_cache::get($userid), 'Nothing was written.');
+    }
+
+    /**
+     * A course visit rebuilds a bounded entry: above inventory_max the set keeps the most recently opened.
+     *
+     * The same visit with inventory_max at 1, so the set holds one of the two courses; the course
+     * visited is the other one, which recency now brings into the set.
+     *
+     * @return void
+     */
+    public function test_a_course_visit_rebuilds_a_bounded_entry(): void {
+        [$userid, $courses, $tz] = $this->revalidation_fixture();
+        set_config('inventory_max', 1, 'block_compass');
+        $now = time();
+        $entry = strip::entry($userid, $now, 1700000000, $tz);
+        $this->assertTrue($entry['payload']['bounded'], 'Precondition: the set is bounded.');
+        $outside = array_values(array_diff(
+            array_map(fn(\stdClass $course): int => (int) $course->id, $courses),
+            array_keys($entry['sets']['courses'])
+        ))[0];
+
+        $this->visit($userid, $outside, $now + MINSECS);
+        $this->new_request();
+        $rebuilt = strip::revalidated($userid, $entry, $now, 1700000000, $tz);
+
+        $this->assertNotSame($entry['stamp'], $rebuilt['stamp'], 'A bounded entry must be rebuilt after a visit.');
+        $this->assertSame([$outside], array_keys($rebuilt['sets']['courses']), 'The course visited is the set now.');
+    }
+
+    /**
+     * A suspended enrolment still rebuilds an unbounded entry, and the course leaves the set.
+     *
+     * The promise revalidated() keeps: a day is never built from a set holding a course the user is no
+     * longer active in. Suspension is told by the user enrolment's modification time, a field still
+     * compared; the enrolments are dated in the past first, so the suspension's time differs from theirs
+     * whatever second the suite runs in.
+     *
+     * @return void
+     */
+    public function test_a_suspended_enrolment_still_rebuilds_an_unbounded_entry(): void {
+        global $DB;
+
+        [$userid, $courses, $tz] = $this->revalidation_fixture();
+        $DB->set_field('user_enrolments', 'timemodified', 1700000000, ['userid' => $userid]);
+        $now = time();
+        $entry = strip::entry($userid, $now, 1700000000, $tz);
+        $suspended = (int) $courses[0]->id;
+        $this->assertArrayHasKey($suspended, $entry['sets']['courses'], 'Precondition: the course is in the set.');
+
+        $instance = $DB->get_record('enrol', ['courseid' => $suspended, 'enrol' => 'manual'], '*', MUST_EXIST);
+        enrol_get_plugin('manual')->update_user_enrol($instance, $userid, ENROL_USER_SUSPENDED);
+        $this->new_request();
+        $rebuilt = strip::revalidated($userid, $entry, $now, 1700000000, $tz);
+
+        $this->assertNotSame($entry['stamp'], $rebuilt['stamp']);
+        $this->assertArrayNotHasKey($suspended, $rebuilt['sets']['courses'], 'A suspended course must leave the set.');
+    }
+
+    /**
+     * A star still rebuilds an unbounded entry: an item says whether its course is starred.
+     *
+     * @return void
+     */
+    public function test_a_star_still_rebuilds_an_unbounded_entry(): void {
+        [$userid, $courses, $tz] = $this->revalidation_fixture();
+        $now = time();
+        $entry = strip::entry($userid, $now, 1700000000, $tz);
+        $starred = (int) $courses[1]->id;
+        $this->assertFalse($entry['sets']['courses'][$starred]['isfavourite'], 'Precondition: not starred.');
+
+        \core_favourites\service_factory::get_service_for_user_context(\core\context\user::instance($userid))
+            ->create_favourite('core_course', 'courses', $starred, \core\context\course::instance($starred));
+        $this->new_request();
+        $rebuilt = strip::revalidated($userid, $entry, $now, 1700000000, $tz);
+
+        $this->assertNotSame($entry['stamp'], $rebuilt['stamp']);
+        $this->assertTrue($rebuilt['sets']['courses'][$starred]['isfavourite'], 'The rebuilt set knows the star.');
     }
 
     /**
@@ -1062,5 +1168,42 @@ final class strip_test extends advanced_testcase {
             'timeduration' => 0,
             'timesort' => $timestart,
         ], false);
+    }
+
+    /**
+     * A learner in two courses, each opened once long ago, as the current user.
+     *
+     * @return array [user id, the two courses, the user's timezone].
+     */
+    private function revalidation_fixture(): array {
+        $gen = $this->getDataGenerator();
+        $learner = $gen->create_user();
+        $courses = [$gen->create_course(), $gen->create_course()];
+        foreach ($courses as $at => $course) {
+            $gen->enrol_user($learner->id, $course->id, 'student');
+            $this->visit((int) $learner->id, (int) $course->id, 1700000000 + $at * DAYSECS);
+        }
+        $this->setUser($learner);
+
+        return [(int) $learner->id, $courses, \core_date::get_user_timezone_object()];
+    }
+
+    /**
+     * A course visit as core records it: the user's last access to the course, one row per course.
+     *
+     * @param int $userid The user.
+     * @param int $courseid The course.
+     * @param int $time When.
+     * @return void
+     */
+    private function visit(int $userid, int $courseid, int $time): void {
+        global $DB;
+
+        $row = $DB->get_record('user_lastaccess', ['userid' => $userid, 'courseid' => $courseid]);
+        if ($row) {
+            $DB->set_field('user_lastaccess', 'timeaccess', $time, ['id' => $row->id]);
+        } else {
+            $DB->insert_record('user_lastaccess', (object) ['userid' => $userid, 'courseid' => $courseid, 'timeaccess' => $time]);
+        }
     }
 }
