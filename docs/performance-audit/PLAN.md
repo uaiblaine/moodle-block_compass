@@ -255,7 +255,7 @@ One pull request each, smallest first, each with the A/B of its scenarios on m50
 | 3 | 5: the strip's stamp comparison and its budget test | `fleet-fixer`, `security-diff-read` first (a cache-validity rule) | port |
 | 4 | 4: tier 1's reserved height. Parked 2026-10-30: the client cannot reserve it (see Fixes); a server skeleton waits for the owner | `fleet-implementer` | port |
 | 5 | 2: memo and deferred filtering in tier 3, measured at 250 rows | `fleet-implementer` | port |
-| 6 | 7: README sizing and the status check | `fleet-fixer` | port |
+| 6 | 7: README sizing and the status check (this PR) | `fleet-fixer` | port |
 | 7 | 6 and 8, after the owner's decisions | open | port |
 
 ## Fixes
@@ -320,6 +320,10 @@ What PR 5 teaches: at 50 rows typing is under the 200 ms target; at 250 rows it 
 forced layout per typed term did not move (about 500 ms at 250 rows). React now skips the rows that did not change, so
 what remains is the browser laying out the rows that did, and the deferred render that follows the box: the lever left is
 drawing fewer rows per term (a row list that renders only what is in view), not fewer React renders.
+
+| PR | Items | Version | Before → after | Gate |
+|---|---|---|---|---|
+| 6 | 7 | 2026100519 | No client change, no code path change. A Performance overview check, `block_compass_read_only_sessions`, warns while `$CFG->enable_read_only_sessions` is unset and passes once it is set; the README's *Sizing* section carries the requests per load and the measured queueing (four concurrent `get_attention` calls on one session: p95 989 ms, against 75 ms on separate sessions). | `tests/check/read_only_sessions_test.php` (4 tests); gates `perf_ro_sessions_status`, `perf_ro_sessions_registered` |
 
 ## After
 

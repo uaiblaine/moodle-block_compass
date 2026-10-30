@@ -83,3 +83,19 @@ function block_compass_get_fontawesome_icon_map(): array {
         'block_compass:sliders' => 'fa-sliders',
     ];
 }
+
+/**
+ * The plugin's checks on the Performance overview report (report_performance).
+ *
+ * Core collects them through this callback, not a hook or a db/ file:
+ * \core\check\manager::get_performance_checks() calls every plugin's <component>_performance_checks()
+ * (found by get_plugins_with_function('performance_checks', 'lib.php')) and stamps each check with the
+ * component. It is a callback because the report asks for the list, rather than a plugin announcing an event.
+ *
+ * @return \core\check\check[] The read-only sessions check.
+ */
+function block_compass_performance_checks(): array {
+    return [
+        new \block_compass\check\performance\read_only_sessions(),
+    ];
+}
