@@ -1,0 +1,10 @@
+block_compass_get_attention own sessions c= 1 n=96 rps=  18.4 med=  49.7 p95=  75.4 ms
+block_compass_get_attention own sessions c= 4 n=96 rps=  59.0 med=  66.1 p95=  75.2 ms
+block_compass_get_attention own sessions c= 8 n=96 rps=  68.9 med=  81.9 p95= 191.7 ms
+block_compass_get_attention one session  c= 1 n=96 rps=  19.9 med=  47.4 p95=  70.0 ms
+block_compass_get_attention one session  c= 4 n=96 rps=  19.4 med=  51.9 p95= 988.6 ms
+block_compass_get_attention one session  c= 8 n=96 rps=  17.4 med=  84.4 p95=1467.3 ms
+core_session_time_remaining own sessions c= 1 n=48 rps=  40.0 med=  24.5 p95=  26.3 ms
+core_session_time_remaining own sessions c= 8 n=48 rps= 126.1 med=  60.9 p95=  67.7 ms
+block_compass_get_news own sessions c= 1 n=48 rps=  36.8 med=  26.1 p95=  27.8 ms
+block_compass_get_news own sessions c= 8 n=48 rps= 100.5 med=  76.4 p95=  92.3 ms

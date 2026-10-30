@@ -1,0 +1,49 @@
+load { 3.49 5.11 5.56 }
+c0c-control [5x cpu4 1358px]: ttfb=82 fcp=220 lcp=220 dcl=253 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=43.2 dom=686 req=94 kb=0 esm=77 | 
+  ws(last): local_mail_count_messages@309+30 core_output_load_template_with_dependencies@816+1 core_output_load_template_with_dependencies@826+0
+  lcp-el: h2 mb-0 extra=null
+load { 4.34 5.20 5.58 }
+n1-count-p1 [5x cpu4 1358px]: ttfb=80 fcp=216 lcp=468 dcl=231 cls=0.713 tbt=0 lt=0 forced=0 inp=0 heap=41.2 dom=871 req=101 kb=2 esm=78 | mount@164 card@455 ghost@455 cal@284 news@587
+  ws(last): local_mail_count_messages@321+33 get_attention@403+49 get_strip_counts@486+79 get_news@608+29 core_output_load_template_with_dependencies@807+2 core_output_load_template_with_dependencies@823+0
+  lcp-el: compass-card-img card-img-top extra=[8,"308,342,388,461,570,594,613,643"]
+load { 4.31 5.13 5.55 }
+n1-count-d1 [5x cpu4 1358px]: ttfb=268 fcp=408 lcp=1232 dcl=545 cls=0.389 tbt=60 lt=2 forced=254 inp=0 heap=55.3 dom=2900 req=126 kb=20 esm=92 | mount@453 card@1183 ghost@1183 cal@646 news@1759
+  ws(last): local_mail_count_messages@895+51 get_attention@897+173 block_recentlyaccesseditems_get_recent_items@951+31 core_calendar_get_action_events_by_timesort@1197+231 get_strip_counts@1346+230 core_course_get_enrolled_courses_by_timeline_classification@1420+58 core_output_load_template_with_dependencies@1423+1 core_output_load_template_with_dependencies@1484+0 get_news@1751+28
+  lcp-el: compass-card-img card-img-top extra=[8,"721,799,840,1263,1665,1711,1758,1807"]
+load { 3.76 4.93 5.46 }
+i1b-ghost-s50 [5x cpu4 1358px]: ttfb=90 fcp=260 lcp=636 dcl=284 cls=0.714 tbt=117 lt=3 forced=184 inp=64 heap=36.7 dom=1627 req=109 kb=4 esm=78 | mount@211 card@613 ghost@613 cal@342 news@737 explore@3027 row@3259
+  ws(last): local_mail_count_messages@423+33 get_attention@425+161 get_strip_counts@621+28 get_news@687+28 core_output_load_template_with_dependencies@952+1 core_output_load_template_with_dependencies@965+0 get_inventory@3028+78 get_card_details@3580+80
+  lcp-el: compass-card-img card-img-top extra=null
+load { 5.36 5.19 5.53 }
+i1b-ghost-s300 [5x cpu4 1358px]: ttfb=107 fcp=244 lcp=600 dcl=295 cls=0.828 tbt=10 lt=1 forced=67 inp=56 heap=48 dom=993 req=108 kb=3 esm=78 | mount@199 card@584 ghost@584 cal@344 news@733 explore@3051 row@3183
+  ws(last): local_mail_count_messages@418+38 get_attention@485+64 get_strip_counts@596+35 get_news@679+30 core_output_load_template_with_dependencies@907+1 core_output_load_template_with_dependencies@922+0 get_inventory@3051+72
+  lcp-el: compass-card-img card-img-top extra=null
+load { 5.43 5.23 5.53 }
+i2b-search-s50 [5x cpu4 1358px]: ttfb=101 fcp=240 lcp=616 dcl=257 cls=0.713 tbt=268 lt=3 forced=341 inp=272 heap=35.7 dom=1631 req=109 kb=4 esm=78 | mount@191 card@601 ghost@601 cal@305 news@739 explore@3021 row@3174
+  ws(last): local_mail_count_messages@434+119 get_attention@436+163 get_strip_counts@632+27 get_news@699+28 core_output_load_template_with_dependencies@943+1 core_output_load_template_with_dependencies@953+0 get_inventory@3021+42 get_card_details@3420+44
+  lcp-el: compass-card-img card-img-top extra=null
+load { 5.71 5.32 5.54 }
+i3b-cal-s50-1 [1x cpu4 1358px]: ttfb=151 fcp=476 lcp=848 dcl=494 cls=0.713 tbt=51 lt=3 forced=43 inp=48 heap=37.6 dom=1258 req=103 kb=3 esm=78 | mount@435 card@834 ghost@834 cal@524 news@977
+  ws(last): local_mail_count_messages@646+40 get_attention@647+154 get_strip_counts@843+32 get_news@921+32 core_output_load_template_with_dependencies@1153+0 core_output_load_template_with_dependencies@1170+0 get_strip@3235+39
+  lcp-el: compass-card-img card-img-top extra=null
+load { 5.85 5.36 5.55 }
+i3b-cal-s50-2 [1x cpu4 1358px]: ttfb=80 fcp=340 lcp=692 dcl=351 cls=0.713 tbt=42 lt=3 forced=54 inp=48 heap=37.6 dom=1258 req=103 kb=3 esm=78 | mount@302 card@681 ghost@681 cal@376 news@811
+  ws(last): local_mail_count_messages@499+32 get_attention@500+155 get_strip_counts@690+28 get_news@761+29 core_output_load_template_with_dependencies@1005+1 core_output_load_template_with_dependencies@1029+1 get_strip@3084+36
+  lcp-el: compass-card-img card-img-top extra=null
+load { 6.78 5.58 5.62 }
+i3b-cal-s50-3 [1x cpu4 1358px]: ttfb=90 fcp=400 lcp=700 dcl=421 cls=1.015 tbt=48 lt=3 forced=58 inp=48 heap=39.3 dom=1258 req=103 kb=3 esm=78 | mount@358 card@673 ghost@673 cal@451 news@807
+  ws(last): local_mail_count_messages@589+249 get_attention@590+53 get_strip_counts@683+30 get_news@756+28 core_output_load_template_with_dependencies@1096+0 core_output_load_template_with_dependencies@1106+0 get_strip@3145+37
+  lcp-el: compass-card-img card-img-top extra=null
+load { 6.25 5.52 5.60 }
+i3b-cal-s50-4 [1x cpu4 1358px]: ttfb=139 fcp=456 lcp=908 dcl=498 cls=0.714 tbt=42 lt=3 forced=54 inp=56 heap=37.8 dom=1258 req=103 kb=3 esm=78 | mount@428 card@887 ghost@887 cal@530 news@1023
+  ws(last): local_mail_count_messages@697+35 get_attention@698+160 get_strip_counts@897+29 get_news@969+30 core_output_load_template_with_dependencies@1205+1 core_output_load_template_with_dependencies@1222+1 get_strip@3314+38
+  lcp-el: compass-card-img card-img-top extra=null
+load { 6.53 5.64 5.64 }
+i3b-cal-s50-5 [1x cpu4 1358px]: ttfb=90 fcp=364 lcp=732 dcl=380 cls=0.746 tbt=26 lt=2 forced=43 inp=64 heap=37.5 dom=1258 req=103 kb=3 esm=78 | mount@323 card@713 ghost@713 cal@411 news@851
+  ws(last): local_mail_count_messages@530+41 get_attention@532+154 get_strip_counts@723+29 get_news@799+27 core_output_load_template_with_dependencies@1038+1 core_output_load_template_with_dependencies@1049+1 get_strip@3156+43
+  lcp-el: compass-card-img card-img-top extra=null
+load { 6.14 5.59 5.62 }
+c0c-control-end [5x cpu4 1358px]: ttfb=91 fcp=208 lcp=208 dcl=245 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=46.4 dom=686 req=94 kb=0 esm=77 | 
+  ws(last): local_mail_count_messages@367+65 core_output_load_template_with_dependencies@873+1 core_output_load_template_with_dependencies@886+0
+  lcp-el: h2 mb-0 extra=null
+DONE
