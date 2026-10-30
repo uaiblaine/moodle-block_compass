@@ -74,11 +74,11 @@ class behat_block_compass extends behat_base {
      *
      * The page's fetch is wrapped once: while the flag is up, a call whose info is
      * block_compass_get_strip goes to a script that does not exist, so the answer is a 404 and the
-     * client's bounded retry gives up after its two retries. On 5.3 core/ajax is the AMD wrapper of
-     * the ES module @moodle/lms/core/ajax, which names the method in the URL and sends it through
-     * the global fetch (lib/js/esm/src/ajax.ts), not XMLHttpRequest as 5.2's lib/amd/src/ajax.js
-     * did. The counts' request, block_compass_get_strip_counts, and every other call pass. Nothing
-     * in the plugin knows about this: the failure is the browser's, as a real one is.
+     * client's bounded retry gives up after its two retries. On 5.3 the client calls core's ES module,
+     * whose fetchOne names the method in the URL and sends it through the global fetch
+     * (lib/js/esm/src/ajax.ts), not XMLHttpRequest as 5.2's lib/amd/src/ajax.js did. The counts'
+     * request, block_compass_get_strip_counts, and every other call pass. Nothing in the plugin knows
+     * about this: the failure is the browser's, as a real one is.
      *
      * @Given the calendar strip requests fail
      * @return void

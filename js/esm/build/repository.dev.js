@@ -3,16 +3,18 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 /**
  * The only module that talks to the server.
  *
- * The core/ajax and core_user/repository modules are AMD, which an ES module cannot import,
- * so they are loaded through the bridge in amd.ts; every web service call and preference
- * write of the client goes through here.
+ * Every web service call and preference write of the client goes through here. Web services go
+ * through core's ES module @moodle/lms/core/ajax, imported directly: Moodle 5.3's AMD core/ajax is
+ * a wrapper of that module, and reaching it through the bridge in amd.ts made the first read wait
+ * for core/first, RequireJS's bundle of every AMD module, to load and run. core_user/repository has
+ * no ES module, so the preference writes still cross the bridge, after the first paint.
  *
  * @module     block_compass/repository
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+import { fetchOne } from "@moodle/lms/core/ajax";
 import { amd } from "./amd";
-let loading = null;
 const RETRY_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 2e3;
 let retrylistener = null;
@@ -29,13 +31,7 @@ const isTransportFailure = /* @__PURE__ */ __name((error) => {
 const sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => {
   window.setTimeout(resolve, ms);
 }), "sleep");
-const call = /* @__PURE__ */ __name(async (methodname, args) => {
-  if (!loading) {
-    loading = amd("core/ajax");
-  }
-  const ajax = await loading;
-  return await ajax.call([{ methodname, args }])[0];
-}, "call");
+const call = /* @__PURE__ */ __name((methodname, args) => fetchOne({ methodname, args }), "call");
 const read = /* @__PURE__ */ __name(async (methodname, args) => {
   let retried = false;
   const settle = /* @__PURE__ */ __name(() => {

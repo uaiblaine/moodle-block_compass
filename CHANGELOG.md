@@ -73,6 +73,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- The client's web service calls go straight to core's ES module `@moodle/lms/core/ajax` (`fetchOne`),
+  no longer through the AMD bridge (2026100517; the performance audit's item 3, Moodle 5.3 only: 5.2 has no
+  such module). The bridge waits for `core/first`, RequireJS's bundle of every AMD module, before it asks for a
+  module. Measured on m503b at 4x CPU (interleaved, bundle only): `get_attention` starts 50-70 ms sooner after
+  the mount on the block's page and 37-62 ms sooner on the Dashboard; the first card and the LCP move within
+  noise, because `core/first` still runs on the main thread in that window. Errors, the pending counter and the
+  retry are unchanged: 5.3's AMD `core/ajax` was already a wrapper of the same module. Preference writes and
+  notifications still cross the bridge, after the first paint. Held by `amd_bridge_rules_test` and a mutation
+  gate.
+
 - The client reads layout when what it measures changed, never on every render (2026100516; the performance
   audit's item 1, `docs/performance-audit/PLAN.md`). The calendar's closed line is measured when its contents,
   its state, its width class, its fit or its size change, instead of after every render of the strip; tier 3's
