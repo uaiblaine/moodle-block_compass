@@ -38,8 +38,9 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
-preferences (see *Data stored*). The server ships a shell and the browser renders it (React). Every web service has
-a query budget enforced by an automated test.
+preferences (see *Data stored*). The server ships a shell and the browser renders it (React); the shell
+also draws the first strips' outline from the shape the user's last visit left (`block_compass_tier1`), so
+the page does not jump when they load. Every web service has a query budget enforced by an automated test.
 
 
 The calendar strip
@@ -219,13 +220,14 @@ in the block drawer and on a phone as well as on a wide Dashboard.
 Requirements
 ------------
 
-| Branch | Moodle | PHP | Maturity | Version | Release |
-|---|---|---|---|---|---|
-| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | 2026100508 | v5.3-r1 |
-| `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | 2026042011 | v5.2-r1 |
+| Branch | Moodle | PHP | Maturity | Latest release |
+|---|---|---|---|---|
+| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | v5.3-r1 |
+| `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | v5.2-r1 |
 
-Each branch supports exactly one Moodle version (`$plugin->supported`). Moodle 4.5 and 5.1 are
-not supported: the client is React, which core builds and serves from 5.2 on.
+Each branch supports exactly one Moodle version (`$plugin->supported`); its version number is in
+`version.php` and each change is listed in `CHANGELOG.md`. Moodle 4.5 and 5.1 are not supported: the
+client is React, which core builds and serves from 5.2 on.
 
 - **Required: [`local_unlistedcourses`](https://github.com/uaiblaine/moodle-local_unlistedcourses)**
   from the branch matching your Moodle version (`MOODLE_502_STABLE` for 5.2, version 2026042003
@@ -275,7 +277,7 @@ Settings
 
 ![The Compass settings page, with the calendar strip section](docs/screenshots/settings.png)
 
-*Site administration > Plugins > Blocks > Compass*:
+*Site administration > Plugins > Blocks > Compass* (each setting is stored as `block_compass/<name>`):
 
 | Setting | Default | What it does |
 |---|---|---|
@@ -391,7 +393,7 @@ Capabilities
 Web services
 ------------
 
-Nine read-only functions, callable over AJAX after login, never by the guest account. Each
+Ten read-only functions, callable over AJAX after login, never by the guest account. Each
 answers for the current user (none accepts a user id) and runs without the session lock on a
 site that enables read-only sessions:
 
@@ -406,10 +408,20 @@ site that enables read-only sessions:
 | `block_compass_get_strip_counts` | The calendar strip closed: plain counts by period. |
 | `block_compass_get_day` | One day of the strip: its items with core's actions. |
 | `block_compass_get_soon` | Up next: the items still open from now to the horizon (`calendar_soon`). |
+| `block_compass_get_news` | Open for enrolment: the groups of courses the user could still join, starting inside the band (`news_enabled`). |
 
 Writes go to core's own services: the star through `core_course_set_favourite_courses`, the
 view, the filter line, the strip's choices, the first strips' shape and archiving through core's
 user preferences.
+
+**Hooks.** Compass listens to three of core's hooks (`db/hooks.php`): the top of the body, where it
+adds preload hints for its modules on the pages that show it; the default home page, where it offers
+its own page; and a course about to be deleted, where it drops that course from its shared cache. It
+also dispatches two hooks of its own for other plugins and themes to answer:
+`\block_compass\hook\course_badges` (crests on cards, see *Course crests*) and
+`\block_compass\hook\category_link` (where a category in the open-for-enrolment line leads). Neither
+sends personal data: they receive course or category ids and return crests (an image address and
+its alternative text) or URLs, and a listener answers only for courses the current user may see.
 
 
 Data stored
@@ -421,12 +433,12 @@ Data stored
 |---|---|---|---|---|
 | `block_compass_view` | User preference | The view of *All courses* the user chose: list or cards. | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_explore` | User preference | The filter line of *All courses* as the user left it: scope, star, filters, sort and whether the panel is open (never the search text). | Until changed | Uninstalling the plugin; deleting the account |
-| `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next and whether the user hid the open-for-enrolment line, each for that sign-in. | Until changed | Uninstalling the plugin; deleting the account |
+| `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next and whether the user hid the open-for-enrolment line, each for that sign-in: the hidden states keep the session's login time (`$USER->currentlogin`) and lapse at the next sign-in. | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_tier1` | User preference | The shape the first strips last settled to on the Dashboard and on the block's own page, so the next page holds their place before they load: which strips showed, how many cards each (at most 24) and whether any showed progress, whether the more-courses card and the applications notice showed. No course, name or date. Written by the browser only when the shape changes. | Until changed | Uninstalling the plugin; deleting the account |
-| `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star), no course data. | 24 hours | Its TTL; deleting the account; purging caches |
+| `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star and, for an application awaiting approval, its enrolment method's id) and the stamp that tells whether they are still current; no course data. | 24 hours | Its TTL; deleting the account; purging caches |
 | `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; deleting the account; purging caches |
-| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work. | 30 minutes | Its TTL; deleting the account; purging caches |
-| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link) and the sign-in marker, language and catalogue digest it was built from. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work, the course ids behind each day, the sets of courses and groups a day reuses, the days opened, the first day, the timezone and the sign-in it was built for. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link, with the category and course names already formatted in the user's language) and the sign-in, language and catalogue digest it was built from. | 30 minutes | Its TTL; deleting the account; purging caches |
 | `catalogue` | MUC cache, shared | The courses that are visible and listed, start inside the band and offer an enrolment route open now: course, category and start date, up to 500. No personal data. | Rebuilt after a course, enrolment method or discoverability change, and at most every 10 minutes | Core's events; purging caches |
 | `coursemeta`, `categorymeta`, `coursefields`, `filterfields` | MUC caches, shared | Course and category names, dates and custom field values: no personal data. | Until the course, category or field changes | Core's events; purging caches |
 | `prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep` | Plugin configuration | Where the pre-warming task stopped (a user id), the activity window it walks and when it last finished a sweep. Site state. | Until the next run | Uninstalling the plugin |
@@ -437,14 +449,19 @@ and archiving writes the Course overview block's `block_myoverview_hidden_course
 preferences. Compass never stamps a core row with its own component. Courses, enrolments,
 progress and calendar events are read, never copied, except into the caches above.
 
+Compass sends nothing to any external service, sets no cookie, uses neither `localStorage`,
+`sessionStorage` nor IndexedDB, and ships no tracking or analytics code: everything it keeps is in the
+places listed above.
+
 **A data export** (*Site administration > Users > Privacy and policies*) carries the four
 preferences: the view as its label, the filter line, the strip and the first strips' shape as the
 JSON the user's browser wrote. The caches are not exported: they hold copies of core data that core's own export
 carries. The star and the archive are exported by `core_course` and `block_myoverview`.
 
 **A data deletion** of the user's own context removes every preference of the user through
-core's user provider, the four of Compass among them. Deleting the account removes them as
-well, and Compass drops that user's `inventory`, `details` and `calendarstrip` entries at once;
+core's user provider (`core_user\privacy\provider` deletes all of the user's `user_preferences`
+rows), the four of Compass among them. Deleting the account removes them as well, and Compass drops
+that user's `inventory`, `details`, `calendarstrip` and `news` entries at once;
 whatever the account deletion cannot reach expires with the TTLs above. **Uninstalling** the
 plugin removes its configuration, its task, its caches and the four preferences of every user;
 the archive rows stay, since they are the Course overview block's.
@@ -473,9 +490,11 @@ Redis store (122 KB with igbinary). Methods, numbers and their dates are in
 ### Sizing
 
 A Dashboard load makes these requests of the block's own: `get_attention`; `get_card_details`, only
-when a card's progress is still pending; `get_strip_counts`, or `get_strip` when the calendar strip
-is open; `get_news`; and `get_soon`, only when its gate opens. Each pays Moodle's per-request
-bootstrap. One write is rare: core's preference route saves `block_compass_tier1` only when the first
+when a card's progress is still pending; one request carrying both `get_strip_counts` (or `get_strip`
+when the calendar strip is open) and `get_news`, through core's batched AJAX (`get_news` goes alone
+when the calendar is off, and `get_strip_counts` alone while the open-for-enrolment line is hidden; a
+read the batch did not answer is asked again on its own); and `get_soon`, only when its gate opens.
+Each request pays Moodle's per-request bootstrap. One write is rare: core's preference route saves `block_compass_tier1` only when the first
 strips settled to a shape other than the one stored (a strip gaining or losing cards), never per load.
 On the development stack (Moodle 5.3) the cheapest web service (`core_session_time_remaining`) took
 24.5 ms, and the block's reads 26 to 65 ms warm; that is a development-stack number, so measure on
