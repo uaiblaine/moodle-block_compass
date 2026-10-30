@@ -113,14 +113,15 @@ final class amd_bridge_rules_test extends basic_testcase {
      * Moodle 5.3's AMD core/ajax is a wrapper of @moodle/lms/core/ajax; asking for it through amd()
      * made the first read of every page wait for core/first, RequireJS's bundle of every AMD module,
      * to load and run (docs/performance-audit/PLAN.md, item 3). Changes that must make it fail:
-     * core/ajax asked for through amd(), or the import of fetchOne dropped.
+     * core/ajax asked for through amd(), or the import of fetchOne (or of fetchMany, the batch of ADR-017
+     * amendment 1) dropped.
      *
      * @return void
      */
     public function test_web_service_calls_skip_the_bridge(): void {
         $sources = $this->sources();
         $repository = $sources['js/esm/src/repository.ts'];
-        $this->assertStringContainsString("import {fetchOne} from '@moodle/lms/core/ajax';", $repository);
+        $this->assertStringContainsString("import {fetchMany, fetchOne} from '@moodle/lms/core/ajax';", $repository);
         $this->assertMatchesRegularExpression('/\bfetchOne<T>\(\{methodname, args\}\)/', $repository);
         foreach ($sources as $file => $contents) {
             $this->assertDoesNotMatchRegularExpression(

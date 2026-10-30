@@ -32,8 +32,11 @@
  * for whatever of its own failed.
  *
  * Where the shell shipped the news props, the open-courses line (ADR-017, OpenCourses.tsx) is asked for
- * once tier 1 has settled and, with the calendar, once the strip's counts have, and drawn where decision 7
- * puts it, from what the block already holds and with no request for it: with no active course, in tier
+ * once tier 1 has settled: with the calendar, in the same request as the strip's first read (amendment 1),
+ * which the block starts at that moment and hands out, the strip's share to CalendarStrip and the news to
+ * useNews(), each awaited under its consumer's own sequence number; without the calendar, alone. It is
+ * drawn where decision 7 puts it once the strip's answer is in, from what the block already holds and with
+ * no request for it: with no active course, in tier
  * 1's empty state as tiles; without the calendar here, the full line at the top of the content; while Up
  * next shows, the compact sentence below tier 1's first strip; otherwise under the calendar, the full line
  * when the counts in hand show nothing late, today or tomorrow, the compact sentence when they do.
@@ -57,7 +60,8 @@ import {notify} from './notify';
 import {cardColumns} from './columns';
 import {fill, fillCount, fillObject} from './str';
 import {seedCalendarPreference} from './calendarpref';
-import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
+import {getAttention, getCardDetails, getStripWithNews, isTransportFailure, onRetry, setFavourite} from './repository';
+import type {StripWithNews} from './repository';
 import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange, StripWeight} from './types';
 
 /**
@@ -158,6 +162,14 @@ const Block = (config: BlockConfig) => {
     const [width, setWidth] = useState(0);
     // The calendar strip's turn: 0 until tier 1's first request settles, then one more per Try again.
     const [calendarturn, setCalendarturn] = useState(0);
+    // The strip's first read and the news in one request (ADR-017 amendment 1), started once, when tier 1 first
+    // settles, and set in the same update as the turn, so both consumers find their share at turn 1; null when
+    // the pair does not leave (the calendar or the line off, the line hidden for this sign-in).
+    const [first, setFirst] = useState<StripWithNews | null>(null);
+    // Whether tier 1 has settled once, so the pair leaves once per load whatever reloads tier 1 after.
+    const settled = useRef(false);
+    // The strip's open state as it renders, kept by CalendarStrip: the pair's first read follows it.
+    const stripopen = useRef(config.calendar?.state.open ?? false);
     // The two halves of the card/strip lighting (ADR-014 decision 9), lifted here because they
     // join two siblings: the course a tier 1 card is pointed at, and the courses the open
     // calendar day holds. Both come from data already in memory; neither costs a request.
@@ -174,10 +186,10 @@ const Block = (config: BlockConfig) => {
 
         return true;
     });
-    // The line asks once tier 1 has settled and, with the calendar here, once the strip's counts have: the
-    // line's weight depends on them (decision 5).
-    const newsready = calendarturn > 0 && (!config.calendar || (weight !== null && weight.counted));
-    const news = useNews(config.news, newsready, calendarturn);
+    // The line asks once tier 1 has settled: with the calendar here only inside the pair, which leaves with
+    // the strip's first read (amendment 1); without it, alone.
+    const newsready = calendarturn > 0 && (!config.calendar || first !== null);
+    const news = useNews(config.news, newsready, calendarturn, first?.news ?? null);
 
     /**
      * Keep the strip's report of the line's weight, latching weighed.
@@ -210,6 +222,26 @@ const Block = (config: BlockConfig) => {
     }, []);
 
     /**
+     * Tier 1 has settled, answered or failed: the first time, start the strip's first read and the news in
+     * one request when both are wanted (ADR-017 amendment 1), and give the strip its turn. The pair is set in
+     * the same update as the turn, so the strip and the line take their shares in the render that lets them
+     * ask; a refresh or a Try again of tier 1 starts nothing.
+     *
+     * @returns {void}
+     */
+    const settleTier1 = useCallback((): void => {
+        if (settled.current) {
+            return;
+        }
+        settled.current = true;
+        const line = config.news;
+        if (config.calendar && line && line.enabled && line.signin <= 0) {
+            setFirst(getStripWithNews(stripopen.current));
+        }
+        setCalendarturn(1);
+    }, [config.calendar, config.news]);
+
+    /**
      * Fetch tier 1 and then the progress it could not answer from cache.
      *
      * Both halves live in one function, and the sequence number is why: pressing Try
@@ -240,7 +272,7 @@ const Block = (config: BlockConfig) => {
                 // A transport failure says so; a server that answered gets the generic line.
                 setError((isTransportFailure(e) ? labels.connectionlost : labels.loaderror) || '');
                 // Settled, if by failing: the strip may ask now, and its own failure is its own.
-                setCalendarturn((current) => (current === 0 ? 1 : current));
+                settleTier1();
             }
 
             return;
@@ -250,7 +282,7 @@ const Block = (config: BlockConfig) => {
         }
         setData(payload);
         // Tier 1 painted first; the strip asks now, while the cards' progress is still on its way.
-        setCalendarturn((current) => (current === 0 ? 1 : current));
+        settleTier1();
 
         const pending = [payload.continue, payload.new, payload.favourites]
             .flat()
@@ -298,7 +330,7 @@ const Block = (config: BlockConfig) => {
                 )
                 : current));
         }
-    }, [labels]);
+    }, [labels, settleTier1]);
 
     useEffect(() => {
         load();
@@ -521,6 +553,8 @@ const Block = (config: BlockConfig) => {
                     width={width}
                     pointedCourse={pointed}
                     onOpenCourses={setDayCourses}
+                    batched={first?.strip ?? null}
+                    stripopen={stripopen}
                     onWeight={onWeight}
                 />
             )}

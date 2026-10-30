@@ -879,3 +879,81 @@ category pages.
   | the same | "became joinable since" (rejected) | 23.0 ms | |
 
   Script: `docs/perf/2026-10-28-bench-open-courses.sql`.
+
+## Amendment 1 (2026-10-30): the counts and the news in one request
+
+**Status: Accepted (2026-10-30).** The maintainer accepted it that day as drafted, with the open
+strip's `get_strip` batched alike; implemented in the performance audit's PR 7a (2026100520). From the
+maintainer's decision of that day on the performance
+audit's finding 6 (`docs/performance-audit/PLAN.md:215-223`), before the code (the audit's PR 7).
+Amends decision 5's "When the client asks"; for this pair it answers ADR-014 decision 2's owed
+"sequenced versus parallel". No server change.
+
+### Context
+
+- **Today:** `get_news` asks once, after `get_attention` settles and, with the calendar on, after
+  `get_strip_counts` answers, as the line's weight depends on the counts (`Block.tsx:177-180`): two
+  requests, sequential, each paying Moodle's bootstrap. On m503b the floor is 24.5 ms; `get_news`
+  warm is 26.3 ms in all (1.6 ms of work), `get_strip_counts` 37.7 ms (s50); a Dashboard load fires
+  4-5 of the block's requests (PLAN.md's server baseline, `:128-140`).
+- **Core's batch** (`public/lib/ajax/service.php`, 5.3): the calls run in order in one request
+  (`:79-116`); with a Moodle cookie the first failing call stops the loop (`:96-114`, `break` at
+  `:113`) and later calls are not run. 5.3's `fetchMany()` is `Promise.all` over the per-call
+  promises (`public/lib/js/esm/src/ajax.ts:355-360`): one failure rejects the pair.
+- **Session mode is per call:** `READ_ONLY_SESSION` covers the request (`service.php:35`,
+  `lib/classes/session/manager.php:127-128`), and any call without `readonlysession` restarts the
+  session with the write lock (`lib/external/classes/external_api.php:194-196`). A batch stays
+  lock-free only if every call declares it; both do (`db/services.php:84`, `:108`).
+
+### Decision
+
+1. **One request.** Once tier 1 has settled, with the line on and not hidden, the strip's first read
+   and `get_news` go in one `fetchMany()` from `@moodle/lms/core/ajax`, the strip's read first:
+   `get_strip_counts` with the strip closed, `get_strip` with it open (the maintainer, 2026-10-30:
+   both cases). `repository.ts` asks for the pair once; the block starts it and hands
+   `CalendarStrip` and `useNews()` each its promise, under their own sequence numbers.
+2. **Placement unchanged:** the line is placed once both answers are in (and, as today, after Up
+   next's first reading: `weighed`, `CalendarStrip.tsx:623-633`).
+3. **A failed batch: each read it did not answer is asked again alone (recommended).** The batch is
+   each read's first attempt; each then takes its own `read()` path, two retries 2 s apart, then
+   its own RetryNotice. On 5.3 a failed news re-asks the counts too (no partial answer), a hit of
+   the `calendarstrip` entry the batch wrote. Retrying the pair together is rejected: a fault in
+   either would fail the other three times, and the counts line would read "could not be loaded"
+   for the news' fault; today a failed count still lets the news go (`CalendarStrip.tsx:627`).
+4. **Unchanged:** `get_news` once per load, never on a timer or `visibilitychange`; the line
+   hidden for this sign-in, `get_strip_counts` alone; the calendar off, `get_news` alone after
+   `get_attention`; `get_soon` cannot join, its gate opens from the counts' own answer
+   (`calendar.ts:452`, `gateOpens()`); a later `get_strip` or `get_day` (the strip opened, a day
+   opened) is never batched: the news has been asked by then.
+5. **5.2 port:** AMD `core/ajax` `call([...])` batches the same way through the same loop
+   (`service.php:77-103` on 5.2.4) and returns one promise per call, so an answered count survives
+   a failed news (`public/lib/amd/src/ajax.js:68-97`); rule 3 applies to the read left unanswered.
+
+### Consequences
+
+- One bootstrap fewer per load: about 11-14 % of the block's server time, about 0.7 PHP
+  worker-seconds a second at 100,000 Dashboard loads an hour; one session lock fewer where
+  `enable_read_only_sessions` is unset (finding 7). The news lands with the counts, about 110 ms
+  sooner on the own page.
+- The probe's `ws(last)` sees one URL whose `info` lists both names, sorted (`ajax.ts:129-132`);
+  the audit scripts split it. With no JS runner, a PHPUnit source rule over `repository.ts` pins
+  `fetchMany`, counts first and the `read()` fallback, each with a mutation gate. Budgets unchanged.
+
+### Evidence
+
+- Times: PLAN.md's baseline (`ws_bench.py`, warm median of 15) and finding 6.
+- Round trip: on the last own-page probe `get_strip_counts` ran at 616+64 ms and `get_news` at
+  726+69 ms (its `ws(last)` line, not committed); the committed own-page runs of 2026-10-29 show the
+  news asked 66-122 ms after the counts (`docs/perf/2026-10-29-audit/batch3.log`).
+- Core read on `~/dev/moodle-503` (`344c92d5bb7`) and `~/dev/moodle-502` (`2df605b1e09`), at the
+  lines above.
+- Rejected: a combined server service (a new service, budgets and tests, no gain over the batch);
+  parallel independent requests (two floors, and the weight unknown when the news arrives).
+
+**For CLAUDE.md once accepted,** replacing the data flow's `get_news` sentence: "`get_news` asks
+once, after `get_attention` settles: in the same request as the strip's first read,
+`get_strip_counts` closed or `get_strip` open (core's batch, `fetchMany`, the strip's read first; a
+read the batch did not answer is asked again alone; ADR-017 amendment 1), and with the calendar off
+alone; the line is placed once the strip's answer is in (its weight depends on it); no
+timer, no ask on `visibilitychange`, and nothing while the line is hidden for this sign-in, when
+`get_strip_counts` goes alone (the `news` member of `block_compass_calendar`; ADR-017)."

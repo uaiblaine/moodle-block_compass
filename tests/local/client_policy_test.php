@@ -213,16 +213,17 @@ final class client_policy_test extends advanced_testcase {
     }
 
     /**
-     * The open-courses line asks once, after tier 1 and the strip's counts, and never while hidden.
+     * The open-courses line asks once, after tier 1, beside the strip's first read, and never while hidden.
      *
-     * ADR-017 decision 5: get_news leaves once get_attention has settled and, with the calendar here, once
-     * get_strip_counts has (the line's weight depends on the counts); no timer, no ask on visibilitychange,
-     * and nothing while news_enabled is off or the shell says the line is hidden for this sign-in. Tier 1's
-     * Try again re-asks a failed line, as it does the strip. Vacuity guards: each guard is found where it is
-     * written, and getNews() is called in one place.
+     * ADR-017 decision 5 and amendment 1: get_news leaves once get_attention has settled and, with the
+     * calendar here, only inside the block's batch with the strip's first read (batch_rules_test pins the
+     * batch); the line is placed once the strip's answer is in, as its weight depends on it. No timer, no ask
+     * on visibilitychange, and nothing while news_enabled is off or the shell says the line is hidden for this
+     * sign-in. Tier 1's Try again re-asks a failed line, as it does the strip. Vacuity guards: each guard is
+     * found where it is written, and getNews() is called in one place.
      *
-     * Changes that must make it fail: the line asked while hidden, before the counts, or more than once; a
-     * timer or a visibilitychange listener in the line.
+     * Changes that must make it fail: the line asked while hidden, alone with the calendar here, or more than
+     * once; a timer or a visibilitychange listener in the line.
      *
      * @return void
      */
@@ -236,20 +237,24 @@ final class client_policy_test extends advanced_testcase {
             'asked only when on, not hidden for the sign-in, once the block says so, and once'
         );
         $this->assertStringContainsString('asked.current = true;', $line);
-        $this->assertSame(1, substr_count($line, 'await getNews()'), 'one ask, in one place');
+        $this->assertSame(1, substr_count($line, 'await (handed ?? getNews())'), 'one ask, in one place');
         $this->assertSame(1, substr_count($line, 'const [hidden, setHidden] = useState(!news || news.signin > 0);'));
         // The code, without its comments, which say what it never does.
         $code = preg_replace(['#/\*.*?\*/#s', '#(?<![:/])//[^\n]*#'], '', $line);
         foreach (['setTimeout', 'setInterval', 'visibilitychange', 'requestAnimationFrame'] as $timer) {
             $this->assertStringNotContainsString($timer, $code, "the line asks on {$timer}");
         }
-        $this->assertStringContainsString('await getNews()', $code, 'vacuity: the comments, not the code, were removed');
         $this->assertStringContainsString(
-            'const newsready = calendarturn > 0 && (!config.calendar || (weight !== null && weight.counted));',
-            $block,
-            'after tier 1, and after the strip\'s counts when the calendar is here'
+            'await (handed ?? getNews())',
+            $code,
+            'vacuity: the comments, not the code, were removed'
         );
-        $this->assertStringContainsString('useNews(config.news, newsready, calendarturn)', $block);
+        $this->assertStringContainsString(
+            'const newsready = calendarturn > 0 && (!config.calendar || first !== null);',
+            $block,
+            'after tier 1, and only inside the batch when the calendar is here'
+        );
+        $this->assertStringContainsString('useNews(config.news, newsready, calendarturn, first?.news ?? null)', $block);
         $strip = $this->source('CalendarStrip.tsx');
         $this->assertStringContainsString('const weightcounted = linecounts !== null || (open ? failed : countsfailed);', $strip);
         $this->assertStringContainsString('onWeight={onWeight}', $block);

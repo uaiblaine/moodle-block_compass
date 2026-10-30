@@ -20,8 +20,11 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * for whatever of its own failed.
  *
  * Where the shell shipped the news props, the open-courses line (ADR-017, OpenCourses.tsx) is asked for
- * once tier 1 has settled and, with the calendar, once the strip's counts have, and drawn where decision 7
- * puts it, from what the block already holds and with no request for it: with no active course, in tier
+ * once tier 1 has settled: with the calendar, in the same request as the strip's first read (amendment 1),
+ * which the block starts at that moment and hands out, the strip's share to CalendarStrip and the news to
+ * useNews(), each awaited under its consumer's own sequence number; without the calendar, alone. It is
+ * drawn where decision 7 puts it once the strip's answer is in, from what the block already holds and with
+ * no request for it: with no active course, in tier
  * 1's empty state as tiles; without the calendar here, the full line at the top of the content; while Up
  * next shows, the compact sentence below tier 1's first strip; otherwise under the calendar, the full line
  * when the counts in hand show nothing late, today or tomorrow, the compact sentence when they do.
@@ -41,7 +44,7 @@ import { notify } from "./notify";
 import { cardColumns } from "./columns";
 import { fill, fillCount, fillObject } from "./str";
 import { seedCalendarPreference } from "./calendarpref";
-import { getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite } from "./repository";
+import { getAttention, getCardDetails, getStripWithNews, isTransportFailure, onRetry, setFavourite } from "./repository";
 const CHIP_OF_KIND = {
   tier2: null,
   "new": "new",
@@ -68,6 +71,9 @@ const Block = /* @__PURE__ */ __name((config) => {
   const root = useRef(null);
   const [width, setWidth] = useState(0);
   const [calendarturn, setCalendarturn] = useState(0);
+  const [first, setFirst] = useState(null);
+  const settled = useRef(false);
+  const stripopen = useRef(config.calendar?.state.open ?? false);
   const [pointed, setPointed] = useState(null);
   const [dayCourses, setDayCourses] = useState([]);
   const [weight, setWeight] = useState(null);
@@ -76,8 +82,8 @@ const Block = /* @__PURE__ */ __name((config) => {
     seedCalendarPreference(config.calendar, config.news);
     return true;
   });
-  const newsready = calendarturn > 0 && (!config.calendar || weight !== null && weight.counted);
-  const news = useNews(config.news, newsready, calendarturn);
+  const newsready = calendarturn > 0 && (!config.calendar || first !== null);
+  const news = useNews(config.news, newsready, calendarturn, first?.news ?? null);
   const onWeight = useCallback((next) => {
     setWeight((current) => ({ ...next, weighed: next.weighed || (current?.weighed ?? false) }));
   }, []);
@@ -88,6 +94,17 @@ const Block = /* @__PURE__ */ __name((config) => {
     onRetry((attempt, attempts) => setReconnecting(attempt === 0 ? null : { attempt, attempts }));
     return () => onRetry(null);
   }, []);
+  const settleTier1 = useCallback(() => {
+    if (settled.current) {
+      return;
+    }
+    settled.current = true;
+    const line = config.news;
+    if (config.calendar && line && line.enabled && line.signin <= 0) {
+      setFirst(getStripWithNews(stripopen.current));
+    }
+    setCalendarturn(1);
+  }, [config.calendar, config.news]);
   const load = useCallback(async (keep = false) => {
     const mine = seq.current + 1;
     seq.current = mine;
@@ -101,7 +118,7 @@ const Block = /* @__PURE__ */ __name((config) => {
     } catch (e) {
       if (seq.current === mine) {
         setError((isTransportFailure(e) ? labels.connectionlost : labels.loaderror) || "");
-        setCalendarturn((current) => current === 0 ? 1 : current);
+        settleTier1();
       }
       return;
     }
@@ -109,7 +126,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       return;
     }
     setData(payload);
-    setCalendarturn((current) => current === 0 ? 1 : current);
+    settleTier1();
     const pending = [payload.continue, payload.new, payload.favourites].flat().filter((card) => card.pending).map((card) => card.id);
     for (let at = 0; at < pending.length; at += DETAILS_BATCH) {
       let answer;
@@ -139,7 +156,7 @@ const Block = /* @__PURE__ */ __name((config) => {
         current
       ) : current);
     }
-  }, [labels]);
+  }, [labels, settleTier1]);
   useEffect(() => {
     load();
   }, [load]);
@@ -225,7 +242,7 @@ const Block = /* @__PURE__ */ __name((config) => {
   const firststrip = data ? config.strips.find((strip) => data[strip.name].length > 0)?.name ?? null : null;
   const newsAt = /* @__PURE__ */ __name((place) => config.news && newsplace === place ? /* @__PURE__ */ jsxDEV(OpenCourses, { config, news: config.news, state: news, mode: newsmode, width }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 483,
+    lineNumber: 515,
     columnNumber: 9
   }) : null, "newsAt");
   const notice = /* @__PURE__ */ __name((kind, text, label, view) => /* @__PURE__ */ jsxDEV("p", { className: "compass-strip-note small text-muted", "data-region": `${kind}-notice`, children: [
@@ -244,13 +261,13 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 501,
+        lineNumber: 533,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 498,
+    lineNumber: 530,
     columnNumber: 9
   }), "notice");
   return /* @__PURE__ */ jsxDEV("div", { ref: root, className: "compass-body", tabIndex: -1, children: [
@@ -263,13 +280,15 @@ const Block = /* @__PURE__ */ __name((config) => {
         width,
         pointedCourse: pointed,
         onOpenCourses: setDayCourses,
+        batched: first?.strip ?? null,
+        stripopen,
         onWeight
       },
       void 0,
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 517,
+        lineNumber: 549,
         columnNumber: 17
       }
     ),
@@ -280,17 +299,17 @@ const Block = /* @__PURE__ */ __name((config) => {
       attempts: String(reconnecting.attempts)
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 530,
+      lineNumber: 564,
       columnNumber: 17
     }),
     !data && error === null && reconnecting === null && /* @__PURE__ */ jsxDEV("div", { className: "compass-status text-muted small", role: "status", "aria-live": "polite", children: labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 538,
+      lineNumber: 572,
       columnNumber: 17
     }),
     error !== null && /* @__PURE__ */ jsxDEV(RetryNotice, { message: error, retrying: false, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 543,
+      lineNumber: 577,
       columnNumber: 17
     }),
     data && config.strips.map((strip) => /* @__PURE__ */ jsxDEV(Fragment, { children: [
@@ -313,7 +332,7 @@ const Block = /* @__PURE__ */ __name((config) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-          lineNumber: 547,
+          lineNumber: 581,
           columnNumber: 21
         }
       ),
@@ -326,22 +345,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       strip.name === firststrip && newsAt("below")
     ] }, strip.name, true, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 546,
+      lineNumber: 580,
       columnNumber: 17
     })),
     data && firststrip === null && newsAt("below"),
     ghost && laststrip === null && /* @__PURE__ */ jsxDEV("div", { className: `compass-ghost-wrap compass-cards-${columns}`, children: /* @__PURE__ */ jsxDEV(Ghost, { count: ghost.count, text: ghost.text, cta: ghost.cta, kind: "tier2", onExplore: explore }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 576,
+      lineNumber: 610,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 575,
+      lineNumber: 609,
       columnNumber: 17
     }),
     data && shown === 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-empty text-muted", children: data.counts.total === 0 ? labels.nocourses : labels.emptyattention }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 580,
+      lineNumber: 614,
       columnNumber: 17
     }),
     newsAt("empty"),
@@ -361,22 +380,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 587,
+        lineNumber: 621,
         columnNumber: 21
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 586,
+      lineNumber: 620,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "alert", "aria-live": "assertive", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 601,
+      lineNumber: 635,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 515,
+    lineNumber: 547,
     columnNumber: 9
   });
 }, "Block");

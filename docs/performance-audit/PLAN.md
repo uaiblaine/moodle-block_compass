@@ -220,7 +220,7 @@ audit; "code" means read and not yet measured (to measure in phase 3, before the
    `get_news` can travel together (one bootstrap, one session check), with the news line's placement held until the
    counts are in. **Owner**: CLAUDE.md's data flow says news asks after the counts; ADR-014 lists sequenced versus
    parallel as a measurement still owed. Expected: one floor per load (~11-14 % of the block's server time) and one
-   round trip. 5.2: ports.
+   round trip. 5.2: ports. **This PR, 7a** (ADR-017 amendment 1; see Fixes).
 7. **One viewer's parallel requests queue on the session lock (server, operations; measured).** The ten services
    declare `readonlysession`, inert until a site sets `$CFG->enable_read_only_sessions`. With it unset, one session's
    four concurrent `get_attention` calls hold 19 req/s with a **p95 of 989 ms** (1,467 at eight) against 59-69 req/s
@@ -255,8 +255,8 @@ One pull request each, smallest first, each with the A/B of its scenarios on m50
 | 3 | 5: the strip's stamp comparison and its budget test | `fleet-fixer`, `security-diff-read` first (a cache-validity rule) | port |
 | 4 | 4: tier 1's reserved height. Parked 2026-10-30: the client cannot reserve it (see Fixes); a server skeleton waits for the owner | `fleet-implementer` | port |
 | 5 | 2: memo and deferred filtering in tier 3, measured at 250 rows | `fleet-implementer` | port |
-| 6 | 7: README sizing and the status check (this PR) | `fleet-fixer` | port |
-| 7 | 6 and 8, after the owner's decisions | open | port |
+| 6 | 7: README sizing and the status check | `fleet-fixer` | port |
+| 7 | 6 and 8, after the owner's decisions: 7a is item 6 (ADR-017 amendment 1, accepted 2026-10-30; this PR), 7b item 8 | open | port |
 
 ## Fixes
 
@@ -324,6 +324,14 @@ drawing fewer rows per term (a row list that renders only what is in view), not 
 | PR | Items | Version | Before → after | Gate |
 |---|---|---|---|---|
 | 6 | 7 | 2026100519 | No client change, no code path change. A Performance overview check, `block_compass_read_only_sessions`, warns while `$CFG->enable_read_only_sessions` is unset and passes once it is set; the README's *Sizing* section carries the requests per load and the measured queueing (four concurrent `get_attention` calls on one session: p95 989 ms, against 75 ms on separate sessions). | `tests/check/read_only_sessions_test.php` (4 tests); gates `perf_ro_sessions_status`, `perf_ro_sessions_registered` |
+
+| PR | Items | Version | Before → after (same protocol as PR 1; P1 and D1 loads, the strip closed and open at load) | Gate |
+|---|---|---|---|---|
+| 7a | 6 | 2026100520 | Page requests per load: 101 / 130 / 126 → 100 / 129 / 125 (P1, D1 s50, D1 s1000): one bootstrap fewer, about 24.5 ms of PHP (the floor). The news answer lands with the strip's read: P1 news ended 593 → 509 ms, D1 s50 995 → 745 ms (`ws(last)`, round 1). News line drawn: D1 s50 959 / 907 → 853 / 866 ms, D1 s1000 1645 / 1635 → 1284 / 1298 ms; P1 613 / 625 → 656 / 736 ms, the same from the mount (441 / 464 → 443 / 442 ms): on the own page the line's placement waits on more than the answer. Log: `pr7a-ab.log`. | `tests/local/batch_rules_test.php` (3 tests), `client_policy_test`, `amd_bridge_rules_test`; gates `batch_strip_first`, `batch_news_through_read`, `batch_counts_through_read`, `batch_first_attempt_only`, `batch_no_soon`, `batch_once_per_load`, `batch_line_hidden_alone`, `batch_strip_keeps_open`, `batch_counts_take_share`, `batch_share_taken_once` (and `news_client_ready_counts` re-aimed) |
+
+PR 7a sends the strip's first read and `get_news` as one `fetchMany()` (ADR-017 amendment 1). The probe's `ws(last)`
+now sees one URL whose `info` lists both names, sorted (`block_compass_get_news,block_compass_get_strip_counts`); the
+audit scripts split it. Numbers to be measured on the final head.
 
 ## After
 

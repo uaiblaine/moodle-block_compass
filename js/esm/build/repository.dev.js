@@ -13,7 +13,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { fetchOne } from "@moodle/lms/core/ajax";
+import { fetchMany, fetchOne } from "@moodle/lms/core/ajax";
 import { amd } from "./amd";
 const RETRY_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 2e3;
@@ -32,7 +32,7 @@ const sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => {
   window.setTimeout(resolve, ms);
 }), "sleep");
 const call = /* @__PURE__ */ __name((methodname, args) => fetchOne({ methodname, args }), "call");
-const read = /* @__PURE__ */ __name(async (methodname, args) => {
+const read = /* @__PURE__ */ __name(async (methodname, args, first = null) => {
   let retried = false;
   const settle = /* @__PURE__ */ __name(() => {
     if (!retried) {
@@ -45,7 +45,7 @@ const read = /* @__PURE__ */ __name(async (methodname, args) => {
   }, "settle");
   for (let attempt = 0; ; attempt++) {
     try {
-      const answer = await call(methodname, args);
+      const answer = await (attempt === 0 && first !== null ? first : call(methodname, args));
       settle();
       return answer;
     } catch (e) {
@@ -75,6 +75,16 @@ const getStripCounts = /* @__PURE__ */ __name(() => read("block_compass_get_stri
 const getDay = /* @__PURE__ */ __name((date, view) => read("block_compass_get_day", { date, view }), "getDay");
 const getSoon = /* @__PURE__ */ __name((view) => read("block_compass_get_soon", { view }), "getSoon");
 const getNews = /* @__PURE__ */ __name(() => read("block_compass_get_news", {}), "getNews");
+const getStripWithNews = /* @__PURE__ */ __name((open) => {
+  const stripmethod = open ? "block_compass_get_strip" : "block_compass_get_strip_counts";
+  const batch = fetchMany([
+    { methodname: stripmethod, args: {} },
+    { methodname: "block_compass_get_news", args: {} }
+  ]);
+  const news = read("block_compass_get_news", {}, batch.then((answers) => answers[1]));
+  const strip = open ? { open: true, answer: read(stripmethod, {}, batch.then((answers) => answers[0])) } : { open: false, answer: read(stripmethod, {}, batch.then((answers) => answers[0])) };
+  return { strip, news };
+}, "getStripWithNews");
 const setCalendarPreference = /* @__PURE__ */ __name(async (state) => {
   const repository = await amd("core_user/repository");
   await repository.setUserPreferences([{ name: "block_compass_calendar", value: JSON.stringify(state), userid: 0 }]);
@@ -116,6 +126,7 @@ export {
   getSoon,
   getStrip,
   getStripCounts,
+  getStripWithNews,
   isTransportFailure,
   onRetry,
   searchInventory,
