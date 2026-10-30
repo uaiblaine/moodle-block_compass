@@ -26,7 +26,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useCallback, useEffect, useRef} from 'react';
+import {memo, useCallback, useEffect, useRef} from 'react';
 import type {ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
 import RowList from './RowList';
@@ -154,6 +154,10 @@ const Group = ({
                     />
                 </div>
             )}
+            {/* A closed group keeps its rows: the browser's find in page opens a closed details that holds the text
+                (its toggle event reaches onToggle), and a search, which opens every group it matches, would
+                otherwise mount those rows on its first term. Memoised, a closed group's rows render only when they
+                change. */}
             <div className="compass-rows-shell" ref={list} aria-busy={loading || undefined}>
                 <RowList
                     rows={rows}
@@ -188,4 +192,6 @@ const Group = ({
     );
 };
 
-export default Group;
+// Memoised: a keystroke renders tier 3 again, and a group whose rows, state and handlers are the same
+// objects as before renders nothing; Explore keeps them so (the stable props of explore_render_rules_test).
+export default memo(Group);

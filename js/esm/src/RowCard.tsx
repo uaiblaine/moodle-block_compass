@@ -45,7 +45,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useRef} from 'react';
+import {memo, useEffect, useRef} from 'react';
 import Archive from './Archive';
 import Crests from './Crests';
 import Progress from './Progress';
@@ -188,4 +188,5 @@ const RowCard = ({
     );
 };
 
-export default RowCard;
+// Memoised, as Row is: a keystroke or a batch of details changes the props of a few cards at most.
+export default memo(RowCard);

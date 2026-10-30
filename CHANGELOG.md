@@ -83,6 +83,18 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- Typing in tier 3 renders only what the keystroke changed (2026042018 on this branch, ported from the 5.3
+  branch, #90; the performance audit's item 2). The rows, the cards, their list and the category groups are
+  memoised, and every prop tier 3 hands them is kept between renders (the group handlers, the Archive all bar,
+  the empty lists, the details store's object). Full mode filters from deferred copies of the applied term and
+  of the search box (React's `useDeferredValue`), so the keystroke commits first and the rows, the counts and
+  the suggestions follow in a render React may interrupt for the next key; the 150 / 300 ms debounces, paged
+  mode's requests and their sequence numbers are unchanged. The facet count normalises the query and reads the
+  selection once per count, not per row. Same rows, order, counts, announcements, focus and preview lighting;
+  a closed group still holds its rows, so the browser's find in page still opens it. Measured on the 5.3
+  branch at 4x CPU (interleaved, bundle only), typing "cour": INP 248/200 → 152/144 ms over 50 rows and
+  552/720 → 296/288 ms over 250. Held by `tests/local/explore_render_rules_test.php` and twelve mutation gates.
+
 - The client reads layout when what it measures changed, never on every render (2026042016 on this branch,
   ported from the 5.3 branch, #87; the performance audit's item 1, whose plan and logs stay on `main` in
   `docs/performance-audit/PLAN.md`). The calendar's closed line is measured when its contents, its state, its
