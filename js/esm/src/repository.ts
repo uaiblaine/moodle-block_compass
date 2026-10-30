@@ -16,26 +16,23 @@
 /**
  * The only module that talks to the server.
  *
- * The core/ajax and core_user/repository modules are AMD, which an ES module cannot import,
- * so they are loaded through the bridge in amd.ts; every web service call and preference
- * write of the client goes through here.
+ * Every web service call and preference write of the client goes through here. Web services go
+ * through core's ES module @moodle/lms/core/ajax, imported directly: Moodle 5.3's AMD core/ajax is
+ * a wrapper of that module, and reaching it through the bridge in amd.ts made the first read wait
+ * for core/first, RequireJS's bundle of every AMD module, to load and run. core_user/repository has
+ * no ES module, so the preference writes still cross the bridge, after the first paint.
  *
  * @module     block_compass/repository
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {fetchOne} from '@moodle/lms/core/ajax';
 import {amd} from './amd';
 import type {
     Attention, CalendarState, CalendarView, CardDetail, DayAnswer, ExploreState, FilterParam, Inventory, NewsAnswer, RowPage,
     SearchHits, SoonAnswer, StripCounts, StripPayload,
 } from './types';
-
-type AjaxRequest = {methodname: string, args: Record<string, unknown>};
-
-type AjaxModule = {
-    call: (requests: AjaxRequest[]) => Promise<unknown>[],
-};
 
 type UserPreference = {name: string, value: string, userid: number};
 
@@ -43,9 +40,6 @@ type UserRepository = {
     setUserPreferences: (preferences: UserPreference[]) => Promise<unknown>,
     setUserPreference: (name: string, value: string | null, userid: number) => Promise<unknown>,
 };
-
-/** Memoised so the bridge is crossed once per page, not once per call. */
-let loading: Promise<AjaxModule> | null = null;
 
 /**
  * How many times a failed read is asked again before the failure reaches the component.
@@ -86,7 +80,7 @@ export const onRetry = (listener: RetryListener | null): void => {
  * Whether a rejection is the network's rather than the server's.
  *
  * A web-service exception always carries a Moodle errorcode; core/ajax rejects a transport
- * failure with whatever jQuery reported, which has none. The browser's offline flag is the
+ * failure with fetch's own error or an "HTTP <status>" Error, which have none. The browser's offline flag is the
  * second signal. This tells the two messages apart ("Connection lost" or not); it no longer
  * decides whether a read is retried, because every failed read is.
  *
@@ -118,14 +112,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
  * @param {object} args Its arguments.
  * @returns {Promise} The answer.
  */
-const call = async<T>(methodname: string, args: Record<string, unknown>): Promise<T> => {
-    if (!loading) {
-        loading = amd<AjaxModule>('core/ajax');
-    }
-    const ajax = await loading;
-
-    return await ajax.call([{methodname, args}])[0] as T;
-};
+const call = <T>(methodname: string, args: Record<string, unknown>): Promise<T> => fetchOne<T>({methodname, args});
 
 /**
  * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.

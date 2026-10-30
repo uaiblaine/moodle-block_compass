@@ -189,7 +189,8 @@ audit; "code" means read and not yet measured (to measure in phase 3, before the
    ships `@moodle/lms/core/ajax` (`fetchOne`): pure ES modules, the same `Pending` (Behat's counter), the same error
    objects (5.3's AMD `core/ajax` is a wrapper over it). **Remedy**: the reads call `fetchOne`; writes
    (`core_user/repository`) and notifications stay on the bridge, off the first-paint path. Expected: the cards
-   250-350 ms sooner at 4x CPU. **Gate**: `amd_bridge_rules_test.php` rewritten to pin that the reads never touch
+   250-350 ms sooner at 4x CPU (PR 2 measured 50-70 ms on the request's start and no change on the first card:
+   see Fixes). **Gate**: `amd_bridge_rules_test.php` rewritten to pin that the reads never touch
    RequireJS; the stale "jQuery XHR" comments (`repository.ts:88-90`, ADR-010) go. 5.2: does not port (no ESM ajax).
 4. **Tier 1 arrives with no space reserved (axis C; measured).** CLS **0.71** on the own page, **0.38-0.39** on the
    Dashboard, 0.06 at 390 px. On the own page one shift of 0.612 moves the footer popover when the cards arrive; on the
@@ -271,6 +272,16 @@ commits (fewer state updates per answer), not fewer reads. Left in item 1: the r
 `CalendarStrip.tsx:1204` (open strip only, still allowed in the gate) and the remaining four measures (mount, the
 observer's first callback, the counts' new key, the line's resize when the counts land). Item 2 takes the typing INP
 the rest of the way under 200 ms.
+
+| PR | Items | Version | Before → after (same protocol; two interleaved rounds, `bundle.js` only) | Gate |
+|---|---|---|---|---|
+| 2 | 3 | 2026100517 | Mount → `get_attention` start: P1 217 / 201 → 148 / 152 ms; D1 338 / 304 → 276 / 267 ms. First card P1 559 / 428 → 466 / 483 ms, LCP 588 / 456 → 496 / 516 ms; D1 card 1088 / 1123 → 1133 / 1075 ms: no change beyond noise. | `amd_bridge_rules_test::test_web_service_calls_skip_the_bridge`; gate `perf_reads_skip_bridge` |
+
+What PR 2 teaches: item 3's expectation (cards 250-350 ms sooner) was wrong. The 170-310 ms between `core/first.js`
+arriving and `get_attention` starting was mostly that file's evaluation holding the main thread, which no change in
+the block removes; the bridge's own ordering cost 50-70 ms of it. The change stays (one module fewer between the block
+and its data, no RequireJS on the first read), and the lever left on the first card is the server answer and the
+commit count, not the request's start.
 
 ## After
 

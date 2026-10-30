@@ -46,8 +46,10 @@ class hook_callbacks {
      * The modules the block's client needs, in the order the browser meets them.
      *
      * Core's react_autoinit script imports profiler, mount and pending; mount imports react and
-     * react-dom/client; the block's bundle imports react and react/jsx-runtime and nothing else
-     * outside itself. The ones core already announces from the head (its import map's preload
+     * react-dom/client; the block's bundle imports react, react/jsx-runtime and @moodle/lms/core/ajax.
+     * core/ajax and the five small modules it imports carry no hint: core's own ES modules import it
+     * too (lib/js/esm/src/stringUtils.ts, for String.tsx), so the page fetches them whether the block
+     * is there or not. The ones core already announces from the head (its import map's preload
      * allowlist, import_map::get_preload_specifiers(): react among them) are skipped at run time,
      * so the list states what the client needs and the hints carry only what nobody else does.
      */

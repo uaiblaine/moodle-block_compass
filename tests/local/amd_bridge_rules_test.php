@@ -93,7 +93,7 @@ final class amd_bridge_rules_test extends basic_testcase {
      */
     public function test_only_the_bridge_reaches_requirejs(): void {
         $sources = $this->sources();
-        // Vacuity guard: the repository, which loads core/ajax, is one of the files read.
+        // Vacuity guard: the repository, which loads core_user/repository, is one of the files read.
         $this->assertArrayHasKey('js/esm/src/repository.ts', $sources, 'repository.ts is not in the scan');
         foreach ($sources as $file => $contents) {
             if ($file === 'js/esm/src/amd.ts') {
@@ -103,6 +103,30 @@ final class amd_bridge_rules_test extends basic_testcase {
                 '/\bwindow\.require(js)?\b|\brequire(js)?\s*\(\s*\[/',
                 $contents,
                 "{$file}: reaches RequireJS itself; load AMD modules through amd() from amd.ts"
+            );
+        }
+    }
+
+    /**
+     * The client's web service calls go straight to core's ES module, never through the bridge.
+     *
+     * Moodle 5.3's AMD core/ajax is a wrapper of @moodle/lms/core/ajax; asking for it through amd()
+     * made the first read of every page wait for core/first, RequireJS's bundle of every AMD module,
+     * to load and run (docs/performance-audit/PLAN.md, item 3). Changes that must make it fail:
+     * core/ajax asked for through amd(), or the import of fetchOne dropped.
+     *
+     * @return void
+     */
+    public function test_web_service_calls_skip_the_bridge(): void {
+        $sources = $this->sources();
+        $repository = $sources['js/esm/src/repository.ts'];
+        $this->assertStringContainsString("import {fetchOne} from '@moodle/lms/core/ajax';", $repository);
+        $this->assertMatchesRegularExpression('/\bfetchOne<T>\(\{methodname, args\}\)/', $repository);
+        foreach ($sources as $file => $contents) {
+            $this->assertDoesNotMatchRegularExpression(
+                "/\\bamd(<[^>]*>)?\\(\\s*'core\\/ajax'/",
+                $contents,
+                "{$file}: asks for core/ajax through the bridge; import fetchOne from @moodle/lms/core/ajax"
             );
         }
     }
