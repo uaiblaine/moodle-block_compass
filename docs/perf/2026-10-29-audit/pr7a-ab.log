@@ -1,0 +1,38 @@
+load { 4.65 3.96 3.90 }
+v1-before-p1 [5x cpu4 1358px]: ttfb=99 fcp=224 lcp=532 dcl=249 cls=0.713 tbt=0 lt=0 forced=0 inp=0 heap=45.7 dom=871 req=101 kb=2 esm=78 | mount@172 card@498 ghost@498 cal@306 news@613
+  ws(last): local_mail_count_messages@314+33 get_attention@331+157 get_strip_counts@498+27 get_news@566+27 core_output_load_template_with_dependencies@802+0 core_output_load_template_with_dependencies@816+0
+load { 5.16 4.17 3.98 }
+v1-before-d1s50 [5x cpu4 1358px]: ttfb=124 fcp=248 lcp=680 dcl=290 cls=0.38 tbt=3 lt=1 forced=68 inp=0 heap=53.8 dom=2000 req=130 kb=15 esm=92 | mount@198 card@632 ghost@632 cal@366 news@959
+  ws(last): get_attention@379+57 local_mail_count_messages@401+139 block_recentlyaccesseditems_get_recent_items@451+29 core_calendar_get_action_events_by_timesort@616+46 get_strip_counts@695+27 core_course_get_enrolled_courses_by_timeline_classification@786+53 get_news@814+181 core_output_load_template_with_dependencies@885+0 core_output_load_template_with_dependencies@892+0
+load { 4.45 4.08 3.95 }
+v1-before-d1 [5x cpu4 1358px]: ttfb=276 fcp=404 lcp=1128 dcl=539 cls=0.386 tbt=79 lt=3 forced=221 inp=0 heap=54.4 dom=2900 req=126 kb=20 esm=92 | mount@406 card@1061 ghost@1061 cal@644 news@1645
+  ws(last): get_attention@651+68 local_mail_count_messages@722+49 block_recentlyaccesseditems_get_recent_items@747+132 core_calendar_get_action_events_by_timesort@980+229 get_strip_counts@1078+348 core_course_get_enrolled_courses_by_timeline_classification@1174+171 core_output_load_template_with_dependencies@1231+0 core_output_load_template_with_dependencies@1238+0 get_news@1530+29
+load { 4.75 4.18 3.99 }
+v1-after-p1 [5x cpu4 1358px]: ttfb=110 fcp=248 lcp=544 dcl=288 cls=0.714 tbt=0 lt=0 forced=0 inp=0 heap=38.3 dom=871 req=100 kb=2 esm=78 | mount@213 card@512 ghost@512 cal@346 news@656
+  ws(last): local_mail_count_messages@288+38 get_attention@310+163 get_news@475+34 core_output_load_template_with_dependencies@781+0 core_output_load_template_with_dependencies@791+0
+load { 5.43 4.49 4.12 }
+v1-after-d1s50 [5x cpu4 1358px]: ttfb=131 fcp=264 lcp=732 dcl=326 cls=0.383 tbt=7 lt=1 forced=87 inp=0 heap=53.5 dom=2000 req=129 kb=15 esm=92 | mount@212 card@683 ghost@683 cal@403 news@853
+  ws(last): local_mail_count_messages@480+34 get_attention@496+160 block_recentlyaccesseditems_get_recent_items@525+32 get_news@713+32 core_calendar_get_action_events_by_timesort@714+208 core_course_get_enrolled_courses_by_timeline_classification@883+160 core_output_load_template_with_dependencies@1017+1 core_output_load_template_with_dependencies@1051+0
+load { 5.25 4.53 4.15 }
+v1-after-d1 [5x cpu4 1358px]: ttfb=259 fcp=392 lcp=1104 dcl=532 cls=0.386 tbt=71 lt=2 forced=232 inp=0 heap=53.7 dom=2900 req=125 kb=20 esm=92 | mount@391 card@1047 ghost@1047 cal@634 news@1284
+  ws(last): get_attention@660+67 local_mail_count_messages@735+54 block_recentlyaccesseditems_get_recent_items@757+139 get_news@996+31 core_calendar_get_action_events_by_timesort@1039+210 core_output_load_template_with_dependencies@1316+0 core_course_get_enrolled_courses_by_timeline_classification@1327+59 core_output_load_template_with_dependencies@1419+0
+load { 4.60 4.45 4.13 }
+v2-before-p1 [5x cpu4 1358px]: ttfb=91 fcp=208 lcp=504 dcl=227 cls=0.713 tbt=0 lt=0 forced=0 inp=0 heap=38.5 dom=871 req=101 kb=2 esm=78 | mount@161 card@478 ghost@478 cal@285 news@625
+  ws(last): local_mail_count_messages@258+33 get_attention@274+165 get_strip_counts@449+26 get_news@512+27 core_output_load_template_with_dependencies@751+1 core_output_load_template_with_dependencies@768+0
+load { 4.24 4.39 4.12 }
+v2-before-d1s50 [5x cpu4 1358px]: ttfb=131 fcp=256 lcp=712 dcl=316 cls=0.38 tbt=3 lt=1 forced=66 inp=0 heap=53.7 dom=2000 req=130 kb=15 esm=92 | mount@222 card@654 ghost@654 cal@390 news@907
+  ws(last): local_mail_count_messages@484+45 get_attention@505+180 block_recentlyaccesseditems_get_recent_items@530+45 core_calendar_get_action_events_by_timesort@741+52 get_strip_counts@819+50 core_course_get_enrolled_courses_by_timeline_classification@933+75 get_news@937+127 core_output_load_template_with_dependencies@985+1 core_output_load_template_with_dependencies@994+0
+load { 3.81 4.27 4.09 }
+v2-before-d1 [5x cpu4 1358px]: ttfb=265 fcp=400 lcp=1120 dcl=531 cls=0.385 tbt=49 lt=2 forced=222 inp=0 heap=54.6 dom=2900 req=126 kb=20 esm=92 | mount@442 card@1066 ghost@1066 cal@653 news@1635
+  ws(last): get_attention@660+72 local_mail_count_messages@738+55 block_recentlyaccesseditems_get_recent_items@762+151 core_calendar_get_action_events_by_timesort@1012+227 get_strip_counts@1117+236 core_course_get_enrolled_courses_by_timeline_classification@1217+267 core_output_load_template_with_dependencies@1231+1 core_output_load_template_with_dependencies@1281+0 get_news@1426+137
+load { 3.51 4.16 4.05 }
+v2-after-p1 [5x cpu4 1358px]: ttfb=131 fcp=328 lcp=652 dcl=382 cls=0.714 tbt=0 lt=0 forced=19 inp=0 heap=38.7 dom=871 req=100 kb=2 esm=78 | mount@294 card@621 ghost@621 cal@440 news@736
+  ws(last): get_attention@338+92 local_mail_count_messages@355+143 get_news@447+30 core_output_load_template_with_dependencies@848+1 core_output_load_template_with_dependencies@900+1
+load { 4.11 4.24 4.09 }
+v2-after-d1s50 [5x cpu4 1358px]: ttfb=126 fcp=244 lcp=740 dcl=318 cls=0.38 tbt=9 lt=1 forced=60 inp=0 heap=53.5 dom=2000 req=129 kb=15 esm=92 | mount@241 card@696 ghost@697 cal@408 news@866
+  ws(last): local_mail_count_messages@398+37 get_attention@413+148 block_recentlyaccesseditems_get_recent_items@441+29 get_news@620+32 core_calendar_get_action_events_by_timesort@626+155 core_course_get_enrolled_courses_by_timeline_classification@800+50 core_output_load_template_with_dependencies@921+1 core_output_load_template_with_dependencies@940+0
+load { 3.68 4.14 4.05 }
+v2-after-d1 [5x cpu4 1358px]: ttfb=257 fcp=384 lcp=1120 dcl=525 cls=0.389 tbt=62 lt=2 forced=245 inp=0 heap=53.9 dom=2900 req=125 kb=20 esm=92 | mount@430 card@1056 ghost@1056 cal@631 news@1298
+  ws(last): get_attention@646+69 local_mail_count_messages@681+157 block_recentlyaccesseditems_get_recent_items@732+30 get_news@941+37 core_calendar_get_action_events_by_timesort@952+329 core_output_load_template_with_dependencies@1227+0 core_course_get_enrolled_courses_by_timeline_classification@1261+171 core_output_load_template_with_dependencies@1325+0
+RESTORED
+DONE

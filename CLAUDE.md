@@ -226,10 +226,13 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   twin of `strip::periods()`). Then, open or closed, `get_soon` only when the view's gate lists
   open the gate (`calendar.ts` `gateOpens()`, the twin of `strip::gate_opens()`), else one timer
   to `gateNext()`; a minute timer only while an answer holds items, no request per tick, and a
-  new ask on `visibilitychange` after 15 min hidden (ADR-016, `UpNext.tsx`). `get_news` asks once,
-  after `get_attention` settles and, with the calendar on, after `get_strip_counts` (the line's
-  weight depends on the counts); no timer, no ask on `visibilitychange`, and nothing while the line
-  is hidden for this sign-in (the `news` member of `block_compass_calendar`; ADR-017). Every write of
+  new ask on `visibilitychange` after 15 min hidden (ADR-016, `UpNext.tsx`). `get_news` asks
+  once, after `get_attention` settles: in the same request as the strip's first read,
+  `get_strip_counts` closed or `get_strip` open (core's batch, `fetchMany`, the strip's read first; a
+  read the batch did not answer is asked again alone; ADR-017 amendment 1), and with the calendar off
+  alone; the line is placed once the strip's answer is in (its weight depends on it); no timer, no ask
+  on `visibilitychange`, and nothing while the line is hidden for this sign-in, when
+  `get_strip_counts` goes alone (the `news` member of `block_compass_calendar`; ADR-017). Every write of
   `block_compass_calendar` carries its `soon` and `news` members (`calendarpref.ts` holds them all). The open/closed toggle is the `open` member of
   `block_compass_calendar`, written optimistically and put back with a notice on failure;
   `calendar_start` (default closed) decides for a viewer who never toggled, and the shell ships
