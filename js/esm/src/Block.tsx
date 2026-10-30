@@ -25,6 +25,13 @@
  * and the amber notice with a way back from a failed first paint. There is no permanent reload
  * control: a way back appears only once a load has failed, as RetryNotice (ADR-014 amendment 11).
  *
+ * While tier 1's request travels, its place is held by the skeleton the shell drew before any JavaScript ran
+ * (ADR-018): Tier1Skeleton draws the same markup from the model in the props, so React's mount swaps like for
+ * like, and the cards then replace it. The loading announcement is a visually hidden status region, so it
+ * leaves no height behind. Once tier 1 has settled (answered, no card's progress still on its way, no
+ * failure), the shape it settled to is written to the block_compass_tier1 preference, only when it differs
+ * from the one the shell shipped (tier1shape.ts), for the next first paint.
+ *
  * Where the shell shipped the calendar props, the calendar strip sits first, above the status line
  * (ADR-014 decision 2). It reserves its place from the first paint and asks for its counts or its
  * days only once tier 1's request has settled, answered or failed: the turn handed down is 0 until
@@ -32,8 +39,11 @@
  * for whatever of its own failed.
  *
  * Where the shell shipped the news props, the open-courses line (ADR-017, OpenCourses.tsx) is asked for
- * once tier 1 has settled and, with the calendar, once the strip's counts have, and drawn where decision 7
- * puts it, from what the block already holds and with no request for it: with no active course, in tier
+ * once tier 1 has settled: with the calendar, in the same request as the strip's first read (amendment 1),
+ * which the block starts at that moment and hands out, the strip's share to CalendarStrip and the news to
+ * useNews(), each awaited under its consumer's own sequence number; without the calendar, alone. It is
+ * drawn where decision 7 puts it once the strip's answer is in, from what the block already holds and with
+ * no request for it: with no active course, in tier
  * 1's empty state as tiles; without the calendar here, the full line at the top of the content; while Up
  * next shows, the compact sentence below tier 1's first strip; otherwise under the calendar, the full line
  * when the counts in hand show nothing late, today or tomorrow, the compact sentence when they do.
@@ -52,12 +62,15 @@ import type {StripGhost, StripOverflow} from './Strip';
 import Ghost from './Ghost';
 import Explore from './Explore';
 import RetryNotice from './RetryNotice';
+import Tier1Skeleton from './Tier1Skeleton';
 import type {GhostKind} from './Ghost';
 import {notify} from './notify';
 import {cardColumns} from './columns';
 import {fill, fillCount, fillObject} from './str';
 import {seedCalendarPreference} from './calendarpref';
-import {getAttention, getCardDetails, isTransportFailure, onRetry, setFavourite} from './repository';
+import {rememberShape, settledShape} from './tier1shape';
+import {getAttention, getCardDetails, getStripWithNews, isTransportFailure, onRetry, setFavourite} from './repository';
+import type {StripWithNews} from './repository';
 import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange, StripWeight} from './types';
 
 /**
@@ -158,6 +171,14 @@ const Block = (config: BlockConfig) => {
     const [width, setWidth] = useState(0);
     // The calendar strip's turn: 0 until tier 1's first request settles, then one more per Try again.
     const [calendarturn, setCalendarturn] = useState(0);
+    // The strip's first read and the news in one request (ADR-017 amendment 1), started once, when tier 1 first
+    // settles, and set in the same update as the turn, so both consumers find their share at turn 1; null when
+    // the pair does not leave (the calendar or the line off, the line hidden for this sign-in).
+    const [first, setFirst] = useState<StripWithNews | null>(null);
+    // Whether tier 1 has settled once, so the pair leaves once per load whatever reloads tier 1 after.
+    const settled = useRef(false);
+    // The strip's open state as it renders, kept by CalendarStrip: the pair's first read follows it.
+    const stripopen = useRef(config.calendar?.state.open ?? false);
     // The two halves of the card/strip lighting (ADR-014 decision 9), lifted here because they
     // join two siblings: the course a tier 1 card is pointed at, and the courses the open
     // calendar day holds. Both come from data already in memory; neither costs a request.
@@ -174,10 +195,10 @@ const Block = (config: BlockConfig) => {
 
         return true;
     });
-    // The line asks once tier 1 has settled and, with the calendar here, once the strip's counts have: the
-    // line's weight depends on them (decision 5).
-    const newsready = calendarturn > 0 && (!config.calendar || (weight !== null && weight.counted));
-    const news = useNews(config.news, newsready, calendarturn);
+    // The line asks once tier 1 has settled: with the calendar here only inside the pair, which leaves with
+    // the strip's first read (amendment 1); without it, alone.
+    const newsready = calendarturn > 0 && (!config.calendar || first !== null);
+    const news = useNews(config.news, newsready, calendarturn, first?.news ?? null);
 
     /**
      * Keep the strip's report of the line's weight, latching weighed.
@@ -210,6 +231,26 @@ const Block = (config: BlockConfig) => {
     }, []);
 
     /**
+     * Tier 1 has settled, answered or failed: the first time, start the strip's first read and the news in
+     * one request when both are wanted (ADR-017 amendment 1), and give the strip its turn. The pair is set in
+     * the same update as the turn, so the strip and the line take their shares in the render that lets them
+     * ask; a refresh or a Try again of tier 1 starts nothing.
+     *
+     * @returns {void}
+     */
+    const settleTier1 = useCallback((): void => {
+        if (settled.current) {
+            return;
+        }
+        settled.current = true;
+        const line = config.news;
+        if (config.calendar && line && line.enabled && line.signin <= 0) {
+            setFirst(getStripWithNews(stripopen.current));
+        }
+        setCalendarturn(1);
+    }, [config.calendar, config.news]);
+
+    /**
      * Fetch tier 1 and then the progress it could not answer from cache.
      *
      * Both halves live in one function, and the sequence number is why: pressing Try
@@ -240,7 +281,7 @@ const Block = (config: BlockConfig) => {
                 // A transport failure says so; a server that answered gets the generic line.
                 setError((isTransportFailure(e) ? labels.connectionlost : labels.loaderror) || '');
                 // Settled, if by failing: the strip may ask now, and its own failure is its own.
-                setCalendarturn((current) => (current === 0 ? 1 : current));
+                settleTier1();
             }
 
             return;
@@ -250,7 +291,7 @@ const Block = (config: BlockConfig) => {
         }
         setData(payload);
         // Tier 1 painted first; the strip asks now, while the cards' progress is still on its way.
-        setCalendarturn((current) => (current === 0 ? 1 : current));
+        settleTier1();
 
         const pending = [payload.continue, payload.new, payload.favourites]
             .flat()
@@ -298,11 +339,23 @@ const Block = (config: BlockConfig) => {
                 )
                 : current));
         }
-    }, [labels]);
+    }, [labels, settleTier1]);
 
     useEffect(() => {
         load();
     }, [load]);
+
+    // Remember the shape tier 1 settled to, from an effect on the answer: settledShape() is null while a card's
+    // progress travels, a failure (the load's or the progress's) writes nothing, and tier1shape.ts writes only
+    // when the shape differs from the one held.
+    useEffect(() => {
+        const shape = data && error === null
+            ? settledShape(data, config.strips, config.favouritesenabled, config.pendingenabled)
+            : null;
+        if (shape) {
+            rememberShape(config.tier1, shape);
+        }
+    }, [data, error, config.strips, config.favouritesenabled, config.pendingenabled, config.tier1]);
 
     useEffect(() => {
         const element = root.current;
@@ -521,6 +574,8 @@ const Block = (config: BlockConfig) => {
                     width={width}
                     pointedCourse={pointed}
                     onOpenCourses={setDayCourses}
+                    batched={first?.strip ?? null}
+                    stripopen={stripopen}
                     onWeight={onWeight}
                 />
             )}
@@ -534,11 +589,14 @@ const Block = (config: BlockConfig) => {
                     })}
                 </div>
             )}
+            {/* Tier 1's place, held while its request travels, through a retry too: the skeleton is hidden from
+                assistive technology, and the announcement is visually hidden, so neither leaves a height behind. */}
             {!data && error === null && reconnecting === null && (
-                <div className="compass-status text-muted small" role="status" aria-live="polite">
+                <div className="compass-status visually-hidden" role="status" aria-live="polite">
                     {labels.loading}
                 </div>
             )}
+            {!data && error === null && <Tier1Skeleton skeleton={config.tier1.skeleton} />}
             {error !== null && (
                 <RetryNotice message={error} retrying={false} config={config} onRetry={retry} />
             )}

@@ -62,9 +62,15 @@ final class page_test extends advanced_testcase {
         [$html, $props] = $this->render(new page());
 
         $this->assertMatchesRegularExpression('/<div class="block_compass compass-page">/', $html);
-        $this->assertDoesNotMatchRegularExpression('/class="[^"]*\bcard\b/', $html, 'the page reproduces no card chrome');
+        // Tier 1's skeleton draws the cards' own markup inside the mount point (ADR-018); outside it, no card.
+        $this->assertStringContainsString('<div class="compass-preload" aria-hidden="true">', $html);
+        $outside = preg_replace('/<div class="compass-preload".*?(<p class="compass-noscript">)/s', '$1', $html);
+        $this->assertStringNotContainsString('compass-preload', $outside, 'the skeleton was not cut out');
+        $this->assertDoesNotMatchRegularExpression('/class="[^"]*\bcard\b/', $outside, 'the page reproduces no card chrome');
         $this->assertStringContainsString('data-react-component="@moodle/lms/block_compass/bundle"', $html);
         $this->assertSame(2, $props['headinglevel']);
+        // The page keeps its own remembered shape apart from the Dashboard's (ADR-018 decision 2).
+        $this->assertSame('page', $props['tier1']['surface']);
         $this->assertArrayHasKey('labels', $props);
         $this->assertArrayHasKey('explore', $props);
     }

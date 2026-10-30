@@ -39,7 +39,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {RefObject} from 'react';
 import FilterLine from './FilterLine';
 import type {Candidate, LineChip, LineCourse, LineFilter} from './FilterLine';
@@ -49,7 +49,9 @@ import Group from './Group';
 import RetryNotice from './RetryNotice';
 import RowList from './RowList';
 import type {ScopeCell} from './ScopeGroup';
-import {isEnrolled, matches, normalise, passesChip, passesCriteria, passesSelection, passesStar} from './filter';
+import {
+    holdsWords, isEnrolled, normalise, passesChip, passesCriteria, passesPairs, passesSelection, passesStar, wordsOf,
+} from './filter';
 import type {Criteria, RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
 import {confirmAction, notify} from './notify';
@@ -199,6 +201,22 @@ type PageState = {
 const EMPTY_PAGE: PageState = {rows: [], after: 0, hasmore: false, loaded: false, loading: false, failed: false};
 
 /**
+ * The one empty row list: a group or the flat list handed a new [] on every render would render again
+ * for nothing, memoised or not.
+ */
+const NO_ROWS: InventoryRow[] = [];
+
+/** What one group shows: its rows, the count its summary says, and whether it is drawn at all. */
+type Slice = {
+    rows: InventoryRow[],
+    count: number,
+    show: boolean,
+};
+
+/** A group the payload names and the slices do not: drawn nowhere. */
+const NO_SLICE: Slice = {rows: NO_ROWS, count: 0, show: false};
+
+/**
  * Tier 3.
  *
  * @param {object} props The block config, the chip to open on, the press counter, the last
@@ -258,6 +276,14 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // and not derived from the inventory, is asked again rather than left showing a row
     // that is no longer in the population it searched.
     const [searchgen, setSearchgen] = useState(0);
+    /*
+     * Full mode filters at a lower priority than the typing (the performance audit's item 2): the box's own
+     * update commits at once, and the rows, the counts and the suggestions follow from these deferred copies in
+     * a render React leaves for the next key. The debounce still decides when applied moves, and paged mode's
+     * requests read applied itself, under their sequence numbers.
+     */
+    const term = useDeferredValue(applied);
+    const typed = useDeferredValue(query);
 
     // Progress and images for the rows in view; a failed batch is offered Try again below the toolbar.
     const details = useRowDetails();
@@ -594,10 +620,12 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
      * @param {object} row The row.
      * @returns {boolean} Whether it is shown.
      */
-    const criteria = useMemo((): Criteria => ({scope, star, selection, query: applied}), [scope, star, selection, applied]);
+    const criteria = useMemo((): Criteria => ({scope, star, selection, query: term}), [scope, star, selection, term]);
+    // The query's words, normalised once per term rather than once per row.
+    const termwords = useMemo(() => wordsOf(term), [term]);
     const passesRow = useCallback(
-        (row: InventoryRow): boolean => passesCriteria(factsof(row), criteria, fieldkeys),
-        [criteria, fieldkeys, factsof]
+        (row: InventoryRow): boolean => passesCriteria(factsof(row), criteria, fieldkeys, termwords),
+        [criteria, fieldkeys, factsof, termwords]
     );
 
     const visible = useMemo(() => {
@@ -621,8 +649,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
      * count, so a number never promises rows the press would not show. Paged mode holds no rows to
      * count and carries no numbers.
      *
-     * @param {string} query The query the counts are under: the applied one for the line and the
-     *     panel, the empty one for the suggestions, which empty the field when chosen.
+     * @param {string} query The query the counts are under: the applied one (its deferred copy, term)
+     *     for the line and the panel, the empty one for the suggestions, which empty the field when chosen.
      * @returns {object} The counts.
      */
     const countFacets = useCallback((query: string): Facets => {
@@ -636,12 +664,17 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         let starred = 0;
         const perfield = new Map<string, Map<number, number>>();
         fieldkeys.forEach((key) => perfield.set(key, new Map()));
+        // Built once per count, not per row: the query's words, the selection's pairs, and for each field the
+        // pairs of the other groups' selections, which its values are counted under.
+        const querywords = wordsOf(query);
+        const pairs = Object.entries(selection);
+        const otherpairs = fieldkeys.map((key) => pairs.filter(([field]) => field !== key));
         data.groups.forEach((group) => group.courses.forEach((row) => {
             const facts = factsof(row);
-            if (query !== '' && !matches(facts.name, query)) {
+            if (query !== '' && !holdsWords(facts.name, querywords)) {
                 return;
             }
-            const selected = passesSelection(facts.cf, fieldkeys, selection);
+            const selected = passesPairs(facts.cf, fieldkeys, pairs);
             if (selected && passesStar(star, facts)) {
                 SCOPES.forEach((key) => {
                     if (passesChip(key, facts)) {
@@ -659,9 +692,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 return;
             }
             fieldkeys.forEach((key, index) => {
-                const others = {...selection};
-                delete others[key];
-                if (!passesSelection(facts.cf, fieldkeys, others)) {
+                if (!passesPairs(facts.cf, fieldkeys, otherpairs[index])) {
                     return;
                 }
                 for (let at = 0; at + 1 < facts.cf.length; at += 2) {
@@ -676,7 +707,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         return {status, star: starred, fields: perfield};
     }, [data, paged, scope, star, selection, fieldkeys, factsof]);
 
-    const facets = useMemo(() => countFacets(applied), [countFacets, applied]);
+    const facets = useMemo(() => countFacets(term), [countFacets, term]);
     const untyped = useMemo(() => countFacets(''), [countFacets]);
 
     // The archive's rows that pass the same filter, once they are here; none in paged mode,
@@ -712,14 +743,14 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         if (!data || paged) {
             return;
         }
-        if (applied !== '' && openbefore.current === null) {
+        if (term !== '' && openbefore.current === null) {
             openbefore.current = open;
         }
-        if (applied === '' && openbefore.current !== null) {
+        if (term === '' && openbefore.current !== null) {
             setOpen(openbefore.current);
             openbefore.current = null;
         }
-    }, [applied, data, paged, open]);
+    }, [term, data, paged, open]);
 
     /**
      * Change the scope or the star, and in paged mode refetch when what the server is told changes.
@@ -1316,10 +1347,11 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         });
     }, [scope, star, selection, held, fieldkeys]);
 
-    // A change of the criteria, the order or the view ends any preview: what it lit is gone or moved.
+    // A change of the criteria, the order or the view ends any preview: what it lit is gone or moved. The
+    // deferred term, not applied: the rows move when it does.
     useLayoutEffect(() => {
         preview(null);
-    }, [preview, applied, sort, view]);
+    }, [preview, term, sort, view]);
 
     // The scope's cells: counted in full mode, a zero one not drawn unless it is the checked one; All
     // always drawn, because it is the release.
@@ -1385,18 +1417,19 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, [scope, star, fields, selection, untyped, config]);
 
     // The courses the suggestions may offer: in full mode the rows held that the criteria keep and
-    // whose names match what is typed now; in paged mode the last search's hits.
+    // whose names match what is typed; in paged mode the last search's hits. From the deferred copy of
+    // the box, so a keystroke commits before this filter runs over every row.
     const linecourses = useMemo((): LineCourse[] => {
-        const term = normalise(query);
-        if (term.length < SEARCH_MIN_LENGTH) {
+        if (normalise(typed).length < SEARCH_MIN_LENGTH) {
             return [];
         }
+        const typedwords = wordsOf(typed);
         const rows = paged
-            ? keptHits ?? []
-            : Array.from(visible.values()).flat().filter((row) => matches(normalised.get(row.id) || '', query));
+            ? keptHits ?? NO_ROWS
+            : Array.from(visible.values()).flat().filter((row) => holdsWords(normalised.get(row.id) || '', typedwords));
 
         return rows.slice(0, 50).map((row) => ({id: row.id, name: row.name, url: urlOf(row)}));
-    }, [query, paged, keptHits, visible, normalised]);
+    }, [typed, paged, keptHits, visible, normalised]);
 
     // The chips under the line: one per field value in force.
     const linechips = useMemo((): LineChip[] => fields.flatMap((field) => {
@@ -1422,6 +1455,113 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             chooseCriteria(candidate.scope ?? scope, candidate.star ?? star);
         }
     };
+
+    /**
+     * Every group's visible rows and the count its summary shows, by group id.
+     *
+     * In full mode both follow the filter. In paged mode the count is the server's
+     * total until the group's own rows arrive, and then it is what the group holds of them that the
+     * scope and the star keep; with the star and Awaiting or Scheduled nothing is kept and no group
+     * is drawn. Memoised, so a group's rows stay the same array until what decides them changes: the
+     * group is memoised on it.
+     */
+    const slices = useMemo((): Map<number, Slice> => {
+        const map = new Map<number, Slice>();
+        data?.groups.forEach((group) => {
+            if (!pagedgroup(group.id)) {
+                const rows = visible.get(group.id) ?? NO_ROWS;
+                map.set(group.id, {rows, count: rows.length, show: rows.length > 0});
+
+                return;
+            }
+            const page = pages[group.id] || EMPTY_PAGE;
+            if (!paged) {
+                // The archived group in full mode: fetched page after page on first open until it is
+                // all here, then held and filtered like every other group's rows, so a chip, a
+                // selection or a query narrows it and clearing them brings the rows back. Until the
+                // rows are all here the count is the server's total - there is nothing complete to
+                // narrow yet - and the group stays, closed, whatever the filter: it is not part of
+                // the population the filter is over, and hiding it would make the archive
+                // unreachable for as long as a query is typed.
+                const complete = page.loaded && !page.hasmore;
+                map.set(group.id, {
+                    rows: archivedvisible,
+                    count: complete ? archivedvisible.length : group.count,
+                    show: true,
+                });
+
+                return;
+            }
+            if (keepsnothing) {
+                map.set(group.id, NO_SLICE);
+
+                return;
+            }
+            const rows = page.rows.filter((row) => keptBy(scope, star, row));
+            map.set(group.id, {rows, count: page.loaded ? rows.length : group.count, show: true});
+        });
+
+        return map;
+    }, [data, pagedgroup, visible, pages, paged, archivedvisible, keepsnothing, scope, star]);
+
+    /**
+     * A group opened or closed by its own summary.
+     *
+     * @param {number} id The group.
+     * @param {boolean} value Whether it is open now.
+     * @returns {void}
+     */
+    const toggleGroup = useCallback((id: number, value: boolean): void => {
+        setOpen((c) => ({...c, [id]: value}));
+        if (value) {
+            // Opening a group again is how a failed fetch is retried.
+            setPages((c) => (c[id]?.failed ? {...c, [id]: EMPTY_PAGE} : c));
+        }
+    }, []);
+
+    /**
+     * Show more: the group's next page, with the keyboard following the rows it adds.
+     *
+     * @param {number} id The group.
+     * @returns {Promise} Resolves when the page is in state, or the failure reported.
+     */
+    const showMore = useCallback((id: number): Promise<void> => loadPage(id, true), [loadPage]);
+
+    /**
+     * Try again inside a group: its rows are asked for again from the first page.
+     *
+     * @param {number} id The group.
+     * @returns {void}
+     */
+    const retryGroup = useCallback((id: number): void => {
+        setPages((c) => ({...c, [id]: EMPTY_PAGE}));
+    }, []);
+
+    // The dormant group's Archive all, built when its rows or the run change rather than on every render:
+    // a new element would render the memoised group again for nothing.
+    const dormantrows = (slices.get(GROUP_DORMANT) ?? NO_SLICE).rows;
+    const archiveallbar = useMemo(() => (dormantrows.length > 0 ? (
+        <div className="compass-archiveall">
+            {/* Never the disabled attribute while its own run is
+                out: the focused button would drop the keyboard to
+                the body and "Archiving…" would be said to nobody
+                (see RetryNotice.tsx). archiveAll() refuses a press
+                while busy. Bootstrap's disabled class is kept for
+                its look: its pointer-events: none passes a click
+                to the group's toolbar beneath, which has no
+                handler and no stretched link (see Star.tsx). */}
+            <button
+                type="button"
+                className={busy
+                    ? 'btn btn-outline-secondary btn-sm disabled'
+                    : 'btn btn-outline-secondary btn-sm'}
+                aria-disabled={busy || undefined}
+                onClick={() => archiveAll(dormantrows)}
+            >
+                {busy ? labels.archiving : `${labels.archiveall} (${dormantrows.length})`}
+            </button>
+        </div>
+    ) : undefined), [dormantrows, busy, archiveAll, labels.archiving, labels.archiveall]);
 
     if (failed !== null) {
         return (
@@ -1462,48 +1602,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     } else if (showindex) {
         columns = 2;
     }
-    const flat = paged ? (keptHits ?? []) : flatrows;
+    const flat = paged ? (keptHits ?? NO_ROWS) : flatrows;
     const noresults = paged ? keepsnothing || (keptHits !== null && keptHits.length === 0) : shown === 0;
-
-    /**
-     * A group's visible rows and the count its summary shows.
-     *
-     * In full mode both follow the filter. In paged mode the count is the server's
-     * total until the group's own rows arrive, and then it is what the group holds of them that the
-     * scope and the star keep; with the star and Awaiting or Scheduled nothing is kept and no group
-     * is drawn.
-     *
-     * @param {number} id The group.
-     * @param {number} total The count the server sent.
-     * @returns {object} The rows, the count, and whether the group is worth showing.
-     */
-    const groupview = (id: number, total: number) => {
-        if (!pagedgroup(id)) {
-            const rows = visible.get(id) || [];
-
-            return {rows, count: rows.length, show: rows.length > 0};
-        }
-        const page = pages[id] || EMPTY_PAGE;
-        if (!paged) {
-            // The archived group in full mode: fetched page after page on first open until it is
-            // all here, then held and filtered like every other group's rows, so a chip, a
-            // selection or a query narrows it and clearing them brings the rows back. Until the
-            // rows are all here the count is the server's total - there is nothing complete to
-            // narrow yet - and the group stays, closed, whatever the filter: it is not part of
-            // the population the filter is over, and hiding it would make the archive
-            // unreachable for as long as a query is typed.
-            const complete = page.loaded && !page.hasmore;
-
-            return {rows: archivedvisible, count: complete ? archivedvisible.length : total, show: true};
-        }
-
-        if (keepsnothing) {
-            return {rows: [], count: 0, show: false};
-        }
-        const rows = page.rows.filter((row) => keptBy(scope, star, row));
-
-        return {rows, count: page.loaded ? rows.length : total, show: true};
-    };
 
     // The panel title's level comes from heading.ts. The h5 class keeps the size, and
     // keepFocus() finds the element by its class, so the level is free to move.
@@ -1571,7 +1671,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                     <nav className="compass-index" aria-label={labels.categoryindex}>
                         <ul className="list-unstyled small mb-0">
                             {data.groups.map((group) => {
-                                const slice = groupview(group.id, group.count);
+                                const slice = slices.get(group.id) ?? NO_SLICE;
                                 // The index is a map of the categories; the two groups that are
                                 // not categories sit at the end and are found by scrolling.
                                 if (!slice.show || group.id < 0) {
@@ -1601,18 +1701,18 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 {grouped && (
                     <div className="compass-groups flex-grow-1">
                         {data.groups.map((group) => {
-                            const slice = groupview(group.id, group.count);
+                            const slice = slices.get(group.id) ?? NO_SLICE;
                             if (!slice.show) {
                                 return null;
                             }
                             const page = pages[group.id] || EMPTY_PAGE;
                             // A search opens what it found; otherwise the group's own state rules.
                             // The archived group is not searched, so a search leaves it closed.
-                            const isopen = (!paged && applied !== '' && group.id !== GROUP_ARCHIVED)
+                            const isopen = (!paged && term !== '' && group.id !== GROUP_ARCHIVED)
                                 || !!open[group.id];
-                            const isarchived = group.id === GROUP_ARCHIVED;
-                            const isdormant = group.id === GROUP_DORMANT;
 
+                            // Every prop below is a primitive or an object kept between renders, never
+                            // an arrow or a literal written here: the group is memoised on them.
                             return (
                                 <Group
                                     key={group.id}
@@ -1630,43 +1730,16 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                                     view={view}
                                     columns={columns}
                                     details={details}
-                                    onToggle={(id, value) => {
-                                        setOpen((c) => ({...c, [id]: value}));
-                                        if (value) {
-                                            // Opening a group again is how a failed fetch is retried.
-                                            setPages((c) => (c[id]?.failed ? {...c, [id]: EMPTY_PAGE} : c));
-                                        }
-                                    }}
-                                    onShowMore={(id) => loadPage(id, true)}
-                                    onRetry={(id) => setPages((c) => ({...c, [id]: EMPTY_PAGE}))}
+                                    onToggle={toggleGroup}
+                                    onShowMore={showMore}
+                                    onRetry={retryGroup}
                                     focusfrom={focusmore?.id === group.id ? focusmore.from : null}
                                     anchor={`${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
-                                    archived={isarchived}
+                                    archived={group.id === GROUP_ARCHIVED}
                                     onArchive={archive}
                                     onToggleFavourite={toggleFavourite}
                                     busy={busy}
-                                    toolbar={isdormant && slice.rows.length > 0 ? (
-                                        <div className="compass-archiveall">
-                                            {/* Never the disabled attribute while its own run is
-                                                out: the focused button would drop the keyboard to
-                                                the body and "Archiving…" would be said to nobody
-                                                (see RetryNotice.tsx). archiveAll() refuses a press
-                                                while busy. Bootstrap's disabled class is kept for
-                                                its look: its pointer-events: none passes a click
-                                                to the group's toolbar beneath, which has no
-                                                handler and no stretched link (see Star.tsx). */}
-                                            <button
-                                                type="button"
-                                                className={busy
-                                                    ? 'btn btn-outline-secondary btn-sm disabled'
-                                                    : 'btn btn-outline-secondary btn-sm'}
-                                                aria-disabled={busy || undefined}
-                                                onClick={() => archiveAll(slice.rows)}
-                                            >
-                                                {busy ? labels.archiving : `${labels.archiveall} (${slice.rows.length})`}
-                                            </button>
-                                        </div>
-                                    ) : undefined}
+                                    toolbar={group.id === GROUP_DORMANT ? archiveallbar : undefined}
                                 />
                             );
                         })}

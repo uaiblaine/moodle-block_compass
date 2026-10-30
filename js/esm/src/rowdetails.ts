@@ -41,7 +41,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {getCardDetails} from './repository';
 import type {RowDetail} from './types';
 
@@ -303,5 +303,10 @@ export const useRowDetails = (): RowDetails => {
         }
     }, []);
 
-    return {records, waiting, failed, retry, observe};
+    // One object per change of what it holds: Explore hands it to every memoised group, and a new object on
+    // each of Explore's renders would render every group again on every keystroke.
+    return useMemo(
+        (): RowDetails => ({records, waiting, failed, retry, observe}),
+        [records, waiting, failed, retry, observe]
+    );
 };

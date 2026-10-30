@@ -15,6 +15,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- A Performance overview check for read-only sessions (2026042019 on this branch, ported from the 5.3 branch,
+  #91; the performance audit's item 7). The block's web services declare `readonlysession`, which core
+  honours only with `$CFG->enable_read_only_sessions` in config.php; the check warns while it is unset
+  (four concurrent reads on one session, measured on the 5.3 branch: 95th percentile 989 ms, against 75 ms on
+  separate sessions) and passes once it is set. Core 5.2 collects it the same way, through
+  `block_compass_performance_checks()`. It links to no page, because the flag is not an admin setting. The
+  README gains a *Sizing* section: the block's requests per load, the bootstrap floor and the flag's
+  prerequisite.
+
 - Open for enrolment, smoke and documentation (2026042015 on this branch; ADR-017 stage 14e): a Behat scenario for a
   learner with open courses in the band and a course they teach, the demo seed's `compassdemo_open_*`
   courses, the `news` screenshot shot and the README's bullet, four settings and two caches.
@@ -57,6 +66,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   with the rest of the preference.
 ### Fixed
 
+- A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (2026042017 on
+  this branch, ported from the 5.3 branch, #89; the performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
+  moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
+  strip: the counts pass and its statements. The access field is now compared only when the entry's course set
+  was bounded at `inventory_max`, where recency chooses the set; the enrolment and star fields and the group
+  set are compared as before, so leaving, being suspended in or losing a course still rebuilds it. Measured on
+  the 5.3 branch for a learner with 50 courses: `get_soon` after a visit 20 → 10 reads and 24 → 10 ms (warm: 9 reads,
+  8 ms). Above `inventory_max` it still rebuilds. Held by four tests in `strip_test`, a budget test in
+  `get_soon_budget_test` and three mutation gates.
+
 - The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
   off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
 - Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
@@ -72,6 +91,66 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   archive rows stay, since they are that block's.
 
 ### Changed
+
+- Tier 1 holds its place from the first paint (2026042022 on this branch, ported from the 5.3 branch, #94;
+  ADR-018, the performance audit's item 4). The shell draws, inside the React mount point, a skeleton of the
+  strips in the shape they last settled to for this viewer on this surface (which strips, how many cards,
+  whether a completion area, the ghost and the pending notice), with the calendar's head above it where the
+  strip renders; React's first render draws the same markup from the props, so the mount no longer moves the
+  page, and the cards then replace it. Its columns come from CSS (`cardColumns()`'s 264 px track, 16 px gap and
+  three-track cap, and the 373 px card cap, as custom properties), so they need no measure. Without a
+  remembered shape one strip of one row stands in. It shows only with JavaScript; if the bundle never runs, a
+  CSS step about 10 s after the first paint replaces it with the "could not be loaded" sentence. The loading
+  line becomes a visually hidden status region. A new user preference, `block_compass_tier1`, keeps the shape
+  per surface: written by the browser through core's preference route only when the settled shape differs from
+  the stored one (never after a failure), validated member by member on read
+  (`classes/local/tier1_preference.php`), exported by the privacy provider and deleted on uninstall. The shell
+  still reads nothing from the database. Core 5.2 keeps the react helper's inner content in the mount `<div>`,
+  mounts with `createRoot` and sets `body.jsenabled` at the top of the body, as 5.3 does (ADR-018 decision 10).
+
+- Up next idles lighter (2026042021 on this branch, ported from the 5.3 branch, #93; the performance audit's
+  item 8). The minute tick moved from the strip's hook into the Up next region, so a minute re-renders that
+  region alone and the strip hears of it only when the rows' count or the level changes; the tick pauses while
+  the tab is hidden and evaluates at once when it is shown. The "now" dot's pulse is a pseudo-element
+  animating `transform` and `opacity` (the compositor's), where a `box-shadow` keyframe restyled the page
+  every frame. The look, the levels, the texts and the requests are unchanged. Held by
+  `tests/local/upnext_idle_rules_test.php`, `accessibility_rules_test` and ten mutation gates.
+
+- The calendar strip's first read and the open-courses line travel in one request (2026042020 on this branch,
+  ported from the 5.3 branch, #92; the performance audit's item 6; ADR-017 amendment 1). Once tier 1 has
+  settled, with the line on and not hidden, `get_strip_counts` (the strip closed) or `get_strip` (open) and
+  `get_news` go in one batch of core's AMD `core/ajax` (`call([...])`, through the bridge: 5.2 has no ES
+  module ajax), the strip's read first: one bootstrap and one session check fewer per load, and the news lands
+  with the counts instead of a round trip after them. The block starts the pair once and hands the strip and
+  the line each its share, awaited under its own sequence number and held on Moodle's pending counter until
+  its own answer is drawn. `call([...])` gives each call its own promise, so an answered strip read survives a
+  failed news; a read the batch did not answer is asked again alone, the batch counting as its first attempt:
+  two retries 2 s apart, then its own notice. Unchanged: the news once per load, the strip's read alone while
+  the line is hidden, the news alone with the calendar off, `get_soon` never in a batch, and opening the strip
+  or a day asks alone. No server change; budgets unchanged. Held by `tests/local/batch_rules_test.php` and ten
+  mutation gates.
+
+- Typing in tier 3 renders only what the keystroke changed (2026042018 on this branch, ported from the 5.3
+  branch, #90; the performance audit's item 2). The rows, the cards, their list and the category groups are
+  memoised, and every prop tier 3 hands them is kept between renders (the group handlers, the Archive all bar,
+  the empty lists, the details store's object). Full mode filters from deferred copies of the applied term and
+  of the search box (React's `useDeferredValue`), so the keystroke commits first and the rows, the counts and
+  the suggestions follow in a render React may interrupt for the next key; the 150 / 300 ms debounces, paged
+  mode's requests and their sequence numbers are unchanged. The facet count normalises the query and reads the
+  selection once per count, not per row. Same rows, order, counts, announcements, focus and preview lighting;
+  a closed group still holds its rows, so the browser's find in page still opens it. Measured on the 5.3
+  branch at 4x CPU (interleaved, bundle only), typing "cour": INP 248/200 → 152/144 ms over 50 rows and
+  552/720 → 296/288 ms over 250. Held by `tests/local/explore_render_rules_test.php` and twelve mutation gates.
+
+- The client reads layout when what it measures changed, never on every render (2026042016 on this branch,
+  ported from the 5.3 branch, #87; the performance audit's item 1, whose plan and logs stay on `main` in
+  `docs/performance-audit/PLAN.md`). The calendar's closed line is measured when its contents, its state, its
+  width class, its fit or its size change, instead of after every render of the strip; tier 3's chip and scope
+  fades are drawn when the chips, the step or the line's width change and on their own scroll; the strip is
+  memoised and hands the block one empty course list, so it no longer renders for each of the block's renders.
+  Measured on the 5.3 branch at 4x CPU (interleaved, bundle only): the line's measures per load fall from 8 to
+  4; typing in tier 3 forces 42-54 % less layout and its INP falls from 256-288 to 200-224 ms. Held by
+  `tests/local/layout_measure_rules_test.php` and four mutation gates.
 
 - Open for enrolment, round 2 (2026042015 on this branch; ADR-017): the line is a panel of its own, drawn in the
   maintainer's approved design (`docs/mockup-new-courses/Rodada2.dc.html`), client only. The full

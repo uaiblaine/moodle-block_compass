@@ -29,6 +29,7 @@ use block_compass\local\calendar\grading;
 use block_compass\local\calendar_preference;
 use block_compass\local\config;
 use block_compass\local\explore_preference;
+use block_compass\local\tier1_preference;
 use core\output\pix_icon;
 use core\output\renderable;
 use core\output\renderer_base;
@@ -202,6 +203,19 @@ class block implements renderable, templatable {
         $labels['cancel'] = get_string('cancel');
 
         $pendingenabled = config::pending_enabled();
+        $favouritesenabled = config::favourites_enabled();
+        $strips = [
+            ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
+            ['name' => 'new', 'title' => get_string('strip_new', 'block_compass')],
+            // The courses whose enrolment starts later, under New enrolments, where the line that
+            // counted them used to sit (ADR-013, 2026-10-08 amendment).
+            ['name' => 'scheduled', 'title' => get_string('strip_scheduled', 'block_compass')],
+            ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
+        ];
+        // Tier 1's shape as it last settled here, and on the other surface, validated (ADR-018): the
+        // skeleton is drawn from this surface's, and the client's write carries the other's along.
+        $shapes = tier1_preference::all($favouritesenabled, $pendingenabled);
+        $skeleton = self::skeleton($shapes[$this->surface] ?? null, $strips, config::category_shown());
         $props = [
             'labels' => $labels,
             'icons' => [
@@ -228,15 +242,8 @@ class block implements renderable, templatable {
                 'collapsed' => $output->render(new pix_icon('t/collapsedchevron', '')),
                 'collapsedrtl' => $output->render(new pix_icon('t/collapsedchevron_rtl', '')),
             ],
-            'strips' => [
-                ['name' => 'continue', 'title' => get_string('strip_continue', 'block_compass')],
-                ['name' => 'new', 'title' => get_string('strip_new', 'block_compass')],
-                // The courses whose enrolment starts later, under New enrolments, where the line that
-                // counted them used to sit (ADR-013, 2026-10-08 amendment).
-                ['name' => 'scheduled', 'title' => get_string('strip_scheduled', 'block_compass')],
-                ['name' => 'favourites', 'title' => get_string('strip_favourites', 'block_compass')],
-            ],
-            'favouritesenabled' => config::favourites_enabled(),
+            'strips' => $strips,
+            'favouritesenabled' => $favouritesenabled,
             // Both surfaces of an application awaiting approval hang off this one flag: the chip
             // in the filter panel and the notice under New enrolments.
             'pendingenabled' => $pendingenabled,
@@ -255,6 +262,15 @@ class block implements renderable, templatable {
             // (\core\output\mustache_react_helper), so a cast to object would not survive it.
             // The client normalises the shape where it reads it (Explore.tsx).
             'explore' => explore_preference::read($pendingenabled),
+            // Tier 1's place while get_attention travels (ADR-018): the surface, both surfaces' shapes as
+            // validated (the client compares what it settles to with this surface's, and writes only on a
+            // change), and the skeleton the template draws, which React's first render draws alike. The
+            // card lists are the template's: the client counts.
+            'tier1' => [
+                'surface' => $this->surface,
+                'shapes' => $shapes,
+                'skeleton' => self::without_cards($skeleton),
+            ],
         ];
         // The calendar strip's props exist only where the strip renders: off, or on a surface
         // calendar_where leaves out, the key is absent and the client mounts nothing (ADR-014
@@ -272,6 +288,150 @@ class block implements renderable, templatable {
 
         return [
             'props' => json_encode($props),
+            'tier1' => $skeleton,
+            'calendarhead' => $calendar === null ? null : self::calendar_head($calendar, $props['icons']),
+        ];
+    }
+
+    /**
+     * Tier 1's skeleton, as the template and Tier1Skeleton.tsx draw it, from the shape it last settled to.
+     *
+     * Each slot is a declared strip in the shell's order: the strip, when the shape remembers cards in it,
+     * and the pending notice's line after New enrolments, when the shape had it. The ghost closes the last
+     * remembered strip that is not Starts soon, as Block.tsx places it, or stands alone after the strips;
+     * with no strip at all, the empty state's line. With no shape (a first visit, a new site, an invalid
+     * value), one untitled strip of three cards in one row stands in (ADR-018 decision 1): its grid clips
+     * every row after the first, so it is one row at any column count.
+     *
+     * Public for its tests: it reads nothing, and a shape's every branch (the pending notice among them,
+     * which the shell draws only with enrol_apply installed) is reached without a fixture.
+     *
+     * @param array|null $shape The validated shape (tier1_preference), or null.
+     * @param array $strips The declared strips, name and title each, in order.
+     * @param bool $category Whether cards draw their category line (show_category).
+     * @return array slots (each strip or null, and note), ghostalone, empty and category; a strip holds
+     *     hastitle, title, count, later, completion, closing, onerow and cards, a list of count items.
+     */
+    public static function skeleton(?array $shape, array $strips, bool $category): array {
+        if ($shape === null) {
+            $strip = self::skeleton_strip('', 3, false, true, false);
+            $strip['onerow'] = true;
+
+            return [
+                'slots' => [['strip' => $strip, 'note' => false]],
+                'ghostalone' => false,
+                'empty' => false,
+                'category' => $category,
+            ];
+        }
+        $remembered = [];
+        foreach ($shape['strips'] as [$name, $count, $completion]) {
+            $remembered[$name] = [$count, $completion];
+        }
+        // The ghost closes the last remembered strip that is not Starts soon: those courses are not the ghost's.
+        $closing = null;
+        if ($shape['ghost']) {
+            foreach (array_reverse(array_keys($remembered)) as $name) {
+                if ($name !== 'scheduled') {
+                    $closing = $name;
+                    break;
+                }
+            }
+        }
+        $slots = [];
+        foreach ($strips as $declared) {
+            $name = $declared['name'];
+            $strip = null;
+            if (isset($remembered[$name])) {
+                [$count, $completion] = $remembered[$name];
+                $strip = self::skeleton_strip($declared['title'], $count, $name === 'scheduled', $completion, $name === $closing);
+            }
+            // The notice follows New enrolments' place whether or not that strip has cards, as in Block.tsx.
+            $note = $name === 'new' && $shape['pending'];
+            if ($strip !== null || $note) {
+                $slots[] = ['strip' => $strip, 'note' => $note];
+            }
+        }
+
+        return [
+            'slots' => $slots,
+            'ghostalone' => $shape['ghost'] && $closing === null,
+            'empty' => $shape['strips'] === [],
+            'category' => $category,
+        ];
+    }
+
+    /**
+     * One skeleton strip.
+     *
+     * @param string $title The strip's title, or '' for a bar.
+     * @param int $count How many cards, held to 1 to tier1_preference::MAX_CARDS here as well: skeleton() is public,
+     *     and only tier1_preference::read() bounds what it is handed.
+     * @param bool $later Whether it is Starts soon: a state pill and no action on its cards.
+     * @param bool $completion Whether its cards draw a completion area.
+     * @param bool $closing Whether the ghost closes its grid.
+     * @return array hastitle, title, count, later, completion, closing, onerow (false) and cards.
+     */
+    private static function skeleton_strip(string $title, int $count, bool $later, bool $completion, bool $closing): array {
+        $count = max(1, min(tier1_preference::MAX_CARDS, $count));
+        return [
+            'hastitle' => $title !== '',
+            'title' => $title,
+            'count' => $count,
+            'later' => $later,
+            'completion' => $completion,
+            'closing' => $closing,
+            'onerow' => false,
+            // Mustache has no loop by count: one item per card, which the client's props leave out.
+            'cards' => array_fill(0, $count, ['card' => true]),
+        ];
+    }
+
+    /**
+     * The skeleton without its card lists, for the props: the client draws count cards.
+     *
+     * @param array $skeleton The skeleton (skeleton()).
+     * @return array The same, each strip without cards.
+     */
+    private static function without_cards(array $skeleton): array {
+        foreach ($skeleton['slots'] as $at => $slot) {
+            if ($slot['strip'] !== null) {
+                unset($skeleton['slots'][$at]['strip']['cards']);
+            }
+        }
+
+        return $skeleton;
+    }
+
+    /**
+     * The calendar's head as the strip's first render draws it, for the shell's skeleton (ADR-018 decision 5).
+     *
+     * Closed, the line's loading row: the toggle, five waiting cells and the calendar link
+     * (CalendarLine.tsx with no counts). Open, the strip's frame: the toggle, the month's bar, the link,
+     * then the row's waiting skeleton (CalendarStrip.tsx skeleton()), its day columns clipped by the row,
+     * so their number changes no height. The view switch is absent from both, as in React's first render,
+     * which knows no views until the answer. The template draws it all aria-hidden, with no control.
+     *
+     * @param array $calendar The calendar props (calendar()).
+     * @param array $icons The block's icons, for the toggle's chevrons.
+     * @return array style, open, region, waiting, icons (expanded, collapsed, collapsedrtl, calendar), periods and days.
+     */
+    private static function calendar_head(array $calendar, array $icons): array {
+        return [
+            'style' => $calendar['style'],
+            'open' => $calendar['state']['open'],
+            'region' => $calendar['strings']['cal_region'],
+            'waiting' => $calendar['strings']['cal_waiting'],
+            'icons' => [
+                'expanded' => $icons['expanded'],
+                'collapsed' => $icons['collapsed'],
+                'collapsedrtl' => $icons['collapsedrtl'],
+                'calendar' => $calendar['icons']['calendar'],
+            ],
+            // CalendarLine.tsx's five waiting cells.
+            'periods' => array_fill(0, 5, ['cell' => true]),
+            // CalendarStrip.tsx skeleton() before the row is measured: 800 px over a 50 px pitch, plus one.
+            'days' => array_fill(0, 17, ['day' => true]),
         ];
     }
 

@@ -23,7 +23,12 @@
  * the props, so the first paint reserves the shape it keeps: the row's skeleton open, the line's
  * closed. Its request leaves only when tier 1's request has settled, answered or failed: Block hands
  * the turn down (decision 2). Closed, that request is get_strip_counts and nothing else: no
- * get_strip, no get_day. Opening asks get_strip once; closing asks nothing, the line being summed
+ * get_strip, no get_day. With the open-courses line on, that first read travels in one request beside
+ * get_news (ADR-017 amendment 1): the block starts the pair and hands the strip its share as batched, which
+ * the strip awaits in place of its own first ask, under its own sequence number; a read the batch did not
+ * answer is asked again alone, and every later ask is the strip's own. The strip keeps the block's
+ * openref current, so the pair leaves with the strip's first read for the shape it has then. Opening
+ * asks get_strip once; closing asks nothing, the line being summed
  * from the payload in hand (calendar.ts, countsOf()). Either answer carries Up next's gate (ADR-016
  * decision 3), and get_soon is asked only when it opens (UpNext.tsx, useUpNext()); the region is the
  * section's last child, under the line or the row, so it sits between the calendar's head and tier 1
@@ -64,7 +69,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {CSSProperties, FocusEvent, HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode} from 'react';
 import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
@@ -81,6 +86,7 @@ import {sectionTag} from './heading';
 import {notify} from './notify';
 import {writeCalendarPreference} from './calendarpref';
 import {getDay, getStrip, getStripCounts} from './repository';
+import type {StripFirst} from './repository';
 import {hold} from './pending';
 import {fill, fillCount, fillObject} from './str';
 import type {
@@ -90,6 +96,12 @@ import type {
 
 /** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
 const NARROW_PX = 640;
+
+/**
+ * No course to outline, as one array for the life of the page: the block keeps what it is handed in state, and a
+ * new empty array each time would re-render the whole block for a change that is no change.
+ */
+const NO_COURSES: number[] = [];
 
 /** Pointing at a day this long opens it. */
 const OPEN_DELAY_MS = 120;
@@ -128,6 +140,11 @@ type CalendarStripProps = {
     onOpenCourses: (courseids: number[]) => void,
     // Told the open-courses line's weight whenever it changes; see StripWeight.
     onWeight: (weight: StripWeight) => void,
+    // The strip's share of the block's batch (ADR-017 amendment 1), from the turn the pair left; null when the
+    // strip's first read went alone (the line off or hidden).
+    batched: StripFirst | null,
+    // Kept at the strip's open state on every render, so the block starts the pair with the right first read.
+    stripopen: {current: boolean},
 };
 
 /**
@@ -457,7 +474,9 @@ const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): st
 // A component's render branches all count toward its complexity; splitting it into smaller components is
 // a refactor of its own, so the count is acknowledged here.
 // eslint-disable-next-line complexity
-const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCourses, onWeight}: CalendarStripProps) => {
+const CalendarStrip = ({
+    config, calendar, turn, width, pointedCourse, onOpenCourses, onWeight, batched, stripopen,
+}: CalendarStripProps) => {
     const {strings} = calendar;
     // Open: the row of days; closed: the line of counts. Seeded from the props, so the first paint has
     // the remembered shape and never flashes the other (amendment 11).
@@ -498,7 +517,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     // shows the periods' short names.
     const [fits, setFits] = useState(true);
     // Bumped by the ResizeObserver, so a head or a line that changed size is measured again.
-    const [, setResized] = useState(0);
+    const [resized, setResized] = useState(0);
     // Up after Escape, so the icon switch's tooltips hide until the pointer or the keyboard comes back
     // to the switch (WCAG 1.4.13, dismissible).
     const [tipsoff, setTipsoff] = useState(false);
@@ -513,9 +532,12 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     const writeseq = useRef(0);
     // The period, or the grading cell, a press opened the strip on, until the row is there to show it.
     const periodtarget = useRef<LineTarget | null>(null);
-    // Whether the strip is open now, for an answer that lands after a toggle.
+    // Whether the strip is open now, for an answer that lands after a toggle; the block's copy too.
     const openref = useRef(open);
     openref.current = open;
+    stripopen.current = open;
+    // Whether the batch's share has been awaited: only the first ask of its shape takes it, every later ask is alone.
+    const firsttaken = useRef(false);
     // The sequence number of the request whose answer counts, per view:date; a key absent here was
     // never asked or failed, so asking again is allowed.
     const asked = useRef<Record<string, number>>({});
@@ -643,6 +665,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         }
         const mine = stripseq.current + 1;
         stripseq.current = mine;
+        // The batch's row when the pair left with the strip open, once; else the strip's own ask.
+        const handed = batched !== null && batched.open && !firsttaken.current ? batched.answer : null;
+        if (handed !== null) {
+            firsttaken.current = true;
+        }
         /**
          * Ask for the strip, and keep the answer only while it is still the current request.
          *
@@ -650,7 +677,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
          */
         const run = async(): Promise<void> => {
             try {
-                const answer = await getStrip();
+                const answer = await (handed ?? getStrip());
                 if (stripseq.current !== mine) {
                     return;
                 }
@@ -688,6 +715,11 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         }
         const mine = countsseq.current + 1;
         countsseq.current = mine;
+        // The batch's counts when the pair left with the strip closed, once; else the strip's own ask.
+        const handed = batched !== null && !batched.open && !firsttaken.current ? batched.answer : null;
+        if (handed !== null) {
+            firsttaken.current = true;
+        }
         /**
          * Ask for the counts; say their summary once, if the strip is still closed when they land.
          *
@@ -695,7 +727,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
          */
         const run = async(): Promise<void> => {
             try {
-                const answer = await getStripCounts();
+                const answer = await (handed ?? getStripCounts());
                 if (countsseq.current !== mine) {
                     return;
                 }
@@ -728,15 +760,15 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             return;
         }
         if (!open) {
-            onOpenCourses(periodcourses ?? []);
+            onOpenCourses(periodcourses ?? NO_COURSES);
             return;
         }
         const day = payload && openday !== null
             ? payload.views[drawnView(payload, view)].days.find((entry) => entry.date === openday)
             : undefined;
-        onOpenCourses(day ? day.courseids : []);
+        onOpenCourses(day ? day.courseids : NO_COURSES);
     }, [payload, openday, view, onOpenCourses, open, periodcourses, soonpoint]);
-    useEffect(() => () => onOpenCourses([]), [onOpenCourses]);
+    useEffect(() => () => onOpenCourses(NO_COURSES), [onOpenCourses]);
 
     useEffect(() => () => {
         window.clearTimeout(opentimer.current);
@@ -1297,14 +1329,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         return () => document.removeEventListener('keydown', onkey);
     }, []);
 
-    // Whether the closed line fits its head on one row, measured before paint on every render, with no
-    // container query (the fleet's stylelint forbids @container). On one row nothing in the head wraps or
-    // shrinks (styles.css), so the sum of its children's widths and gaps is the line's natural width at
-    // the periods' whole names, kept as what the head needs; over the head's width, the cells move to a
-    // row of their own and the periods show their short names. Back on two rows, the kept need decides
-    // when one row fits again; a change of what the line draws (linekey) measures it from one row again.
-    // A ResizeObserver on the head and the line re-renders on a size change the block's width does not
-    // carry (the line's numbers, a web font arriving). A narrow block has its own layout and no measure.
+    // A ResizeObserver on the head and the line, (re)attached whenever a render drew them anew: it bumps
+    // resized on a size change the block's width does not carry (the line's numbers, a web font arriving)
+    // and once when it starts watching, which measures a head that was just drawn. Reads no layout, so it
+    // may run on every render.
     useLayoutEffect(() => {
         const head = headbox.current;
         const line = head?.querySelector('.compass-cal-line') ?? null;
@@ -1316,6 +1344,20 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             watch.forEach((el) => sizer.current?.observe(el));
             sized.current = watch;
         }
+    });
+
+    // Whether the closed line fits its head on one row, measured before paint, with no container query
+    // (the fleet's stylelint forbids @container). On one row nothing in the head wraps or shrinks
+    // (styles.css), so the sum of its children's widths and gaps is the line's natural width at the
+    // periods' whole names, kept as what the head needs; over the head's width, the cells move to a row
+    // of their own and the periods show their short names. Back on two rows, the kept need decides when
+    // one row fits again; a change of what the line draws (linekey) measures it from one row again. A
+    // narrow block has its own layout and no measure. Measured only when what it depends on changed, never
+    // on every render: the first read after a commit that changed the page forces a layout of the whole
+    // page (docs/performance-audit/PLAN.md, item 1).
+    useLayoutEffect(() => {
+        const head = headbox.current;
+        const line = head?.querySelector('.compass-cal-line') ?? null;
         if (!head || !line || open || narrow) {
             return;
         }
@@ -1338,7 +1380,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         } else if (measured.current.need > 0 && measured.current.need <= room) {
             setFits(true);
         }
-    });
+    }, [linekey, open, narrow, fits, resized]);
 
     /**
      * Open or close the strip, and remember it at once. The write is optimistic: if it fails while it
@@ -2481,4 +2523,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     });
 };
 
-export default CalendarStrip;
+// Memoised: every prop the block passes is stable between its renders (its config, setters, a callback with no
+// dependencies, numbers), so the strip renders for its own state and for a change of what it is given, not for
+// each of the block's many renders on a load or in tier 3.
+export default memo(CalendarStrip);

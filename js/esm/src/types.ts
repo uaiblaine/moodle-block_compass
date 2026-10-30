@@ -200,6 +200,51 @@ export type BlockConfig = {
     calendar?: CalendarConfig,
     // Present only while news_enabled is on (ADR-017 decision 1): absent, nothing is mounted or asked.
     news?: NewsConfig,
+    // Tier 1's place while get_attention travels (ADR-018): the surface, the stored shapes and the skeleton.
+    tier1: Tier1Config,
+};
+
+/** One remembered strip: its name, how many cards it drew and whether any drew a completion area. */
+export type Tier1Strip = [Strip['name'], number, boolean];
+
+/**
+ * Tier 1's shape on one surface, as classes/local/tier1_preference.php validates it and tier1shape.ts writes
+ * it: its strips with cards, in the shell's order; whether the tier 2 ghost showed; whether the pending notice
+ * under New enrolments showed.
+ */
+export type Tier1Shape = {strips: Tier1Strip[], ghost: boolean, pending: boolean};
+
+/** One skeleton strip (classes/output/block.php skeleton_strip(), without the template's card list). */
+export type SkeletonStrip = {
+    hastitle: boolean,
+    title: string,
+    count: number,
+    // Starts soon: a state pill and no action on its cards.
+    later: boolean,
+    completion: boolean,
+    // Whether the ghost closes its grid.
+    closing: boolean,
+    // The fallback's grid, one row at any column count.
+    onerow: boolean,
+};
+
+/** Tier 1's skeleton, the one the template draws (templates/tier1_skeleton.mustache); see Tier1Skeleton.tsx. */
+export type SkeletonModel = {
+    slots: {strip: SkeletonStrip | null, note: boolean}[],
+    ghostalone: boolean,
+    empty: boolean,
+    category: boolean,
+};
+
+/**
+ * What the shell ships for tier 1's place (ADR-018): where the block is, the validated shape of every surface
+ * (the client compares what it settles to with its own surface's and carries the other's in a write), and the
+ * skeleton drawn while the answer travels.
+ */
+export type Tier1Config = {
+    surface: 'dashboard' | 'page',
+    shapes: Record<string, Tier1Shape | null>,
+    skeleton: SkeletonModel,
 };
 
 /** The two views of the strip (decision 11): the courses the viewer is graded in, and the rest. */

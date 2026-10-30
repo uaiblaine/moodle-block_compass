@@ -194,6 +194,44 @@ final class get_soon_budget_test extends advanced_testcase {
     }
 
     /**
+     * After a course visit, Up next costs what the warm call costs plus the inventory's refill: the strip's
+     * entry is not rebuilt.
+     *
+     * A visit moves the inventory stamp's last access (core writes user_lastaccess as the course page loads),
+     * so the inventory refills itself (its stale hit is one read more than a valid one); the strip's entry,
+     * whose set is not bounded, is kept (strip::stamp_compared()). Before the performance audit's item 5 the
+     * entry was rebuilt whole here, the strip's counts pass and its statements. The control: the entry the
+     * call leaves is the one built before the visit.
+     *
+     * @return void
+     */
+    public function test_a_course_visit_adds_only_the_inventory_refill(): void {
+        global $DB, $USER;
+
+        $now = time();
+        [$user, $course] = $this->learner_fixture($now);
+        $this->warm($user, 'learning');
+        $this->entry_from_counts();
+        $this->new_request();
+        $meter = budget::start();
+        get_soon::execute('learning');
+        $warmreads = $meter->reads();
+        $before = calendar_cache::get((int) $USER->id);
+
+        $DB->insert_record('user_lastaccess', (object) [
+            'userid' => (int) $user->id, 'courseid' => (int) $course->id, 'timeaccess' => $now + MINSECS,
+        ]);
+        $this->new_request();
+        $meter = budget::start();
+        $answer = get_soon::execute('learning');
+        $visitreads = $meter->reads();
+
+        $this->assertSame($before['stamp'], calendar_cache::get((int) $USER->id)['stamp'], 'The entry must not be rebuilt.');
+        $this->assertSame($warmreads + 1, $visitreads, 'A visit adds the inventory refill and nothing else.');
+        $this->assertCount(3, $answer['items']);
+    }
+
+    /**
      * Warm core, then measure the service cold, warm and repeated for one view.
      *
      * @param \stdClass $user The user.
