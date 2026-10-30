@@ -73,6 +73,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- The client reads layout when what it measures changed, never on every render (2026042016 on this branch,
+  ported from the 5.3 branch, #87; the performance audit's item 1, whose plan and logs stay on `main` in
+  `docs/performance-audit/PLAN.md`). The calendar's closed line is measured when its contents, its state, its
+  width class, its fit or its size change, instead of after every render of the strip; tier 3's chip and scope
+  fades are drawn when the chips, the step or the line's width change and on their own scroll; the strip is
+  memoised and hands the block one empty course list, so it no longer renders for each of the block's renders.
+  Measured on the 5.3 branch at 4x CPU (interleaved, bundle only): the line's measures per load fall from 8 to
+  4; typing in tier 3 forces 42-54 % less layout and its INP falls from 256-288 to 200-224 ms. Held by
+  `tests/local/layout_measure_rules_test.php` and four mutation gates.
+
 - Open for enrolment, round 2 (2026042015 on this branch; ADR-017): the line is a panel of its own, drawn in the
   maintainer's approved design (`docs/mockup-new-courses/Rodada2.dc.html`), client only. The full
   line, the slim panel (the compact sentence) and the empty state's tiles share one container: a

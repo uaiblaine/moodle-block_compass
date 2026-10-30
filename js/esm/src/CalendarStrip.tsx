@@ -64,7 +64,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {CSSProperties, FocusEvent, HTMLAttributes, KeyboardEvent, PointerEvent, ReactNode} from 'react';
 import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
@@ -90,6 +90,12 @@ import type {
 
 /** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
 const NARROW_PX = 640;
+
+/**
+ * No course to outline, as one array for the life of the page: the block keeps what it is handed in state, and a
+ * new empty array each time would re-render the whole block for a change that is no change.
+ */
+const NO_COURSES: number[] = [];
 
 /** Pointing at a day this long opens it. */
 const OPEN_DELAY_MS = 120;
@@ -498,7 +504,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     // shows the periods' short names.
     const [fits, setFits] = useState(true);
     // Bumped by the ResizeObserver, so a head or a line that changed size is measured again.
-    const [, setResized] = useState(0);
+    const [resized, setResized] = useState(0);
     // Up after Escape, so the icon switch's tooltips hide until the pointer or the keyboard comes back
     // to the switch (WCAG 1.4.13, dismissible).
     const [tipsoff, setTipsoff] = useState(false);
@@ -728,15 +734,15 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             return;
         }
         if (!open) {
-            onOpenCourses(periodcourses ?? []);
+            onOpenCourses(periodcourses ?? NO_COURSES);
             return;
         }
         const day = payload && openday !== null
             ? payload.views[drawnView(payload, view)].days.find((entry) => entry.date === openday)
             : undefined;
-        onOpenCourses(day ? day.courseids : []);
+        onOpenCourses(day ? day.courseids : NO_COURSES);
     }, [payload, openday, view, onOpenCourses, open, periodcourses, soonpoint]);
-    useEffect(() => () => onOpenCourses([]), [onOpenCourses]);
+    useEffect(() => () => onOpenCourses(NO_COURSES), [onOpenCourses]);
 
     useEffect(() => () => {
         window.clearTimeout(opentimer.current);
@@ -1297,14 +1303,10 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         return () => document.removeEventListener('keydown', onkey);
     }, []);
 
-    // Whether the closed line fits its head on one row, measured before paint on every render, with no
-    // container query (the fleet's stylelint forbids @container). On one row nothing in the head wraps or
-    // shrinks (styles.css), so the sum of its children's widths and gaps is the line's natural width at
-    // the periods' whole names, kept as what the head needs; over the head's width, the cells move to a
-    // row of their own and the periods show their short names. Back on two rows, the kept need decides
-    // when one row fits again; a change of what the line draws (linekey) measures it from one row again.
-    // A ResizeObserver on the head and the line re-renders on a size change the block's width does not
-    // carry (the line's numbers, a web font arriving). A narrow block has its own layout and no measure.
+    // A ResizeObserver on the head and the line, (re)attached whenever a render drew them anew: it bumps
+    // resized on a size change the block's width does not carry (the line's numbers, a web font arriving)
+    // and once when it starts watching, which measures a head that was just drawn. Reads no layout, so it
+    // may run on every render.
     useLayoutEffect(() => {
         const head = headbox.current;
         const line = head?.querySelector('.compass-cal-line') ?? null;
@@ -1316,6 +1318,20 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
             watch.forEach((el) => sizer.current?.observe(el));
             sized.current = watch;
         }
+    });
+
+    // Whether the closed line fits its head on one row, measured before paint, with no container query
+    // (the fleet's stylelint forbids @container). On one row nothing in the head wraps or shrinks
+    // (styles.css), so the sum of its children's widths and gaps is the line's natural width at the
+    // periods' whole names, kept as what the head needs; over the head's width, the cells move to a row
+    // of their own and the periods show their short names. Back on two rows, the kept need decides when
+    // one row fits again; a change of what the line draws (linekey) measures it from one row again. A
+    // narrow block has its own layout and no measure. Measured only when what it depends on changed, never
+    // on every render: the first read after a commit that changed the page forces a layout of the whole
+    // page (docs/performance-audit/PLAN.md, item 1).
+    useLayoutEffect(() => {
+        const head = headbox.current;
+        const line = head?.querySelector('.compass-cal-line') ?? null;
         if (!head || !line || open || narrow) {
             return;
         }
@@ -1338,7 +1354,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
         } else if (measured.current.need > 0 && measured.current.need <= room) {
             setFits(true);
         }
-    });
+    }, [linekey, open, narrow, fits, resized]);
 
     /**
      * Open or close the strip, and remember it at once. The write is optimistic: if it fails while it
@@ -2481,4 +2497,7 @@ const CalendarStrip = ({config, calendar, turn, width, pointedCourse, onOpenCour
     });
 };
 
-export default CalendarStrip;
+// Memoised: every prop the block passes is stable between its renders (its config, setters, a callback with no
+// dependencies, numbers), so the strip renders for its own state and for a change of what it is given, not for
+// each of the block's many renders on a load or in tier 3.
+export default memo(CalendarStrip);
