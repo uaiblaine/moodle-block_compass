@@ -200,7 +200,8 @@ audit; "code" means read and not yet measured (to measure in phase 3, before the
    state; no `$DB`), or skeleton cards; measure which. **Owner**: the grow is ADR-016 decision 1 ("tier 1 slides
    down rather than jumps") and ADR-017's "no reserved space"; keeping the slide without a shift needs the line
    overlaid or its slot reserved, both of which reverse those decisions. **Gate**: the probe's CLS threshold for P1
-   and D1 (≤ 0.1). 5.2: ports.
+   and D1 (≤ 0.1). 5.2: ports. **Parked** (owner, 2026-10-30): the shift is React's mount after the first paint, so
+   only a skeleton in the server's shell removes it (Fixes, PR 4).
 5. **Every course visit rebuilds the calendar strip on the next `get_soon` (server; measured).** `strip::revalidated()`
    (`classes/local/calendar/strip.php:538-545`) compares the entry's stamp with `inventory::get()['stamp']`, whose
    seven fields include `maxaccess` and the favourites (`inventory.php:78`). The docblock means enrolments; any course
@@ -252,7 +253,7 @@ One pull request each, smallest first, each with the A/B of its scenarios on m50
 | 1 | 1: the three per-render measures, `memo(CalendarStrip)`, the stable `[]`, the source gate | `fleet-fixer` | port |
 | 2 | 3: reads through `fetchOne` | `fleet-fixer` | no |
 | 3 | 5: the strip's stamp comparison and its budget test | `fleet-fixer`, `security-diff-read` first (a cache-validity rule) | port |
-| 4 | 4: tier 1's reserved height (after the owner's word on the grow) | `fleet-implementer` | port |
+| 4 | 4: tier 1's reserved height. Parked 2026-10-30: the client cannot reserve it (see Fixes); a server skeleton waits for the owner | `fleet-implementer` | port |
 | 5 | 2: memo and deferred filtering in tier 3, measured at 250 rows | `fleet-implementer` | port |
 | 6 | 7: README sizing and the status check | `fleet-fixer` | port |
 | 7 | 6 and 8, after the owner's decisions | open | port |
@@ -290,6 +291,35 @@ commit count, not the request's start.
 Left in item 5: a bounded set (more than `inventory_max` courses, 250 by default) still rebuilds after any visit. The
 inventory's refilled rows already say which course was opened last, so a visit to a course already in the set could be
 told apart at no read; not done here, because such viewers are few and the rule would be one more to hold.
+
+| PR | Items | Version | Before → after (same protocol as PR 1; `docs/perf/2026-10-29-audit/pr4-ab.log`) | Gate |
+|---|---|---|---|---|
+| 4 | 4 | parked (owner, 2026-10-30) | Client skeleton in the remembered shape: CLS P1 s50 0.713 / 0.714 → 0.752 / 0.980; D1 s1000 0.386 / 0.385 → 0.351 / 0.351; D1 s50 0.380 / 0.383 → 0.345 / 0.346. Forced layout per Dashboard load rose: s1000 260 / 297 → 347 / 318 ms, s50 75 / 100 → 174 / 187 ms. | none: not merged |
+
+What PR 4 teaches: the skeleton had the right height (1404 px against the cards' 1485, the arrival moved the page 8 px),
+and CLS did not fall, because the shift is not the cards' arrival but React's mount. Timed on P1 s50: the server's
+shell is 24 px tall at 162 ms, first paint at 192, the mount draws the skeleton at 304, the cards land at 494. The
+bundle is an ES module, so it runs after parsing and the browser has painted the empty shell by then: nothing the
+client draws can hold the space. A fix has to come from the server's shell: the shape remembered in a user
+preference written on change, the skeleton rendered by the template, its columns from CSS (the 264 px track, 16 px
+gap and three-column cap of `columns.ts` written as a grid through a custom property). That is a stored member, a
+privacy export and a template change, and it waits for the owner. The client attempt is kept as a patch beside the
+audit's instruments (`moodle-dev/docs/client-performance-audit/block_compass-2026-10-29/pr4-client-skeleton-parked.patch`);
+its column read before the first paint and its shape memory carry over to a server version.
+
+| PR | Items | Version | Before → after (same protocol as PR 1; I2 at s50 full and at 250 rows full) | Gate |
+|---|---|---|---|---|
+| 5 | 2 | 2026100518 | I2 typing "cour", s50 full: INP 248 / 200 → 152 / 144 ms, TBT 338 / 217 → 218 / 139 ms, forced layout 265 / 230 → 245 / 201 ms. At 250 rows full (`compass_s250`): INP 552 / 720 → 296 / 288 ms, TBT 1124 / 1789 → 821 / 554 ms, forced layout 482 / 692 → 514 / 482 ms. I1 ghost press, 250 rows: INP 112 / 200 → 96 / 120 ms, TBT 472 / 690 → 490 / 452 ms (no change beyond noise). Load average 6-9 throughout (other sessions on the host). | `tests/local/explore_render_rules_test.php` (4 tests); gates `perf_row_memo`, `perf_rowcard_memo`, `perf_rowlist_memo`, `perf_group_memo`, `perf_details_stable_object`, `perf_group_inline_handler`, `perf_group_toolbar_element`, `perf_group_stable_empty`, `perf_explore_deferred_term`, `perf_explore_deferred_typed`, `perf_facets_read_applied`, `perf_facets_per_row_copy` |
+
+PR 5 keeps a closed group's rows rendered, against the item's remedy: the browser's find in page opens a closed
+`<details>` holding the text (its toggle reaches the group's state), and a search opens every group it matches, so
+rows left unmounted while closed would mount on the first typed term instead. Memoised, a closed group's rows render
+only when they change; the cost left is the first mount (I1), measured unchanged here (the ghost press at 250 rows, INP 96-120 ms), so the rows stay mounted.
+
+What PR 5 teaches: at 50 rows typing is under the 200 ms target; at 250 rows it is halved and still about 290 ms, and the
+forced layout per typed term did not move (about 500 ms at 250 rows). React now skips the rows that did not change, so
+what remains is the browser laying out the rows that did, and the deferred render that follows the box: the lever left is
+drawing fewer rows per term (a row list that renders only what is in view), not fewer React renders.
 
 ## After
 

@@ -27,7 +27,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import Archive from "./Archive";
 import Crests from "./Crests";
 import Progress from "./Progress";
@@ -183,7 +183,7 @@ const Row = /* @__PURE__ */ __name(({ row, config, now, lang, detail, waiting, o
     }
   );
 }, "Row");
-var Row_default = Row;
+var Row_default = memo(Row);
 export {
   Row_default as default
 };

@@ -12,6 +12,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+import { memo } from "react";
 import Row from "./Row";
 import RowCard from "./RowCard";
 const RowList = /* @__PURE__ */ __name(({
@@ -50,16 +51,16 @@ const RowList = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-        lineNumber: 66,
+        lineNumber: 67,
         columnNumber: 25
       }
     ) }, row.id, false, {
       fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-      lineNumber: 65,
+      lineNumber: 66,
       columnNumber: 21
     })) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-      lineNumber: 63,
+      lineNumber: 64,
       columnNumber: 13
     });
   }
@@ -82,20 +83,20 @@ const RowList = /* @__PURE__ */ __name(({
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-      lineNumber: 90,
+      lineNumber: 91,
       columnNumber: 21
     }
   ) }, row.id, false, {
     fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-    lineNumber: 89,
+    lineNumber: 90,
     columnNumber: 17
   })) }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-    lineNumber: 87,
+    lineNumber: 88,
     columnNumber: 9
   });
 }, "RowList");
-var RowList_default = RowList;
+var RowList_default = memo(RowList);
 export {
   RowList_default as default
 };

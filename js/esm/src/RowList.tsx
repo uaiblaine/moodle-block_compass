@@ -25,6 +25,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {memo} from 'react';
 import Row from './Row';
 import RowCard from './RowCard';
 import type {RowDetails} from './rowdetails';
@@ -106,4 +107,5 @@ const RowList = ({
     );
 };
 
-export default RowList;
+// Memoised: a group renders again when it opens, closes or pages, and its rows may be the same array.
+export default memo(RowList);

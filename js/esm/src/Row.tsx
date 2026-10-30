@@ -40,7 +40,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useRef} from 'react';
+import {memo, useEffect, useRef} from 'react';
 import Archive from './Archive';
 import Crests from './Crests';
 import Progress from './Progress';
@@ -166,4 +166,6 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
     );
 };
 
-export default Row;
+// Memoised: tier 3 renders every row it holds on each of its renders, and a keystroke or a batch of details
+// changes the props of a few rows at most (docs/performance-audit/PLAN.md, item 2).
+export default memo(Row);
