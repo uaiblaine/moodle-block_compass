@@ -1,0 +1,8 @@
+== before compass_s50
+get_soon           warm {"reads":9,"writes":0,"ms":8.9,"bytes":116} | after a course visit {"reads":20,"writes":0,"ms":24.3,"bytes":116} | next {"reads":9,"writes":0,"ms":8.7,"bytes":116}
+== before compass_s1000
+get_soon           warm {"reads":9,"writes":0,"ms":29.4,"bytes":116} | after a course visit {"reads":20,"writes":0,"ms":112.9,"bytes":116} | next {"reads":9,"writes":0,"ms":35.9,"bytes":116}
+== after compass_s50
+get_soon           warm {"reads":9,"writes":0,"ms":8,"bytes":116} | after a course visit {"reads":10,"writes":0,"ms":9.6,"bytes":116} | next {"reads":9,"writes":0,"ms":7.2,"bytes":116}
+== after compass_s1000
+get_soon           warm {"reads":9,"writes":0,"ms":32.9,"bytes":116} | after a course visit {"reads":20,"writes":0,"ms":118.2,"bytes":116} | next {"reads":9,"writes":0,"ms":33.1,"bytes":116}

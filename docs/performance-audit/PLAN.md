@@ -283,6 +283,14 @@ the block removes; the bridge's own ordering cost 50-70 ms of it. The change sta
 and its data, no RequireJS on the first read), and the lever left on the first card is the server answer and the
 commit count, not the request's start.
 
+| PR | Items | Version | Before → after (m503b, `ws_reads.php`, one CLI process, only `strip.php` swapped) | Gate |
+|---|---|---|---|---|
+| 3 | 5 | none (PHP logic only) | `get_soon` after a course visit, s50 (unbounded set): 20 → 10 reads, 24.3 → 9.6 ms (warm: 9 reads, 8 ms). s1000 (bounded, above `inventory_max`): 20 reads both, by design. | `strip_test` ×4 (visit unbounded, visit bounded, star, suspension), `get_soon_budget_test::test_a_course_visit_adds_only_the_inventory_refill`; gates `perf_strip_stamp_all_fields`, `perf_strip_stamp_ignores_bound`, `perf_strip_stamp_drops_suspension` |
+
+Left in item 5: a bounded set (more than `inventory_max` courses, 250 by default) still rebuilds after any visit. The
+inventory's refilled rows already say which course was opened last, so a visit to a course already in the set could be
+told apart at no read; not done here, because such viewers are few and the rule would be one more to hold.
+
 ## After
 
 To be filled in phase 4.

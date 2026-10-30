@@ -57,6 +57,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   with the rest of the preference.
 ### Fixed
 
+- A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (the
+  performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
+  moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
+  strip: the counts pass and its statements. The access field is now compared only when the entry's course set
+  was bounded at `inventory_max`, where recency chooses the set; the enrolment and star fields and the group
+  set are compared as before, so leaving, being suspended in or losing a course still rebuilds it. Measured on
+  m503b for a learner with 50 courses: `get_soon` after a visit 20 → 10 reads and 24 → 10 ms (warm: 9 reads,
+  8 ms). Above `inventory_max` it still rebuilds. Held by four tests in `strip_test`, a budget test in
+  `get_soon_budget_test` and three mutation gates.
+
 - The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
   off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
 - Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
