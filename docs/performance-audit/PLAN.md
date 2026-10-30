@@ -228,7 +228,7 @@ audit; "code" means read and not yet measured (to measure in phase 3, before the
    accessed, Timeline and preference writes. **Remedy**: say it in the README's sizing section (with the
    prerequisite: session-mode caches mapped off the session store), and a `core\check` status check that warns when
    the flag is off. No code path changes. 5.2: ports.
-8. **Idle work (axis C; code, not measured).** Up next's minute tick (item 1) and `.compass-soon-dot`'s infinite
+8. **Idle work (axis C; PR 7b; baseline `docs/perf/2026-10-29-audit/pr7b-idle-baseline.log`).** Up next's minute tick (item 1) and `.compass-soon-dot`'s infinite
    `box-shadow` pulse (`styles.css:3544-3560`), which repaints every frame while an item is "now"; reduced motion is
    handled. **Remedy**: the tick in a leaf component and skipped while hidden; the pulse as a pseudo-element animating
    `transform` and `opacity`. Measure first with an Up next fixture (none of the seeded viewers has an item). 5.2: ports.
@@ -332,6 +332,15 @@ drawing fewer rows per term (a row list that renders only what is in view), not 
 PR 7a sends the strip's first read and `get_news` as one `fetchMany()` (ADR-017 amendment 1). The probe's `ws(last)`
 now sees one URL whose `info` lists both names, sorted (`block_compass_get_news,block_compass_get_strip_counts`); the
 audit scripts split it. Numbers to be measured on the final head.
+
+| PR | Items | Version | Before → after (m503b, viewer `compass_upnext`: 2 items and the "now" dot; 65 s idle windows, 4x CPU) | Gate |
+|---|---|---|---|---|
+| 7b | 8 | 2026100521 | `compass_upnext`, 65 s idle windows (`idle_probe.php`), bundle.js and styles.css swapped together. Visible: tasks 9313 / 8492 / 8792 / 8735 → 1679 / 1482 / 1284 / 1444 ms, style recalcs 3893-3897 → 448-578, DOM changes 6 → 1-3. Tab hidden: tasks 492-980 → 400-702 ms (noise; the window's return to the tab re-evaluates, 17 changes either side). Control without Up next: 422-654 ms, 314-378 recalcs. The pulse looks the same frame by frame, light and dark, with and without reduced motion (`pr7b-soon-dot.png`). Load 4-12 (`pr7b-idle-ab.log`; the earlier baseline, load 3-7, read 4502 / 4573 ms). | `tests/local/upnext_idle_rules_test.php` (4 tests), `accessibility_rules_test`; gates `upnext_tick_in_strip`, `upnext_tick_in_hook`, `upnext_tick_region_interval`, `upnext_tick_ignores_hidden`, `upnext_tick_no_visibility_listener`, `upnext_tick_resume_no_evaluate`, `upnext_away_rule`, `upnext_pulse_box_shadow`, `upnext_pulse_on_dot`, `upnext_reduced_motion_pulse` |
+
+PR 7b moves Up next's minute tick into the region (`UpNext`), which stops it while `document.hidden` and evaluates at
+once on `visibilitychange`; the strip is told only when the rows' count or the level changes (`advance()`). The
+dot's pulse is `.compass-soon-dot::after` scaled 1 → 2.25 (the old ring: 0 → 5px spread on an 8px dot) and faded
+0.45 → 0. Numbers to be measured on the final head.
 
 ## After
 

@@ -1,0 +1,8 @@
+load { 7.08 5.16 4.17 }
+b1-upnext [65s cpu4]: task=4502 ms script=16 ms style=3900 (484 ms) layout=1 (4 ms) mutations=6 | soon rows=2 dot=yes
+b1-upnext-hidden [65s cpu4 hidden]: task=375 ms script=39 ms style=4 (50 ms) layout=1 (3 ms) mutations=17 | soon rows=2 dot=yes
+b1-control-s50 [65s cpu4]: task=353 ms script=0 ms style=376 (29 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
+load { 3.21 4.38 4.08 }
+b2-upnext [65s cpu4]: task=4573 ms script=19 ms style=3901 (521 ms) layout=1 (2 ms) mutations=6 | soon rows=2 dot=yes
+b2-upnext-hidden [65s cpu4 hidden]: task=424 ms script=25 ms style=5 (59 ms) layout=2 (5 ms) mutations=18 | soon rows=2 dot=yes
+b2-control-s50 [65s cpu4]: task=287 ms script=0 ms style=324 (32 ms) layout=0 (0 ms) mutations=0 | soon rows=0 dot=no
