@@ -92,6 +92,14 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- Up next idles lighter (2026042021 on this branch, ported from the 5.3 branch, #93; the performance audit's
+  item 8). The minute tick moved from the strip's hook into the Up next region, so a minute re-renders that
+  region alone and the strip hears of it only when the rows' count or the level changes; the tick pauses while
+  the tab is hidden and evaluates at once when it is shown. The "now" dot's pulse is a pseudo-element
+  animating `transform` and `opacity` (the compositor's), where a `box-shadow` keyframe restyled the page
+  every frame. The look, the levels, the texts and the requests are unchanged. Held by
+  `tests/local/upnext_idle_rules_test.php`, `accessibility_rules_test` and ten mutation gates.
+
 - The calendar strip's first read and the open-courses line travel in one request (2026042020 on this branch,
   ported from the 5.3 branch, #92; the performance audit's item 6; ADR-017 amendment 1). Once tier 1 has
   settled, with the line on and not hidden, `get_strip_counts` (the strip closed) or `get_strip` (open) and
