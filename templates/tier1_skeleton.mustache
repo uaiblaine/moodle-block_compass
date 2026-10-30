@@ -1,0 +1,147 @@
+{{!
+    This file is part of Moodle - http://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+}}
+{{!
+    @template block_compass/tier1_skeleton
+
+    Tier 1's place before any JavaScript runs (ADR-018): skeleton strips in the shape tier 1 last
+    settled to for this viewer on this surface, drawn by the shell inside the React mount point, so
+    the first paint already holds the height the cards will take. React's first render draws the
+    same elements with the same classes, in the same order, from the same context shipped in the
+    props (js/esm/src/Tier1Skeleton.tsx); tier1_skeleton_rules_test compares the two class
+    sequences, so a change here is made there too.
+
+    Each strip is the real strip's and card's anatomy (Strip.tsx, Card.tsx, Ghost.tsx) with every
+    text a bar shorter than its line, so each line keeps its height. The titles are the strips' real
+    titles, in divs with the heading's classes: a hidden placeholder writes no heading. The grid is
+    the CSS one of compass-sk-cards, whose track reproduces columns.ts from the block's own width.
+    The whole of it is aria-hidden.
+
+    Context variables required for this template (block_compass\output\block::skeleton()):
+    * slots - per declared strip with something to draw: strip (or null) and note, whether the
+      pending notice's line follows; a strip holds hastitle, title, later (Starts soon), completion,
+      closing (the ghost closes its grid), onerow (the fallback's one-row grid) and cards, one item
+      per card.
+    * ghostalone - whether the ghost stands alone after the strips.
+    * empty - whether the empty state's line stands in for the strips.
+    * category - whether cards draw their category line.
+
+    Example context (json):
+    {
+        "slots": [
+            {
+                "strip": {
+                    "hastitle": true,
+                    "title": "Continue where you left off",
+                    "later": false,
+                    "completion": true,
+                    "closing": true,
+                    "onerow": false,
+                    "cards": [{"card": true}, {"card": true}]
+                },
+                "note": false
+            },
+            {
+                "strip": {
+                    "hastitle": true,
+                    "title": "Starts soon",
+                    "later": true,
+                    "completion": false,
+                    "closing": false,
+                    "onerow": false,
+                    "cards": [{"card": true}]
+                },
+                "note": true
+            }
+        ],
+        "ghostalone": false,
+        "empty": false,
+        "category": true
+    }
+}}
+<div class="compass-tier1-skeleton" data-region="tier1-skeleton" aria-hidden="true">
+    {{#slots}}
+    {{#strip}}
+    <div class="compass-strip">
+        <div class="compass-strip-head">
+            <div class="compass-strip-title h6 fw-bold text-muted mb-0">{{#hastitle}}{{title}}{{/hastitle}}{{^hastitle}}<span class="compass-skeleton compass-skeleton-line compass-skeleton-title"></span>{{/hastitle}}</div>
+        </div>
+        <div class="compass-cards">
+            <div class="compass-cards-list compass-sk-cards{{#onerow}} compass-sk-onerow{{/onerow}}">
+                {{#cards}}
+                <div class="compass-cards-item">
+                    <div class="compass-card card h-100">
+                        <div class="compass-card-img compass-skeleton card-img-top"></div>
+                        <div class="card-body d-flex flex-column">
+                            {{#category}}
+                            <span class="compass-card-category small"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                            {{/category}}
+                            <div class="compass-card-title h6 mb-1"><span class="compass-skeleton compass-skeleton-line compass-skeleton-wide"></span></div>
+                            {{#later}}
+                            <span class="compass-state compass-skeleton compass-skeleton-pill">&nbsp;</span>
+                            {{/later}}
+                            {{^later}}
+                            <p class="compass-card-meta small mb-2"><span class="compass-skeleton compass-skeleton-line"></span></p>
+                            {{/later}}
+                            {{#completion}}
+                            <div class="compass-progress mb-2">
+                                <div class="progress compass-progress-bar"></div>
+                                <span class="compass-progress-text small"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                            </div>
+                            {{/completion}}
+                            {{^later}}
+                            <div class="compass-card-actions mt-auto d-flex align-items-center">
+                                <span class="btn btn-sm compass-skeleton compass-skeleton-action">&nbsp;</span>
+                            </div>
+                            {{/later}}
+                        </div>
+                    </div>
+                </div>
+                {{/cards}}
+                {{#closing}}
+                <div class="compass-cards-item">
+                    <div class="compass-ghost card h-100 text-center w-100">
+                        <span class="card-body d-flex flex-column justify-content-center">
+                            <span class="compass-ghost-count"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                            <span class="compass-ghost-text small"><span class="compass-skeleton compass-skeleton-line"></span></span>
+                            <span class="compass-ghost-cta small mt-2"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                        </span>
+                    </div>
+                </div>
+                {{/closing}}
+            </div>
+        </div>
+    </div>
+    {{/strip}}
+    {{#note}}
+    <p class="compass-strip-note small"><span class="compass-skeleton compass-skeleton-line compass-skeleton-wide"></span></p>
+    {{/note}}
+    {{/slots}}
+    {{#ghostalone}}
+    <div class="compass-ghost-wrap compass-sk-cards">
+        <div class="compass-ghost card h-100 text-center w-100">
+            <span class="card-body d-flex flex-column justify-content-center">
+                <span class="compass-ghost-count"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                <span class="compass-ghost-text small"><span class="compass-skeleton compass-skeleton-line"></span></span>
+                <span class="compass-ghost-cta small mt-2"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+            </span>
+        </div>
+    </div>
+    {{/ghostalone}}
+    {{#empty}}
+    <p class="compass-empty"><span class="compass-skeleton compass-skeleton-line compass-skeleton-wide"></span></p>
+    {{/empty}}
+</div>

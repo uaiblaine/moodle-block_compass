@@ -30,6 +30,7 @@ use block_compass;
 use block_compass\local\budget;
 use block_compass\local\calendar\day;
 use block_compass\local\config;
+use block_compass\local\tier1_preference;
 use block_compass\output\block as shell;
 use core\context\system as context_system;
 use core\context\user as context_user;
@@ -780,6 +781,239 @@ final class block_compass_test extends advanced_testcase {
         // The control: the line's props were rendered, so the zero is about a shell that built them.
         preg_match('/data-react-props=\'(.*?)\'/', $content->text, $matches);
         $this->assertArrayHasKey('news', json_decode(html_entity_decode($matches[1]), true));
+        $this->assertSame(0, $reads);
+    }
+
+    /**
+     * The shell's own skeleton, between the mount point's props and the never-mounts sentence.
+     *
+     * @param string $html The block's content.
+     * @return string The preload's markup.
+     */
+    private function preload(string $html): string {
+        $start = strpos($html, '<div class="compass-preload"');
+        $end = strpos($html, '<p class="compass-noscript">');
+        $this->assertNotFalse($start, 'the shell draws no preload');
+        $this->assertNotFalse($end, 'the never-mounts sentence is gone');
+        $this->assertLessThan($end, $start, 'the sentence follows the skeleton, which the CSS step relies on');
+
+        return substr($html, $start, $end - $start);
+    }
+
+    /**
+     * Without a stored shape, the shell draws the fallback: one untitled strip of three cards, in one row.
+     *
+     * The control is the same viewer with a shape stored: the fallback's markers go, so their presence here
+     * is the missing shape's doing (ADR-018 decision 1).
+     *
+     * @return void
+     */
+    public function test_without_a_stored_shape_the_shell_draws_the_one_row_fallback(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $html = $this->make_block()->get_content()->text;
+        $preload = $this->preload($html);
+        $this->assertMatchesRegularExpression('/<div class="compass-preload" aria-hidden="true">/', $preload);
+        $this->assertSame(1, substr_count($preload, 'data-region="tier1-skeleton"'));
+        $this->assertSame(1, substr_count($preload, '<div class="compass-strip">'));
+        $this->assertSame(3, substr_count($preload, '<div class="compass-card card h-100">'));
+        $this->assertSame(3, substr_count($preload, '<div class="compass-progress mb-2">'), 'completion drawn, core\'s default');
+        $this->assertStringContainsString('compass-sk-cards compass-sk-onerow', $preload);
+        $this->assertStringContainsString('compass-skeleton-title', $preload, 'an untitled strip: a bar for its title');
+        $this->assertStringNotContainsString('compass-ghost', $preload);
+        $this->assertStringNotContainsString('compass-cal', $preload, 'the calendar is off: no head');
+        // No heading and no control in it: a hidden placeholder is no section.
+        $this->assertDoesNotMatchRegularExpression('/<(h[1-6]|button|a)\b/', $preload);
+        $props = $this->props();
+        $this->assertSame(['dashboard' => null, 'page' => null], $props['tier1']['shapes']);
+        $this->assertSame('dashboard', $props['tier1']['surface']);
+        $this->assertSame(3, $props['tier1']['skeleton']['slots'][0]['strip']['count']);
+        $this->assertArrayNotHasKey('cards', $props['tier1']['skeleton']['slots'][0]['strip'], 'the client counts');
+
+        // The control.
+        set_user_preference(tier1_preference::NAME, json_encode([
+            'v' => 1,
+            'dashboard' => ['strips' => [['continue', 1, true]], 'ghost' => false, 'pending' => false],
+        ]));
+        $preload = $this->preload($this->make_block()->get_content()->text);
+        $this->assertStringNotContainsString('compass-sk-onerow', $preload);
+        $this->assertStringNotContainsString('compass-skeleton-title', $preload);
+        $this->assertSame(1, substr_count($preload, '<div class="compass-card card h-100">'));
+    }
+
+    /**
+     * With a stored shape, the shell draws it: the strips with their real titles in the shell's order, their
+     * cards, the ghost closing the last strip that is not Starts soon, and the pending notice after New.
+     *
+     * @return void
+     */
+    public function test_with_a_stored_shape_the_shell_draws_that_shape(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('enable_pending', 1, 'block_compass');
+        $dashboard = [
+            'strips' => [['continue', 2, true], ['new', 1, false], ['scheduled', 3, false]],
+            'ghost' => true,
+            'pending' => true,
+        ];
+        $page = ['strips' => [['favourites', 4, true]], 'ghost' => false, 'pending' => false];
+        set_user_preference(tier1_preference::NAME, json_encode(['v' => 1, 'dashboard' => $dashboard, 'page' => $page]));
+
+        $preload = $this->preload($this->make_block()->get_content()->text);
+
+        preg_match_all('/<div class="compass-strip-title h6 fw-bold text-muted mb-0">([^<]*)<\/div>/', $preload, $titles);
+        $this->assertSame(
+            [
+                get_string('strip_continue', 'block_compass'),
+                get_string('strip_new', 'block_compass'),
+                get_string('strip_scheduled', 'block_compass'),
+            ],
+            array_map('html_entity_decode', $titles[1])
+        );
+        $this->assertSame(6, substr_count($preload, '<div class="compass-card card h-100">'));
+        $this->assertSame(2, substr_count($preload, '<div class="compass-progress mb-2">'), 'Continue\'s two cards');
+        $this->assertSame(3, substr_count($preload, 'compass-skeleton-pill'), 'Starts soon\'s three pills');
+        $this->assertSame(3, substr_count($preload, 'compass-skeleton-action'), 'and no action on them');
+        $this->assertSame(1, substr_count($preload, '<div class="compass-ghost card h-100 text-center w-100">'));
+        $this->assertStringNotContainsString('compass-ghost-wrap', $preload, 'the ghost closes a strip');
+        // The ghost closes New, the last strip that is not Starts soon.
+        $new = strpos($preload, get_string('strip_new', 'block_compass'));
+        $ghost = strpos($preload, 'compass-ghost card');
+        $scheduled = strpos($preload, get_string('strip_scheduled', 'block_compass'));
+        $this->assertTrue($new < $ghost && $ghost < $scheduled, 'New, its ghost, then Starts soon');
+        // The notice's line needs the feature, which needs enrol_apply (config::pending_enabled());
+        // test_the_skeleton_places_the_ghost_and_the_notice_as_the_block_does reaches it without.
+        $pending = config::pending_enabled();
+        $this->assertSame($pending ? 1 : 0, substr_count($preload, '<p class="compass-strip-note small">'));
+
+        // The props carry both surfaces, as validated, for the client's comparison and its write.
+        $props = $this->props();
+        $expected = ['dashboard' => array_merge($dashboard, ['pending' => $pending]), 'page' => $page];
+        $this->assertSame($expected, $props['tier1']['shapes']);
+    }
+
+    /**
+     * The skeleton's model places the ghost and the pending notice as Block.tsx places them.
+     *
+     * The ghost closes the last remembered strip that is not Starts soon, or stands alone after the strips;
+     * the notice follows New enrolments' place whether or not that strip has cards; with no strip, the empty
+     * state's line; with no shape, one untitled strip of three cards in one row.
+     *
+     * @return void
+     */
+    public function test_the_skeleton_places_the_ghost_and_the_notice_as_the_block_does(): void {
+        $strips = [
+            ['name' => 'continue', 'title' => 'C'],
+            ['name' => 'new', 'title' => 'N'],
+            ['name' => 'scheduled', 'title' => 'S'],
+            ['name' => 'favourites', 'title' => 'F'],
+        ];
+        $model = shell::skeleton(
+            ['strips' => [['continue', 2, true], ['new', 1, false], ['scheduled', 3, false]], 'ghost' => true, 'pending' => true],
+            $strips,
+            false
+        );
+        $this->assertSame([false, true, false], array_column($model['slots'], 'note'), 'the notice follows New');
+        $this->assertSame(['C', 'N', 'S'], array_map(fn($slot) => $slot['strip']['title'], $model['slots']));
+        $this->assertSame([false, true, false], array_map(fn($slot) => $slot['strip']['closing'], $model['slots']));
+        $this->assertSame([false, false, true], array_map(fn($slot) => $slot['strip']['later'], $model['slots']));
+        $this->assertSame([2, 1, 3], array_map(fn($slot) => count($slot['strip']['cards']), $model['slots']));
+        $this->assertFalse($model['ghostalone']);
+        $this->assertFalse($model['empty']);
+        $this->assertFalse($model['category']);
+
+        // New without cards: the notice keeps its place, with no strip.
+        $model = shell::skeleton(['strips' => [['scheduled', 1, false]], 'ghost' => true, 'pending' => true], $strips, true);
+        $this->assertSame([['strip' => null, 'note' => true]], array_slice($model['slots'], 0, 1));
+        $this->assertTrue($model['ghostalone'], 'only Starts soon: the ghost stands alone');
+
+        $model = shell::skeleton(['strips' => [], 'ghost' => false, 'pending' => false], $strips, true);
+        $this->assertSame([], $model['slots']);
+        $this->assertTrue($model['empty']);
+
+        $model = shell::skeleton(null, $strips, true);
+        $this->assertCount(1, $model['slots']);
+        $this->assertTrue($model['slots'][0]['strip']['onerow']);
+        $this->assertFalse($model['slots'][0]['strip']['hastitle']);
+        $this->assertSame(3, $model['slots'][0]['strip']['count']);
+    }
+
+    /**
+     * The skeleton's model holds a strip's card count to the reader's bounds itself: skeleton() is public, and
+     * only tier1_preference::read() bounds what reaches it from the stored value.
+     *
+     * @return void
+     */
+    public function test_the_skeleton_holds_a_strips_count_to_the_readers_bounds(): void {
+        $strips = [['name' => 'continue', 'title' => 'C'], ['name' => 'new', 'title' => 'N']];
+        $model = shell::skeleton(
+            ['strips' => [['continue', 0, true], ['new', 1000, false]], 'ghost' => false, 'pending' => false],
+            $strips,
+            false
+        );
+        $bounds = [1, tier1_preference::MAX_CARDS];
+        $this->assertSame($bounds, array_map(fn($slot) => count($slot['strip']['cards']), $model['slots']));
+        $this->assertSame($bounds, array_map(fn($slot) => $slot['strip']['count'], $model['slots']));
+    }
+
+    /**
+     * Where the strip renders, the shell draws its head first: closed, the line's five waiting cells; open,
+     * the frame and the row's waiting skeleton.
+     *
+     * @return void
+     */
+    public function test_the_calendar_head_is_drawn_from_its_remembered_state(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('calendar_enabled', 1, 'block_compass');
+
+        $preload = $this->preload($this->make_block()->get_content()->text);
+        $this->assertMatchesRegularExpression(
+            '/<div class="compass-cal compass-cal-style-\w+ compass-cal-closed" aria-hidden="true">/',
+            $preload
+        );
+        $this->assertSame(5, substr_count($preload, '<li class="compass-cal-psk">'));
+        $this->assertStringNotContainsString('compass-cal-days-waiting', $preload);
+        $this->assertLessThan(strpos($preload, 'tier1-skeleton'), strpos($preload, 'compass-cal'), 'the head comes first');
+        $this->assertStringContainsString(get_string('cal_region', 'block_compass'), $preload);
+
+        set_user_preference('block_compass_calendar', json_encode(['open' => true]));
+        $preload = $this->preload($this->make_block()->get_content()->text);
+        $this->assertStringContainsString('compass-cal-isopen', $preload);
+        $this->assertStringContainsString('compass-cal-sk-month', $preload);
+        $this->assertStringContainsString('compass-cal-days compass-cal-days-waiting', $preload);
+        $this->assertStringNotContainsString('compass-cal-psk', $preload);
+    }
+
+    /**
+     * The shell with a stored shape and the calendar's head still reads nothing.
+     *
+     * The protocol of test_the_shell_costs_no_database_reads_when_core_is_warm(); the shape comes from the
+     * request's preference bundle (ADR-018 decision 5).
+     *
+     * @return void
+     */
+    public function test_the_shell_with_a_stored_shape_costs_no_database_reads_when_core_is_warm(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('calendar_enabled', 1, 'block_compass');
+        set_user_preference(tier1_preference::NAME, json_encode([
+            'v' => 1,
+            'dashboard' => ['strips' => [['continue', 3, true]], 'ghost' => true, 'pending' => false],
+        ]));
+
+        $this->make_block()->get_content();
+
+        $block = $this->make_block();
+        $block->page->get_renderer('core');
+
+        $meter = budget::start();
+        $content = $block->get_content();
+        $reads = $meter->reads();
+
+        // The control: the stored shape was drawn, so the zero is about a shell that read it.
+        $this->assertSame(3, substr_count($this->preload($content->text), '<div class="compass-card card h-100">'));
         $this->assertSame(0, $reads);
     }
 

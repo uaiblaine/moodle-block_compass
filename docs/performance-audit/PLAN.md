@@ -201,7 +201,8 @@ audit; "code" means read and not yet measured (to measure in phase 3, before the
    down rather than jumps") and ADR-017's "no reserved space"; keeping the slide without a shift needs the line
    overlaid or its slot reserved, both of which reverse those decisions. **Gate**: the probe's CLS threshold for P1
    and D1 (≤ 0.1). 5.2: ports. **Parked** (owner, 2026-10-30): the shift is React's mount after the first paint, so
-   only a skeleton in the server's shell removes it (Fixes, PR 4).
+   only a skeleton in the server's shell removes it (Fixes, PR 4). **Un-parked, ADR-018** (accepted 2026-10-30): the
+   shell draws the skeleton in the shape tier 1 last settled to, kept in `block_compass_tier1` (Fixes, PR 4b).
 5. **Every course visit rebuilds the calendar strip on the next `get_soon` (server; measured).** `strip::revalidated()`
    (`classes/local/calendar/strip.php:538-545`) compares the entry's stamp with `inventory::get()['stamp']`, whose
    seven fields include `maxaccess` and the favourites (`inventory.php:78`). The docblock means enrolments; any course
@@ -253,7 +254,7 @@ One pull request each, smallest first, each with the A/B of its scenarios on m50
 | 1 | 1: the three per-render measures, `memo(CalendarStrip)`, the stable `[]`, the source gate | `fleet-fixer` | port |
 | 2 | 3: reads through `fetchOne` | `fleet-fixer` | no |
 | 3 | 5: the strip's stamp comparison and its budget test | `fleet-fixer`, `security-diff-read` first (a cache-validity rule) | port |
-| 4 | 4: tier 1's reserved height. Parked 2026-10-30: the client cannot reserve it (see Fixes); a server skeleton waits for the owner | `fleet-implementer` | port |
+| 4 | 4: tier 1's reserved height. Parked 2026-10-30: the client cannot reserve it (see Fixes). Un-parked, ADR-018: the server's skeleton, PR 4b | `fleet-implementer` | port |
 | 5 | 2: memo and deferred filtering in tier 3, measured at 250 rows | `fleet-implementer` | port |
 | 6 | 7: README sizing and the status check | `fleet-fixer` | port |
 | 7 | 6 and 8, after the owner's decisions: 7a is item 6 (ADR-017 amendment 1, accepted 2026-10-30; this PR), 7b item 8 | open | port |
@@ -306,6 +307,14 @@ gap and three-column cap of `columns.ts` written as a grid through a custom prop
 privacy export and a template change, and it waits for the owner. The client attempt is kept as a patch beside the
 audit's instruments (`moodle-dev/docs/client-performance-audit/block_compass-2026-10-29/pr4-client-skeleton-parked.patch`);
 its column read before the first paint and its shape memory carry over to a server version.
+
+| PR | Items | Version | Before → after (same protocol as PR 1; M1-M7 of ADR-018) | Gate |
+|---|---|---|---|---|
+| 4b | 4 | 2026100522 | ADR-018 (accepted 2026-10-30): the shell's skeleton in the shape tier 1 last settled to (`block_compass_tier1`), the calendar's head, the CSS grid, React's first render alike. M1 (m503b, 4x CPU, 5 runs, two interleaved rounds, the whole plugin tree swapped): CLS P1 s50 repeat visit 0.714 / 0.900 → **0.066 / 0.066**; first visit (no stored shape, the one-row fallback) 0.714 / 0.714 → 0.269 / 0.269; D1 s50 0.383 / 0.383 → **0.038 / 0.038**; D1 s1000 0.386 / 0.386 → **0.044 / 0.044**. M2: no shift ≥ 0.01 at the mount on a repeat visit; the first visit's 0.198 is the cards past the fallback's row; what remains is the news line's accepted grow. M3: page PHP time unchanged (own page 80.7 / 80.1 → 80.2 / 81.5 ms; Dashboard 110.8 / 141.6 → 110.6 / 120.1 ms, noise). M4: HTML +15.4 KB raw, +1.0-1.1 KB sent (own page 97,034 → 112,467 B, 16,842 → 17,895 B gzip). M5: 0 preference writes in every measured load (nothing changed). M6: skeleton and card track counts equal at block widths 359, 529, 544, 549, 683, 703, 818, 822, 824, 826, 833 and 1034 px (thresholds 544 and 824). M7: `pr4b-tier1-skeleton.png`. Logs: `pr4b-ab2.log`, `pr4b-ab-server.log`. | `tests/local/tier1_preference_test.php`, `tests/local/tier1_skeleton_rules_test.php` (6 tests), `block_compass_test` (4 new), `provider_test`, `uninstall_test`, `lib_test`; 32 gates under "ADR-018" in `mutations/gates.conf` |
+
+PR 4b: the closed line's narrow form (a block under 640 px) is decided by the block's measured width after the
+first paint, which neither the shell nor React's first render can know; both draw the wide line, and the narrow
+form grows the head when the measure lands (M2 reports it).
 
 | PR | Items | Version | Before → after (same protocol as PR 1; I2 at s50 full and at 250 rows full) | Gate |
 |---|---|---|---|---|
