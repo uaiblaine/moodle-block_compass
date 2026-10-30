@@ -92,6 +92,20 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- The calendar strip's first read and the open-courses line travel in one request (2026042020 on this branch,
+  ported from the 5.3 branch, #92; the performance audit's item 6; ADR-017 amendment 1). Once tier 1 has
+  settled, with the line on and not hidden, `get_strip_counts` (the strip closed) or `get_strip` (open) and
+  `get_news` go in one batch of core's AMD `core/ajax` (`call([...])`, through the bridge: 5.2 has no ES
+  module ajax), the strip's read first: one bootstrap and one session check fewer per load, and the news lands
+  with the counts instead of a round trip after them. The block starts the pair once and hands the strip and
+  the line each its share, awaited under its own sequence number and held on Moodle's pending counter until
+  its own answer is drawn. `call([...])` gives each call its own promise, so an answered strip read survives a
+  failed news; a read the batch did not answer is asked again alone, the batch counting as its first attempt:
+  two retries 2 s apart, then its own notice. Unchanged: the news once per load, the strip's read alone while
+  the line is hidden, the news alone with the calendar off, `get_soon` never in a batch, and opening the strip
+  or a day asks alone. No server change; budgets unchanged. Held by `tests/local/batch_rules_test.php` and ten
+  mutation gates.
+
 - Typing in tier 3 renders only what the keystroke changed (2026042018 on this branch, ported from the 5.3
   branch, #90; the performance audit's item 2). The rows, the cards, their list and the category groups are
   memoised, and every prop tier 3 hands them is kept between renders (the group handlers, the Archive all bar,

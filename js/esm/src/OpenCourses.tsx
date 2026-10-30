@@ -18,8 +18,11 @@
  * band, grouped by reference category, drawn as option B of docs/mockup-new-courses/.
  *
  * Two halves, as Up next. useNews() is the asking, held by the block so a move of the line keeps its
- * answer: get_news once, when the block says it may (after tier 1 has settled and, with the calendar on,
- * after its counts have, so the weight is known), never on a timer and never again on visibilitychange.
+ * answer: get_news once, when the block says it may (after tier 1 has settled), never on a timer and never
+ * again on visibilitychange. With the calendar on, that once is the block's batch (ADR-017 amendment 1): the
+ * news left in one request with the strip's first read, and useNews() awaits the share it is handed in place
+ * of its own ask, under its own sequence number; the line is placed once the strip's answer is in, so the
+ * weight is known. A read the batch did not answer is asked again alone.
  * Nothing is asked while the shell says the line is hidden for this sign-in. A failure offers its own Try
  * again, and tier 1's asks again too. The × hides the line at once and writes the news member through
  * calendarpref.ts, which carries every other member of the preference; a failed write puts it back with
@@ -79,11 +82,17 @@ export type NewsMode = 'full' | 'compact' | 'tiles';
  * Ask for the line once the block says it may, keep the answer, and hide it for the sign-in.
  *
  * @param {object|undefined} news The line's props, absent when news_enabled is off.
- * @param {boolean} ready Whether tier 1 and, with the calendar, its counts have settled.
+ * @param {boolean} ready Whether tier 1 has settled and, with the calendar, the pair has left.
  * @param {number} turn The block's turn: tier 1's Try again bumps it, and a failed ask is asked again.
+ * @param {Promise|null} first The news' share of the block's batch, awaited by the first ask; null asks alone.
  * @returns {object} The answer, its failure, the hidden flag and the two actions; see NewsState.
  */
-export const useNews = (news: NewsConfig | undefined, ready: boolean, turn: number): NewsState => {
+export const useNews = (
+    news: NewsConfig | undefined,
+    ready: boolean,
+    turn: number,
+    first: Promise<NewsAnswer> | null,
+): NewsState => {
     const [answer, setAnswer] = useState<NewsAnswer | null>(null);
     const [failed, setFailed] = useState(false);
     const [retrying, setRetrying] = useState(false);
@@ -110,13 +119,14 @@ export const useNews = (news: NewsConfig | undefined, ready: boolean, turn: numb
     /**
      * Ask for the line, keeping the answer only while it is the last ask.
      *
+     * @param {Promise|null} handed The batch's news for the first ask; null asks alone (every retry).
      * @returns {Promise} Resolves when the answer or the failure is in state.
      */
-    const ask = async(): Promise<void> => {
+    const ask = async(handed: Promise<NewsAnswer> | null = null): Promise<void> => {
         const mine = seq.current + 1;
         seq.current = mine;
         try {
-            const got = await getNews();
+            const got = await (handed ?? getNews());
             if (seq.current === mine) {
                 setAnswer(got);
                 setFailed(false);
@@ -137,8 +147,8 @@ export const useNews = (news: NewsConfig | undefined, ready: boolean, turn: numb
             return;
         }
         asked.current = true;
-        ask();
-    }, [news, hidden, ready]);
+        ask(first);
+    }, [news, hidden, ready, first]);
 
     // Tier 1's Try again asks again for a failed line, as it does for the strip.
     useEffect(() => {

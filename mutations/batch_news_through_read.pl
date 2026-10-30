@@ -1,0 +1,1 @@
+s/const news = read<NewsAnswer>\('block_compass_get_news', \{\}, batch\.then\(\(calls\) => calls\[1\] as Promise<NewsAnswer>\)\);/const news = batch.then((calls) => calls[1] as Promise<NewsAnswer>);/;

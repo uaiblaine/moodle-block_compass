@@ -112,6 +112,19 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
 });
 
 /**
+ * Core's AMD core/ajax, through the bridge, loaded once per page.
+ *
+ * @returns {Promise} The module.
+ */
+const ajaxModule = (): Promise<AjaxModule> => {
+    if (!loading) {
+        loading = amd<AjaxModule>('core/ajax');
+    }
+
+    return loading;
+};
+
+/**
  * Call one web service, once.
  *
  * @param {string} methodname The external function.
@@ -119,10 +132,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
  * @returns {Promise} The answer.
  */
 const call = async<T>(methodname: string, args: Record<string, unknown>): Promise<T> => {
-    if (!loading) {
-        loading = amd<AjaxModule>('core/ajax');
-    }
-    const ajax = await loading;
+    const ajax = await ajaxModule();
 
     return await ajax.call([{methodname, args}])[0] as T;
 };
@@ -135,11 +145,15 @@ const call = async<T>(methodname: string, args: Record<string, unknown>): Promis
  * core_user/repository - because a write that may have landed must not be sent again. The
  * callers' sequence numbers already drop an answer that arrives after they moved on.
  *
+ * A read that travelled in a batch (getStripWithNews()) hands its share of the batch in as first: that
+ * is its first attempt, and each retry asks this read again alone, through call().
+ *
  * @param {string} methodname The external function.
  * @param {object} args Its arguments.
+ * @param {Promise|null} first The first attempt's answer when it was already asked in a batch; null asks it here.
  * @returns {Promise} The answer, or the last rejection.
  */
-const read = async<T>(methodname: string, args: Record<string, unknown>): Promise<T> => {
+const read = async<T>(methodname: string, args: Record<string, unknown>, first: Promise<T> | null = null): Promise<T> => {
     let retried = false;
     /**
      * This read is over: if it had been retrying, say so once no read is.
@@ -157,7 +171,7 @@ const read = async<T>(methodname: string, args: Record<string, unknown>): Promis
     };
     for (let attempt = 0; ; attempt++) {
         try {
-            const answer = await call<T>(methodname, args);
+            const answer = await (attempt === 0 && first !== null ? first : call<T>(methodname, args));
             settle();
 
             return answer;
@@ -297,14 +311,58 @@ export const getSoon = (view: CalendarView): Promise<SoonAnswer> =>
 /**
  * The courses open for enrolment for the current user, grouped by reference category (ADR-017).
  *
- * A read like the others, so it gets the bounded retry. Asked once, after tier 1 has settled and, with
- * the calendar on, after its counts have; never on a timer, and never while the line is hidden for this
+ * A read like the others, so it gets the bounded retry. Asked alone only with the calendar off, after tier 1
+ * has settled, and when a batch's news failed and is asked again; with the calendar on it leaves beside the
+ * strip's first read (getStripWithNews()). Never on a timer, and never while the line is hidden for this
  * sign-in (OpenCourses.tsx, useNews()).
  *
  * @returns {Promise} The band, the count, the groups and the link to everything open.
  */
 export const getNews = (): Promise<NewsAnswer> =>
     read<NewsAnswer>('block_compass_get_news', {});
+
+/**
+ * The strip's first read and the news, as the block hands them out: the strip's answer for the shape the
+ * strip had when the pair left (open: the row; closed: the counts), and the news.
+ */
+export type StripFirst = {open: true, answer: Promise<StripPayload>} | {open: false, answer: Promise<StripCounts>};
+
+/** The pair one batch carries; see getStripWithNews(). */
+export type StripWithNews = {strip: StripFirst, news: Promise<NewsAnswer>};
+
+/**
+ * The strip's first read and the open-courses line in ONE request (ADR-017 amendment 1): get_strip_counts
+ * with the strip closed or get_strip with it open, then get_news, through core's batch. One bootstrap and
+ * one session check instead of two, and the news lands with the counts.
+ *
+ * On 5.2 the batch is AMD core/ajax's call([...]) (amendment 1, decision 5): one request, and one promise
+ * per call. The strip's read goes first: core's service.php runs the calls in order and, with a Moodle
+ * cookie, stops at the first that fails, so the strip's read, the one the page needs most, always runs.
+ * Each call's promise settles on its own (lib/amd/src/ajax.js, requestSuccess()): an answered strip read
+ * keeps its answer when get_news fails, and a failed strip read rejects both, get_news having not run. Each
+ * read the batch did not answer is asked again alone, through its own read() - the batch was its first
+ * attempt, two retries 2 s apart follow, then its own notice. Retrying the pair together would let a fault
+ * in one fail the other three times. get_soon never joins (its gate opens from the counts' own answer), and
+ * a later get_strip or get_day is never batched: the news has been asked by then.
+ *
+ * Asked once per load, by the block, once tier 1 has settled and only with the line on and not hidden.
+ *
+ * @param {boolean} open Whether the strip is open: its first read is then get_strip, else get_strip_counts.
+ * @returns {object} Each read's promise; see StripWithNews.
+ */
+export const getStripWithNews = (open: boolean): StripWithNews => {
+    const stripmethod = open ? 'block_compass_get_strip' : 'block_compass_get_strip_counts';
+    const batch = ajaxModule().then((ajax) => ajax.call([
+        {methodname: stripmethod, args: {}},
+        {methodname: 'block_compass_get_news', args: {}},
+    ]));
+    const news = read<NewsAnswer>('block_compass_get_news', {}, batch.then((calls) => calls[1] as Promise<NewsAnswer>));
+    const strip: StripFirst = open
+        ? {open: true, answer: read<StripPayload>(stripmethod, {}, batch.then((calls) => calls[0] as Promise<StripPayload>))}
+        : {open: false, answer: read<StripCounts>(stripmethod, {}, batch.then((calls) => calls[0] as Promise<StripCounts>))};
+
+    return {strip, news};
+};
 
 /**
  * Remember the calendar strip as the viewer left it: the view, the filter, the relevance switch,
