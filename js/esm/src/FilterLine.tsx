@@ -507,6 +507,24 @@ const FilterLine = (props: FilterLineProps) => {
         fit();
     }, [fit, signature]);
 
+    /**
+     * Draw the fades of the rows that scroll sideways at a step. Elsewhere than the fourth step the scope does
+     * not scroll - it slides out under the grown search, which a measure taken mid-slide would read as an
+     * overflow - so it carries no fade.
+     *
+     * @param {string} step The step drawn.
+     * @returns {void}
+     */
+    const fadeRows = useCallback((step: Step): void => {
+        fades(chiprow.current);
+        const scope = line.current?.querySelector<HTMLElement>('.compass-scope') ?? null;
+        if (step === 's4') {
+            fades(scope);
+        } else {
+            scope?.classList.remove('compass-scroll-fade-start', 'compass-scroll-fade-end');
+        }
+    }, []);
+
     // The line's own width, never the viewport's: a drawer opening changes the one and not the other.
     useEffect(() => {
         const element = line.current;
@@ -536,6 +554,8 @@ const FilterLine = (props: FilterLineProps) => {
             release = hold('block_compass/FilterLine:fit');
             frame = window.requestAnimationFrame(() => {
                 fit();
+                // A new width can show or hide what the rows scroll past without changing the step.
+                fadeRows(drawnfold.current.step);
                 settle();
             });
         });
@@ -547,7 +567,7 @@ const FilterLine = (props: FilterLineProps) => {
             observer.disconnect();
             settle();
         };
-    }, [fit]);
+    }, [fit, fadeRows]);
 
     // A step that cannot grow the search closes it; the focus a step change took is given back.
     useLayoutEffect(() => {
@@ -639,17 +659,15 @@ const FilterLine = (props: FilterLineProps) => {
     }, [listshown, panelopen, menuopen, fold, growing, lineBottom, chips.length]);
 
     // The rows that scroll sideways show a fade on a hidden side: the chips, and the scope on its own
-    // line at the fourth step. Elsewhere the scope does not scroll - it slides out under the grown search,
-    // which a measure taken mid-slide would read as an overflow - so it carries no fade.
+    // line at the fourth step. Measured when what the rows hold or the step changed (here), on their own
+    // scroll, and when the line's width changed (its ResizeObserver): never on every render, where the
+    // first read after a commit that changed the page forces a layout of the whole page.
+    const fadeskey = JSON.stringify([
+        chips.map((chip) => [chip.key, chip.label]), folded && !growing ? query.trim() : '', signature,
+    ]);
     useLayoutEffect(() => {
-        fades(chiprow.current);
-        const scope = line.current?.querySelector<HTMLElement>('.compass-scope') ?? null;
-        if (fold.step === 's4') {
-            fades(scope);
-        } else {
-            scope?.classList.remove('compass-scroll-fade-start', 'compass-scroll-fade-end');
-        }
-    });
+        fadeRows(fold.step);
+    }, [fold.step, fadeskey, fadeRows]);
 
     // The option the keyboard is on previews what it would keep, and leaving the list clears it.
     const activeoption = listshown && current >= 0 ? options[current] : null;

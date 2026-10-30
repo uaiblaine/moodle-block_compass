@@ -1,0 +1,21 @@
+load { 6.89 5.91 5.31 }
+ab-after-c0 [5x cpu4 1358px]: ttfb=132 fcp=268 lcp=268 dcl=281 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=29.9 dom=375 req=49 kb=0 esm=36 | 
+  ws(last): core_output_load_template_with_dependencies@801+0 core_output_load_template_with_dependencies@812+0
+  lcp-el: dimensions-login-panel-title extra=null
+load { 6.22 5.92 5.34 }
+ab-after-p1 [5x cpu4 1358px]: ttfb=118 fcp=352 lcp=748 dcl=389 cls=0.714 tbt=0 lt=0 forced=20 inp=0 heap=42.6 dom=871 req=101 kb=2 esm=78 | mount@303 card@716 ghost@716 cal@460 news@860
+  ws(last): local_mail_count_messages@811+54 get_attention@913+79 get_strip_counts@1044+48 get_news@1155+45 core_output_load_template_with_dependencies@1332+2 core_output_load_template_with_dependencies@1382+1
+  lcp-el: compass-card-img card-img-top extra=[4,"746,787,1101,1136"]
+load { 5.78 5.83 5.32 }
+ab-after-d1 [5x cpu4 1358px]: ttfb=325 fcp=492 lcp=1692 dcl=728 cls=0.389 tbt=150 lt=6 forced=323 inp=0 heap=61.9 dom=2900 req=126 kb=20 esm=92 | mount@585 card@1585 ghost@1585 cal@887 news@2274
+  ws(last): local_mail_count_messages@1170+196 get_attention@1176+356 block_recentlyaccesseditems_get_recent_items@1288+163 core_calendar_get_action_events_by_timesort@1533+400 get_strip_counts@1834+156 core_output_load_template_with_dependencies@1837+5 core_output_load_template_with_dependencies@1869+1 core_course_get_enrolled_courses_by_timeline_classification@1876+187 get_news@2165+35
+  lcp-el: compass-card-img card-img-top extra=[4,"1000,1054,2060,2118"]
+load { 16.30 8.05 6.13 }
+ab-after-i1 [5x cpu4 1358px]: ttfb=136 fcp=308 lcp=632 dcl=372 cls=0.714 tbt=108 lt=2 forced=164 inp=64 heap=46.5 dom=1627 req=109 kb=4 esm=78 | mount@275 card@591 ghost@591 cal@431 news@826 explore@3162 row@3364
+  ws(last): local_mail_count_messages@604+54 get_attention@644+64 get_strip_counts@793+34 get_news@879+30 core_output_load_template_with_dependencies@1102+1 core_output_load_template_with_dependencies@1120+1 get_inventory@3314+142 get_card_details@3916+185
+  lcp-el: compass-card-img card-img-top extra=null
+load { 11.92 7.98 6.19 }
+ab-after-i2 [5x cpu4 1358px]: ttfb=105 fcp=296 lcp=632 dcl=343 cls=0.905 tbt=173 lt=3 forced=156 inp=200 heap=41.4 dom=1631 req=109 kb=4 esm=78 | mount@264 card@583 ghost@583 cal@389 news@733 explore@3109 row@3253
+  ws(last): local_mail_count_messages@441+53 get_attention@495+68 get_strip_counts@585+41 get_news@674+35 core_output_load_template_with_dependencies@942+1 core_output_load_template_with_dependencies@960+0 get_inventory@3176+41 get_card_details@3552+43
+  lcp-el: compass-card-img card-img-top extra=null
+DONE

@@ -1,0 +1,25 @@
+load { 6.14 7.24 6.14 }
+x1-before-c0 [5x cpu4 1358px]: ttfb=95 fcp=212 lcp=212 dcl=235 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=34.3 dom=686 req=94 kb=0 esm=77 | 
+load { 5.69 6.97 6.10 }
+x1-before-d1 [5x cpu4 1358px]: ttfb=261 fcp=384 lcp=1152 dcl=524 cls=0.388 tbt=57 lt=2 forced=269 inp=0 heap=59.2 dom=2900 req=126 kb=20 esm=92 | mount@438 card@1126 ghost@1126 cal@628 news@1586
+load { 5.37 6.76 6.05 }
+x1-before-i2 [5x cpu4 1358px]: ttfb=120 fcp=308 lcp=700 dcl=353 cls=0.714 tbt=259 lt=3 forced=344 inp=256 heap=28.8 dom=1631 req=109 kb=4 esm=78 | mount@266 card@687 ghost@687 cal@392 news@868 explore@3139 row@3349
+load { 6.27 6.71 6.07 }
+x1-after-c0 [5x cpu4 1358px]: ttfb=89 fcp=208 lcp=208 dcl=242 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=51.6 dom=686 req=94 kb=0 esm=77 | 
+load { 7.08 6.87 6.17 }
+x1-after-d1 [5x cpu4 1358px]: ttfb=258 fcp=380 lcp=1156 dcl=542 cls=0.386 tbt=65 lt=3 forced=257 inp=0 heap=55 dom=2900 req=126 kb=20 esm=92 | mount@436 card@1080 ghost@1080 cal@636 news@1647
+load { 6.10 6.66 6.11 }
+x1-after-i2 [5x cpu4 1358px]: ttfb=133 fcp=284 lcp=692 dcl=322 cls=0.714 tbt=236 lt=4 forced=200 inp=224 heap=34.2 dom=1631 req=109 kb=4 esm=78 | mount@238 card@641 ghost@641 cal@368 news@781 explore@3080 row@3311
+load { 6.79 6.71 6.16 }
+x2-before-c0 [5x cpu4 1358px]: ttfb=94 fcp=220 lcp=220 dcl=247 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=47.1 dom=686 req=94 kb=0 esm=77 | 
+load { 6.36 6.61 6.15 }
+x2-before-d1 [5x cpu4 1358px]: ttfb=300 fcp=444 lcp=1396 dcl=584 cls=0.389 tbt=116 lt=4 forced=342 inp=0 heap=59 dom=2900 req=126 kb=20 esm=92 | mount@476 card@1376 ghost@1376 cal@745 news@1931
+load { 5.57 6.40 6.09 }
+x2-before-i2 [5x cpu4 1358px]: ttfb=167 fcp=340 lcp=784 dcl=411 cls=0.924 tbt=320 lt=4 forced=387 inp=288 heap=47.7 dom=1631 req=109 kb=4 esm=78 | mount@313 card@772 ghost@772 cal@464 news@912 explore@3342 row@3521
+load { 6.81 6.69 6.22 }
+x2-after-c0 [5x cpu4 1358px]: ttfb=102 fcp=268 lcp=268 dcl=335 cls=0.005 tbt=0 lt=0 forced=0 inp=0 heap=34 dom=686 req=94 kb=0 esm=77 | 
+load { 6.16 6.52 6.18 }
+x2-after-d1 [5x cpu4 1358px]: ttfb=371 fcp=520 lcp=1500 dcl=716 cls=0.388 tbt=113 lt=7 forced=244 inp=0 heap=55.3 dom=2900 req=126 kb=20 esm=92 | mount@575 card@1408 ghost@1408 cal@857 news@1979
+load { 8.05 6.96 6.36 }
+x2-after-i2 [5x cpu4 1358px]: ttfb=113 fcp=244 lcp=612 dcl=265 cls=0.714 tbt=214 lt=4 forced=179 inp=200 heap=31 dom=1631 req=109 kb=4 esm=78 | mount@201 card@567 ghost@567 cal@304 news@701 explore@3052 row@3237
+DONE

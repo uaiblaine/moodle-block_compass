@@ -1,0 +1,81 @@
+load { 6.29 5.97 5.12 }
+c0-control [5x cpu4 1358px]: ttfb=196 fcp=340 lcp=340 dcl=432 cls=0.005 tbt=0 lt=0 forced=10 inp=0 heap=46.5 dom=686 req=94 kb=0 esm=77 | 
+  ws(last): local_mail_count_messages@601+46 core_output_load_template_with_dependencies@1106+1 core_output_load_template_with_dependencies@1120+0
+  lcp-el: h2 mb-0 extra=null
+load { 12.59 7.49 5.70 }
+p1-s50 [5x cpu4 1358px]: ttfb=434 fcp=576 lcp=1016 dcl=646 cls=0.714 tbt=0 lt=0 forced=16 inp=0 heap=46.1 dom=871 req=101 kb=2 esm=78 | mount@549 card@1002 ghost@1002 cal@727 news@1212
+  ws(last): local_mail_count_messages@588+63 get_attention@714+81 get_strip_counts@840+50 get_news@955+36 core_output_load_template_with_dependencies@1118+2 core_output_load_template_with_dependencies@1167+1
+  lcp-el: compass-card-img card-img-top extra=null
+load { 11.47 7.62 5.79 }
+p1-s300 [5x cpu4 1358px]: ttfb=192 fcp=400 lcp=896 dcl=465 cls=0.714 tbt=0 lt=0 forced=20 inp=0 heap=42.7 dom=892 req=107 kb=3 esm=78 | mount@369 card@882 ghost@882 cal@533 news@1071
+  ws(last): local_mail_count_messages@620+86 get_attention@642+203 get_strip_counts@895+46 get_news@992+50 core_output_load_template_with_dependencies@1129+1 core_output_load_template_with_dependencies@1162+1
+  lcp-el: compass-card-img card-img-top extra=null
+load { 11.00 7.86 5.94 }
+p1-s1000 [5x cpu4 1358px]: ttfb=140 fcp=284 lcp=752 dcl=358 cls=0.723 tbt=0 lt=0 forced=0 inp=0 heap=43 dom=893 req=103 kb=3 esm=78 | mount@264 card@740 ghost@740 cal@416 news@921
+  ws(last): local_mail_count_messages@535+65 get_attention@557+195 get_strip_counts@793+31 get_news@876+40 core_output_load_template_with_dependencies@1025+1 core_output_load_template_with_dependencies@1042+2
+  lcp-el: compass-card-img card-img-top extra=null
+load { 9.53 7.79 5.97 }
+d1-s50 [5x cpu4 1358px]: ttfb=161 fcp=336 lcp=980 dcl=415 cls=0.383 tbt=21 lt=1 forced=116 inp=0 heap=54.6 dom=2000 req=130 kb=15 esm=92 | mount@336 card@963 ghost@964 cal@519 news@1262
+  ws(last): local_mail_count_messages@732+44 get_attention@760+156 block_recentlyaccesseditems_get_recent_items@765+38 core_calendar_get_action_events_by_timesort@992+48 get_strip_counts@1098+38 core_course_get_enrolled_courses_by_timeline_classification@1230+58 get_news@1236+141 core_output_load_template_with_dependencies@1299+1 core_output_load_template_with_dependencies@1315+0
+  lcp-el: compass-card-img card-img-top extra=null
+load { 8.15 7.62 5.97 }
+d1-s1000 [5x cpu4 1358px]: ttfb=301 fcp=456 lcp=1400 dcl=677 cls=0.389 tbt=105 lt=5 forced=302 inp=0 heap=51.8 dom=2900 req=126 kb=20 esm=92 | mount@534 card@1370 ghost@1370 cal@816 news@1820
+  ws(last): local_mail_count_messages@960+51 get_attention@968+177 block_recentlyaccesseditems_get_recent_items@1015+31 core_calendar_get_action_events_by_timesort@1291+229 get_strip_counts@1451+140 core_output_load_template_with_dependencies@1514+1 core_output_load_template_with_dependencies@1528+0 core_course_get_enrolled_courses_by_timeline_classification@1566+175 get_news@1693+129
+  lcp-el: compass-card-img card-img-top extra=null
+load { 8.65 7.78 6.09 }
+Fatal error: Uncaught Facebook\WebDriver\Exception\ElementClickInterceptedException: element click intercepted: Element is not clickable at point (321, 1685)
+  (Session info: chrome=150.0.7871.124) in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php:96
+Stack trace:
+#0 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/HttpCommandExecutor.php(361): Facebook\WebDriver\Exception\WebDriverException::throwException()
+#1 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebDriver.php(601): Facebook\WebDriver\Remote\HttpCommandExecutor->execute()
+#2 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteExecuteMethod.php(23): Facebook\WebDriver\Remote\RemoteWebDriver->execute()
+#3 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebElement.php(78): Facebook\WebDriver\Remote\RemoteExecuteMethod->execute()
+#4 /tmp/compass_probe.php(119): Facebook\WebDriver\Remote\RemoteWebElement->click()
+#5 {main}
+  thrown in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php on line 96
+load { 10.64 8.23 6.27 }
+Fatal error: Uncaught Facebook\WebDriver\Exception\ElementClickInterceptedException: element click intercepted: Element is not clickable at point (321, 1689)
+  (Session info: chrome=150.0.7871.124) in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php:96
+Stack trace:
+#0 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/HttpCommandExecutor.php(361): Facebook\WebDriver\Exception\WebDriverException::throwException()
+#1 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebDriver.php(601): Facebook\WebDriver\Remote\HttpCommandExecutor->execute()
+#2 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteExecuteMethod.php(23): Facebook\WebDriver\Remote\RemoteWebDriver->execute()
+#3 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebElement.php(78): Facebook\WebDriver\Remote\RemoteExecuteMethod->execute()
+#4 /tmp/compass_probe.php(119): Facebook\WebDriver\Remote\RemoteWebElement->click()
+#5 {main}
+  thrown in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php on line 96
+load { 10.86 8.40 6.36 }
+Fatal error: Uncaught Facebook\WebDriver\Exception\ElementClickInterceptedException: element click intercepted: Element is not clickable at point (321, 1685)
+  (Session info: chrome=150.0.7871.124) in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php:96
+Stack trace:
+#0 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/HttpCommandExecutor.php(361): Facebook\WebDriver\Exception\WebDriverException::throwException()
+#1 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebDriver.php(601): Facebook\WebDriver\Remote\HttpCommandExecutor->execute()
+#2 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteExecuteMethod.php(23): Facebook\WebDriver\Remote\RemoteWebDriver->execute()
+#3 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebElement.php(78): Facebook\WebDriver\Remote\RemoteExecuteMethod->execute()
+#4 /tmp/compass_probe.php(119): Facebook\WebDriver\Remote\RemoteWebElement->click()
+#5 {main}
+  thrown in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php on line 96
+load { 9.85 8.30 6.36 }
+Fatal error: Uncaught Facebook\WebDriver\Exception\ElementClickInterceptedException: element click intercepted: Element is not clickable at point (321, 1722)
+  (Session info: chrome=150.0.7871.124) in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php:96
+Stack trace:
+#0 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/HttpCommandExecutor.php(361): Facebook\WebDriver\Exception\WebDriverException::throwException()
+#1 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebDriver.php(601): Facebook\WebDriver\Remote\HttpCommandExecutor->execute()
+#2 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteExecuteMethod.php(23): Facebook\WebDriver\Remote\RemoteWebDriver->execute()
+#3 /var/www/html/vendor/php-webdriver/webdriver/lib/Remote/RemoteWebElement.php(78): Facebook\WebDriver\Remote\RemoteExecuteMethod->execute()
+#4 /tmp/compass_probe.php(119): Facebook\WebDriver\Remote\RemoteWebElement->click()
+#5 {main}
+  thrown in /var/www/html/vendor/php-webdriver/webdriver/lib/Exception/WebDriverException.php on line 96
+load { 9.57 8.29 6.38 }
+i3-cal-s50 [5x cpu4 1358px]: ttfb=87 fcp=224 lcp=608 dcl=278 cls=0.716 tbt=27 lt=1 forced=64 inp=48 heap=47 dom=1258 req=103 kb=3 esm=78 | mount@197 card@591 ghost@591 cal@397 news@729
+  ws(last): local_mail_count_messages@398+37 get_attention@413+157 get_strip_counts@611+28 get_news@678+27 core_output_load_template_with_dependencies@901+0 core_output_load_template_with_dependencies@920+0 get_strip@2796+49
+  lcp-el: compass-card-img card-img-top extra=null
+load { 8.04 8.06 6.37 }
+m1-s50-390 [5x cpu4 390px]: ttfb=89 fcp=208 lcp=208 dcl=242 cls=0.062 tbt=23 lt=1 forced=80 inp=0 heap=49.5 dom=1245 req=98 kb=2 esm=78 | mount@170 card@529 ghost@529 news@714
+  ws(last): local_mail_count_messages@385+32 get_attention@481+50 get_strip@583+29 get_news@690+27 core_output_load_template_with_dependencies@866+1 core_output_load_template_with_dependencies@884+0
+  lcp-el: logininfo extra=null
+load { 7.45 7.93 6.37 }
+c0-control-end [5x cpu4 1358px]: ttfb=395 fcp=596 lcp=596 dcl=647 cls=0 tbt=0 lt=0 forced=0 inp=0 heap=44.6 dom=686 req=94 kb=0 esm=77 | 
+  ws(last): local_mail_count_messages@701+165 core_output_load_template_with_dependencies@1209+1 core_output_load_template_with_dependencies@1223+0
+  lcp-el: h2 mb-0 extra=null
+DONE
