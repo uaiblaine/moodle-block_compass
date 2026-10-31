@@ -13,6 +13,13 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Fixed
+
+- Tier 3's category index and the groups its links open clear Boost's fixed navbar (2026100523 on 5.3,
+  2026042023 on 5.2): the index stuck at the viewport's edge and a link landed its group's head behind the
+  navbar. Both offsets read core's `--navbar-height`, and a theme without a fixed navbar keeps the plain
+  half-rem margin.
+
 ## v5.3-r2 (2026100522) - 2026-10-30
 
 Second release for Moodle 5.3, from `main`, `MATURITY_BETA`. Most of it is the performance audit

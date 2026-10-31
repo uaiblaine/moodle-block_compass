@@ -439,12 +439,22 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     align-items: flex-start;
 }
 
+/* The page scrolls under core's fixed navbar (5.3 Boost scrolls the window, #page does not), so the
+   index sticks below it, by core's own token: a theme without a fixed navbar leaves it unset and the
+   offset is the half-rem alone. */
 .block_compass .compass-index {
     flex: 0 0 11rem;
     border-right: 1px solid var(--block_compass-line);
     padding-right: 0.75rem;
     position: sticky;
-    top: 0.5rem;
+    top: calc(var(--navbar-height, 0px) + 0.5rem);
+}
+
+/* What the index's links and "Explore all" bring into view (fragment navigation, scrollIntoView)
+   stops below the navbar too, with the same offset as the index. */
+.block_compass .compass-explore,
+.block_compass .compass-group {
+    scroll-margin-top: calc(var(--navbar-height, 0px) + 0.5rem);
 }
 
 .block_compass .compass-index a {
