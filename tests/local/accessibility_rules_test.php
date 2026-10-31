@@ -736,6 +736,42 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
+     * What sticks to the top, and what the index brings into view, clears core's fixed navbar.
+     *
+     * 5.3 Boost scrolls the window under a `position: fixed` navbar, so a sticky `top` or a scroll
+     * target measured from the viewport's edge ends up behind it. Core's `--navbar-height` is the
+     * offset; a theme without a fixed navbar leaves it unset and the fallback keeps the plain margin.
+     * Vacuity guard: the index's sticky rule and the two scroll targets must be found.
+     *
+     * @return void
+     */
+    public function test_sticky_and_scroll_targets_clear_the_fixed_navbar(): void {
+        $offset = '/calc\(\s*var\(\s*--navbar-height\s*,\s*0px\s*\)\s*\+/';
+        $sticky = 0;
+        $targets = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            if (preg_match('/\bposition\s*:\s*sticky\b/', $body)) {
+                $sticky++;
+                $this->assertMatchesRegularExpression(
+                    '/(?<![-\w])top\s*:\s*' . substr($offset, 1, -1) . '/',
+                    $body,
+                    "'{$selector}' sticks without clearing the navbar: it slides behind it"
+                );
+            }
+            if (preg_match('/\bscroll-margin-top\s*:\s*([^;]*)/', $body, $margin)) {
+                $this->assertMatchesRegularExpression($offset, $margin[1], "'{$selector}' lands behind the navbar");
+                foreach (preg_split('/\s*,\s*/', $selector) as $one) {
+                    $targets[] = $one;
+                }
+            }
+        }
+        $this->assertGreaterThan(0, $sticky, 'no sticky rule found in styles.css');
+        // The index's links land on a group, and "Explore all" brings the section into view.
+        $this->assertContains('.block_compass .compass-group', $targets);
+        $this->assertContains('.block_compass .compass-explore', $targets);
+    }
+
+    /**
      * An icon-only control wraps its glyph in core's icon-no-margin, so the glyph sits centred.
      *
      * Core's .icon carries a right margin for a glyph before a label (theme/boost/scss/moodle/
