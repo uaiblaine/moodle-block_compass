@@ -13,14 +13,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
-### Fixed
-
-- Tier 3's category index and the groups its links open clear Boost's fixed navbar (2026100523 on 5.3,
-  2026042023 on 5.2): the index stuck at the viewport's edge and a link landed its group's head behind the
-  navbar. Both offsets read core's `--navbar-height`, and a theme without a fixed navbar keeps the plain
-  half-rem margin.
-
-## v5.3-r2 (2026100522) - 2026-10-30
+## v5.3-r2 (2026100523) - 2026-10-30
 
 Second release for Moodle 5.3, from `main`, `MATURITY_BETA`. Most of it is the performance audit
 (`docs/performance-audit/PLAN.md`): tier 1 holds its place from the first paint with a skeleton the server
@@ -189,6 +182,9 @@ that plugin's `MOODLE_503_STABLE` branch, as v5.3-r1 did.
 
 ### Fixed
 
+- Tier 3's category index and the groups its links open clear Boost's fixed navbar (2026100523, #99): the
+  index stuck at the viewport's edge and a link landed its group's head behind the navbar. Both offsets read
+  core's `--navbar-height`, and a theme without a fixed navbar keeps the plain half-rem margin.
 - A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (the
   performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
   moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
@@ -213,7 +209,7 @@ that plugin's `MOODLE_503_STABLE` branch, as v5.3-r1 did.
   the settings, the task and the caches but leaves user preferences. The Course overview block's
   archive rows stay, since they are that block's.
 
-## v5.2-r2 (2026042022) - 2026-10-30
+## v5.2-r2 (2026042023) - 2026-10-30
 
 Second release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It ports the 5.3
 branch's performance audit: tier 1's skeleton rendered by the server (ADR-018), the calendar strip's first
@@ -378,6 +374,9 @@ from that plugin's `MOODLE_502_STABLE` branch, as v5.2-r1 did.
 
 ### Fixed
 
+- Tier 3's category index and the groups its links open clear Boost's fixed navbar (2026042023 on this
+  branch, #100): the index stuck at the viewport's edge and a link landed its group's head behind the navbar.
+  Both offsets read core's `--navbar-height`, and a theme without a fixed navbar keeps the plain half-rem margin.
 - A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (2026042017 on
   this branch, ported from the 5.3 branch, #89; the performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
   moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
