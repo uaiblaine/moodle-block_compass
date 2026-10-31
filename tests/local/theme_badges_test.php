@@ -26,13 +26,15 @@
 namespace block_compass\local;
 
 use advanced_testcase;
+use block_compass\fixtures\category_badges_listener;
 use block_compass\fixtures\course_badges_listener;
+use block_compass\hook\category_badges;
 use block_compass\hook\course_badges;
 use core\hook\manager;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
- * The crests: bounded, cleaned, switched by the setting, and read through the course_badges hook alone.
+ * The crests: bounded, cleaned, switched by the setting, and read through the course_badges and category_badges hooks alone.
  *
  * The bounding cases stand in for the hook with a callable; the hook cases replace core's hook
  * manager with one that knows only the fixture listener (tests/fixtures/course_badges_hooks.php)
@@ -45,6 +47,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
  */
 #[CoversClass(theme_badges::class)]
 #[CoversClass(course_badges::class)]
+#[CoversClass(category_badges::class)]
 final class theme_badges_test extends advanced_testcase {
     /**
      * Loads the fixture listener's class.
@@ -53,6 +56,7 @@ final class theme_badges_test extends advanced_testcase {
      */
     public static function setUpBeforeClass(): void {
         require_once(__DIR__ . '/../fixtures/course_badges_listener.php');
+        require_once(__DIR__ . '/../fixtures/category_badges_listener.php');
         parent::setUpBeforeClass();
     }
 
@@ -64,16 +68,18 @@ final class theme_badges_test extends advanced_testcase {
     protected function setUp(): void {
         parent::setUp();
         course_badges_listener::reset();
+        category_badges_listener::reset();
     }
 
     /**
-     * Replaces core's hook manager with one that knows the fixture listener, or no listener at all.
+     * Replaces core's hook manager with one that knows a fixture listener, or no listener at all.
      *
      * @param bool $withlistener Whether the fixture listener is registered.
+     * @param string $hooks The fixture registration file: the course_badges one or the category_badges one.
      * @return void
      */
-    private function use_hook_manager(bool $withlistener): void {
-        $files = $withlistener ? ['block_compass_fixture' => __DIR__ . '/../fixtures/course_badges_hooks.php'] : [];
+    private function use_hook_manager(bool $withlistener, string $hooks = 'course_badges_hooks.php'): void {
+        $files = $withlistener ? ['block_compass_fixture' => __DIR__ . '/../fixtures/' . $hooks] : [];
         \core\di::set(manager::class, manager::phpunit_get_instance($files));
     }
 
@@ -239,5 +245,100 @@ final class theme_badges_test extends advanced_testcase {
         $this->use_hook_manager(true);
 
         $this->assertFalse(theme_badges::has_answerer());
+    }
+
+    /**
+     * A category keeps its first crest with an address, cleaned; only the positive ids asked count.
+     *
+     * @return void
+     */
+    public function test_a_category_keeps_its_first_crest_with_an_address(): void {
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 1, 'block_compass');
+        $given = [];
+        $source = static function (array $categoryids) use (&$given): array {
+            $given = $categoryids;
+
+            return [
+                10 => [['url' => 'javascript:alert(1)', 'alt' => 'A'], self::crest('b', '<b>Crest</b> B'), self::crest('c', 'C')],
+                11 => 'not a list',
+                12 => [['url' => '', 'alt' => 'no address']],
+                99 => [self::crest('z', 'never asked')],
+            ];
+        };
+
+        $crests = theme_badges::for_categories([10, '11', 12, 0, -3, 10], $source);
+
+        $this->assertSame([10, 11, 12], $given, 'the source is asked once, with the positive ids, each once');
+        $this->assertSame(
+            [10 => ['url' => self::crest('b', '')['url'], 'alt' => 'Crest B']],
+            $crests,
+            'the first crest with a clean address, and only for a category that has one'
+        );
+    }
+
+    /**
+     * With the setting off no category crest is asked for at all; the control asks.
+     *
+     * @return void
+     */
+    public function test_the_setting_switches_the_category_crests(): void {
+        $this->resetAfterTest();
+        $calls = 0;
+        $source = static function (array $categoryids) use (&$calls): array {
+            $calls++;
+
+            return [$categoryids[0] => [self::crest('a', 'A')]];
+        };
+
+        set_config('show_theme_badges', 1, 'block_compass');
+        $this->assertCount(1, theme_badges::for_categories([5], $source), 'the control');
+        set_config('show_theme_badges', 0, 'block_compass');
+        $this->assertSame([], theme_badges::for_categories([5], $source));
+        $this->assertSame(1, $calls, 'the setting off must not ask');
+        $this->assertSame([], theme_badges::for_categories([], $source));
+    }
+
+    /**
+     * A category listener answers through its hook, for the asked ids only, and alone offers the setting.
+     *
+     * @return void
+     */
+    public function test_a_category_listener_answers_for_the_asked_ids_only(): void {
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 1, 'block_compass');
+        $this->use_hook_manager(false);
+        $this->assertFalse(theme_badges::has_answerer(), 'the control: no listener, no setting');
+
+        $this->use_hook_manager(true, 'category_badges_hooks.php');
+        category_badges_listener::$answers = [
+            21 => [self::crest('a', 'A'), self::crest('b', 'B')],
+            23 => [self::crest('z', 'never asked')],
+        ];
+
+        $crests = theme_badges::for_categories([21, 22]);
+
+        $this->assertTrue(theme_badges::has_answerer(), 'a category listener alone offers the setting');
+        $this->assertSame([[21, 22]], category_badges_listener::$asked, 'one dispatch for the batch');
+        $this->assertSame([21 => self::crest('a', 'A')], $crests, 'the first crest; the unasked id never reaches the block');
+    }
+
+    /**
+     * A category listener that throws costs the crests, never the response, and tells the developer.
+     *
+     * @return void
+     */
+    public function test_a_failing_category_listener_answers_nothing_and_is_reported(): void {
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 1, 'block_compass');
+        $this->use_hook_manager(true, 'category_badges_hooks.php');
+        category_badges_listener::$answers = [31 => [self::crest('a', 'A')]];
+        category_badges_listener::$fail = true;
+
+        $crests = theme_badges::for_categories([31]);
+
+        $this->assertDebuggingCalled();
+        $this->assertSame([], $crests);
+        $this->assertSame([[31]], category_badges_listener::$asked, 'the listener was reached');
     }
 }
