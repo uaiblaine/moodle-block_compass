@@ -13,6 +13,210 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+## v5.3-r2 (2026100522) - 2026-10-30
+
+Second release for Moodle 5.3, from `main`, `MATURITY_BETA`. Most of it is the performance audit
+(`docs/performance-audit/PLAN.md`): tier 1 holds its place from the first paint with a skeleton the server
+renders (ADR-018), the calendar strip's first read and the open-for-enrolment line travel in one batched
+request, the web service calls go straight to core's ES module ajax, the client reads layout only when it
+changed, typing in tier 3 and an idle Up next render less, a course visit no longer rebuilds the strip's
+cached entry, and a Performance overview check recommends read-only sessions. It also brings the
+open-for-enrolment line (ADR-017, stage 14 and its round 2 panel) and fixes to uninstall, the AMD bundle's
+download and the pending-JavaScript counter. It depends on `local_unlistedcourses` 2026100505 or later from
+that plugin's `MOODLE_503_STABLE` branch, as v5.3-r1 did.
+
+### Added
+
+- A Performance overview check for read-only sessions (2026100519; the performance audit's item 7,
+  `docs/performance-audit/PLAN.md`). The block's web services declare `readonlysession`, which core
+  honours only with `$CFG->enable_read_only_sessions` in config.php; the check warns while it is unset
+  (four concurrent reads on one session: 95th percentile 989 ms, against 75 ms on separate sessions)
+  and passes once it is set. It links to no page, because the flag is not an admin setting. The README
+  gains a *Sizing* section: the block's requests per load, the bootstrap floor and the flag's prerequisite.
+
+- Open for enrolment, smoke and documentation (2026100514; ADR-017 stage 14e): a Behat scenario for a
+  learner with open courses in the band and a course they teach, the demo seed's `compassdemo_open_*`
+  courses, the `news` screenshot shot and the README's bullet, four settings and two caches.
+
+- Open for enrolment, the client (2026100513; ADR-017 stage 14d). With `news_enabled` on, the
+  block draws a line of its own, *Open for enrolment*: how many courses the viewer could join start
+  by the band's last day, up to three categories as links (a category of one names its course),
+  "+N" for the rest and a × that hides the line until the next sign-in. It is asked for once, after
+  tier 1 and, with the calendar on, after the calendar's counts, and placed by what the block
+  already holds: the full line under the calendar when nothing is late, due today or tomorrow;
+  one muted sentence with "See" when there is; below tier 1's first strip while Up next shows; the
+  full line at the top when the calendar is off; and, for a viewer with no active course, tier 1's
+  empty state lists the categories as tiles with the way to every course open for enrolment. "See"
+  and "+N" open the list in a popover, a bottom sheet on a narrow block. Nothing is drawn when no
+  course counts. The line grows in as Up next does, at once under reduced motion. Every write of
+  the calendar preference now carries every member, so hiding the line keeps the calendar as the
+  viewer left it and the calendar's toggles keep the line hidden. Eleven strings in English and
+  Brazilian Portuguese.
+- Open for enrolment, the web service (2026100512; ADR-017 stage 14c, no client yet):
+  `block_compass_get_news`, the tenth read service, no parameters, current user only, read-only
+  session. It answers the band's two days, the total, the group count, whether the catalogue was
+  truncated, at most 20 groups (category, name, count, destination, and for a group of one the
+  course and its name) and the address of every open course. Off, or hidden by the user until the
+  next sign-in, it answers empty at the cost of the two reads every service pays; a fresh entry
+  costs the same. A group of one leads to its course's enrolment page; the other groups and the
+  root lead where the `category_link` hook says, in one dispatch per response, else to core's
+  category pages.
+- Open for enrolment, the server half (2026100511; ADR-017 stage 14b, no client yet). Four
+  settings in a section of their own after the calendar's: `news_enabled` (off by default),
+  `news_depth` (1 to 4), `news_past` (0, 7, 14 or 30 days) and `news_ahead` (14, 30, 60 or 90
+  days). Two cache definitions: `catalogue`, shared, the courses that are visible and listed,
+  start in the band (site-timezone days) and offer an enrolment route open now, rebuilt after any
+  course, enrolment-instance or discoverability event (`db/events.php` gains course_created, the
+  three enrol_instance events and local_unlistedcourses' two state events); and `news`, per user
+  for 30 minutes, the groups of courses the user could join, never one where they hold an
+  enrolment row of any status or a role on the course's path, deleted with the account. A new
+  hook, `\block_compass\hook\category_link`, lets a theme lead a group to a filtered category
+  page; with no listener, the line links to core's category pages. The `block_compass_calendar`
+  preference gains its `news` member (`{signin}`, the line hidden until the next sign-in), exported
+  with the rest of the preference.
+
+### Changed
+
+- Tier 1 holds its place from the first paint (2026100522; ADR-018, the performance audit's item 4,
+  `docs/performance-audit/PLAN.md`). The shell draws, inside the React mount point, a skeleton of the strips in
+  the shape they last settled to for this viewer on this surface (which strips, how many cards, whether a
+  completion area, the ghost and the pending notice), with the calendar's head above it where the strip
+  renders; React's first render draws the same markup from the props, so the mount no longer moves the page,
+  and the cards then replace it. Its columns come from CSS (`cardColumns()`'s 264 px track, 16 px gap and
+  three-track cap, and the 373 px card cap, as custom properties), so they need no measure. Without a
+  remembered shape one strip of one row stands in. It shows only with JavaScript; if the bundle never runs, a
+  CSS step about 10 s after the first paint replaces it with the "could not be loaded" sentence. The loading
+  line becomes a visually hidden status region. A new user preference, `block_compass_tier1`, keeps the shape
+  per surface: written by the browser through core's preference route only when the settled shape differs from
+  the stored one (never after a failure), validated member by member on read
+  (`classes/local/tier1_preference.php`), exported by the privacy provider and deleted on uninstall. The shell
+  still reads nothing from the database.
+
+- Up next idles lighter (2026100521; the performance audit's item 8, `docs/performance-audit/PLAN.md`). The
+  minute tick moved from the strip's hook into the Up next region, so a minute re-renders that region alone
+  and the strip hears of it only when the rows' count or the level changes; the tick pauses while the tab
+  is hidden and evaluates at once when it is shown. The "now" dot's pulse is a pseudo-element animating
+  `transform` and `opacity` (the compositor's), where a `box-shadow` keyframe restyled the page every frame.
+  The look, the levels, the texts and the requests are unchanged.
+
+- The calendar strip's first read and the open-courses line travel in one request (2026100520; the
+  performance audit's item 6, `docs/performance-audit/PLAN.md`; ADR-017 amendment 1). Once tier 1 has
+  settled, with the line on and not hidden, `get_strip_counts` (the strip closed) or `get_strip` (open) and
+  `get_news` go in one batch of core's `fetchMany`, the strip's read first: one bootstrap and one session
+  check fewer per load, and the news lands with the counts instead of a round trip after them. The block
+  starts the pair once and hands the strip and the line each its share, awaited under its own sequence
+  number and held on Moodle's pending counter until its own answer is drawn. A read the batch did not answer
+  is asked again alone, the batch counting as its first attempt: two retries 2 s apart, then its own notice
+  (on 5.3 a failed news re-asks the counts too). Unchanged: the news once per load, the strip's read alone
+  while the line is hidden, the news alone with the calendar off, `get_soon` never in a batch, and opening
+  the strip or a day asks alone. No server change; budgets unchanged.
+
+- Typing in tier 3 renders only what the keystroke changed (2026100518; the performance audit's item 2,
+  `docs/performance-audit/PLAN.md`). The rows, the cards, their list and the category groups are memoised,
+  and every prop tier 3 hands them is kept between renders (the group handlers, the Archive all bar, the
+  empty lists, the details store's object). Full mode filters from deferred copies of the applied term and
+  of the search box (React's `useDeferredValue`), so the keystroke commits first and the rows, the counts and
+  the suggestions follow in a render React may interrupt for the next key; the 150 / 300 ms debounces, paged
+  mode's requests and their sequence numbers are unchanged. The facet count normalises the query and reads the
+  selection once per count, not per row. Same rows, order, counts, announcements, focus and preview lighting;
+  a closed group still holds its rows, so the browser's find in page still opens it. Measurements to follow.
+  Held by `tests/local/explore_render_rules_test.php` and mutation gates.
+
+- The client's web service calls go straight to core's ES module `@moodle/lms/core/ajax` (`fetchOne`),
+  no longer through the AMD bridge (2026100517; the performance audit's item 3, Moodle 5.3 only: 5.2 has no
+  such module). The bridge waits for `core/first`, RequireJS's bundle of every AMD module, before it asks for a
+  module. Measured on m503b at 4x CPU (interleaved, bundle only): `get_attention` starts 50-70 ms sooner after
+  the mount on the block's page and 37-62 ms sooner on the Dashboard; the first card and the LCP move within
+  noise, because `core/first` still runs on the main thread in that window. Errors, the pending counter and the
+  retry are unchanged: 5.3's AMD `core/ajax` was already a wrapper of the same module. Preference writes and
+  notifications still cross the bridge, after the first paint. Held by `amd_bridge_rules_test` and a mutation
+  gate.
+
+- The client reads layout when what it measures changed, never on every render (2026100516; the performance
+  audit's item 1, `docs/performance-audit/PLAN.md`). The calendar's closed line is measured when its contents,
+  its state, its width class, its fit or its size change, instead of after every render of the strip; tier 3's
+  chip and scope fades are drawn when the chips, the step or the line's width change and on their own scroll;
+  the strip is memoised and hands the block one empty course list, so it no longer renders for each of the
+  block's renders. Measured on m503b at 4x CPU (interleaved, bundle only): the line's measures per load fall
+  from 8 to 4; typing in tier 3 forces 42-54 % less layout and its INP falls from 256-288 to 200-224 ms; the
+  Dashboard's load is unchanged within noise. Held by `tests/local/layout_measure_rules_test.php` and four
+  mutation gates.
+
+- Open for enrolment, round 2 (2026100515; ADR-017): the line is a panel of its own, drawn in the
+  maintainer's approved design (`docs/mockup-new-courses/Rodada2.dc.html`), client only. The full
+  line, the slim panel (the compact sentence) and the empty state's tiles share one container: a
+  gradient from a warm stop through the surface to the primary's subtle tint, a soft border, radius 16
+  (14 slim), three static sparkles. The head is the 40 px icon tile (the enrolment icon at 18 px), the
+  eyebrow ("Open for enrolment", sentence case, never capitals) and the summary; the groups are chips
+  on a row of their own, indented to the text, with the count in a 26 px circle and a group of one
+  showing its course muted; the × becomes a labelled close in the corner ("Hide", new string
+  `news_hide_short`, named in full by `news_hide`), its cross alone on a block under 640 px and in the
+  slim panel, where "See" is a pill beside it. Two new tokens, `--block_compass-news-warm` and
+  `--block_compass-news-sand`, with dark values. The contrast test computes the eyebrow, the summary
+  and the close on every stop of the gradient, light and dark, two brands (lowest 5.21:1), and a new
+  rule test pins the groups' own row, the close's name, its narrow shape and the absence of any
+  case transform. Twelve new mutation gates.
+  The popover and the bottom sheet of "See" are the same family (same 2026100515): the panel's
+  gradient and soft border, radius 14 (18 on top for the sheet), one sparkle, a head of the 34 px tile,
+  the eyebrow and the summary, each group a card on the surface (the accent at 55 % on hover), the
+  foot link in the accent's text at 700 and "Hide until the next sign-in" as the close's pill (cross
+  and `news_hide_short`, still named by `news_hide`). The contrast test reads the popover's texts on
+  every stop and on the row surface (lowest 5.21:1), and nine new mutation gates pin it.
+- The calendar strip's open and close chevron is drawn in the box a course section's toggle uses,
+  core's `btn btn-icon icons-collapse-expand` (2026100510), so the strip reads as expandable the
+  way a section does, in each Moodle version's own look; hovering the strip's toggle rings the box
+  as hovering a section's does.
+- The React sources lint with no warning under core's eslint, which `mdl ci` runs over
+  `js/esm/src` too (2026100509): the nested ternaries in `heading.ts`, the tier 3 column count and
+  the filter line's active option became plain conditions or lookups, and the six component bodies
+  whose render branches pass core's complexity cap (`Block`, `CalendarStrip`, `Explore`,
+  `FilterLine`, `Row`, `RowCard`) carry an acknowledged `complexity` exception. No behaviour changes.
+- Plugins directory readiness (2026100508): the package carries `LICENSE` beside `COPYING.txt`,
+  both the GPL v3 text, and ships English only: `lang/pt_br` stays in git, in step with `lang/en`,
+  but is left out of the release zip, and Portuguese reaches sites through AMOS. The tests that
+  read the Portuguese pack check it where the plugin directory carries it. The Compass page's
+  width cap keys on the page's own body class, `block_compass-page`, rather than the page's body
+  id, so every selector of `styles.css` names the plugin. The README gains *Data stored*,
+  *Settings* and *Translations* sections and lists the ninth web service, `block_compass_get_soon`.
+  `tests/marketplace_readiness_test.php`, the fleet's copy, holds these rules.
+
+### Fixed
+
+- A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (the
+  performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
+  moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
+  strip: the counts pass and its statements. The access field is now compared only when the entry's course set
+  was bounded at `inventory_max`, where recency chooses the set; the enrolment and star fields and the group
+  set are compared as before, so leaving, being suspended in or losing a course still rebuilds it. Measured on
+  m503b for a learner with 50 courses: `get_soon` after a visit 20 → 10 reads and 24 → 10 ms (warm: 9 reads,
+  8 ms). Above `inventory_max` it still rebuilds. Held by four tests in `strip_test`, a budget test in
+  `get_soon_budget_test` and three mutation gates.
+
+- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
+  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
+- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
+  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
+- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
+  (2026100511). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
+  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
+  downloading, so RequireJS fetched it again under the module's name. The block's one door to
+  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
+- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
+  `block_compass_calendar` preferences (`db/uninstall.php`, 2026100508): core's uninstall drops
+  the settings, the task and the caches but leaves user preferences. The Course overview block's
+  archive rows stay, since they are that block's.
+
+## v5.2-r2 (2026042022) - 2026-10-30
+
+Second release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It ports the 5.3
+branch's performance audit: tier 1's skeleton rendered by the server (ADR-018), the calendar strip's first
+read and the open-for-enrolment line in one batched request (through AMD `core/ajax`), layout read only when
+it changed, lighter typing in tier 3 and a lighter idle Up next, no strip rebuild after a course visit, and
+the read-only sessions check; the one item left out is the ES module ajax, which core 5.2 does not have. It
+also brings the open-for-enrolment line (ADR-017, stage 14 and its round 2 panel) and fixes to uninstall, the
+AMD bundle's download and the pending-JavaScript counter. It needs `local_unlistedcourses` 2026042003 or later
+from that plugin's `MOODLE_502_STABLE` branch, as v5.2-r1 did.
+
 ### Added
 
 - A Performance overview check for read-only sessions (2026042019 on this branch, ported from the 5.3 branch,
@@ -64,31 +268,6 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   page; with no listener, the line links to core's category pages. The `block_compass_calendar`
   preference gains its `news` member (`{signin}`, the line hidden until the next sign-in), exported
   with the rest of the preference.
-### Fixed
-
-- A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (2026042017 on
-  this branch, ported from the 5.3 branch, #89; the performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
-  moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
-  strip: the counts pass and its statements. The access field is now compared only when the entry's course set
-  was bounded at `inventory_max`, where recency chooses the set; the enrolment and star fields and the group
-  set are compared as before, so leaving, being suspended in or losing a course still rebuilds it. Measured on
-  the 5.3 branch for a learner with 50 courses: `get_soon` after a visit 20 → 10 reads and 24 → 10 ms (warm: 9 reads,
-  8 ms). Above `inventory_max` it still rebuilds. Held by four tests in `strip_test`, a budget test in
-  `get_soon_budget_test` and three mutation gates.
-
-- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
-  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
-- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
-  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
-- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
-  (2026042014). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
-  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
-  downloading, so RequireJS fetched it again under the module's name. The block's one door to
-  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
-- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
-  `block_compass_calendar` preferences (`db/uninstall.php`, 2026042011): core's uninstall drops
-  the settings, the task and the caches but leaves user preferences. The Course overview block's
-  archive rows stay, since they are that block's.
 
 ### Changed
 
@@ -189,6 +368,32 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   id, so every selector of `styles.css` names the plugin. The README gains *Data stored*,
   *Settings* and *Translations* sections and lists the ninth web service, `block_compass_get_soon`.
   `tests/marketplace_readiness_test.php`, the fleet's copy, holds these rules.
+
+### Fixed
+
+- A course visit no longer rebuilds the calendar strip's cached entry on the next Up next or day (2026042017 on
+  this branch, ported from the 5.3 branch, #89; the performance audit's item 5). `strip::revalidated()` compared the whole inventory stamp, whose last access
+  moves on every course visit, so the commonest navigation (a course page, then the Dashboard) rebuilt the
+  strip: the counts pass and its statements. The access field is now compared only when the entry's course set
+  was bounded at `inventory_max`, where recency chooses the set; the enrolment and star fields and the group
+  set are compared as before, so leaving, being suspended in or losing a course still rebuilds it. Measured on
+  the 5.3 branch for a learner with 50 courses: `get_soon` after a visit 20 → 10 reads and 24 → 10 ms (warm: 9 reads,
+  8 ms). Above `inventory_max` it still rebuilds. Held by four tests in `strip_test`, a budget test in
+  `get_soon_budget_test` and three mutation gates.
+
+- The open-for-enrolment line's title takes the section rung of the heading ladder: with the calendar
+  off it is the block's first heading, and a card title's rung skipped a level (axe `heading-order`).
+- Every write of `block_compass_calendar` (the strip's toggle, Up next's hide, the line's hide) holds
+  Moodle's pending-JavaScript counter until it settles, so a reload right after it reads the new value.
+- The block no longer downloads the site's whole AMD bundle a second time on a cold cache
+  (2026042014). With the JS cache on, Moodle serves every AMD module name as that one bundle, and
+  the block asked RequireJS for `core/ajax` while the page's own copy (`core/first`) was still
+  downloading, so RequireJS fetched it again under the module's name. The block's one door to
+  RequireJS (`amd.ts`) now waits for `core/first`, which the page has already asked for.
+- Uninstalling the plugin removes every user's `block_compass_view`, `block_compass_explore` and
+  `block_compass_calendar` preferences (`db/uninstall.php`, 2026042011): core's uninstall drops
+  the settings, the task and the caches but leaves user preferences. The Course overview block's
+  archive rows stay, since they are that block's.
 
 ## v5.3-r1 (2026100507) - 2026-10-22
 
