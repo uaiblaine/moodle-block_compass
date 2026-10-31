@@ -8,9 +8,14 @@
   and leaves room for a third model later. The condition: reading the model must not cost the line
   anything noticeable, or the feature is dropped.
 
-The mockup was reviewed in the same session. Stage S0's first gate (the model, on PostgreSQL) is
-measured and passes; its MariaDB half and the second gate (the crests) wait for S0. The maintainer
-answered Q1 to Q5 on 2026-10-31, keeping every proposal ("The maintainer's answers").
+The mockup was reviewed in the same session. The maintainer answered Q1 to Q5 on 2026-10-31, keeping
+every proposal ("The maintainer's answers"). Stage S0 measured both gates the same day, and both pass
+(decision 7, Evidence):
+- **G1** passes on PostgreSQL and on MariaDB.
+- **G2** passes once the theme's listener keeps a small entry of its own per category (decision 1). The
+  first prototype asked core for the category and read once on every response.
+
+What is left before acceptance is the maintainer's word.
 
 **Date:** 2026-10-31
 **Phase:** 15 (5.3 first, on `main` = `MOODLE_503_STABLE`; the 5.2 port is stage S6)
@@ -83,9 +88,22 @@ destinations out of it:
 - the theme's own cache holds what it reads.
 
 **The listener's contract** (the `course_badges` contract, for categories):
-- It answers only for categories the current user may see. The theme uses
-  `core_course_category::get($id, IGNORE_MISSING)` under the current user, the rule its showcase
-  applies.
+- It answers only for categories the current user may see, by core's own rule,
+  `core_course_category::can_view_category()`. It must not reach that rule through
+  `core_course_category::get_many()`: that method's cache (`coursecatrecords`) is request-scoped, so it
+  reads on every response (S0 measured +1 read warm).
+- The theme keeps, per category, an entry of its own in its `categorybranding` cache, under the key
+  `compasscrest_<id>`:
+  - the category's `visible` flag;
+  - its context record;
+  - its first crest, or null.
+- A warm answer preloads the context from that record and asks `can_view_category()` with the
+  cached flag: no read.
+- The misses are read in one statement (`course_categories`, `context`, and a LEFT JOIN on `files` for
+  the three badge areas) and stored.
+- `branding::forget_all()` purges that cache on an editor save and on a category updated, moved, hidden
+  or deleted, so the entry goes with the branding. The S0 check caches an entry while visible, hides the
+  category and gets no crest.
 - It answers in one batch, with no query per category.
 - It writes nothing to `$SESSION`, because `get_news` runs with a read-only session.
 - It guards itself as installed.
@@ -253,16 +271,16 @@ Each gate decides its feature alone. A gate that fails drops its feature, and on
 - `get_news_budget_test` keeps every ceiling (floor 2, warm 8, cold 10, worst 10 / 12) with the
   listener answering.
 
-PostgreSQL passes; MariaDB is S0's remaining measurement.
+**Result: passes on both families.** After the LIMIT costs +0.6 ms on PostgreSQL and +0.7 ms on
+MariaDB, with no statement added (Evidence).
 
 **G2, the crests:**
-- With the theme's `categorybranding` cache warm, the listener adds 0 reads to `get_news`.
-- With it cold for every shown category, the listener adds at most 2 reads in all: one batched
-  `{files}` read for the crest areas of the misses, plus the context preload. It never adds
+- With the listener's entries warm, it adds 0 reads to `get_news`.
+- With them cold for every shown category, it adds at most 2 reads in all. It never adds
   `branding::for_categories()`'s seven statements per miss.
-- If the listener cannot hold that, it answers only from the warm cache, and a cold category shows no
-  crest until the showcase or the hero has filled it. If that is not acceptable to the maintainer, the
-  crest is dropped.
+
+**Result: passes.** Warm +0 and cold +1 (one statement for the twenty), with decision 1's entry
+(Evidence). The first prototype, which asked `core_course_category::get_many()`, failed with +1 warm.
 
 ### 8. Settings, strings, privacy
 
@@ -281,7 +299,7 @@ PostgreSQL passes; MariaDB is S0's remaining measurement.
 In `theme_dimensions`, registered in `db/hooks.php` as optional (the class may not exist):
 - two listeners, `local/hook/block_compass/category_badges.php` and `course_kinds.php`;
 - the four kind strings;
-- the lean crest read of G2;
+- the listener's cached entry and its one-statement read (decision 1);
 - tests mirroring `course_badges_test` (the viewer rule, one batch, a throwing source).
 
 ## Rejected and deferred
@@ -343,12 +361,14 @@ What is left before acceptance is S0's measurements.
 
 ## Implementation stages (Phase 15)
 
-**S0. The gates' measurements, before acceptance.**
-- MariaDB 12.3 for G1: the probe's four variants on the `mdl ci` image.
-- G2 on m503: the listener's cold and warm reads through `get_news`, measured with
-  `open_courses_measure_test`'s protocol, theme installed, 20 crested groups.
-- Results appended to this record's Evidence.
-- The status flips to Accepted with the maintainer's answers.
+**S0. The gates' measurements, before acceptance. Done 2026-10-31.**
+- G1 on MariaDB 12.3: the probe's four variants.
+- G2 on m503b: the listener's cold and warm reads through `get_news`, with the prototype below and
+  `get_news_budget_test`'s protocol, theme installed, 20 crested groups.
+- Results in Evidence.
+- The prototype is kept on two local branches, not pushed: `phase-15-s0-crest-probe` (block) and
+  `compass-category-badges-probe` (theme). S1, S2 and S4 start from them.
+- The status flips to Accepted with the maintainer's word.
 
 **S1. Hooks and doors (block, no behaviour change).**
 - `classes/hook/category_badges.php` and `classes/hook/course_kinds.php`;
@@ -402,4 +422,42 @@ skill: the crest URL reaches a page only for a category the reader may see.
 
 Kit and notes: `docs/perf/2026-10-31-course-model-probe.{sql,md}`.
 
-**Pending (S0):** G1 on MariaDB; G2.
+**G1, MariaDB 12.3.3, the local `mdl ci` container, 2026-10-31.**
+- **Data:** the same 50,000 courses and 595,000 values, in a throwaway database. The tables carry
+  Moodle's columns and every index the site has (copied by hand from m503's `pg_indexes`).
+- **Rounds:** 31, interleaved, each statement timed by `NOW(6)` around it.
+- **Results (median / p90):**
+  - today 54.7 / 59.2 ms;
+  - after the LIMIT 55.4 / 57.6 ms;
+  - before the LIMIT 55.5 / 58.6 ms;
+  - a second statement +1.4 / +1.9 ms.
+- **Plan:** the chosen variant reads the model with `eq_ref` on the unique key
+  `(instanceid, fieldid, component, area, itemid)`.
+
+Kit: `docs/perf/2026-10-31-course-model-probe-mariadb.sql`.
+
+A finding outside this record: MariaDB drives today's statement from `{enrol}` (a range of 100,000
+rows on `courseid`), which makes it three times PostgreSQL's 18 ms at this size. It runs at most once
+per ten minutes per site, so it is not a gate here; it is noted for a later look at the catalogue.
+
+**G2, PostgreSQL 18.6, m503b, 2026-10-31.**
+- **Instrument:** `tests/external/get_news_crests_measure_test.php` on the block's prototype branch,
+  through the service, on a fresh entry, so every read above the floor is the crests'. Run with
+  `docker exec -e BLOCK_COMPASS_MEASURE=1 -w /var/www/html m503b-webserver-1 vendor/bin/phpunit
+  public/blocks/compass/tests/external/get_news_crests_measure_test.php`.
+- **Fixture:** 20 categories with one band course and one or two crests each.
+
+| Case | Reads | Crests |
+|---|---|---|
+| Off (the floor) | 2 | 0 |
+| On, the listener's entries warm | 2 | 20 |
+| On, entries cold | 3 | 20 |
+| On, entries and core's `coursecatrecords` cold | 3 | 20 |
+
+The first prototype asked `core_course_category::get_many()` and measured 3 warm and 4 cold. The SQL
+log showed the extra read: the `course_categories` statement, every response.
+
+**The visibility rule, checked** (`OK (2 tests, 30 assertions)`):
+- A hidden category gets no crest for a learner. The control: a visible one does.
+- An administrator gets the hidden one's crest.
+- An entry cached while the category was visible is dropped when it is hidden.
