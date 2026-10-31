@@ -47,11 +47,24 @@ D costs about 0.6 ms a build (3 %) and no statement. Each probe is an index scan
 - **The field's id** comes from `filter_fields::eligible()`, the block's cached list of eligible course
   custom fields: 0 reads while warm.
 
-## Not measured yet
+## MariaDB 12.3 (S0, the same day)
 
-- **MariaDB.** The fleet measures both database families. The probe kit is PostgreSQL syntax. S0's
-  remaining task runs the same four variants on MariaDB 12.3 (the `mdl ci` image) before acceptance.
-  Joining after the LIMIT is the same 501 unique-key lookups there, so no different verdict is
-  expected, but none is claimed.
-- **Category crests** (decision 1) are read through the theme's listener, per response. Their cost is
-  S0's second gate and is not in this note.
+The same data in a throwaway database on the local `mdl ci` MariaDB container. The tables carry
+Moodle's columns and every index the site has; the kit is `2026-10-31-course-model-probe-mariadb.sql`.
+Each statement was timed by `NOW(6)` around it, 31 interleaved rounds:
+
+| Variant | Median | p90 |
+|---|---|---|
+| A. Today | 54.7 ms | 59.2 ms |
+| B. Before the LIMIT | 55.5 ms | 58.6 ms |
+| **D. After the LIMIT** | **55.4 ms** | **57.6 ms** |
+| C. A second statement | +1.4 ms | +1.9 ms |
+
+D reads the model with `eq_ref` on the unique key: +0.7 ms, within the run's spread, and no statement
+added. G1 passes on both families.
+
+Today's statement is three times slower on MariaDB than on PostgreSQL at this size. MariaDB's plan
+starts from `{enrol}` (a range of 100,000 rows on `courseid`). That is outside ADR-019's gate (one
+build per ten minutes per site), and is noted for a later look at the catalogue.
+
+The crests' gate, G2, is in ADR-019's Evidence.
