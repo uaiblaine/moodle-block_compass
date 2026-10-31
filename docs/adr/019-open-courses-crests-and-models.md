@@ -9,7 +9,8 @@
   anything noticeable, or the feature is dropped.
 
 The mockup was reviewed in the same session. Stage S0's first gate (the model, on PostgreSQL) is
-measured and passes; its MariaDB half and the second gate (the crests) wait for S0.
+measured and passes; its MariaDB half and the second gate (the crests) wait for S0. The maintainer
+answered Q1 to Q5 on 2026-10-31, keeping every proposal ("The maintainer's answers").
 
 **Date:** 2026-10-31
 **Phase:** 15 (5.3 first, on `main` = `MOODLE_503_STABLE`; the 5.2 port is stage S6)
@@ -325,6 +326,20 @@ In `theme_dimensions`, registered in `db/hooks.php` as optional (the class may n
 - **Q4.** Does the pill keep the total (proposed), or show the split?
 - **Q5.** In the popover, does a group without a crest keep an empty slot so the names align
   (proposed), or close it?
+
+## The maintainer's answers (2026-10-31)
+
+Every proposal stands as written:
+- **Q1. Yes:** crests on the line follow `show_theme_badges`.
+- **Q2. Yes:** kinds are always on where the theme answers. A course with no model value set counts
+  as a course.
+- **Q3. Yes:** value 0 and unknown values fall into kind `course`. This is the same rule as Q2's
+  fallback.
+- **Q4. Yes:** the pill keeps the group's total.
+- **Q5. Yes:** in the popover, a group without a crest keeps an empty slot while some shown group has
+  one. When none has a crest, the slot is not drawn (decision 2 says both).
+
+What is left before acceptance is S0's measurements.
 
 ## Implementation stages (Phase 15)
 
