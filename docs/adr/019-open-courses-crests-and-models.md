@@ -1,6 +1,7 @@
 # ADR-019: Open for enrolment: the category's crest on each group, and courses told from events
 
-**Status:** Proposed (2026-10-31). The maintainer asked for both on 2026-10-31:
+**Status:** Accepted (2026-10-31) by the maintainer, at the end of stage S0, before the implementation of
+S1 onwards. The maintainer asked for both on 2026-10-31:
 - **The crest.** Each group of the open-courses line shows its category's first crest, where the
   Dimensions theme gives one. A long name is capped, and its whole text is in a tooltip of good
   visual quality.
@@ -15,7 +16,7 @@ every proposal ("The maintainer's answers"). Stage S0 measured both gates the sa
 - **G2** passes once the theme's listener keeps a small entry of its own per category (decision 1). The
   first prototype asked core for the category and read once on every response.
 
-What is left before acceptance is the maintainer's word.
+The maintainer accepted the record on 2026-10-31, after S0.
 
 **Date:** 2026-10-31
 **Phase:** 15 (5.3 first, on `main` = `MOODLE_503_STABLE`; the 5.2 port is stage S6)
@@ -357,7 +358,7 @@ Every proposal stands as written:
 - **Q5. Yes:** in the popover, a group without a crest keeps an empty slot while some shown group has
   one. When none has a crest, the slot is not drawn (decision 2 says both).
 
-What is left before acceptance is S0's measurements.
+S0's measurements followed the same day, and the maintainer accepted the record after them.
 
 ## Implementation stages (Phase 15)
 
@@ -368,7 +369,7 @@ What is left before acceptance is S0's measurements.
 - Results in Evidence.
 - The prototype is kept on two local branches, not pushed: `phase-15-s0-crest-probe` (block) and
   `compass-category-badges-probe` (theme). S1, S2 and S4 start from them.
-- The status flips to Accepted with the maintainer's word.
+- Accepted by the maintainer on 2026-10-31.
 
 **S1. Hooks and doors (block, no behaviour change).**
 - `classes/hook/category_badges.php` and `classes/hook/course_kinds.php`;
