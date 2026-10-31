@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Brasão de exemplo</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+</style>
+</helmet>
+<span style="display: inline-block; line-height: 0">
+<sc-if value="{{isBars}}" hint-placeholder-val="{{true}}">
+<svg width="{{w}}" height="{{h}}" viewBox="0 0 40 44" aria-hidden="true" focusable="false">
+<path d="M4 3H36V20C36 31 28 38 20 42C12 38 4 31 4 20Z" fill="{{c1}}"></path>
+<path d="M4 3H36V12H4Z" fill="{{c2}}"></path>
+<rect x="12" y="24" width="4" height="10" rx="0.6" fill="#ffffff"></rect>
+<rect x="18" y="19" width="4" height="15" rx="0.6" fill="#ffffff"></rect>
+<rect x="24" y="15.5" width="4" height="18.5" rx="0.6" fill="#ffffff"></rect>
+</svg>
+</sc-if>
+<sc-if value="{{isSeal}}" hint-placeholder-val="{{false}}">
+<svg width="{{w}}" height="{{h}}" viewBox="0 0 40 44" aria-hidden="true" focusable="false">
+<circle cx="20" cy="22" r="18.5" fill="{{c1}}"></circle>
+<circle cx="20" cy="22" r="15" fill="none" stroke="{{c2}}" stroke-width="1.2"></circle>
+<path d="M12 18L20 12.5L28 18Z" fill="{{c2}}"></path>
+<rect x="13" y="19.5" width="2.4" height="9" fill="{{c2}}"></rect>
+<rect x="18.8" y="19.5" width="2.4" height="9" fill="{{c2}}"></rect>
+<rect x="24.6" y="19.5" width="2.4" height="9" fill="{{c2}}"></rect>
+<rect x="11.5" y="29.5" width="17" height="2.2" fill="{{c2}}"></rect>
+</svg>
+</sc-if>
+<sc-if value="{{isChevron}}" hint-placeholder-val="{{false}}">
+<svg width="{{w}}" height="{{h}}" viewBox="0 0 40 44" aria-hidden="true" focusable="false">
+<path d="M4 3H36V20C36 31 28 38 20 42C12 38 4 31 4 20Z" fill="{{c1}}"></path>
+<path d="M8 31L20 19L32 31V36L20 24L8 36Z" fill="{{c2}}"></path>
+<circle cx="20" cy="11" r="3.2" fill="{{c2}}"></circle>
+</svg>
+</sc-if>
+</span>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","options":["bars","seal","chevron"],"default":"bars"},"c1":{"editor":"color","default":"#1d3b78"},"c2":{"editor":"color","default":"#d8a93b"},"size":{"editor":"int","min":16,"max":200,"default":120},"$preview":{"width":120,"height":132}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const kind = this.props.kind ?? 'bars';
+    const size = Number(this.props.size ?? 120);
+    return {
+      w: size,
+      h: Math.round(size * 1.1),
+      c1: this.props.c1 ?? '#1d3b78',
+      c2: this.props.c2 ?? '#d8a93b',
+      isBars: kind === 'bars',
+      isSeal: kind === 'seal',
+      isChevron: kind === 'chevron',
+    };
+  }
+}
+</script>
+</body>
+</html>
