@@ -111,6 +111,8 @@ final class observer {
     public static function customfield_changed(\core\event\base $event): void {
         filter_fields::purge();
         course_fields::purge();
+        // The catalogue read the classifier field by its id, eligible then (ADR-019 decision 4).
+        catalogue_cache::delete();
     }
 
     /**

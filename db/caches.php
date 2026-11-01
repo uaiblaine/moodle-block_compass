@@ -138,7 +138,7 @@ $definitions = [
     ],
 
     // The open catalogue (ADR-017 decision 4). One key for the whole site. Value: at most
-    // catalogue::CATALOGUE_LIMIT rows [courseid, categoryid, startdate] that may be named on a push surface,
+    // catalogue::CATALOGUE_LIMIT rows [courseid, categoryid, startdate, model] that may be named on a push surface,
     // start in the band and have an offering instance open now; the truncated flag, the build
     // instant, the instant the answer changes without an event (until), the band settings, the site
     // timezone and a digest of the rows. Served while now < until and the band and timezone are
