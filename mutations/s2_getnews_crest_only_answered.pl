@@ -1,0 +1,1 @@
+s/if \(isset\(\$crests\[\$categoryid\]\)\) \{\n(\s*)\$groups\[array_key_last\(\$groups\)\] \+= \[\n(\s*)'crest' => \$crests\[\$categoryid\]\['url'\],\n(\s*)'crestalt' => \$crests\[\$categoryid\]\['alt'\],/if (true) {\n$1\$groups[array_key_last(\$groups)] += [\n$2'crest' => \$crests[\$categoryid]['url'] ?? '',\n$3'crestalt' => \$crests[\$categoryid]['alt'] ?? '',/;

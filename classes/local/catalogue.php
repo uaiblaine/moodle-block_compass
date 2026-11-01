@@ -36,7 +36,8 @@ use local_unlistedcourses\discoverability;
  *
  * Three reads on a build, whoever asks: the candidate statement, the until aggregate and
  * category_discoverability::unlisted_ids() (memoised for the request by the provider). A hit
- * costs none.
+ * costs none. With a classifier field (ADR-019) the model rides the candidate statement, and the
+ * field's id comes from filter_fields' shared entry, which costs its fill only when that entry is cold.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -138,10 +139,10 @@ final class catalogue {
         int $maxage = self::MAX_AGE,
     ): array {
         $band = self::band($now, $past, $ahead, $tz);
-        [$rows, $truncated] = self::candidates($band['from'], $band['to'], $now, $limit);
+        [$rows, $truncated] = self::candidates($band['from'], $band['to'], $now, $limit, course_kinds::field_id());
         $withpath = self::without_unlisted_paths($rows);
         $until = min($band['midnight'], self::next_change($band['from'], $band['to'], $now), $now + $maxage);
-        $rows = array_map(fn(array $row): array => array_slice($row, 0, 3), $withpath);
+        $rows = array_map(fn(array $row): array => [$row[0], $row[1], $row[2], $row[4]], $withpath);
 
         return [
             'rows' => $rows,
@@ -160,14 +161,22 @@ final class catalogue {
     /**
      * The candidate statement: condition 1 but the path, the band and the prefilter of condition 3.
      *
+     * With a classifier field (ADR-019 decision 4) each row also carries the course's stored value of it,
+     * 0 for none, read by a join on {customfield_data}'s unique key AFTER the LIMIT: on PostgreSQL and
+     * MySQL/MariaDB the statement is wrapped as a derived table and the join probes only the rows kept
+     * (+0.6 and +0.7 ms at 50,000 courses, docs/perf/2026-10-31-course-model-probe.md); elsewhere the join
+     * sits in the statement itself, before the driver's limit, which is portable and probes every band
+     * row. Without one, today's statement, unchanged, and every model 0.
+     *
      * @param int $from The band's first second.
      * @param int $to The second after the band's last.
      * @param int $now Unix time to treat as now.
      * @param int $limit The most rows kept.
-     * @return array The rows, each [courseid, categoryid, startdate, path], and whether the database held
-     *     more than $limit.
+     * @param int $fieldid The classifier field, course_kinds::field_id(); 0 for none.
+     * @return array The rows, each [courseid, categoryid, startdate, path, model], and whether the database
+     *     held more than $limit.
      */
-    private static function candidates(int $from, int $to, int $now, int $limit): array {
+    private static function candidates(int $from, int $to, int $now, int $limit, int $fieldid = 0): array {
         global $DB;
 
         $state = discoverability::state_sql('c', 'lus');
@@ -182,14 +191,39 @@ final class catalogue {
             'opened' => $now,
             'closes' => $now,
         ];
+        // The classifier's value, joined after the LIMIT where the family takes a LIMIT in a derived table
+        // (decision 4 of ADR-019), else in the statement itself.
+        $select = 'c.id, c.category, c.startdate, cc.path';
+        $kindjoin = '';
+        $wrap = false;
+        if ($fieldid > 0) {
+            $params += [
+                'kindfield' => $fieldid,
+                'kindcomponent' => 'core_course',
+                'kindarea' => 'course',
+                'kinditem' => 0,
+            ];
+            $wrap = in_array($DB->get_dbfamily(), ['postgres', 'mysql'], true);
+            $alias = $wrap ? 'r' : 'c';
+            $kindjoin = "LEFT JOIN {customfield_data} cfk ON cfk.instanceid = {$alias}.id
+                                                    AND cfk.fieldid = :kindfield
+                                                    AND cfk.component = :kindcomponent
+                                                    AND cfk.area = :kindarea
+                                                    AND cfk.itemid = :kinditem";
+            if (!$wrap) {
+                $select .= ', COALESCE(cfk.intvalue, 0) AS model';
+            }
+        }
         // Index: none on course.startdate (a sequential scan of {course}, measured as ADR-017 M2); the
         // EXISTS rides enrol (enrol) and enrol (courseid); course_categories by its primary key; the state
-        // table by its courseid unique key. cc.visible reads the row that
-        // join fetches anyway. Bound: LIMIT $limit + 1 (CATALOGUE_LIMIT + 1), ordered startdate, id.
-        $sql = "SELECT c.id, c.category, c.startdate, cc.path
+        // table by its courseid unique key; customfield_data by its unique key (instanceid, fieldid,
+        // component, area, itemid), one probe a row. cc.visible reads the row that join fetches anyway.
+        // Bound: LIMIT $limit + 1 (CATALOGUE_LIMIT + 1), ordered startdate, id.
+        $sql = "SELECT {$select}
                   FROM {course} c
                   JOIN {course_categories} cc ON cc.id = c.category
                   {$state['join']}
+                  " . ($wrap ? '' : $kindjoin) . "
                  WHERE c.visible = 1
                    AND cc.visible = 1
                    AND c.id <> :siteid
@@ -206,11 +240,24 @@ final class catalogue {
                           AND (e.enrolenddate = 0 OR e.enrolenddate > :closes)
                    )
               ORDER BY c.startdate, c.id";
+        if ($wrap) {
+            // The derived table carries the same bound; the outer statement probes only the rows it keeps.
+            $sql = "SELECT r.id, r.category, r.startdate, r.path, COALESCE(cfk.intvalue, 0) AS model
+                      FROM ({$sql} LIMIT " . ($limit + 1) . ") r
+                      {$kindjoin}
+                  ORDER BY r.startdate, r.id";
+        }
         $records = $DB->get_records_sql($sql, $params, 0, $limit + 1);
 
         $rows = [];
         foreach ($records as $record) {
-            $rows[] = [(int) $record->id, (int) $record->category, (int) $record->startdate, (string) $record->path];
+            $rows[] = [
+                (int) $record->id,
+                (int) $record->category,
+                (int) $record->startdate,
+                (string) $record->path,
+                (int) ($record->model ?? 0),
+            ];
         }
         $truncated = count($rows) > $limit;
 
@@ -220,21 +267,21 @@ final class catalogue {
     /**
      * Drop the rows whose category path holds an unlisted category.
      *
-     * @param array $rows Rows [courseid, categoryid, startdate, path].
-     * @return array The rows kept, still [courseid, categoryid, startdate, path]: the path stays for the digest.
+     * @param array $rows Rows [courseid, categoryid, startdate, path, model].
+     * @return array The rows kept, still [courseid, categoryid, startdate, path, model]: the path stays for the digest.
      */
     private static function without_unlisted_paths(array $rows): array {
         $unlisted = array_flip(category_discoverability::unlisted_ids());
         $kept = [];
-        foreach ($rows as [$courseid, $categoryid, $startdate, $path]) {
+        foreach ($rows as $row) {
             if ($unlisted) {
-                foreach (explode('/', trim($path, '/')) as $id) {
+                foreach (explode('/', trim($row[3], '/')) as $id) {
                     if (isset($unlisted[(int) $id])) {
                         continue 2;
                     }
                 }
             }
-            $kept[] = [$courseid, $categoryid, $startdate, $path];
+            $kept[] = $row;
         }
 
         return $kept;
@@ -290,9 +337,10 @@ final class catalogue {
      * The digest of the rows: the same rows give the same digest, any change of a row another.
      *
      * The category path is part of a row here, though the entry's rows omit it: moving a category
-     * changes no other member, and a per-user entry grouped under the old tree must not outlive it.
+     * changes no other member, and a per-user entry grouped under the old tree must not outlive it. So is
+     * the model (ADR-019 decision 4): a course retyped from course to event changes the per-user counts.
      *
-     * @param array $rows Rows [courseid, categoryid, startdate, path].
+     * @param array $rows Rows [courseid, categoryid, startdate, path, model].
      * @param bool $truncated The truncated flag.
      * @return string
      */

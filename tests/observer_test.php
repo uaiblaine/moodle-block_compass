@@ -889,4 +889,25 @@ final class observer_test extends advanced_testcase {
         $this->assertFalse(news_cache::get($doomedid), 'the deleted account kept its open-courses entry');
         $this->assertNotFalse(news_cache::get($bystanderid));
     }
+
+    /**
+     * A custom field created or updated drops the open catalogue too: it read the classifier by its id and
+     * its eligibility (ADR-019 decision 4). The control is the seeded catalogue, present before each event.
+     *
+     * @return void
+     */
+    public function test_a_custom_field_change_drops_the_open_catalogue(): void {
+        $this->setAdminUser();
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+
+        $userid = $this->seed_open_layers();
+        $field = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        $this->assert_catalogue_dropped($userid);
+
+        $userid = $this->seed_open_layers();
+        $record = $field->to_record();
+        $record->configdata = json_encode(['options' => "Course\nEvent", 'visibility' => 1]);
+        \core_course\customfield\course_handler::create()->save_field_configuration($field, $record);
+        $this->assert_catalogue_dropped($userid);
+    }
 }

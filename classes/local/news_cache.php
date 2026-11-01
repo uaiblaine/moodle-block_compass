@@ -33,6 +33,7 @@ use core_cache\cache;
  * - groups: at most {@see news::MAX_GROUPS} groups as {@see news::build()} returns them;
  * - total and groupcount: the courses counted and the groups formed, before the cut to MAX_GROUPS;
  * - truncated: whether the count is a floor (the catalogue was truncated, or the probe cut it);
+ * - kinds: stored model value => count over every group (ADR-019 decision 5); each group carries its own;
  * - from and to: the band's first and last day, Y-m-d in the site timezone;
  * - signin: $USER->currentlogin when it was built (see calendar_cache);
  * - lang: current_language() when it was built, since the names are formatted;
@@ -94,7 +95,8 @@ final class news_cache {
         string $digest,
         int $now
     ): bool {
-        foreach (['groups', 'signin', 'from', 'to', 'lang', 'depth', 'digest', 'built'] as $key) {
+        // Since ADR-019 the counts by kind are required: an entry stored before it is rebuilt, never read without them.
+        foreach (['groups', 'kinds', 'signin', 'from', 'to', 'lang', 'depth', 'digest', 'built'] as $key) {
             if (!isset($entry[$key])) {
                 return false;
             }
