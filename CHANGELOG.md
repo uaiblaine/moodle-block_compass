@@ -76,6 +76,35 @@ is cut.
   - A tile whose name or second line is still cut opens the group's tooltip on hover or keyboard focus,
     as the pill does, in place of the browser's title; below 640 px of the block both wrap to two lines.
 
+## v5.2-r3 (2026042024) - 2026-11-01
+
+Third release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It ports the block's part
+of v5.3-r3 (ADR-019 stage S6, #110): the `category_badges` and `course_kinds` hooks, the course model in the
+catalogue and the counts by kind, the crests and kinds in `get_news`, the group tooltip, and the fixes to the
+no-enrolment tiles. No theme answers the two hooks on 5.2 (`theme_dimensions` supports 5.3 only), so crests
+and kinds stay off until one does, and every text reads as in v5.2-r2. The tooltip on a capped name and the
+tiles' fixes work without them. No schema change. It needs `local_unlistedcourses` 2026042003 or later from
+that plugin's `MOODLE_502_STABLE` branch, as v5.2-r2 did.
+
+### Added
+
+- **Crests and courses told from events in the open-for-enrolment line**, ported from the 5.3 branch
+  (2026042024 on this branch; 2026100524 to 2026100526 there, #105-#107). The full description is in the
+  v5.3-r3 section.
+  - **Two hooks:** through `\block_compass\hook\category_badges` a theme gives each category its crest, and
+    through `\block_compass\hook\course_kinds` it names the course field that tells courses from events.
+  - **The server:** with a classifier field, the catalogue reads each course's model by one join after
+    its LIMIT and `get_news` counts each group by kind. A group's crest comes from the first hook.
+  - **The client:** the crest beside the name in the pill, the popover and the tiles; the pill's name cut at
+    12.5 rem with its whole text in a tooltip of the block's own; "8 courses and 4 events start by …".
+    Six new strings.
+
+### Fixed
+
+- **The no-enrolment tiles** (#108 on the 5.3 branch). The second line starts under the name, past the crest.
+  Fewer tiles than the row's three tracks are as wide as their names need, up to the whole row. A tile whose
+  name or second line is still cut opens the same tooltip as the pill, in place of the browser's title.
+
 ## v5.3-r2 (2026100523) - 2026-10-30
 
 Second release for Moodle 5.3, from `main`, `MATURITY_BETA`. Most of it is the performance audit
