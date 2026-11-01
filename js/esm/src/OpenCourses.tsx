@@ -49,8 +49,10 @@
  * is in GroupTip, the block's own tooltip, never core's Bootstrap one and never a title: aria-hidden (the
  * pill's accessible name says it all), opened by a hover held 300 ms or at once by keyboard focus, kept
  * while the pointer is on it, closed by Escape without moving focus and by leaving both; it hangs from the
- * anchor beside the clip, above the pill or below it when there is no room, inside the block's width. No
- * tooltip below 640 px of the block, where the pill takes the row and its name wraps to two lines.
+ * anchor beside the clip, above the pill or below it when there is no room, inside the block's width. A tile
+ * opens the same tooltip, and only while its name or second line is cut: the tile shows the rest itself.
+ * No tooltip below 640 px of the block, where the pill takes the row and a pill's or tile's name wraps to
+ * two lines.
  *
  * @module     block_compass/OpenCourses
  * @copyright  2026 Anderson Blaine
@@ -71,6 +73,9 @@ import type {BlockConfig, NewsAnswer, NewsConfig, NewsGroup, NewsGroupKind, News
 
 /** The groups the full line draws as links; the rest are behind "+N". */
 const LINE_GROUPS = 3;
+
+/** The tiles' tracks at 640 px of the block and over: in step with .compass-news-tiles in styles.css. */
+const TILE_TRACKS = 3;
 
 /** Below this width of the block, in CSS px, the line wraps under its title and the popover is a bottom sheet. */
 export const NEWS_NARROW_PX = 640;
@@ -230,6 +235,17 @@ export const useNews = (
  * @returns {boolean} Whether it does.
  */
 const isOne = (group: NewsGroup): boolean => (group.courseid ?? 0) > 0 && !!group.coursename;
+
+/**
+ * Whether a tile cuts its name or its second line with an ellipsis: only then does its tooltip say more
+ * than the tile.
+ *
+ * @param {object} tile The tile.
+ * @returns {boolean} Whether some text of it is cut.
+ */
+const isCut = (tile: HTMLElement): boolean =>
+    [...tile.querySelectorAll<HTMLElement>('.compass-news-tilename, .compass-news-tilesub')]
+        .some((text) => text.scrollWidth > text.clientWidth);
 
 /**
  * Whether counts by kind say more than "courses": more than one kind counted, or one that is not the default.
@@ -524,8 +540,9 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     const [tip, setTip] = useState<TipState | null>(null);
     const tiptimer = useRef(0);
     const anchor = useRef<HTMLDivElement>(null);
-    // Only the full line's pills have one, and none below 640 px of the block: touch has no hover.
-    const tips = mode === 'full' && !narrow;
+    // The full line's pills and the tiles have one, the slim panel none, and none below 640 px of the
+    // block: touch has no hover.
+    const tips = mode !== 'compact' && !narrow;
 
     useLayoutEffect(() => {
         if (!shown) {
@@ -647,6 +664,15 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     };
 
     /**
+     * Whether a pill or tile wants its tooltip: a pill always (it shows neither the whole name nor the
+     * kinds), a tile only while it cuts a text.
+     *
+     * @param {object} control The pill or the tile.
+     * @returns {boolean} Whether to open the tooltip.
+     */
+    const wantsTip = (control: HTMLElement): boolean => mode !== 'tiles' || isCut(control);
+
+    /**
      * A pointer came to rest on a pill: its tooltip opens after TIP_HOVER_MS, and stays if already shown. A
      * touch opens none, as it has no hover to take back.
      *
@@ -655,7 +681,7 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
      * @returns {void}
      */
     const hoverTip = (group: NewsGroup, event: ReactPointerEvent<HTMLAnchorElement>): void => {
-        if (event.pointerType === 'touch') {
+        if (event.pointerType === 'touch' || !wantsTip(event.currentTarget)) {
             return;
         }
         const pill = event.currentTarget;
@@ -674,7 +700,7 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
      * @returns {void}
      */
     const focusTip = (group: NewsGroup, event: FocusEvent<HTMLAnchorElement>): void => {
-        if (event.currentTarget.matches(':focus-visible')) {
+        if (event.currentTarget.matches(':focus-visible') && wantsTip(event.currentTarget)) {
             showTip(group, event.currentTarget);
         }
     };
@@ -861,6 +887,16 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     );
 
     if (mode === 'tiles') {
+        const tileClasses = ['compass-news-tiles'];
+        // Fewer tiles than tracks: each is as wide as its name needs, up to the row (styles.css).
+        if (!narrow && answer.groups.length < TILE_TRACKS) {
+            tileClasses.push('compass-news-tiles-few');
+        }
+        // The second line starts under the name, past the crest slot.
+        if (withslots) {
+            tileClasses.push('compass-news-tiles-slotted');
+        }
+
         return grow(
             <section
                 className={narrow ? 'compass-news compass-news-empty compass-news-narrow' : 'compass-news compass-news-empty'}
@@ -875,19 +911,35 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                         <span className="compass-news-sum">{fill(strings.news_empty_lead, until)}</span>
                     </div>
                 </div>
-                <ul className="compass-news-tiles">
+                <ul className={tileClasses.join(' ')}>
                     {answer.groups.map((group) => {
                         const sub = secondLine(strings, nouns, group);
 
                         return (
                             <li key={group.categoryid}>
-                                <a className="compass-news-tile" href={group.url} aria-label={groupLabel(strings, nouns, group)}>
+                                {/* A cut text's whole is in GroupTip, never in a title, as on the pill: a title would
+                                    draw a second tooltip on the same hover. Below 640 px both wrap to two lines. */}
+                                <a
+                                    className="compass-news-tile"
+                                    href={group.url}
+                                    aria-label={groupLabel(strings, nouns, group)}
+                                    onPointerEnter={tips ? (event) => hoverTip(group, event) : undefined}
+                                    onPointerLeave={tips ? leaveTip : undefined}
+                                    onFocus={tips ? (event) => focusTip(group, event) : undefined}
+                                    onBlur={tips ? blurTip : undefined}
+                                >
                                     <span className="compass-news-tiletop">
                                         {withslots && <CrestSlot group={group} />}
-                                        <span className="compass-news-tilename" title={group.name}>{group.name}</span>
+                                        <span className={narrow ? 'compass-news-tilename compass-clamp' : 'compass-news-tilename'}>
+                                            {group.name}
+                                        </span>
                                         <span className="compass-news-count">{group.count}</span>
                                     </span>
-                                    {sub && <span className="compass-news-tilesub" title={sub}>{sub}</span>}
+                                    {sub && (
+                                        <span className={narrow ? 'compass-news-tilesub compass-clamp' : 'compass-news-tilesub'}>
+                                            {sub}
+                                        </span>
+                                    )}
                                 </a>
                             </li>
                         );

@@ -4655,6 +4655,19 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
     grid-template-columns: minmax(0, 1fr);
 }
 
+/* Fewer tiles than tracks: each as wide as its name needs, from about a track to the whole row, so a
+   long name takes the room the missing tiles leave instead of being cut. */
+.block_compass .compass-news-tiles.compass-news-tiles-few {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.block_compass .compass-news-tiles-few > li {
+    flex: 0 1 auto;
+    min-width: 15rem;
+    max-width: 100%;
+}
+
 .block_compass .compass-news-tile {
     display: flex;
     flex-direction: column;
@@ -4695,8 +4708,20 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
     font-size: 0.78rem;
 }
 
+/* Under the name, past the crest slot (.compass-news-slot's width) and the top row's gap. */
+.block_compass .compass-news-tiles-slotted .compass-news-tilesub {
+    padding-left: 2.625rem;
+}
+
 .block_compass .compass-news-tiletop .compass-news-tilename {
     flex: 1 1 auto;
+}
+
+/* Below 640 px no tooltip: the name and the second line wrap to two lines (.compass-clamp). */
+.block_compass .compass-news-narrow .compass-news-tilename,
+.block_compass .compass-news-narrow .compass-news-tilesub {
+    white-space: normal;
+    line-height: 1.3;
 }
 
 .block_compass .compass-news-foot {
