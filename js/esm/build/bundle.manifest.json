@@ -15,7 +15,7 @@
         "src/FilterToggle.tsx": "b67d8acaaf3352a11590cebda0d135590b0ff364",
         "src/Ghost.tsx": "6dfa7356e376c0819f4e515815192b1fd900d392",
         "src/Group.tsx": "1fb08808b90580b41aef297060fe4e2036c72b69",
-        "src/OpenCourses.tsx": "e49e2314376e82d94045151201c40c24c342c38a",
+        "src/OpenCourses.tsx": "8ebd9e543a647b32d59ae7eef6eedf04b896879a",
         "src/OrganiseMenu.tsx": "30e5e8d33614b9ccbe96891c1276f7eaffc1b01e",
         "src/Platter.tsx": "7f4917e8c90f2379c3a9ae9583185e67b828847b",
         "src/Progress.tsx": "61dc8514e98d35b3444aef85d0476c6c44598710",
@@ -44,6 +44,6 @@
         "src/rowdetails.ts": "c94c2761de4f9676da153cd8b61bd15d74ea9942",
         "src/str.ts": "3df7637481092c21701022985a5914207e4fe7fc",
         "src/tier1shape.ts": "511c8cbfda74792f30e570bd5186b910036c9d27",
-        "src/types.ts": "1922807c85267ca4c3d4e351d077004809118a90"
+        "src/types.ts": "478ce8de4d6e3b03de87912688cbfdec3d64ed11"
     }
 }
