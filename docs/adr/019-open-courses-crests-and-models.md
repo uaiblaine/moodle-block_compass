@@ -290,8 +290,11 @@ MariaDB, with no statement added (Evidence).
 - Kinds are on wherever a listener answers (Q2).
 
 **Strings** in `lang/en` and `lang/pt_br` of the block, in lockstep:
-- `news_kind_count`, `news_kinds_join`, `news_kinds_last`;
-- `news_summary_kinds`, `news_summary_kinds_one`, `news_group_label_kinds`.
+- the server's nouns for the default kind, `news_kind_course` and `news_kind_courses` (S2). They are not
+  named `_one`/`_many`, because the block's `_one` suffix marks a singular twin that the shell ships to
+  the client (`client_policy_test`);
+- the client's composition, shipped under the news key with S3: `news_kind_count`, `news_kinds_join`,
+  `news_kinds_last`, `news_summary_kinds`, `news_summary_kinds_one`, `news_group_label_kinds`.
 
 **Privacy:** no user data is added. The provider is unchanged.
 
@@ -385,9 +388,13 @@ S0's measurements followed the same day, and the maintainer accepted the record 
 - The digest and the observer.
 - `news::groups()` kinds.
 - `get_news`: crests, kinds and the returns.
-- Strings in both languages.
+- The default kind's nouns in both languages (the composition strings move to S3, which uses them).
+- On PostgreSQL and MySQL/MariaDB the join sits after the LIMIT. On other families it sits inside the
+  statement, which is portable and probes every band row; this matrix runs neither of those families.
 - Tests: behaviour, `get_news_budget_test` with a listening stub (ceilings unchanged), and
   `catalogue_test` (the model present, absent, unknown, and the field made ineligible).
+- `tests/external/get_news_crests_measure_test.php`, S0's G2 instrument. It is skipped until the theme's
+  listener (S4) exists.
 - `CHANGELOG.md`.
 
 **S3. Client (block).**

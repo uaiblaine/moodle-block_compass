@@ -60,7 +60,7 @@ final class news {
         global $USER;
 
         if (!isloggedin() || isguestuser()) {
-            return ['groups' => [], 'total' => 0, 'groupcount' => 0, 'truncated' => false];
+            return ['groups' => [], 'total' => 0, 'groupcount' => 0, 'truncated' => false, 'kinds' => []];
         }
         $catalogue = catalogue::get($now);
         $userid = (int) $USER->id;
@@ -102,7 +102,8 @@ final class news {
      *
      * @param array $catalogue A catalogue entry ({@see catalogue_cache}).
      * @param int $depth The grouping depth, config::news_depth().
-     * @return array groups (at most MAX_GROUPS, in decision 6's order), total, groupcount, truncated.
+     * @return array groups (at most MAX_GROUPS, in decision 6's order), total, groupcount, truncated, and kinds:
+     *     stored model value => count over every group (ADR-019 decision 5).
      */
     public static function build(array $catalogue, int $depth): array {
         $truncated = !empty($catalogue['truncated']) || count($catalogue['rows']) > self::NEWS_PROBE;
@@ -115,15 +116,16 @@ final class news {
      * and the provider's listing filter, over the first NEWS_PROBE rows.
      *
      * @param array $catalogue A catalogue entry ({@see catalogue_cache}).
-     * @return array Course id => [categoryid, startdate], in the catalogue's order.
+     * @return array Course id => [categoryid, startdate, model], in the catalogue's order.
      */
     public static function counted(array $catalogue): array {
         global $USER;
 
         $rows = $catalogue['rows'];
         $candidates = [];
-        foreach (array_slice($rows, 0, self::NEWS_PROBE) as [$courseid, $categoryid, $startdate]) {
-            $candidates[(int) $courseid] = [(int) $categoryid, (int) $startdate];
+        foreach (array_slice($rows, 0, self::NEWS_PROBE) as $row) {
+            // An entry stored before ADR-019 holds three integers: its courses have no model.
+            $candidates[(int) $row[0]] = [(int) $row[1], (int) $row[2], (int) ($row[3] ?? 0)];
         }
 
         // Condition 4: any enrolment row or any role on the course's path.
@@ -228,25 +230,27 @@ final class news {
      * the collator's order. Names go through format_string() with the shown contexts' filters
      * preloaded in one read; every group is named before the cut, because the name breaks ties.
      *
-     * @param array $candidates Course id => [categoryid, startdate].
+     * @param array $candidates Course id => [categoryid, startdate, model].
      * @param int $depth The grouping depth.
-     * @return array groups, total, groupcount. A group: categoryid, name, count, and for a group of one,
-     *     courseid and coursename.
+     * @return array groups, total, groupcount and kinds (model value => count, every group). A group:
+     *     categoryid, name, count, kinds (model value => count) and, for a group of one, courseid and
+     *     coursename.
      */
     private static function groups(array $candidates, int $depth): array {
         if (!$candidates) {
-            return ['groups' => [], 'total' => 0, 'groupcount' => 0];
+            return ['groups' => [], 'total' => 0, 'groupcount' => 0, 'kinds' => []];
         }
 
         $categories = category_meta::get_many(array_column($candidates, 0));
         $groups = [];
-        foreach ($candidates as $courseid => [$categoryid, $startdate]) {
+        foreach ($candidates as $courseid => [$categoryid, $startdate, $model]) {
             if (!isset($categories[$categoryid])) {
                 continue;
             }
             $groupid = category_meta::group_id($categories[$categoryid], $depth);
-            $groups[$groupid] ??= ['count' => 0, 'first' => PHP_INT_MAX, 'courseids' => []];
+            $groups[$groupid] ??= ['count' => 0, 'first' => PHP_INT_MAX, 'courseids' => [], 'kinds' => []];
             $groups[$groupid]['count']++;
+            $groups[$groupid]['kinds'][$model] = ($groups[$groupid]['kinds'][$model] ?? 0) + 1;
             $groups[$groupid]['first'] = min($groups[$groupid]['first'], $startdate);
             $groups[$groupid]['courseids'][] = $courseid;
         }
@@ -287,12 +291,21 @@ final class news {
             <=> [$groups[$a]['count'], $groups[$b]['first'], $rank[$b]]);
 
         $total = 0;
+        $kinds = [];
         foreach ($groups as $group) {
             $total += $group['count'];
+            foreach ($group['kinds'] as $model => $count) {
+                $kinds[$model] = ($kinds[$model] ?? 0) + $count;
+            }
         }
         $shown = [];
         foreach (array_slice($order, 0, self::MAX_GROUPS) as $groupid) {
-            $item = ['categoryid' => $groupid, 'name' => $names[$groupid], 'count' => $groups[$groupid]['count']];
+            $item = [
+                'categoryid' => $groupid,
+                'name' => $names[$groupid],
+                'count' => $groups[$groupid]['count'],
+                'kinds' => $groups[$groupid]['kinds'],
+            ];
             $single = $groups[$groupid]['count'] === 1 ? $groups[$groupid]['courseids'][0] : 0;
             if ($single && isset($courses[$single]) && !course_meta::is_being_deleted($courses[$single])) {
                 $item['courseid'] = $single;
@@ -305,6 +318,6 @@ final class news {
             $shown[] = $item;
         }
 
-        return ['groups' => $shown, 'total' => $total, 'groupcount' => count($groups)];
+        return ['groups' => $shown, 'total' => $total, 'groupcount' => count($groups), 'kinds' => $kinds];
     }
 }

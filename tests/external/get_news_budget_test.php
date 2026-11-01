@@ -17,12 +17,15 @@
 namespace block_compass\external;
 
 use advanced_testcase;
+use block_compass\fixtures\category_badges_listener;
+use block_compass\fixtures\course_kinds_listener;
 use block_compass\fixtures\open_courses_fixture;
 use block_compass\local\budget;
 use block_compass\local\calendar_preference;
 use block_compass\local\catalogue_cache;
 use block_compass\local\news;
 use block_compass\local\news_cache;
+use core\hook\manager;
 use PHPUnit\Framework\Attributes\CoversClass;
 
 defined('MOODLE_INTERNAL') || die();
@@ -263,5 +266,49 @@ final class get_news_budget_test extends advanced_testcase {
         $this->assertSame(news::NEWS_PROBE, $answer['total'], 'The control: every candidate counts.');
         $this->assertSame($two, $many, 'The build is flat in the number of candidates.');
         $this->assertLessThanOrEqual(self::WARM, $many, "A warm build of 200 candidates cost {$many} reads.");
+    }
+
+    /**
+     * With both ADR-019 listeners answering, every ceiling holds: the kinds' field rides the catalogue's own
+     * statement, and the crests and the nouns are read per response from listeners that read nothing.
+     *
+     * The control is the answer: the kinds and a crest arrived, so the listeners took part.
+     *
+     * @return void
+     */
+    public function test_with_crests_and_kinds_the_ceilings_hold(): void {
+        global $DB;
+
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        require_once(__DIR__ . '/../fixtures/category_badges_listener.php');
+        course_kinds_listener::reset();
+        category_badges_listener::reset();
+        \core\di::set(manager::class, manager::phpunit_get_instance([
+            'block_compass_kinds' => __DIR__ . '/../fixtures/course_kinds_hooks.php',
+            'block_compass_crests' => __DIR__ . '/../fixtures/category_badges_hooks.php',
+        ]));
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[1, 'course', 'curso', 'cursos'], [2, 'event', 'evento', 'eventos']];
+        $user = $this->fixture();
+        foreach ($DB->get_fieldset_select('course', 'id', 'id <> ?', [SITEID]) as $i => $courseid) {
+            $plugin->field_value($model, (int) $courseid, $i % 2 ? 2 : 1);
+        }
+        $categoryids = array_map('intval', array_column(get_news::execute()['groups'], 'categoryid'));
+        foreach ($categoryids as $categoryid) {
+            category_badges_listener::$answers[$categoryid] = [['url' => 'https://example.com/c.png', 'alt' => 'C']];
+        }
+        set_config('show_theme_badges', 1, 'block_compass');
+
+        [$warm, $cold, $built] = $this->builds($user);
+        $this->assertLessThanOrEqual(self::WARM, $warm, "A warm build with listeners cost {$warm} reads.");
+        $this->assertLessThanOrEqual(self::COLD, $cold, "A cold build with listeners cost {$cold} reads.");
+
+        [$fresh, $reads] = $this->measured();
+        $this->assertLessThanOrEqual(self::FLOOR, $reads, "A fresh entry with listeners cost {$reads} reads.");
+        $this->assertSame($built, $fresh);
+        $this->assertSame('course', $fresh['kinds'][0]['key'], 'The control: the kinds arrived.');
+        $this->assertSame('https://example.com/c.png', $fresh['groups'][0]['crest'], 'The control: a crest arrived.');
     }
 }

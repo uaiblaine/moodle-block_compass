@@ -27,7 +27,9 @@ namespace block_compass\external;
 use block_compass\local\calendar_preference;
 use block_compass\local\category_link;
 use block_compass\local\config;
+use block_compass\local\course_kinds;
 use block_compass\local\news;
+use block_compass\local\theme_badges;
 use core\context\user as context_user;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -51,6 +53,11 @@ use core_external\external_value;
  * The destinations are built here, per response and never cached (decision 8): a group of one course
  * leads to its enrolment page; every other group and the root ("see every course") lead where
  * category_link::urls() says, in one dispatch of the block's hook for all of them.
+ *
+ * So are the crests and the kinds (ADR-019 decisions 1 and 5): each group's category crest from
+ * theme_badges::for_categories(), and the entry's counts by stored model value folded into counts by
+ * kind with the nouns of the current language, through course_kinds, each in one dispatch. A kind no
+ * listener names, and a course with no model, is a course, named with the block's own nouns.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -103,6 +110,8 @@ class get_news extends external_api {
         }
         $categoryids[] = 0;
         $urls = category_link::urls($categoryids, $from, $to);
+        $crests = theme_badges::for_categories(array_column($entry['groups'], 'categoryid'));
+        $kinds = course_kinds::ask()['kinds'];
 
         $groups = [];
         foreach ($entry['groups'] as $group) {
@@ -115,7 +124,14 @@ class get_news extends external_api {
                 'url' => self::group_url($courseid, $categoryid, $urls),
                 'courseid' => $courseid,
                 'coursename' => $courseid > 0 ? (string) ($group['coursename'] ?? '') : '',
+                'kinds' => self::kind_counts(course_kinds::counts($group['kinds'] ?? [0 => (int) $group['count']], $kinds)),
             ];
+            if (isset($crests[$categoryid])) {
+                $groups[array_key_last($groups)] += [
+                    'crest' => $crests[$categoryid]['url'],
+                    'crestalt' => $crests[$categoryid]['alt'],
+                ];
+            }
         }
 
         return [
@@ -126,7 +142,47 @@ class get_news extends external_api {
             'truncated' => (bool) $entry['truncated'],
             'groups' => $groups,
             'allurl' => $urls[0] ?? category_link::default_url(0),
+            'kinds' => self::kinds_named(course_kinds::counts($entry['kinds'] ?? [], $kinds), $kinds),
         ];
+    }
+
+    /**
+     * Counts by kind as the returns carry them for a group: a list of key and count, in the kinds' order.
+     *
+     * @param array $counts Kind key => count, from course_kinds::counts().
+     * @return array List of ['key' => string, 'count' => int].
+     */
+    private static function kind_counts(array $counts): array {
+        $list = [];
+        foreach ($counts as $key => $count) {
+            $list[] = ['key' => (string) $key, 'count' => (int) $count];
+        }
+
+        return $list;
+    }
+
+    /**
+     * Counts by kind with each kind's nouns: the listener's, or the block's own for the default kind.
+     *
+     * @param array $counts Kind key => count, from course_kinds::counts().
+     * @param array $kinds Stored value => ['key', 'one', 'many'], from course_kinds::ask().
+     * @return array List of ['key' => string, 'count' => int, 'one' => string, 'many' => string].
+     */
+    private static function kinds_named(array $counts, array $kinds): array {
+        $nouns = [];
+        foreach ($kinds as $kind) {
+            $nouns[(string) $kind['key']] ??= ['one' => (string) $kind['one'], 'many' => (string) $kind['many']];
+        }
+        $nouns[course_kinds::DEFAULT] ??= [
+            'one' => get_string('news_kind_course', 'block_compass'),
+            'many' => get_string('news_kind_courses', 'block_compass'),
+        ];
+        $list = [];
+        foreach (self::kind_counts($counts) as $item) {
+            $list[] = $item + $nouns[$item['key']];
+        }
+
+        return $list;
     }
 
     /**
@@ -162,6 +218,7 @@ class get_news extends external_api {
             'truncated' => false,
             'groups' => [],
             'allurl' => '',
+            'kinds' => [],
         ];
     }
 
@@ -189,10 +246,32 @@ class get_news extends external_api {
                         'The name of the course of a group of one, formatted; empty otherwise',
                         VALUE_OPTIONAL
                     ),
+                    'kinds' => new external_multiple_structure(
+                        new external_single_structure([
+                            'key' => new external_value(PARAM_ALPHA, 'The kind, such as course or event'),
+                            'count' => new external_value(PARAM_INT, 'Courses of that kind in the group'),
+                        ]),
+                        'The group\'s count by kind, the default kind first; never empty for a group'
+                    ),
+                    'crest' => new external_value(
+                        PARAM_URL,
+                        'The category\'s first crest, from the category_badges hook; absent when none',
+                        VALUE_OPTIONAL
+                    ),
+                    'crestalt' => new external_value(PARAM_TEXT, 'The crest\'s alternative text', VALUE_OPTIONAL),
                 ]),
                 'At most ' . news::MAX_GROUPS . ' groups, the largest first'
             ),
             'allurl' => new external_value(PARAM_URL, 'Every course open for enrolment; empty when off'),
+            'kinds' => new external_multiple_structure(
+                new external_single_structure([
+                    'key' => new external_value(PARAM_ALPHA, 'The kind, such as course or event'),
+                    'count' => new external_value(PARAM_INT, 'Courses of that kind, every group'),
+                    'one' => new external_value(PARAM_TEXT, 'The kind\'s noun for one, current language'),
+                    'many' => new external_value(PARAM_TEXT, 'The kind\'s noun for more than one, current language'),
+                ]),
+                'The count by kind, the default kind first; empty when off or nothing counts'
+            ),
         ]);
     }
 }
