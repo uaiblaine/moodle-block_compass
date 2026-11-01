@@ -330,10 +330,29 @@ export type NewsConfig = {
     soon?: SoonMember | null,
 };
 
+/** One kind's count inside a group of block_compass_get_news (ADR-019 decision 5): course, event, ... */
+export type NewsGroupKind = {
+    key: string,
+    count: number,
+};
+
+/**
+ * One kind over the whole block_compass_get_news answer (ADR-019 decision 5): its count in every group and
+ * its nouns for one and for more than one, in the current language. The default kind, course, is first.
+ */
+export type NewsKind = {
+    key: string,
+    count: number,
+    one: string,
+    many: string,
+};
+
 /**
  * One group of block_compass_get_news: a reference category, its formatted name and its count; for a
  * group of one, the course and its formatted name (courseid 0 and an empty name otherwise). The url is
  * the course's enrolment page for a group of one, else the category's (the block's hook decides).
+ * kinds splits the count by kind and is never empty; crest and crestalt are the category's first crest
+ * and its text, present only when a theme answered the category_badges hook (ADR-019 decision 1).
  */
 export type NewsGroup = {
     categoryid: number,
@@ -342,12 +361,17 @@ export type NewsGroup = {
     url: string,
     courseid?: number,
     coursename?: string,
+    kinds: NewsGroupKind[],
+    crest?: string,
+    crestalt?: string,
 };
 
 /**
  * The whole block_compass_get_news answer (ADR-017 decision 5): the band's two days (Y-m-d, site
  * timezone), the courses counted, the groups before the cut, whether the probe was cut, at most twenty
- * groups and the link to every course open for enrolment.
+ * groups and the link to every course open for enrolment. kinds is the count by kind with each kind's
+ * nouns (ADR-019 decision 5), empty when the line is off; without a theme naming kinds it holds the
+ * default kind alone, so the line reads as it did before.
  */
 export type NewsAnswer = {
     from: string,
@@ -357,6 +381,7 @@ export type NewsAnswer = {
     truncated: boolean,
     groups: NewsGroup[],
     allurl: string,
+    kinds: NewsKind[],
 };
 
 /**

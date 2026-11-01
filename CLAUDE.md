@@ -324,7 +324,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
 - **Text that runs long has one system** (a Portuguese label is often twice its English one): a
   name or line that can run long is clamped to two lines (`.compass-clamp`) or cut to one with an
   ellipsis, and the element carries its whole text in `title` (`accessibility_rules_test` reads
-  every ellipsis rule's class and every clamp). A day's action shows a short verb of this plugin's
+  every ellipsis rule's class and every clamp). One stated exception: the open-courses pill's name, whose
+  whole text is in its own `aria-hidden` tooltip (`GroupTip`, ADR-019 decision 3), never a `title`. A day's action shows a short verb of this plugin's
   (`CalendarCard.tsx` `ACTION_VERBS` by module, Grade and View for the teaching kinds, core's name
   when it fits 16 characters, else Open; every verb at most 12 characters in both languages), with
   core's whole name as its `title` and after the verb in its accessible name (`cal_act_label`,

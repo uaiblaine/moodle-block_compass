@@ -113,13 +113,16 @@ class block implements renderable, templatable {
      * The open-courses line's strings, every one the client shows (ADR-017 decision 10).
      *
      * They travel under the news key, never among the block's labels, so a site with the line off
-     * ships none of them. news_summary_one is the singular twin the client picks for one course.
+     * ships none of them. news_summary_one is the singular twin the client picks for one course, and
+     * news_summary_kinds_one the twin of the summary that names kinds (ADR-019 decision 6), which the
+     * client composes from news_kind_count, news_kinds_join and news_kinds_last.
      *
      * @var string[]
      */
     public const NEWS_STRINGS = [
-        'news_all', 'news_empty_lead', 'news_error', 'news_group_label', 'news_hide', 'news_hide_short',
-        'news_hideerror', 'news_more', 'news_see', 'news_summary', 'news_summary_one', 'news_title',
+        'news_all', 'news_empty_lead', 'news_error', 'news_group_label', 'news_group_label_kinds', 'news_hide',
+        'news_hide_short', 'news_hideerror', 'news_kind_count', 'news_kinds_join', 'news_kinds_last', 'news_more',
+        'news_see', 'news_summary', 'news_summary_kinds', 'news_summary_kinds_one', 'news_summary_one', 'news_title',
     ];
 
     /**
