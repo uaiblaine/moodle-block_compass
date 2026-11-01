@@ -15,6 +15,22 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- **The open-for-enrolment line draws each group's crest, a tooltip with the whole name, and courses told
+  from events.** Version 2026100526; ADR-019 stage S3.
+  - **The pill:** the category's first crest beside the name (22×24, never cropped; a light tile in dark
+    mode). The name stops at 12.5 rem, and its whole text is in the group's tooltip, not in a title.
+  - **The tooltip:** the block's own, never core's: the crest, the whole name and the group's kinds (or
+    the course of a group of one). It opens after a 300 ms hover or at once on keyboard focus, stays while
+    the pointer is on it, closes on Escape without moving focus, and is hidden from assistive technology,
+    as the pill's accessible name already says it all. None below 640 px of the block, where the pill
+    takes the row and its name wraps to two lines.
+  - **The popover and the tiles:** the crest in a slot, kept empty for a group without one while another
+    has one; the second line counts the kinds ("2 courses · 1 event").
+  - **The text:** with a theme naming kinds, the summary reads "8 courses and 4 events start by …" and a
+    group's accessible name names its kinds. Six new strings. Without such a theme, every text is as before.
+  - Eleven mutation gates under "Phase 15, S3". The Behat scenario is unchanged: steps for a crest and a
+    kind wait for the theme's listeners (S4).
+
 - **The open-for-enrolment line's server tells courses from events and carries each group's crest.**
   Version 2026100525; ADR-019 stage S2. The client draws them in S3.
   - **The catalogue:** with a theme naming a classifier field (`course_kinds`), the catalogue reads each
