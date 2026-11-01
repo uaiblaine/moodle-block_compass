@@ -13,6 +13,17 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Fixed
+
+- **The no-enrolment tiles of the open-for-enrolment line: the second line, the room for a name and the
+  tooltip.** Version 2026100527.
+  - The second line ("154 courses · 1 event") starts under the name, past the crest slot, instead of under
+    the crest.
+  - Fewer tiles than the row's three tracks are as wide as their names need, up to the whole row, so a
+    lone category's name is no longer cut at a third of the block.
+  - A tile whose name or second line is still cut opens the group's tooltip on hover or keyboard focus,
+    as the pill does, in place of the browser's title; below 640 px of the block both wrap to two lines.
+
 ### Added
 
 - **The open-for-enrolment line draws each group's crest, a tooltip with the whole name, and courses told

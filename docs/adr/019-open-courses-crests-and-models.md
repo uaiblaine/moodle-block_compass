@@ -177,6 +177,12 @@ follows the view switch's precedent.
 
 **Motion.** 120 ms opacity and translate; none under reduced motion.
 
+**The tiles (amended 2026-11-01, version 2026100527).** The tiles a viewer with no enrolled course sees
+open the same tooltip, but only while the tile cuts its name or its second line: the tile shows the rest
+itself. The texts drop their `title` (one tooltip per hover), join the pill's name as exceptions to the
+`title` rule, and wrap to two lines below 640 px. Fewer tiles than the row's three tracks size to their
+names, up to the whole row, and the second line starts under the name, past the crest slot.
+
 ### 4. The model travels in the catalogue, read by one join after the LIMIT
 
 **Which field.** A second new hook, `\block_compass\hook\course_kinds`, lets a listener name one
