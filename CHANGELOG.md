@@ -13,16 +13,23 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
-### Fixed
+### Added
 
-- **The no-enrolment tiles of the open-for-enrolment line: the second line, the room for a name and the
-  tooltip.** Version 2026100527.
-  - The second line ("154 courses · 1 event") starts under the name, past the crest slot, instead of under
-    the crest.
-  - Fewer tiles than the row's three tracks are as wide as their names need, up to the whole row, so a
-    lone category's name is no longer cut at a third of the block.
-  - A tile whose name or second line is still cut opens the group's tooltip on hover or keyboard focus,
-    as the pill does, in place of the browser's title; below 640 px of the block both wrap to two lines.
+- **5.2: ADR-019 ported to `MOODLE_502_STABLE`.** Version 2026042024; ADR-019 stage S6. The block's part
+  of v5.3-r3 (2026100524 to 2026100527): the `category_badges` and `course_kinds` hooks, the model in the
+  catalogue and the counts by kind, the crests and kinds in `get_news`, the group tooltip, and the tiles'
+  second line, width and tooltip when cut. No theme answers the two hooks on 5.2 (`theme_dimensions`
+  supports 5.3 only), so crests and kinds stay off there until one does; the tooltip and the tiles work
+  without them.
+
+## v5.3-r3 (2026100527) - 2026-11-01
+
+Third release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings ADR-019 to the open-for-enrolment
+line: each group shows its category's first crest from the theme, a tooltip of the block's own carries a
+cut name in full, and with a theme that names a course classifier field the texts count courses and events
+apart. Two hooks for those (`category_badges`, `course_kinds`), no schema change, six new strings. The
+no-enrolment tiles also align their second line, give a lone name the row and open the tooltip when a text
+is cut.
 
 ### Added
 
@@ -66,6 +73,17 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
     field only while it is a select visible to everyone (`filter_fields::eligible()`). It folds counts
     by kind, with a course of no value or an unknown value counted as a course.
   - Fifteen mutation gates under "Phase 15" in `mutations/gates.conf`.
+
+### Fixed
+
+- **The no-enrolment tiles of the open-for-enrolment line: the second line, the room for a name and the
+  tooltip.** Version 2026100527.
+  - The second line ("154 courses · 1 event") starts under the name, past the crest slot, instead of under
+    the crest.
+  - Fewer tiles than the row's three tracks are as wide as their names need, up to the whole row, so a
+    lone category's name is no longer cut at a third of the block.
+  - A tile whose name or second line is still cut opens the group's tooltip on hover or keyboard focus,
+    as the pill does, in place of the browser's title; below 640 px of the block both wrap to two lines.
 
 ## v5.3-r2 (2026100523) - 2026-10-30
 
