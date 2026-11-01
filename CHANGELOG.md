@@ -15,6 +15,18 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Added
 
+- **The open-for-enrolment line's server tells courses from events and carries each group's crest.**
+  Version 2026100525; ADR-019 stage S2. The client draws them in S3.
+  - **The catalogue:** with a theme naming a classifier field (`course_kinds`), the catalogue reads each
+    course's model by a join after its LIMIT, and the model is part of the digest. Measured +0.6 ms on
+    PostgreSQL and +0.7 ms on MariaDB per build at 50,000 courses.
+  - **The counts:** the per-user entry counts each group by model. An entry stored before this is rebuilt.
+  - **`get_news`:** the answer gains `kinds` (key, count and the nouns for one and many, the default kind
+    first), and each group gains its `kinds` plus `crest` and `crestalt` when the `category_badges` hook
+    gives one. No read is added: every budget ceiling holds with both listeners answering.
+  - **Invalidation:** a custom field change now drops the catalogue too.
+  - Eight mutation gates.
+
 - **Two hooks for the open-for-enrolment line, and the block's doors to them.** Version 2026100524;
   ADR-019 stage S1. The line does not use them yet; that starts in S2.
   - **`\block_compass\hook\category_badges`** is the twin of `course_badges` for categories. Through it
