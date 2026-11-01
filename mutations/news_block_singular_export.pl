@@ -1,1 +1,1 @@
-s/'news_summary', 'news_summary_one', /'news_summary', /;
+s/'news_summary_kinds_one', 'news_summary_one', /'news_summary_kinds_one', /;
