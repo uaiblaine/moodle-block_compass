@@ -1,0 +1,1 @@
+s/(            if \(event\.key === 'Escape'\) \{\n)                window\.clearTimeout\(tiptimer\.current\);\n                setTip\(null\);\n/$1                window.clearTimeout(tiptimer.current);\n/;
