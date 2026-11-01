@@ -13,6 +13,21 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Added
+
+- **Two hooks for the open-for-enrolment line, and the block's doors to them.** Version 2026100524;
+  ADR-019 stage S1. The line does not use them yet; that starts in S2.
+  - **`\block_compass\hook\category_badges`** is the twin of `course_badges` for categories. Through it
+    a theme or plugin gives each category the line names its crest. It is dispatched by
+    `theme_badges::for_categories()`, which keeps a category's first crest with a clean address and
+    asks nothing while `show_theme_badges` is off. `theme_badges::has_answerer()` now counts a listener
+    of either hook, so a theme that crests only categories still offers the setting.
+  - **`\block_compass\hook\course_kinds`** lets a theme or plugin name the course custom field that
+    tells courses from events and say what each value is called. The new `local\course_kinds` uses the
+    field only while it is a select visible to everyone (`filter_fields::eligible()`). It folds counts
+    by kind, with a course of no value or an unknown value counted as a course.
+  - Fifteen mutation gates under "Phase 15" in `mutations/gates.conf`.
+
 ## v5.3-r2 (2026100523) - 2026-10-30
 
 Second release for Moodle 5.3, from `main`, `MATURITY_BETA`. Most of it is the performance audit

@@ -199,6 +199,10 @@ classes/hook_callbacks.php modulepreload hints (after the import map) and the st
 classes/hook/course_badges.php the block's own hook, dispatched by local/theme_badges: course ids in, crests out
 classes/hook/category_link.php the block's own hook, dispatched by local/category_link: category ids and the band in,
                            a local URL per id out (ADR-017 decision 8)
+classes/hook/category_badges.php the block's own hook, dispatched by local/theme_badges: category ids in, crests out
+                           (ADR-019 decision 1)
+classes/hook/course_kinds.php the block's own hook, dispatched by local/course_kinds: the classifier field's shortname
+                           and each value's kind and nouns out (ADR-019 decision 4)
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
@@ -314,7 +318,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   pending counter until they settle, the day card is the scroller's sibling, and a day opens on hover only while wholly in
   view (`calendar.ts` `whollyInView()`). Long form: "Client side".
 - **The crests go through `classes/local/theme_badges.php` only**, which dispatches the block's
-  own hook, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-14): no
+  own hooks, `\block_compass\hook\course_badges` (ADR-013 decision 9, amended 2026-10-14) and
+  `category_badges` (ADR-019), and the course kinds through `classes/local/course_kinds.php` only: no
   plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
   costs the crests, never the first paint), and the listener, not the block, decides which
   courses the current user may see a crest for.
