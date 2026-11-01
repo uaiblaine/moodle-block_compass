@@ -227,7 +227,7 @@ Requirements
 
 | Branch | Moodle | PHP | Maturity | Latest release |
 |---|---|---|---|---|
-| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | v5.3-r2 |
+| `main` (= `MOODLE_503_STABLE`) | 5.3 | 8.3 or later | Beta | v5.3-r3 |
 | `MOODLE_502_STABLE` | 5.2 | 8.3 or later | Beta | v5.2-r2 |
 
 Each branch supports exactly one Moodle version (`$plugin->supported`); its version number is in
