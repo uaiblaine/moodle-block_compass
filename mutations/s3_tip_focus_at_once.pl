@@ -1,0 +1,1 @@
+s/(        if \(event\.currentTarget\.matches\(':focus-visible'\) && wantsTip\(event\.currentTarget\)\) \{\n)            showTip\(group, event\.currentTarget\);\n/$1            const pill = event.currentTarget;\n            tiptimer.current = window.setTimeout(() => showTip(group, pill), TIP_HOVER_MS);\n/;

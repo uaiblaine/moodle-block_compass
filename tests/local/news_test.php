@@ -420,4 +420,31 @@ final class news_test extends \advanced_testcase {
         [, $reads] = budget::measure(fn() => news::get(time()));
         $this->assertGreaterThan(0, $reads, 'Another sign-in is a miss.');
     }
+
+    /**
+     * An entry stored before ADR-019, with no counts by kind, is a miss: it is rebuilt, never read without them.
+     *
+     * The control is the same entry with its kinds, which is a hit.
+     *
+     * @return void
+     */
+    public function test_an_entry_without_kinds_is_rebuilt(): void {
+        global $USER;
+
+        $this->open_course(time() + DAYSECS);
+        $user = $this->getDataGenerator()->create_user();
+        $entry = $this->entry_for($user);
+        $this->assertSame([0 => 1], $entry['kinds'], 'One course, no classifier: model 0.');
+
+        $this->new_request();
+        [, $reads] = budget::measure(fn() => news::get(time()));
+        $this->assertSame(0, $reads, 'The control: with its kinds the entry is a hit.');
+
+        unset($entry['kinds']);
+        news_cache::set((int) $USER->id, $entry);
+        $this->new_request();
+        [$rebuilt, $reads] = budget::measure(fn() => news::get(time()));
+        $this->assertGreaterThan(0, $reads, 'An entry without kinds is a miss.');
+        $this->assertSame([0 => 1], $rebuilt['kinds']);
+    }
 }

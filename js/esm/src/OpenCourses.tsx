@@ -41,13 +41,26 @@
  * written from lang strings (calendar.ts dayMonth()), the calendar's when it renders here, else the ones
  * the shell ships beside the line's.
  *
+ * Crests and kinds (ADR-019 decisions 2, 3 and 6, docs/mockup-category-crests/): a group whose category a
+ * theme crested draws the first crest beside its name, in the pill (alt empty: the name is beside it), in
+ * the popover's rows and in the tiles, where a group without one keeps an empty slot while some group has
+ * one. With a theme naming kinds, the summary and the second lines count courses and events apart; with
+ * the default kind alone every text reads as before. The pill's name is cut at 12.5 rem and its whole text
+ * is in GroupTip, the block's own tooltip, never core's Bootstrap one and never a title: aria-hidden (the
+ * pill's accessible name says it all), opened by a hover held 300 ms or at once by keyboard focus, kept
+ * while the pointer is on it, closed by Escape without moving focus and by leaving both; it hangs from the
+ * anchor beside the clip, above the pill or below it when there is no room, inside the block's width. A tile
+ * opens the same tooltip, and only while its name or second line is cut: the tile shows the rest itself.
+ * No tooltip below 640 px of the block, where the pill takes the row and a pill's or tile's name wraps to
+ * two lines.
+ *
  * @module     block_compass/OpenCourses
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
-import type {FocusEvent, KeyboardEvent, ReactNode} from 'react';
+import type {FocusEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
 import {dateParts, dayMonth} from './calendar';
 import {heldNews, putBackCalendarPreference, writeCalendarPreference} from './calendarpref';
@@ -56,13 +69,34 @@ import {notify} from './notify';
 import {hold} from './pending';
 import {getNews} from './repository';
 import {fill, fillObject} from './str';
-import type {BlockConfig, NewsAnswer, NewsConfig, NewsGroup} from './types';
+import type {BlockConfig, NewsAnswer, NewsConfig, NewsGroup, NewsGroupKind, NewsKind} from './types';
 
 /** The groups the full line draws as links; the rest are behind "+N". */
 const LINE_GROUPS = 3;
 
+/** The tiles' tracks at 640 px of the block and over: in step with .compass-news-tiles in styles.css. */
+const TILE_TRACKS = 3;
+
 /** Below this width of the block, in CSS px, the line wraps under its title and the popover is a bottom sheet. */
 export const NEWS_NARROW_PX = 640;
+
+/** How long a pointer rests on a pill before its tooltip opens, in ms; keyboard focus opens it at once. */
+const TIP_HOVER_MS = 300;
+
+/** How long the tooltip waits after the pointer left the pill or the tooltip, in ms, for it to arrive on the other. */
+const TIP_LEAVE_MS = 100;
+
+/** The gap between the pill and its tooltip, in CSS px, which the tooltip's ::before bridges for the pointer. */
+const TIP_GAP_PX = 12;
+
+/** How close the tooltip's arrow comes to the tooltip's corners, in CSS px. */
+const TIP_ARROW_INSET_PX = 16;
+
+/** The default kind (course_kinds::DEFAULT): a line that counts nothing else reads as before ADR-019. */
+const DEFAULT_KIND = 'course';
+
+/** Between a group's kinds on one line: "2 courses · 1 event". */
+const KIND_SEPARATOR = ' · ';
 
 /** What the asking hands the block and the drawing. */
 export type NewsState = {
@@ -203,27 +237,124 @@ export const useNews = (
 const isOne = (group: NewsGroup): boolean => (group.courseid ?? 0) > 0 && !!group.coursename;
 
 /**
- * A group's accessible name when it holds several courses: a sentence that starts with what is visible.
+ * Whether a tile cuts its name or its second line with an ellipsis: only then does its tooltip say more
+ * than the tile.
+ *
+ * @param {object} tile The tile.
+ * @returns {boolean} Whether some text of it is cut.
+ */
+const isCut = (tile: HTMLElement): boolean =>
+    [...tile.querySelectorAll<HTMLElement>('.compass-news-tilename, .compass-news-tilesub')]
+        .some((text) => text.scrollWidth > text.clientWidth);
+
+/**
+ * Whether counts by kind say more than "courses": more than one kind counted, or one that is not the default.
+ *
+ * Only then do the texts name kinds (ADR-019 decision 6); a site without a theme naming kinds, or one whose
+ * courses are all courses, keeps every string of before.
+ *
+ * @param {Array} kinds Counts by kind, the answer's or a group's.
+ * @returns {boolean} Whether to name the kinds.
+ */
+const tellsKinds = (kinds: NewsGroupKind[]): boolean => {
+    const counted = kinds.filter((kind) => kind.count > 0);
+
+    return counted.length > 1 || counted.some((kind) => kind.key !== DEFAULT_KIND);
+};
+
+/**
+ * A group's counts by kind; a group the server sent none for counts its courses as courses.
+ *
+ * @param {object} group The group.
+ * @returns {Array} Its counts by kind, never empty.
+ */
+const kindsOf = (group: NewsGroup): NewsGroupKind[] =>
+    (group.kinds?.length ? group.kinds : [{key: DEFAULT_KIND, count: group.count}]);
+
+/**
+ * Each kind with a count, written: "8 courses", "1 event", the noun for one when the count is one.
  *
  * @param {object} strings The line's strings.
+ * @param {Array} nouns The answer's kinds, which carry the nouns.
+ * @param {Array} kinds The counts to write.
+ * @returns {Array} One text per kind with a count, in the kinds' order.
+ */
+const kindCounts = (strings: Record<string, string>, nouns: NewsKind[], kinds: NewsGroupKind[]): string[] =>
+    kinds.filter((kind) => kind.count > 0).map((kind) => {
+        const named = nouns.find((one) => one.key === kind.key) ?? nouns.find((one) => one.key === DEFAULT_KIND);
+        const noun = kind.count === 1 ? named?.one : named?.many;
+
+        return fillObject(strings.news_kind_count, {count: String(kind.count), noun: noun ?? kind.key});
+    });
+
+/**
+ * Items joined into one phrase: "8 courses", "8 courses and 4 events", "6 courses, 4 events and 2 tracks".
+ *
+ * @param {object} strings The line's strings.
+ * @param {Array} items The written items.
+ * @returns {string} The phrase.
+ */
+const listOf = (strings: Record<string, string>, items: string[]): string => {
+    if (items.length < 2) {
+        return items[0] ?? '';
+    }
+    const head = items.slice(0, -1).reduce((list, item) => fillObject(strings.news_kinds_join, {list, item}));
+
+    return fillObject(strings.news_kinds_last, {list: head, item: items[items.length - 1]});
+};
+
+/**
+ * A group's line in the tooltip and the popover: its kinds, "2 courses · 1 event".
+ *
+ * @param {object} strings The line's strings.
+ * @param {Array} nouns The answer's kinds.
+ * @param {object} group The group.
+ * @returns {string} The line.
+ */
+const kindsLine = (strings: Record<string, string>, nouns: NewsKind[], group: NewsGroup): string =>
+    kindCounts(strings, nouns, kindsOf(group)).join(KIND_SEPARATOR);
+
+/**
+ * A group's accessible name when it holds several courses: a sentence that starts with what is visible,
+ * its kinds named when they say more than courses.
+ *
+ * @param {object} strings The line's strings.
+ * @param {Array} nouns The answer's kinds.
  * @param {object} group The group.
  * @returns {string|undefined} The name, or undefined for a group of one, whose visible text names it.
  */
-const groupLabel = (strings: Record<string, string>, group: NewsGroup): string | undefined =>
-    (isOne(group) ? undefined : fillObject(strings.news_group_label, {name: group.name, count: String(group.count)}));
+const groupLabel = (strings: Record<string, string>, nouns: NewsKind[], group: NewsGroup): string | undefined => {
+    if (isOne(group)) {
+        return undefined;
+    }
+    if (!tellsKinds(kindsOf(group))) {
+        return fillObject(strings.news_group_label, {name: group.name, count: String(group.count)});
+    }
+    const list = listOf(strings, kindCounts(strings, nouns, kindsOf(group)));
+
+    return fillObject(strings.news_group_label_kinds, {name: group.name, list});
+};
 
 /**
- * The summary: "6 courses start by 27 November", the singular for one.
+ * The summary: "6 courses start by 27 November", the singular for one; with kinds told apart,
+ * "8 courses and 4 events start by 27 November".
  *
  * @param {object} strings The line's strings.
  * @param {number} total The courses counted.
  * @param {string} until The band's last day, written.
+ * @param {Array} nouns The answer's kinds.
  * @returns {string} The summary.
  */
-const summaryOf = (strings: Record<string, string>, total: number, until: string): string =>
-    (total === 1
-        ? fillObject(strings.news_summary_one, {until})
-        : fillObject(strings.news_summary, {count: String(total), until}));
+const summaryOf = (strings: Record<string, string>, total: number, until: string, nouns: NewsKind[]): string => {
+    if (!tellsKinds(nouns)) {
+        return (total === 1
+            ? fillObject(strings.news_summary_one, {until})
+            : fillObject(strings.news_summary, {count: String(total), until}));
+    }
+    const list = listOf(strings, kindCounts(strings, nouns, nouns));
+
+    return fillObject(total === 1 ? strings.news_summary_kinds_one : strings.news_summary_kinds, {list, until});
+};
 
 /** The four-point star of the panel's decoration, from the mockup. */
 const SPARK_PATH = 'M12 2 L13.6 9.4 L21 11 L13.6 12.6 L12 20 L10.4 12.6 L3 11 L10.4 9.4 Z';
@@ -239,6 +370,134 @@ const Spark = ({place}: {place: string}) => (
         <svg viewBox="0 0 24 24" fill="currentColor" focusable="false"><path d={SPARK_PATH} /></svg>
     </span>
 );
+
+/**
+ * A group's second line in the popover and the tiles: the course of a group of one, else its kinds when
+ * they say more than courses, else nothing.
+ *
+ * @param {object} strings The line's strings.
+ * @param {Array} nouns The answer's kinds.
+ * @param {object} group The group.
+ * @returns {string} The line, or the empty string.
+ */
+const secondLine = (strings: Record<string, string>, nouns: NewsKind[], group: NewsGroup): string => {
+    if (isOne(group)) {
+        return group.coursename ?? '';
+    }
+
+    return tellsKinds(kindsOf(group)) ? kindsLine(strings, nouns, group) : '';
+};
+
+/**
+ * A group's crest in the popover and the tiles, 28 x 31 in a 34 x 36 tile, or the tile's place kept empty
+ * so the names align (Q5). Drawn only while some group of the list has a crest. The alt is empty: the
+ * name is beside it.
+ *
+ * @param {object} props The group.
+ * @returns {object} The slot.
+ */
+const CrestSlot = ({group}: {group: NewsGroup}) => (group.crest
+    ? <span className="compass-news-slot"><img src={group.crest} alt="" /></span>
+    : <span className="compass-news-slot compass-news-slot-empty" />);
+
+/** Where the tooltip stands in the anchor, in CSS px, and whether it hangs below the pill. */
+type TipPlace = {
+    top: number,
+    left: number,
+    // The arrow's centre from the tooltip's left edge, under the pill's centre.
+    arrow: number,
+    below: boolean,
+};
+
+/**
+ * Where a tooltip goes: centred over its pill, below it when the viewport has no room above, and kept
+ * inside the anchor's width (the block's), its arrow still pointing at the pill.
+ *
+ * @param {object} anchor The anchor's box, which the tooltip is positioned in.
+ * @param {object} pill The pill's box.
+ * @param {object} tip The tooltip's own box, as laid out.
+ * @returns {object} The place; see TipPlace.
+ */
+const placeTip = (anchor: DOMRect, pill: DOMRect, tip: DOMRect): TipPlace => {
+    const below = pill.top - tip.height - TIP_GAP_PX < 0;
+    const centre = pill.left + pill.width / 2 - anchor.left;
+    const left = Math.max(0, Math.min(centre - tip.width / 2, anchor.width - tip.width));
+
+    return {
+        top: below ? pill.bottom - anchor.top + TIP_GAP_PX : pill.top - anchor.top - tip.height - TIP_GAP_PX,
+        left,
+        arrow: Math.max(TIP_ARROW_INSET_PX, Math.min(centre - left, tip.width - TIP_ARROW_INSET_PX)),
+        below,
+    };
+};
+
+type GroupTipProps = {
+    group: NewsGroup,
+    // The pill it belongs to, and the anchor it hangs from, beside the clip that grows the line.
+    pill: HTMLElement,
+    anchor: HTMLElement,
+    // Its one line: the course of a group of one, else the group's kinds.
+    line: string,
+    onEnter: () => void,
+    onLeave: () => void,
+};
+
+/**
+ * A pill's tooltip (ADR-019 decision 3): the crest on its tile, the whole name and one line.
+ *
+ * aria-hidden: the pill's accessible name already says all of it, and a tooltip of the block's own is never
+ * announced twice. Drawn once unplaced and invisible, measured before paint, then placed and shown, so it
+ * fades in (120 ms) where it belongs. It takes the pointer only once shown, and its ::before bridges the
+ * gap to the pill (styles.css), so the pointer can move onto it and it stays (WCAG 1.4.13).
+ *
+ * @param {object} props The group, its pill, the anchor, the line and the two pointer callbacks; see GroupTipProps.
+ * @returns {object} The tooltip.
+ */
+const GroupTip = ({group, pill, anchor, line, onEnter, onLeave}: GroupTipProps) => {
+    const box = useRef<HTMLDivElement>(null);
+    const [place, setPlace] = useState<TipPlace | null>(null);
+
+    useLayoutEffect(() => {
+        if (!box.current) {
+            return;
+        }
+        setPlace(placeTip(anchor.getBoundingClientRect(), pill.getBoundingClientRect(), box.current.getBoundingClientRect()));
+    }, [group, pill, anchor]);
+
+    const classes = ['compass-news-tip'];
+    if (!group.crest) {
+        classes.push('compass-news-tip-plain');
+    }
+    if (place?.below) {
+        classes.push('compass-news-tip-below');
+    }
+    if (place) {
+        classes.push('compass-news-tip-on');
+    }
+
+    return (
+        <div
+            ref={box}
+            className={classes.join(' ')}
+            aria-hidden="true"
+            style={place ? {top: `${place.top}px`, left: `${place.left}px`} : undefined}
+            onPointerEnter={onEnter}
+            onPointerLeave={onLeave}
+        >
+            {group.crest && (
+                <span className="compass-news-tipcrest"><img src={group.crest} alt={group.crestalt ?? ''} /></span>
+            )}
+            <span className="compass-news-tipbody">
+                <span className="compass-news-tipname">{group.name}</span>
+                <span className="compass-news-tipmeta">{line}</span>
+            </span>
+            <span className="compass-news-tiparrow" style={place ? {left: `${place.arrow}px`} : undefined} />
+        </div>
+    );
+};
+
+/** The tooltip shown: the group, and the pill it was opened from. */
+type TipState = {group: NewsGroup, pill: HTMLElement};
 
 type OpenCoursesProps = {
     config: BlockConfig,
@@ -277,11 +536,19 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     const dialog = useRef<HTMLDivElement>(null);
     // The control that opened the popover, which takes the keyboard back when it closes.
     const opener = useRef<HTMLButtonElement | null>(null);
+    // The pill's tooltip (GroupTip): the group shown, and the one timer that opens or closes it.
+    const [tip, setTip] = useState<TipState | null>(null);
+    const tiptimer = useRef(0);
+    const anchor = useRef<HTMLDivElement>(null);
+    // The full line's pills and the tiles have one, the slim panel none, and none below 640 px of the
+    // block: touch has no hover.
+    const tips = mode !== 'compact' && !narrow;
 
     useLayoutEffect(() => {
         if (!shown) {
             setGrown(false);
             setPopover(false);
+            setTip(null);
             return;
         }
         wrap.current?.getBoundingClientRect();
@@ -325,6 +592,31 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
         return () => document.removeEventListener('pointerdown', outside);
     }, [popover]);
 
+    // Escape closes the tooltip wherever the keyboard is, and leaves the keyboard where it is (WCAG 1.4.13).
+    useEffect(() => {
+        if (!tip) {
+            return undefined;
+        }
+        /**
+         * Close the tooltip on Escape.
+         *
+         * @param {object} event The key event.
+         * @returns {void}
+         */
+        const onkey = (event: {key: string}): void => {
+            if (event.key === 'Escape') {
+                window.clearTimeout(tiptimer.current);
+                setTip(null);
+            }
+        };
+        document.addEventListener('keydown', onkey);
+
+        return () => document.removeEventListener('keydown', onkey);
+    }, [tip]);
+
+    // A timer left running goes with the line.
+    useEffect(() => () => window.clearTimeout(tiptimer.current), []);
+
     if (hidden) {
         return null;
     }
@@ -340,7 +632,11 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     }
 
     const until = answer.to ? dayMonth(strings, dateParts(answer.to)) : '';
-    const summary = summaryOf(strings, answer.total, until);
+    // The kinds and their nouns; empty from a server before ADR-019, which reads as the default kind alone.
+    const nouns = answer.kinds ?? [];
+    const summary = summaryOf(strings, answer.total, until, nouns);
+    // The popover's and the tiles' crest slots, kept while any group has a crest and drawn for none otherwise (Q5).
+    const withslots = answer.groups.some((group) => !!group.crest);
 
     /**
      * Open the popover from a control.
@@ -350,7 +646,90 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
      */
     const openFrom = (control: HTMLButtonElement): void => {
         opener.current = control;
+        window.clearTimeout(tiptimer.current);
+        setTip(null);
         setPopover((current) => !current);
+    };
+
+    /**
+     * Show a pill's tooltip now.
+     *
+     * @param {object} group The pill's group.
+     * @param {object} pill The pill.
+     * @returns {void}
+     */
+    const showTip = (group: NewsGroup, pill: HTMLElement): void => {
+        window.clearTimeout(tiptimer.current);
+        setTip({group, pill});
+    };
+
+    /**
+     * Whether a pill or tile wants its tooltip: a pill always (it shows neither the whole name nor the
+     * kinds), a tile only while it cuts a text.
+     *
+     * @param {object} control The pill or the tile.
+     * @returns {boolean} Whether to open the tooltip.
+     */
+    const wantsTip = (control: HTMLElement): boolean => mode !== 'tiles' || isCut(control);
+
+    /**
+     * A pointer came to rest on a pill: its tooltip opens after TIP_HOVER_MS, and stays if already shown. A
+     * touch opens none, as it has no hover to take back.
+     *
+     * @param {object} group The pill's group.
+     * @param {object} event The pointer event.
+     * @returns {void}
+     */
+    const hoverTip = (group: NewsGroup, event: ReactPointerEvent<HTMLAnchorElement>): void => {
+        if (event.pointerType === 'touch' || !wantsTip(event.currentTarget)) {
+            return;
+        }
+        const pill = event.currentTarget;
+        window.clearTimeout(tiptimer.current);
+        if (tip?.pill === pill) {
+            return;
+        }
+        tiptimer.current = window.setTimeout(() => setTip({group, pill}), TIP_HOVER_MS);
+    };
+
+    /**
+     * Keyboard focus on a pill opens its tooltip at once; the focus a press gives opens none (the hover does).
+     *
+     * @param {object} group The pill's group.
+     * @param {object} event The focus event.
+     * @returns {void}
+     */
+    const focusTip = (group: NewsGroup, event: FocusEvent<HTMLAnchorElement>): void => {
+        if (event.currentTarget.matches(':focus-visible') && wantsTip(event.currentTarget)) {
+            showTip(group, event.currentTarget);
+        }
+    };
+
+    /**
+     * The pointer left the pill or the tooltip: it closes unless the pointer arrives on the other in time.
+     *
+     * @returns {void}
+     */
+    const leaveTip = (): void => {
+        window.clearTimeout(tiptimer.current);
+        tiptimer.current = window.setTimeout(() => setTip(null), TIP_LEAVE_MS);
+    };
+
+    /**
+     * The pointer arrived on the tooltip: it stays.
+     *
+     * @returns {void}
+     */
+    const keepTip = (): void => window.clearTimeout(tiptimer.current);
+
+    /**
+     * Focus left the pill: its tooltip closes.
+     *
+     * @returns {void}
+     */
+    const blurTip = (): void => {
+        window.clearTimeout(tiptimer.current);
+        setTip(null);
     };
 
     /**
@@ -418,19 +797,22 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                     </div>
                 </div>
                 <ul className="compass-news-poplist">
-                    {answer.groups.map((group) => (
-                        <li key={group.categoryid}>
-                            <a className="compass-news-poprow" href={group.url} aria-label={groupLabel(strings, group)}>
-                                <span className="compass-news-popname">
-                                    <span className="compass-news-popcat" title={group.name}>{group.name}</span>
-                                    {isOne(group) && (
-                                        <span className="compass-news-popsub" title={group.coursename}>{group.coursename}</span>
-                                    )}
-                                </span>
-                                <span className="compass-news-count">{group.count}</span>
-                            </a>
-                        </li>
-                    ))}
+                    {answer.groups.map((group) => {
+                        const sub = secondLine(strings, nouns, group);
+
+                        return (
+                            <li key={group.categoryid}>
+                                <a className="compass-news-poprow" href={group.url} aria-label={groupLabel(strings, nouns, group)}>
+                                    {withslots && <CrestSlot group={group} />}
+                                    <span className="compass-news-popname">
+                                        <span className="compass-news-popcat" title={group.name}>{group.name}</span>
+                                        {sub && <span className="compass-news-popsub" title={sub}>{sub}</span>}
+                                    </span>
+                                    <span className="compass-news-count">{group.count}</span>
+                                </a>
+                            </li>
+                        );
+                    })}
                 </ul>
                 <div className="compass-news-popfoot">
                     <a className="compass-news-all" href={answer.allurl}>{strings.news_all}</a>
@@ -461,11 +843,21 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
      * @returns {object} The wrapped shape.
      */
     const grow = (children: ReactNode) => (
-        <div className="compass-news-anchor">
+        <div ref={anchor} className="compass-news-anchor">
             <div ref={wrap} className={grown ? 'compass-news-wrap compass-news-wrap-open' : 'compass-news-wrap'}>
                 <div className="compass-news-inner">{children}</div>
             </div>
             {mode !== 'tiles' && pop}
+            {tips && tip && anchor.current && (
+                <GroupTip
+                    group={tip.group}
+                    pill={tip.pill}
+                    anchor={anchor.current}
+                    line={isOne(tip.group) ? tip.group.coursename ?? '' : kindsLine(strings, nouns, tip.group)}
+                    onEnter={keepTip}
+                    onLeave={leaveTip}
+                />
+            )}
         </div>
     );
 
@@ -495,6 +887,16 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     );
 
     if (mode === 'tiles') {
+        const tileClasses = ['compass-news-tiles'];
+        // Fewer tiles than tracks: each is as wide as its name needs, up to the row (styles.css).
+        if (!narrow && answer.groups.length < TILE_TRACKS) {
+            tileClasses.push('compass-news-tiles-few');
+        }
+        // The second line starts under the name, past the crest slot.
+        if (withslots) {
+            tileClasses.push('compass-news-tiles-slotted');
+        }
+
         return grow(
             <section
                 className={narrow ? 'compass-news compass-news-empty compass-news-narrow' : 'compass-news compass-news-empty'}
@@ -509,20 +911,39 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                         <span className="compass-news-sum">{fill(strings.news_empty_lead, until)}</span>
                     </div>
                 </div>
-                <ul className="compass-news-tiles">
-                    {answer.groups.map((group) => (
-                        <li key={group.categoryid}>
-                            <a className="compass-news-tile" href={group.url} aria-label={groupLabel(strings, group)}>
-                                <span className="compass-news-tiletop">
-                                    <span className="compass-news-tilename" title={group.name}>{group.name}</span>
-                                    <span className="compass-news-count">{group.count}</span>
-                                </span>
-                                {isOne(group) && (
-                                    <span className="compass-news-tilesub" title={group.coursename}>{group.coursename}</span>
-                                )}
-                            </a>
-                        </li>
-                    ))}
+                <ul className={tileClasses.join(' ')}>
+                    {answer.groups.map((group) => {
+                        const sub = secondLine(strings, nouns, group);
+
+                        return (
+                            <li key={group.categoryid}>
+                                {/* A cut text's whole is in GroupTip, never in a title, as on the pill: a title would
+                                    draw a second tooltip on the same hover. Below 640 px both wrap to two lines. */}
+                                <a
+                                    className="compass-news-tile"
+                                    href={group.url}
+                                    aria-label={groupLabel(strings, nouns, group)}
+                                    onPointerEnter={tips ? (event) => hoverTip(group, event) : undefined}
+                                    onPointerLeave={tips ? leaveTip : undefined}
+                                    onFocus={tips ? (event) => focusTip(group, event) : undefined}
+                                    onBlur={tips ? blurTip : undefined}
+                                >
+                                    <span className="compass-news-tiletop">
+                                        {withslots && <CrestSlot group={group} />}
+                                        <span className={narrow ? 'compass-news-tilename compass-clamp' : 'compass-news-tilename'}>
+                                            {group.name}
+                                        </span>
+                                        <span className="compass-news-count">{group.count}</span>
+                                    </span>
+                                    {sub && (
+                                        <span className={narrow ? 'compass-news-tilesub compass-clamp' : 'compass-news-tilesub'}>
+                                            {sub}
+                                        </span>
+                                    )}
+                                </a>
+                            </li>
+                        );
+                    })}
                 </ul>
                 <p className="compass-news-foot"><a className="compass-news-all" href={answer.allurl}>{strings.news_all}</a></p>
             </section>
@@ -570,20 +991,29 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
             {closer(true)}
             <ul className="compass-news-groups">
                 {answer.groups.slice(0, LINE_GROUPS).map((group) => (
-                    <li key={group.categoryid}>
+                    <li key={group.categoryid} className="compass-news-groupitem">
+                        {/* The name is cut, and its whole text is in GroupTip, never in a title (ADR-019 decision 3):
+                            a title would draw a second tooltip on the same hover. Below 640 px it wraps to two lines. */}
                         <a
                             className={isOne(group) ? 'compass-news-group compass-news-group-one' : 'compass-news-group'}
                             href={group.url}
-                            aria-label={groupLabel(strings, group)}
+                            aria-label={groupLabel(strings, nouns, group)}
+                            onPointerEnter={tips ? (event) => hoverTip(group, event) : undefined}
+                            onPointerLeave={tips ? leaveTip : undefined}
+                            onFocus={tips ? (event) => focusTip(group, event) : undefined}
+                            onBlur={tips ? blurTip : undefined}
                         >
+                            {group.crest && <span className="compass-news-crestbox"><img src={group.crest} alt="" /></span>}
                             {isOne(group) ? (
-                                <span className="compass-news-gname" title={`${group.name} · ${group.coursename}`}>
+                                <span className={narrow ? 'compass-news-gname compass-clamp' : 'compass-news-gname'}>
                                     {group.name}
                                     <span className="compass-news-gsub">{` · ${group.coursename}`}</span>
                                 </span>
                             ) : (
                                 <>
-                                    <span className="compass-news-gname" title={group.name}>{group.name}</span>
+                                    <span className={narrow ? 'compass-news-gname compass-clamp' : 'compass-news-gname'}>
+                                        {group.name}
+                                    </span>
                                     <span className="compass-news-count">{group.count}</span>
                                 </>
                             )}

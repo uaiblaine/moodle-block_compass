@@ -79,7 +79,9 @@ final class contrast_rules_test extends basic_testcase {
     /**
      * @var string[] The open-courses panel's filled rules (ADR-017 decision 7, round 2), each declaring its paired text: the
      *     panel's gradient, the icon's tile and the count chip (a tint of the primary), a group, "+N", the close
-     *     and the close hovered, "See", the popover, its rows at rest and hovered, and a tile of tier 1's empty state.
+     *     and the close hovered, "See", the popover, its rows at rest and hovered, and a tile of tier 1's empty state;
+     *     with ADR-019, a group's tooltip and the crests' tiles (the pill's box, a tile in dark mode only, the
+     *     popover's and the tiles' slot, the tooltip's tile), light in both modes.
      */
     private const NEWS_FILLS = [
         '.block_compass .compass-news', '.block_compass .compass-news-icon', '.block_compass .compass-news-count',
@@ -87,6 +89,8 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-see', '.block_compass .compass-news-pop',
         '.block_compass .compass-news-poprow', '.block_compass .compass-news-poprow:hover', '.block_compass .compass-news-tile',
         '.block_compass .compass-news-pophide', '.block_compass .compass-news-pophide:hover',
+        '.block_compass .compass-news-tip', '.block_compass .compass-news-crestbox', '.block_compass .compass-news-slot',
+        '.block_compass .compass-news-tipcrest',
     ];
 
     /** @var string The scope of a dimmed column of the open row. */
@@ -726,6 +730,20 @@ final class contrast_rules_test extends basic_testcase {
             ['the foot link', '.block_compass .compass-news-foot .compass-news-all', $surface, ['root']],
             ['a tile', $tile, $tile, ['root']],
             ['a tile\'s course', '.block_compass .compass-news-tilesub', $tile, ['root']],
+        ]);
+        // A group's tooltip (ADR-019 decision 3): its name and its line on its own surface, the raised dark one in
+        // dark mode. The crests' tiles stay light in dark mode (decision 2), so what text they could carry is the
+        // dark body colour there: the pill's box (transparent in light mode), the slot and the tooltip's tile.
+        $tip = '.block_compass .compass-news-tip';
+        $slot = '.block_compass .compass-news-slot';
+        $tipcrest = '.block_compass .compass-news-tipcrest';
+        $crestbox = '.block_compass .compass-news-crestbox';
+        $pairs = array_merge($pairs, [
+            ['a group\'s tooltip', $tip, $tip, ['root']],
+            ['a tooltip\'s line', '.block_compass .compass-news-tipmeta', $tip, ['root']],
+            ['the pill\'s crest box', $crestbox, $crestbox, ['root']],
+            ['a crest\'s slot', $slot, $slot, ['root']],
+            ['the tooltip\'s crest tile', $tipcrest, $tipcrest, ['root']],
         ]);
         // Marks, 3:1 against the surface they sit on: the dots, the late diamond, the ring.
         $marks = [

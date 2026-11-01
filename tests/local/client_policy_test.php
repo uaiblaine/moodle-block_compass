@@ -134,9 +134,10 @@ final class client_policy_test extends advanced_testcase {
         $ones = array_filter(array_keys($strings['en']), static fn($key) => str_ends_with($key, '_one'));
 
         // Ten for the block's labels, twelve for the calendar's strings (the strip's and Up next's),
-        // which the shell ships under the calendar key (block::CALENDAR_STRINGS), and one for the
-        // open-courses line's summary, under the news key (block::NEWS_STRINGS, ADR-017).
-        $this->assertCount(23, $ones);
+        // which the shell ships under the calendar key (block::CALENDAR_STRINGS), and two for the
+        // open-courses line's summaries, the plain one (ADR-017) and the one naming kinds (ADR-019),
+        // under the news key (block::NEWS_STRINGS).
+        $this->assertCount(24, $ones);
         foreach ($ones as $key) {
             $this->assertArrayHasKey(substr($key, 0, -4), $strings['en'], $key);
             $this->assertSame(
@@ -223,7 +224,8 @@ final class client_policy_test extends advanced_testcase {
      * found where it is written, and getNews() is called in one place.
      *
      * Changes that must make it fail: the line asked while hidden, alone with the calendar here, or more than
-     * once; a timer or a visibilitychange listener in the line.
+     * once; a timer or a visibilitychange listener in the line, other than the group tooltip's two, which
+     * only set the tooltip.
      *
      * @return void
      */
@@ -241,6 +243,11 @@ final class client_policy_test extends advanced_testcase {
         $this->assertSame(1, substr_count($line, 'const [hidden, setHidden] = useState(!news || news.signin > 0);'));
         // The code, without its comments, which say what it never does.
         $code = preg_replace(['#/\*.*?\*/#s', '#(?<![:/])//[^\n]*#'], '', $line);
+        // The group tooltip's two timers (ADR-019 decision 3) open and close the tooltip and ask nothing.
+        $tiptimers = '/tiptimer\.current = window\.setTimeout\(\(\) => setTip\((?:\{group, pill\}|null)\), '
+            . 'TIP_(?:HOVER|LEAVE)_MS\);/';
+        $this->assertSame(2, preg_match_all($tiptimers, $code), 'the tooltip\'s hover and leave timers');
+        $code = preg_replace($tiptimers, '', $code);
         foreach (['setTimeout', 'setInterval', 'visibilitychange', 'requestAnimationFrame'] as $timer) {
             $this->assertStringNotContainsString($timer, $code, "the line asks on {$timer}");
         }
@@ -312,6 +319,92 @@ final class client_policy_test extends advanced_testcase {
         $this->assertStringContainsString('(total === 1', $line);
         $this->assertStringContainsString('fillObject(strings.news_summary_one, {until})', $line);
         $this->assertStringContainsString("fillObject(strings.news_summary, {count: String(total), until})", $line);
+    }
+
+    /**
+     * The summary names kinds only when they say more than courses, and composes them from the strings.
+     *
+     * ADR-019 decision 6: with no kind, or the default kind alone (a site without a theme naming kinds, or
+     * one whose courses are all courses), the summary is today's string exactly, so the line reads as before
+     * ("3 courses start by", which the Behat scenario reads). Otherwise each kind with a count is written
+     * with news_kind_count, the noun for one at a count of one, joined by news_kinds_join and the last by
+     * news_kinds_last, in news_summary_kinds or its singular twin for a total of one. A group's accessible
+     * name names kinds by the same rule (news_group_label_kinds), and its line in the tooltip and the popover
+     * lists them with a middle dot. Vacuity guards: the helpers are found.
+     *
+     * @return void
+     */
+    public function test_the_summary_names_kinds_only_beside_another_kind(): void {
+        $line = $this->source('OpenCourses.tsx');
+
+        $this->assertStringContainsString("const DEFAULT_KIND = 'course';", $line);
+        $tells = $this->slice($line, 'const tellsKinds = ', "\n};\n");
+        $this->assertStringContainsString('const counted = kinds.filter((kind) => kind.count > 0);', $tells);
+        $this->assertStringContainsString(
+            'return counted.length > 1 || counted.some((kind) => kind.key !== DEFAULT_KIND);',
+            $tells,
+            'kinds are named beside another kind, or for one that is not the default'
+        );
+
+        // Today's strings while the kinds say nothing more.
+        $summary = $this->slice($line, 'const summaryOf = ', "\n};\n");
+        $this->assertMatchesRegularExpression(
+            '/^const summaryOf = [^\n]*\n    if \(!tellsKinds\(nouns\)\) \{\n        return \(total === 1\n'
+            . '\s*\? fillObject\(strings\.news_summary_one, \{until\}\)\n'
+            . '\s*: fillObject\(strings\.news_summary, \{count: String\(total\), until\}\)\);\n    \}/',
+            $summary,
+            'the plain summary comes first, for the default kind alone'
+        );
+        $this->assertStringContainsString(
+            'fillObject(total === 1 ? strings.news_summary_kinds_one : strings.news_summary_kinds, {list, until})',
+            $summary
+        );
+        $this->assertStringContainsString('const summary = summaryOf(strings, answer.total, until, nouns);', $line);
+
+        // The composition.
+        $counts = $this->slice($line, 'const kindCounts = ', "\n    });\n");
+        $this->assertStringContainsString('const noun = kind.count === 1 ? named?.one : named?.many;', $counts);
+        $this->assertStringContainsString(
+            'fillObject(strings.news_kind_count, {count: String(kind.count), noun: noun ?? kind.key})',
+            $counts
+        );
+        $this->assertStringContainsString(
+            'kinds.filter((kind) => kind.count > 0)',
+            $counts,
+            'a kind with no course is not written'
+        );
+        $list = $this->slice($line, 'const listOf = ', "\n};\n");
+        $this->assertStringContainsString('fillObject(strings.news_kinds_join, {list, item})', $list);
+        $this->assertStringContainsString(
+            'fillObject(strings.news_kinds_last, {list: head, item: items[items.length - 1]})',
+            $list
+        );
+        $this->assertStringContainsString("const KIND_SEPARATOR = ' · ';", $line);
+
+        // The group's accessible name, by the same rule.
+        $label = $this->slice($line, 'const groupLabel = ', "\n};\n");
+        $this->assertMatchesRegularExpression(
+            '/if \(!tellsKinds\(kindsOf\(group\)\)\) \{\n\s*return fillObject\(strings\.news_group_label, /',
+            $label
+        );
+        $this->assertStringContainsString('fillObject(strings.news_group_label_kinds, {name: group.name, list})', $label);
+
+        // The strings themselves: no space around them, the composition the same in both languages.
+        $root = dirname(__DIR__, 2);
+        foreach (self::languages() as $lang) {
+            $string = [];
+            include($root . '/lang/' . $lang . '/block_compass.php');
+            $keys = [
+                'news_kind_count', 'news_kinds_join', 'news_kinds_last', 'news_summary_kinds', 'news_summary_kinds_one',
+                'news_group_label_kinds',
+            ];
+            foreach ($keys as $key) {
+                $this->assertArrayHasKey($key, $string, "{$lang}: {$key}");
+                $this->assertSame(trim($string[$key]), $string[$key], "{$lang}: {$key} starts or ends with a space");
+            }
+            $this->assertSame('{$a->count} {$a->noun}', $string['news_kind_count'], $lang);
+            $this->assertSame('{$a->list}, {$a->item}', $string['news_kinds_join'], $lang);
+        }
     }
 
     /**

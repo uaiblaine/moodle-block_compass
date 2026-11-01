@@ -13,6 +13,78 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Added
+
+- **5.2: ADR-019 ported to `MOODLE_502_STABLE`.** Version 2026042024; ADR-019 stage S6. The block's part
+  of v5.3-r3 (2026100524 to 2026100527): the `category_badges` and `course_kinds` hooks, the model in the
+  catalogue and the counts by kind, the crests and kinds in `get_news`, the group tooltip, and the tiles'
+  second line, width and tooltip when cut. No theme answers the two hooks on 5.2 (`theme_dimensions`
+  supports 5.3 only), so crests and kinds stay off there until one does; the tooltip and the tiles work
+  without them.
+
+## v5.3-r3 (2026100527) - 2026-11-01
+
+Third release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings ADR-019 to the open-for-enrolment
+line: each group shows its category's first crest from the theme, a tooltip of the block's own carries a
+cut name in full, and with a theme that names a course classifier field the texts count courses and events
+apart. Two hooks for those (`category_badges`, `course_kinds`), no schema change, six new strings. The
+no-enrolment tiles also align their second line, give a lone name the row and open the tooltip when a text
+is cut.
+
+### Added
+
+- **The open-for-enrolment line draws each group's crest, a tooltip with the whole name, and courses told
+  from events.** Version 2026100526; ADR-019 stage S3.
+  - **The pill:** the category's first crest beside the name (22×24, never cropped; a light tile in dark
+    mode). The name stops at 12.5 rem, and its whole text is in the group's tooltip, not in a title.
+  - **The tooltip:** the block's own, never core's: the crest, the whole name and the group's kinds (or
+    the course of a group of one). It opens after a 300 ms hover or at once on keyboard focus, stays while
+    the pointer is on it, closes on Escape without moving focus, and is hidden from assistive technology,
+    as the pill's accessible name already says it all. None below 640 px of the block, where the pill
+    takes the row and its name wraps to two lines.
+  - **The popover and the tiles:** the crest in a slot, kept empty for a group without one while another
+    has one; the second line counts the kinds ("2 courses · 1 event").
+  - **The text:** with a theme naming kinds, the summary reads "8 courses and 4 events start by …" and a
+    group's accessible name names its kinds. Six new strings. Without such a theme, every text is as before.
+  - Eleven mutation gates under "Phase 15, S3". The Behat scenario is unchanged: steps for a crest and a
+    kind wait for the theme's listeners (S4).
+
+- **The open-for-enrolment line's server tells courses from events and carries each group's crest.**
+  Version 2026100525; ADR-019 stage S2. The client draws them in S3.
+  - **The catalogue:** with a theme naming a classifier field (`course_kinds`), the catalogue reads each
+    course's model by a join after its LIMIT, and the model is part of the digest. Measured +0.6 ms on
+    PostgreSQL and +0.7 ms on MariaDB per build at 50,000 courses.
+  - **The counts:** the per-user entry counts each group by model. An entry stored before this is rebuilt.
+  - **`get_news`:** the answer gains `kinds` (key, count and the nouns for one and many, the default kind
+    first), and each group gains its `kinds` plus `crest` and `crestalt` when the `category_badges` hook
+    gives one. No read is added: every budget ceiling holds with both listeners answering.
+  - **Invalidation:** a custom field change now drops the catalogue too.
+  - Eight mutation gates.
+
+- **Two hooks for the open-for-enrolment line, and the block's doors to them.** Version 2026100524;
+  ADR-019 stage S1. The line does not use them yet; that starts in S2.
+  - **`\block_compass\hook\category_badges`** is the twin of `course_badges` for categories. Through it
+    a theme or plugin gives each category the line names its crest. It is dispatched by
+    `theme_badges::for_categories()`, which keeps a category's first crest with a clean address and
+    asks nothing while `show_theme_badges` is off. `theme_badges::has_answerer()` now counts a listener
+    of either hook, so a theme that crests only categories still offers the setting.
+  - **`\block_compass\hook\course_kinds`** lets a theme or plugin name the course custom field that
+    tells courses from events and say what each value is called. The new `local\course_kinds` uses the
+    field only while it is a select visible to everyone (`filter_fields::eligible()`). It folds counts
+    by kind, with a course of no value or an unknown value counted as a course.
+  - Fifteen mutation gates under "Phase 15" in `mutations/gates.conf`.
+
+### Fixed
+
+- **The no-enrolment tiles of the open-for-enrolment line: the second line, the room for a name and the
+  tooltip.** Version 2026100527.
+  - The second line ("154 courses · 1 event") starts under the name, past the crest slot, instead of under
+    the crest.
+  - Fewer tiles than the row's three tracks are as wide as their names need, up to the whole row, so a
+    lone category's name is no longer cut at a third of the block.
+  - A tile whose name or second line is still cut opens the group's tooltip on hover or keyboard focus,
+    as the pill does, in place of the browser's title; below 640 px of the block both wrap to two lines.
+
 ## v5.3-r2 (2026100523) - 2026-10-30
 
 Second release for Moodle 5.3, from `main`, `MATURITY_BETA`. Most of it is the performance audit

@@ -1,0 +1,1 @@
+s/(<span className=\{narrow \? 'compass-news-gname compass-clamp' : 'compass-news-gname'\})>\n(\s*)\{group\.name\}\n(\s*)<span className="compass-news-gsub">/$1 title={group.name}>\n$2\{group.name\}\n$3<span className="compass-news-gsub">/;

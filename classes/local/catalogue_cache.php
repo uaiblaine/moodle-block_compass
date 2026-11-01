@@ -27,11 +27,12 @@ namespace block_compass\local;
 use core_cache\cache;
 
 /**
- * Wrapper of the block_compass/catalogue definition (ADR-017 decision 4).
+ * Wrapper of the block_compass/catalogue definition (ADR-017 decision 4, ADR-019 decision 4).
  *
  * One key for the whole site. Value: the entry {@see catalogue::build()} returns:
- * - rows: at most {@see catalogue::CATALOGUE_LIMIT} lists [courseid, categoryid, startdate], ordered by
- *   start date then id;
+ * - rows: at most {@see catalogue::CATALOGUE_LIMIT} lists [courseid, categoryid, startdate, model], ordered
+ *   by start date then id; model is the course's stored value of the classifier field
+ *   ({@see course_kinds::field_id()}), 0 for none or with no classifier;
  * - truncated: whether the candidate statement found more rows than the limit, so counts are a floor;
  * - built: the build instant;
  * - until: the first instant the answer can change without an event, the next site midnight or an

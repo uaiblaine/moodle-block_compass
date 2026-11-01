@@ -16,7 +16,9 @@
 
 namespace block_compass\local;
 
+use block_compass\fixtures\course_kinds_listener;
 use block_compass\fixtures\open_courses_fixture;
+use core\hook\manager;
 use local_unlistedcourses\discoverability;
 use PHPUnit\Framework\Attributes\CoversClass;
 
@@ -366,7 +368,8 @@ final class catalogue_test extends \advanced_testcase {
 
         $this->assertSame($before['rows'], $moved['rows'], 'Control: no row member changed.');
         $this->assertNotSame($before['digest'], $moved['digest']);
-        $this->assertCount(3, $moved['rows'][0], 'The path does not travel in the rows.');
+        $this->assertCount(4, $moved['rows'][0], 'The path does not travel in the rows; the model does.');
+        $this->assertSame(0, $moved['rows'][0][3], 'No classifier: every model is 0.');
     }
 
     /**
@@ -387,5 +390,60 @@ final class catalogue_test extends \advanced_testcase {
         $this->assertSame(1, (int) $DB->get_field('course', 'visible', ['id' => $course->id]), 'The course itself is visible.');
 
         $this->assertSame([], $this->ids(catalogue::build($now, 7, 30, new \DateTimeZone(self::SITE_TZ))));
+    }
+
+    /**
+     * With an eligible classifier the model rides the rows and the digest; without one, or with it made
+     * teachers-only, every model is 0 (ADR-019 decision 4).
+     *
+     * The control is the same build with no listener, which keeps the same courses in the same order.
+     *
+     * @return void
+     */
+    public function test_the_model_rides_the_rows_only_with_an_eligible_classifier(): void {
+        global $DB;
+
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        course_kinds_listener::reset();
+        $now = $this->now();
+        $tz = new \DateTimeZone(self::SITE_TZ);
+        $generator = $this->getDataGenerator();
+        $plugin = $generator->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        $category = (int) $generator->create_category()->id;
+        $event = $this->open_course($now + DAYSECS, $category);
+        $course = $this->open_course($now + 2 * DAYSECS, $category);
+        $unset = $this->open_course($now + 3 * DAYSECS, $category);
+        $plugin->field_value($model, (int) $event->id, 2);
+        $plugin->field_value($model, (int) $course->id, 1);
+        // A second field's value on the same course: the join must read the classifier's row alone.
+        $flag = $plugin->course_field('checkbox', 'flag', ['visibility' => 2]);
+        $plugin->field_value($flag, (int) $event->id, 1);
+
+        \core\di::set(manager::class, manager::phpunit_get_instance([]));
+        $none = catalogue::build($now, 7, 30, $tz);
+        $this->assertSame([0, 0, 0], array_column($none['rows'], 3), 'No listener: every model is 0.');
+
+        \core\di::set(manager::class, manager::phpunit_get_instance(
+            ['block_compass_fixture' => __DIR__ . '/../fixtures/course_kinds_hooks.php']
+        ));
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[1, 'course', 'curso', 'cursos'], [2, 'event', 'evento', 'eventos']];
+        $with = catalogue::build($now, 7, 30, $tz);
+        $this->assertSame([(int) $event->id, (int) $course->id, (int) $unset->id], array_column($with['rows'], 0));
+        $this->assertSame(array_column($none['rows'], 0), array_column($with['rows'], 0), 'The same courses, in order.');
+        $this->assertSame([2, 1, 0], array_column($with['rows'], 3), 'Each course carries its stored value; none is 0.');
+        $this->assertNotSame($none['digest'], $with['digest'], 'The model is part of the digest.');
+
+        $DB->set_field('customfield_data', 'intvalue', 1, ['fieldid' => $model->get('id'), 'instanceid' => $event->id]);
+        $retyped = catalogue::build($now, 7, 30, $tz);
+        $this->assertSame([1, 1, 0], array_column($retyped['rows'], 3));
+        $this->assertNotSame($with['digest'], $retyped['digest'], 'A retyped course changes the digest.');
+
+        $record = $model->to_record();
+        $record->configdata = json_encode(['options' => "Course\nEvent", 'visibility' => 1]);
+        \core_course\customfield\course_handler::create()->save_field_configuration($model, $record);
+        $hidden = catalogue::build($now, 7, 30, $tz);
+        $this->assertSame([0, 0, 0], array_column($hidden['rows'], 3), 'A teachers-only field is no classifier.');
     }
 }

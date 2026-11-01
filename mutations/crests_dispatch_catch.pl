@@ -1,1 +1,1 @@
-s/        try \{\n            (\\core\\di::get\(manager::class\)->dispatch\(\$hook\);)\n        \} catch \(\\Throwable \$e\) \{\n[^\n]*\n\n            return \[\];\n        \}/        $1/;
+s/        try \{\n            (\\core\\di::get\(manager::class\)->dispatch\(\$hook\);)\n        \} catch \(\\Throwable \$e\) \{\n[^\n]*a course_badges listener failed[^\n]*\n\n            return \[\];\n        \}/        $1/;

@@ -684,9 +684,15 @@ final class accessibility_rules_test extends basic_testcase {
 
         $clamped = 0;
         $where = [];
+        $exempt = '/(?<![\w-])(' . implode('|', $this->tooltip_named_classes()) . ')(?![\w-])/';
         foreach ($this->reactsources() as $file => $contents) {
             foreach (self::all_tags($contents) as $tag) {
                 if (!preg_match('/\bcompass-clamp\b/', $tag)) {
+                    continue;
+                }
+                if (preg_match($exempt, $tag, $named)) {
+                    // The stated exception: its whole text is in the group's tooltip, and a title would be a second one.
+                    $this->assertDoesNotMatchRegularExpression('/\stitle=\{/', $tag, "{$file}: .{$named[1]} has its tooltip");
                     continue;
                 }
                 $clamped++;
@@ -1995,6 +2001,11 @@ final class accessibility_rules_test extends basic_testcase {
      * element of the React sources carrying it must write a title attribute. Vacuity guard: the four
      * classes the visual pass of 2026-10-15 cut, and at least one element each.
      *
+     * One stated exception (ADR-019 decision 3, as the view switch's precedent): the open-courses pill's name
+     * and the tile's name and second line carry their whole text in the group's own tooltip, never in a
+     * title, which would draw a second tooltip on the same hover. tooltip_named_classes() names them only
+     * while the tooltip is on the pill and the tile.
+     *
      * @return void
      */
     public function test_every_ellipsis_carries_its_whole_text_in_a_title(): void {
@@ -2013,6 +2024,10 @@ final class accessibility_rules_test extends basic_testcase {
         foreach (['compass-cal-course', 'compass-cal-pill', 'compass-cal-chiptext', 'compass-cal-action'] as $expected) {
             $this->assertContains($expected, $classes, "vacuity: no ellipsis rule for .{$expected}");
         }
+        $exempt = $this->tooltip_named_classes();
+        foreach ($exempt as $named) {
+            $this->assertContains($named, $classes, "vacuity: the exception's .{$named} is cut with an ellipsis");
+        }
         foreach ($classes as $class) {
             $seen = 0;
             foreach ($this->reactsources() as $file => $contents) {
@@ -2021,6 +2036,10 @@ final class accessibility_rules_test extends basic_testcase {
                         continue;
                     }
                     $seen++;
+                    if (in_array($class, $exempt, true)) {
+                        $this->assertDoesNotMatchRegularExpression('/\stitle=\{/', $tag, "{$file}: .{$class} has its tooltip");
+                        continue;
+                    }
                     $this->assertMatchesRegularExpression(
                         '/\stitle=\{/',
                         $tag,
@@ -2586,7 +2605,7 @@ final class accessibility_rules_test extends basic_testcase {
         ));
         $this->assertCount(3, $links, 'vacuity: the group links of the line, the popover and the tiles');
         foreach ($links as $tag) {
-            $this->assertStringContainsString('aria-label={groupLabel(strings, group)}', $tag);
+            $this->assertStringContainsString('aria-label={groupLabel(strings, nouns, group)}', $tag);
         }
 
         // Every class the stylesheet gives the line is one the component writes.
@@ -2608,8 +2627,9 @@ final class accessibility_rules_test extends basic_testcase {
      * word is inside the name in every language (WCAG 2.5.3). Below 640 px of the block the label is
      * hidden and the button is its cross alone, 2rem square; the slim panel draws no label. No rule of the
      * line transforms case, spaces its letters or uses small capitals, and the only opacity among its
-     * rules is the sparkles', which carry no text and are hidden from assistive technology. Vacuity
-     * guards: the rules and the tags are found.
+     * rules is the sparkles', which carry no text and are hidden from assistive technology, and the group
+     * tooltip's entrance (ADR-019 decision 3), 0 or 1 and never a dim. Vacuity guards: the rules and the
+     * tags are found.
      *
      * Changes that must make it fail: the groups moved into the head, the indent dropped, the label shown
      * on a narrow block, the close unnamed, a text-transform on a line rule, a sparkle announced.
@@ -2632,10 +2652,16 @@ final class accessibility_rules_test extends basic_testcase {
                 );
                 $this->assertDoesNotMatchRegularExpression('/small-caps/', $body, trim($one) . ' uses small capitals');
                 if (preg_match('/(?<![\w-])opacity\s*:/', $body)) {
+                    if (preg_match('/\.compass-news-tip(?![\w-])/', $one)) {
+                        // The group's tooltip appears and goes as the calendar's does: opacity 0 or 1, never a dim.
+                        preg_match_all('/(?<![\w-])opacity\s*:\s*([^;]+);/', $body, $values);
+                        $this->assertSame([], array_diff($values[1], ['0', '1']), trim($one) . ' dims its text');
+                        continue;
+                    }
                     $this->assertMatchesRegularExpression(
                         '/\.compass-news-spark\b/',
                         $one,
-                        trim($one) . ' fades with opacity; only the sparkles, which carry no text, may'
+                        trim($one) . ' fades with opacity; only the sparkles and the tooltip\'s entrance may'
                     );
                 }
                 $bodies[trim($one)] = ($bodies[trim($one)] ?? '') . $body;
@@ -2854,6 +2880,234 @@ final class accessibility_rules_test extends basic_testcase {
             '<span className="compass-retry-message">{message}</span>',
             $this->reactsources()['js/esm/src/RetryNotice.tsx']
         );
+    }
+
+    /**
+     * The tiles' second line starts under the name, and a few tiles leave a long name the row.
+     *
+     * The second line is indented by the crest slot's width plus the top row's gap while the slots are drawn,
+     * so it lines up with the name. Fewer tiles than the grid's tracks lay out as wrapping flex items sized
+     * by their content, from about a track to the whole row, instead of one third of the row each; the
+     * component's track count is the stylesheet's. Below 640 px the name and the line wrap to two lines.
+     * Vacuity guards: the rules and the classes are found.
+     *
+     * @return void
+     */
+    public function test_the_tiles_align_their_second_line_and_give_a_few_names_room(): void {
+        $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
+        // Each selector of a list on its own: the wrapping rule names the name and the line together.
+        $bodies = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            foreach (array_map('trim', explode(',', $selector)) as $one) {
+                $bodies[$one] = ($bodies[$one] ?? '') . $body;
+            }
+        }
+        $rem = static function (string $body, string $property): float {
+            preg_match('/(?<![\w-])' . $property . ':\s*([\d.]+)rem/', $body, $value);
+            return (float) ($value[1] ?? 0);
+        };
+
+        $slot = $rem($bodies['.block_compass .compass-news-slot'] ?? '', 'width');
+        $gap = $rem($bodies['.block_compass .compass-news-tiletop'] ?? '', 'gap');
+        $indent = $rem($bodies['.block_compass .compass-news-tiles-slotted .compass-news-tilesub'] ?? '', 'padding-left');
+        $this->assertGreaterThan(0, $slot * $gap, 'vacuity: the slot\'s width and the row\'s gap');
+        $this->assertEqualsWithDelta($slot + $gap, $indent, 0.0001, 'the second line starts where the name does');
+        $this->assertStringContainsString("tileClasses.push('compass-news-tiles-slotted');", $source);
+
+        $this->assertMatchesRegularExpression(
+            '/grid-template-columns:\s*repeat\((\d+),/',
+            $bodies['.block_compass .compass-news-tiles'] ?? '',
+            'vacuity: the tiles\' grid'
+        );
+        preg_match('/grid-template-columns:\s*repeat\((\d+),/', $bodies['.block_compass .compass-news-tiles'], $tracks);
+        $this->assertStringContainsString("const TILE_TRACKS = {$tracks[1]};", $source, 'the component counts the same tracks');
+        $this->assertStringContainsString('if (!narrow && answer.groups.length < TILE_TRACKS) {', $source);
+        $few = $bodies['.block_compass .compass-news-tiles-few > li'] ?? '';
+        $this->assertMatchesRegularExpression('/flex:\s*0 1 auto/', $few, 'as wide as the name needs');
+        $this->assertMatchesRegularExpression('/max-width:\s*100%/', $few, 'up to the row');
+        $this->assertMatchesRegularExpression(
+            '/flex-wrap:\s*wrap/',
+            $bodies['.block_compass .compass-news-tiles.compass-news-tiles-few'] ?? ''
+        );
+
+        $this->assertMatchesRegularExpression(
+            '/white-space:\s*normal/',
+            $bodies['.block_compass .compass-news-narrow .compass-news-tilename'] ?? '',
+            'below 640 px the tile\'s name wraps, to two lines'
+        );
+        $this->assertStringContainsString(
+            "className={narrow ? 'compass-news-tilename compass-clamp' : 'compass-news-tilename'}",
+            $source
+        );
+    }
+
+    /**
+     * The classes the title rule exempts, after checking that their tooltip is drawn on them.
+     *
+     * The open-courses pill's name, and the tile's name and second line (ADR-019 decision 3): the pill and
+     * the tile open GroupTip on a hover and on keyboard focus, and GroupTip draws the group's whole name and
+     * its line (the course of a group of one, else its kinds). Should either go, the exception goes with it,
+     * and the texts fall back under the title rule.
+     *
+     * @return array The exempt classes.
+     */
+    private function tooltip_named_classes(): array {
+        $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
+        $links = $this->tags($source, 'a');
+        $controls = ['compass-news-group' => "'compass-news-group'", 'compass-news-tile' => '"compass-news-tile"'];
+        foreach ($controls as $what => $class) {
+            $found = array_values(array_filter($links, static fn(string $tag): bool => str_contains($tag, $class)));
+            $this->assertCount(1, $found, "vacuity: the .{$what}");
+            $this->assertStringContainsString('onPointerEnter={tips ? (event) => hoverTip(group, event) : undefined}', $found[0]);
+            $this->assertStringContainsString('onFocus={tips ? (event) => focusTip(group, event) : undefined}', $found[0]);
+        }
+        $this->assertCount(1, $this->tags($source, 'GroupTip'), 'the tooltip is drawn');
+        $this->assertStringContainsString('<span className="compass-news-tipname">{group.name}</span>', $source);
+        $this->assertStringContainsString('<span className="compass-news-tipmeta">{line}</span>', $source);
+        $this->assertStringContainsString(
+            "line={isOne(tip.group) ? tip.group.coursename ?? '' : kindsLine(strings, nouns, tip.group)}",
+            $source
+        );
+
+        return ['compass-news-gname', 'compass-news-tilename', 'compass-news-tilesub'];
+    }
+
+    /**
+     * The open-courses pill's tooltip is hidden from assistive technology, hoverable and dismissible.
+     *
+     * ADR-019 decision 3 and WCAG 2.1 SC 1.4.13: GroupTip is aria-hidden (the pill's accessible name says
+     * all it shows); a pointer opens it after resting 300 ms, keyboard focus at once; it stays while the
+     * pointer moves onto it (its handlers keep it, its ::before bridges the gap); Escape closes it wherever
+     * the keyboard is and moves no focus; it is drawn on the full line, and on a tile only while the tile
+     * cuts a text, never on the slim panel nor below 640 px of the block. The pill's crest has an empty
+     * alt (the name is beside it), the tooltip's the listener's text; the popover's and the tiles' crest
+     * slots exist only while some group has a crest (Q5). Its motion is 120 ms, none under reduced motion,
+     * and the name is capped at 12.5 rem. Vacuity guards: the tags and the rules are found.
+     *
+     * @return void
+     */
+    public function test_the_group_tooltip_is_hidden_hoverable_and_dismissible(): void {
+        $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
+        $tips = array_values(array_filter(
+            $this->tags($source, 'div'),
+            static fn(string $tag): bool => str_contains($tag, "className={classes.join(' ')}")
+        ));
+        $this->assertCount(1, $tips, 'vacuity: GroupTip\'s root');
+        $this->assertStringContainsString('aria-hidden="true"', $tips[0], 'the tooltip is never announced');
+        $this->assertStringContainsString('onPointerEnter={onEnter}', $tips[0], 'the pointer may move onto it');
+        $this->assertStringContainsString('onPointerLeave={onLeave}', $tips[0]);
+        $this->assertStringContainsString('onEnter={keepTip}', $source);
+        $this->assertStringContainsString('onLeave={leaveTip}', $source);
+        $this->assertStringContainsString("const keepTip = (): void => window.clearTimeout(tiptimer.current);", $source);
+
+        // A pointer waits 300 ms; keyboard focus opens at once.
+        $this->assertStringContainsString('const TIP_HOVER_MS = 300;', $source);
+        $this->assertStringContainsString(
+            'tiptimer.current = window.setTimeout(() => setTip({group, pill}), TIP_HOVER_MS);',
+            $this->slice($source, 'const hoverTip = ', "\n    };\n")
+        );
+        $focus = $this->slice($source, 'const focusTip = ', "\n    };\n");
+        $this->assertStringContainsString('showTip(group, event.currentTarget);', $focus);
+        $this->assertStringNotContainsString('setTimeout', $focus, 'keyboard focus waits for nothing');
+        $show = $this->slice($source, 'const showTip = ', "\n    };\n");
+        $this->assertStringContainsString('setTip({group, pill});', $show);
+        $this->assertStringNotContainsString('setTimeout', $show);
+
+        // Escape closes it wherever the keyboard is, and leaves the keyboard there.
+        $escape = $this->slice($source, '// Escape closes the tooltip', '}, [tip]);');
+        $this->assertStringContainsString("document.addEventListener('keydown', onkey);", $escape);
+        $this->assertMatchesRegularExpression(
+            "/if \(event\.key === 'Escape'\) \{\s*window\.clearTimeout\(tiptimer\.current\);\s*setTip\(null\);\s*\}/",
+            $escape,
+            'Escape closes the tooltip'
+        );
+        $this->assertStringNotContainsString('focus(', $escape, 'Escape moves no focus');
+
+        // On the full line and the tiles, never on the slim panel nor below 640 px of the block; a tile opens
+        // it only while it cuts a text, since it shows the rest itself.
+        $this->assertStringContainsString("const tips = mode !== 'compact' && !narrow;", $source);
+        $this->assertStringContainsString(
+            "const wantsTip = (control: HTMLElement): boolean => mode !== 'tiles' || isCut(control);",
+            $source
+        );
+        $this->assertStringContainsString(
+            "if (event.pointerType === 'touch' || !wantsTip(event.currentTarget)) {",
+            $this->slice($source, 'const hoverTip = ', "\n    };\n")
+        );
+        $this->assertStringContainsString(
+            "matches(':focus-visible') && wantsTip(event.currentTarget)",
+            $this->slice($source, 'const focusTip = ', "\n    };\n")
+        );
+        $this->assertStringContainsString('.some((text) => text.scrollWidth > text.clientWidth);', $source);
+        $this->assertStringContainsString('{tips && tip && anchor.current && (', $source);
+
+        // The crests' text.
+        $this->assertStringContainsString(
+            '{group.crest && <span className="compass-news-crestbox"><img src={group.crest} alt="" /></span>}',
+            $source,
+            'the pill\'s crest is decorative: the name is beside it'
+        );
+        $this->assertStringContainsString("<img src={group.crest} alt={group.crestalt ?? ''} />", $source);
+
+        // The slots: kept empty while some group has a crest, absent when none has.
+        $this->assertStringContainsString('const withslots = answer.groups.some((group) => !!group.crest);', $source);
+        $this->assertSame(2, substr_count($source, '{withslots && <CrestSlot group={group} />}'), 'the popover and the tiles');
+
+        // Motion and size.
+        $bodies = [];
+        foreach ($this->rules() as [$selector, $body]) {
+            $bodies[$selector] = ($bodies[$selector] ?? '') . $body;
+        }
+        $tip = $bodies['.block_compass .compass-news-tip'] ?? '';
+        $this->assertSame(1, preg_match('/transition:\s*opacity\s+(\d+)ms/', $tip, $ms), 'vacuity: the tooltip\'s transition');
+        $this->assertSame(120, (int) $ms[1]);
+        $this->assertMatchesRegularExpression('/max-width:\s*18\.75rem/', $tip, 'at most 300 px wide');
+        $this->assertMatchesRegularExpression('/pointer-events:\s*none/', $tip, 'unshown, it takes no pointer');
+        $this->assertMatchesRegularExpression(
+            '/pointer-events:\s*auto/',
+            $bodies['.block_compass .compass-news-tip.compass-news-tip-on'] ?? '',
+            'shown, it takes the pointer'
+        );
+        $this->assertMatchesRegularExpression(
+            '/top:\s*100%/',
+            $bodies['.block_compass .compass-news-tip::before'] ?? '',
+            'the bridge'
+        );
+        $pattern = '/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/';
+        preg_match_all($pattern, $this->css(), $media);
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-news-tip\s*\{\s*transition:\s*none;/',
+            implode("\n", $media[1]),
+            'under reduced motion the tooltip appears at once'
+        );
+        $this->assertMatchesRegularExpression('/max-width:\s*12\.5rem/', $bodies['.block_compass .compass-news-gname'] ?? '');
+        $this->assertMatchesRegularExpression(
+            '/white-space:\s*normal/',
+            $bodies['.block_compass .compass-news-narrow .compass-news-gname'] ?? '',
+            'below 640 px the name wraps, to two lines'
+        );
+        $this->assertSame(
+            2,
+            substr_count($source, "className={narrow ? 'compass-news-gname compass-clamp' : 'compass-news-gname'}"),
+            'the pill\'s name is clamped to two lines below 640 px'
+        );
+    }
+
+    /**
+     * The text of a source between a start marker and the first end marker after it.
+     *
+     * @param string $source The source.
+     * @param string $start Where the slice starts.
+     * @param string $end Where it ends, included.
+     * @return string The slice; the test fails when either marker is missing.
+     */
+    private function slice(string $source, string $start, string $end): string {
+        $from = strpos($source, $start);
+        $this->assertNotFalse($from, "vacuity: no {$start}");
+        $to = strpos($source, $end, $from);
+        $this->assertNotFalse($to, "vacuity: no {$end} after {$start}");
+
+        return substr($source, $from, $to - $from + strlen($end));
     }
 
     /**

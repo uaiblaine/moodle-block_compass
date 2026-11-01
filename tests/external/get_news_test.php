@@ -17,6 +17,8 @@
 namespace block_compass\external;
 
 use advanced_testcase;
+use block_compass\fixtures\category_badges_listener;
+use block_compass\fixtures\course_kinds_listener;
 use block_compass\fixtures\open_courses_fixture;
 use block_compass\hook\category_link as category_link_hook;
 use block_compass\local\calendar_preference;
@@ -48,10 +50,10 @@ final class get_news_test extends advanced_testcase {
     use open_courses_fixture;
 
     /** @var string[] The keys the service returns at the top level, in order. */
-    private const TOP_KEYS = ['from', 'to', 'total', 'groupcount', 'truncated', 'groups', 'allurl'];
+    private const TOP_KEYS = ['from', 'to', 'total', 'groupcount', 'truncated', 'groups', 'allurl', 'kinds'];
 
     /** @var string[] The keys of each group, in order. */
-    private const GROUP_KEYS = ['categoryid', 'name', 'count', 'url', 'courseid', 'coursename'];
+    private const GROUP_KEYS = ['categoryid', 'name', 'count', 'url', 'courseid', 'coursename', 'kinds'];
 
     /** @var array What an off or hidden line answers. */
     private const EMPTY = [
@@ -62,6 +64,7 @@ final class get_news_test extends advanced_testcase {
         'truncated' => false,
         'groups' => [],
         'allurl' => '',
+        'kinds' => [],
     ];
 
     /**
@@ -344,5 +347,167 @@ final class get_news_test extends advanced_testcase {
         $this->assertSame(1, $data['total']);
         $this->assertSame([(int) $control->id], array_column($data['groups'], 'courseid'));
         $this->assertArrayNotHasKey((int) $taught->id, self::by_category($data));
+    }
+
+    /**
+     * Use a hook manager that knows the two ADR-019 fixture listeners, reset, or no listener at all.
+     *
+     * @param bool $listening Whether the course_kinds and category_badges fixtures are registered.
+     * @return void
+     */
+    private function use_listeners(bool $listening): void {
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        require_once(__DIR__ . '/../fixtures/category_badges_listener.php');
+        course_kinds_listener::reset();
+        category_badges_listener::reset();
+        $files = $listening ? [
+            'block_compass_kinds' => __DIR__ . '/../fixtures/course_kinds_hooks.php',
+            'block_compass_crests' => __DIR__ . '/../fixtures/category_badges_hooks.php',
+        ] : [];
+        \core\di::set(manager::class, manager::phpunit_get_instance($files));
+    }
+
+    /**
+     * With a listener the counts fold by kind and carry its nouns, the default kind first; each group
+     * carries its own counts by kind (ADR-019 decisions 5 and 6).
+     *
+     * @return void
+     */
+    public function test_kinds_fold_by_the_listener_and_carry_its_nouns(): void {
+        $this->use_listeners(true);
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[2, 'event', 'evento', 'eventos'], [1, 'course', 'curso', 'cursos']];
+        $mixed = $this->getDataGenerator()->create_category();
+        $events = $this->getDataGenerator()->create_category();
+        $plugin->field_value($model, (int) $this->open_course(time() + DAYSECS, (int) $mixed->id)->id, 2);
+        $this->open_course(time() + DAYSECS + 1, (int) $mixed->id);
+        $plugin->field_value($model, (int) $this->open_course(time() + DAYSECS + 2, (int) $events->id)->id, 2);
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $data = $this->call();
+
+        $this->assertSame([
+            ['key' => 'course', 'count' => 1, 'one' => 'curso', 'many' => 'cursos'],
+            ['key' => 'event', 'count' => 2, 'one' => 'evento', 'many' => 'eventos'],
+        ], $data['kinds'], 'the default kind first; the listener\'s nouns');
+        $groups = self::by_category($data);
+        $this->assertSame(
+            [['key' => 'course', 'count' => 1], ['key' => 'event', 'count' => 1]],
+            $groups[(int) $mixed->id]['kinds']
+        );
+        $this->assertSame([['key' => 'event', 'count' => 1]], $groups[(int) $events->id]['kinds']);
+    }
+
+    /**
+     * With no listener every course is a course, named with the block's own nouns; no crest is drawn.
+     *
+     * @return void
+     */
+    public function test_without_listeners_every_course_is_a_course_and_none_has_a_crest(): void {
+        $this->use_listeners(false);
+        $this->category_with(2);
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $data = $this->call();
+
+        $default = [
+            'key' => 'course',
+            'count' => 2,
+            'one' => get_string('news_kind_course', 'block_compass'),
+            'many' => get_string('news_kind_courses', 'block_compass'),
+        ];
+        $this->assertSame([$default], $data['kinds']);
+        $this->assertSame([['key' => 'course', 'count' => 2]], $data['groups'][0]['kinds']);
+        $this->assertArrayNotHasKey('crest', $data['groups'][0]);
+    }
+
+    /**
+     * A category's crest reaches its group, a category with none has no crest key, and the setting off
+     * asks nothing (ADR-019 decision 1).
+     *
+     * @return void
+     */
+    public function test_crests_reach_their_groups_only_with_the_setting(): void {
+        $this->use_listeners(true);
+        $crested = $this->category_with(1);
+        $plain = $this->category_with(1);
+        category_badges_listener::$answers = [
+            (int) $crested->id => [['url' => 'https://example.com/pluginfile.php/1/theme_x/b/crest.png', 'alt' => 'Crest']],
+        ];
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        set_config('show_theme_badges', 1, 'block_compass');
+        $groups = self::by_category($this->call());
+        $this->assertSame('https://example.com/pluginfile.php/1/theme_x/b/crest.png', $groups[(int) $crested->id]['crest']);
+        $this->assertSame('Crest', $groups[(int) $crested->id]['crestalt']);
+        $this->assertArrayNotHasKey('crest', $groups[(int) $plain->id]);
+        $this->assertArrayNotHasKey('crestalt', $groups[(int) $plain->id]);
+
+        category_badges_listener::$asked = [];
+        set_config('show_theme_badges', 0, 'block_compass');
+        $groups = self::by_category($this->call());
+        $this->assertArrayNotHasKey('crest', $groups[(int) $crested->id]);
+        $this->assertSame([], category_badges_listener::$asked, 'the setting off asks nothing');
+    }
+
+    /**
+     * The kinds count only the courses the viewer could join: an event the viewer is already enrolled in
+     * stays out of the kinds, though its model sits in the shared catalogue (the security read of S2).
+     *
+     * The control is a second viewer with no enrolment, whose kinds count the same event.
+     *
+     * @return void
+     */
+    public function test_kinds_count_only_what_the_viewer_could_join(): void {
+        $this->use_listeners(true);
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[1, 'course', 'curso', 'cursos'], [2, 'event', 'evento', 'eventos']];
+        $category = (int) $gen->create_category()->id;
+        $event = $this->open_course(time() + DAYSECS, $category);
+        $plugin->field_value($model, (int) $event->id, 2);
+        $plugin->field_value($model, (int) $this->open_course(time() + DAYSECS + 1, $category)->id, 1);
+        $enrolled = $gen->create_user();
+        $gen->enrol_user($enrolled->id, $event->id, 'student', 'manual');
+
+        $this->setUser($gen->create_user());
+        $this->assertSame(['course' => 1, 'event' => 1], array_column($this->call()['kinds'], 'count', 'key'), 'The control.');
+
+        $this->setUser($enrolled);
+        $this->assertSame(['course' => 1], array_column($this->call()['kinds'], 'count', 'key'));
+    }
+
+    /**
+     * A listener's nouns and a crest's text with an ampersand, markup and a bare "<" reach the answer
+     * cleaned and do not fail the response's validation.
+     *
+     * @return void
+     */
+    public function test_nouns_and_crest_text_with_markup_pass(): void {
+        $this->use_listeners(true);
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[2, 'event', 'P&D <b>1</b> < 2', 'P&D <i>2</i> < 3']];
+        $category = $this->category_with(1);
+        $plugin->field_value($model, (int) $this->getDataGenerator()->create_course(['category' => $category->id])->id, 2);
+        $course = $this->open_course(time() + DAYSECS + 5, (int) $category->id);
+        $plugin->field_value($model, (int) $course->id, 2);
+        category_badges_listener::$answers = [
+            (int) $category->id => [['url' => 'https://example.com/c.png', 'alt' => 'A&B <b>crest</b> 1 < 2']],
+        ];
+        set_config('show_theme_badges', 1, 'block_compass');
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $data = $this->call();
+
+        $event = array_column($data['kinds'], null, 'key')['event'];
+        $this->assertSame('P&D 1 < 2', $event['one']);
+        $this->assertSame('P&D 2 < 3', $event['many']);
+        $this->assertSame('A&B crest 1 < 2', $data['groups'][0]['crestalt']);
     }
 }
