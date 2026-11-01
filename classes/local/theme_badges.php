@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The courses' institutional crests, from whichever theme or plugin answers the course_badges hook.
+ * The institutional crests of courses and categories, from whichever theme or plugin answers the block's hooks.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -24,14 +24,16 @@
 
 namespace block_compass\local;
 
+use block_compass\hook\category_badges;
 use block_compass\hook\course_badges;
 use core\hook\manager;
 
 /**
- * The one door to the courses' crests: the block's own hook, dispatched once per response.
+ * The one door to the crests: the block's own hooks, each dispatched once per response.
  *
- * Compass names no theme: it dispatches {@see course_badges} with the ids it is about to draw and
- * keeps what the listeners add (ADR-013 decision 9, amended 2026-10-14). A site where nothing
+ * Compass names no theme: it dispatches {@see course_badges} with the course ids it is about to draw, or
+ * {@see category_badges} with the open-courses line's categories (ADR-019 decision 1), and keeps what
+ * the listeners add (ADR-013 decision 9, amended 2026-10-14). A site where nothing
  * listens pays nothing, and a listener that throws costs the response its crests, never the
  * response. The listener applies its own viewer rule - a course the reader may not discover gets
  * no crest - and names each image with a content-hashed URL and its alternative text, so Compass
@@ -64,16 +66,21 @@ final class theme_badges {
     }
 
     /**
-     * Whether any component answers the hook, which is when the setting that switches the crests is offered.
+     * Whether any component answers either crest hook, which is when the setting that switches the crests is offered.
      *
-     * A callback registered but disabled through $CFG->hooks_callback_overrides does not count.
+     * The one setting switches the cards' crests and the open-courses line's (ADR-019, Q1), so a listener of
+     * either hook offers it. A callback registered but disabled through $CFG->hooks_callback_overrides does
+     * not count.
      *
      * @return bool
      */
     public static function has_answerer(): bool {
-        foreach (\core\di::get(manager::class)->get_callbacks_for_hook(course_badges::class) as $definition) {
-            if (empty($definition['disabled'])) {
-                return true;
+        $manager = \core\di::get(manager::class);
+        foreach ([course_badges::class, category_badges::class] as $hook) {
+            foreach ($manager->get_callbacks_for_hook($hook) as $definition) {
+                if (empty($definition['disabled'])) {
+                    return true;
+                }
             }
         }
 
@@ -119,6 +126,65 @@ final class theme_badges {
         }
 
         return $crests;
+    }
+
+    /**
+     * The first crest of each of many categories, in one dispatch of the category_badges hook (ADR-019).
+     *
+     * Nothing is asked when the setting is off or no category is given. The first crest with a URL is
+     * kept; its alternative text is cleaned as for_courses() cleans it.
+     *
+     * @param int[] $categoryids Category ids.
+     * @param callable|null $source Stands in for the hook in tests: category ids in, category id =>
+     *     crests out; null to dispatch {@see category_badges}.
+     * @return array Category id => ['url' => string, 'alt' => string], for the categories that have one.
+     */
+    public static function for_categories(array $categoryids, ?callable $source = null): array {
+        $ids = [];
+        foreach ($categoryids as $categoryid) {
+            if ((int) $categoryid > 0) {
+                $ids[(int) $categoryid] = true;
+            }
+        }
+        $ids = array_keys($ids);
+        if (empty($ids) || !config::theme_badges_enabled()) {
+            return [];
+        }
+        $source ??= static fn(array $asked): array => self::dispatch_categories($asked);
+
+        $answer = $source($ids);
+        $crests = [];
+        foreach ($ids as $categoryid) {
+            $given = is_array($answer) ? ($answer[$categoryid] ?? []) : [];
+            foreach (array_values(is_array($given) ? $given : []) as $crest) {
+                $url = clean_param((string) ($crest['url'] ?? ''), PARAM_URL);
+                if ($url !== '') {
+                    $crests[$categoryid] = ['url' => $url, 'alt' => clean_param((string) ($crest['alt'] ?? ''), PARAM_TEXT)];
+                    break;
+                }
+            }
+        }
+
+        return $crests;
+    }
+
+    /**
+     * Dispatches the category hook for the given ids and returns what the listeners added.
+     *
+     * @param int[] $categoryids Positive category ids, each once.
+     * @return array Category id => list of crests as the listeners gave them, for the ids answered.
+     */
+    private static function dispatch_categories(array $categoryids): array {
+        $hook = new category_badges($categoryids);
+        try {
+            \core\di::get(manager::class)->dispatch($hook);
+        } catch (\Throwable $e) {
+            debugging('block_compass: a category_badges listener failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+
+            return [];
+        }
+
+        return $hook->get_badges();
     }
 
     /**
