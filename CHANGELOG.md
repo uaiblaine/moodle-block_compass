@@ -13,10 +13,13 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
-### Security
+## v5.3-r4 (2026100528) - 2026-11-05
 
-Fixes from an external security report (2026-11-04). Versions 2026100528 (5.3) and 2026042025 (5.2); no schema
-change, no new string.
+Fourth release for Moodle 5.3, from `main`, `MATURITY_BETA`. A security release: the fixes of an external
+report (2026-11-04, #116), each listed below. No schema change, no new string or setting; the version moves so
+that the eight new event observers register. A theme's crest served from another host is now left out.
+
+### Security
 
 - **A "log in as" session confined to one course is refused.** Such a session may act as the user only inside
   that course, and core keeps it there through `require_login($course)`; the block's services validate the user
@@ -33,8 +36,8 @@ change, no new string.
 - **The open-courses line follows core's category listing rule.** A course is offered only when the viewer
   holds `moodle/category:viewcourselist` in its category and in the group's, and every category on its path is
   visible or the viewer may see hidden categories. The category layer now keeps each category's `visible` flag.
-- **A course queued for asynchronous deletion leaves the open catalogue at once** (Moodle 5.3). The mark comes without an
-  event, so the deletion hook now drops the catalogue entry, now and at the end of the request.
+- **A course queued for asynchronous deletion leaves the open catalogue at once** (Moodle 5.3). The mark comes
+  without an event, so the deletion hook now drops the catalogue entry, now and at the end of the request.
 - **An activity inside a subsection of a restricted section is no longer counted in the calendar strip.** The
   strip asks modinfo about every activity of a delegated section, since core makes one unavailable through the
   section that holds it.
@@ -44,6 +47,22 @@ change, no new string.
   services). The check reads core's plugin list cache: no database read.
 - **Crests point at this site only.** A listener's image address is kept only when it is on `wwwroot` (or a
   root-relative path); an image elsewhere would tell another host who reads the dashboard.
+
+## v5.2-r4 (2026042025) - 2026-11-05
+
+Fourth release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It carries the security
+fixes of v5.3-r4 (#117 here, #116 there) except the two about Moodle 5.3's asynchronous course deletion, which
+5.2 does not have. No schema change, no new string or setting. It needs `local_unlistedcourses` 2026042003 or
+later from that plugin's `MOODLE_502_STABLE` branch, as v5.2-r3 did.
+
+### Security
+
+- **The fixes of v5.3-r4** (2026042025 on this branch): every item of that section but the two marked
+  Moodle 5.3. "Log in as" confined to one course is refused by the ten services, the page and the block; the
+  tier 1 shape is never written during "log in as"; card details answer only what tier 3 lists; the
+  open-courses line follows core's category listing rule; an activity in a subsection of a restricted section
+  leaves the strip; losing a role, an enrolment, a group or a cohort drops the user's strip and open-courses
+  entries; the services refuse while the block type is hidden; crests point at this site only.
 
 ## v5.3-r3 (2026100527) - 2026-11-01
 
