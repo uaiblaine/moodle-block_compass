@@ -29,6 +29,7 @@ use block_compass\local\category_link;
 use block_compass\local\config;
 use block_compass\local\course_kinds;
 use block_compass\local\news;
+use block_compass\local\session_guard;
 use block_compass\local\theme_badges;
 use core\context\user as context_user;
 use core_external\external_api;
@@ -88,6 +89,7 @@ class get_news extends external_api {
         if (isguestuser()) {
             throw new \moodle_exception('noguest');
         }
+        session_guard::require_service();
         self::validate_context(context_user::instance((int) $USER->id));
 
         if (!config::news_enabled()) {

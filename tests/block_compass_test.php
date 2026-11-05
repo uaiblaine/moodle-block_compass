@@ -332,6 +332,29 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
+     * A "log in as" session confined to one course gets an empty block; the student themself gets the shell.
+     *
+     * Every service the shell would call refuses such a session (session_guard), so the block draws nothing
+     * rather than a shell that fails to load.
+     *
+     * @return void
+     */
+    public function test_a_session_confined_to_one_course_gets_nothing(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $student = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($student->id, $course->id, 'student');
+
+        $this->setUser($student);
+        $this->assertNotSame('', $this->make_block()->get_content()->text, 'the student gets the shell: the control');
+
+        $this->setAdminUser();
+        \core\session\manager::loginas((int) $student->id, \core\context\course::instance((int) $course->id), false);
+        $this->assertSame('', $this->make_block()->get_content()->text);
+    }
+
+    /**
      * Rendering the shell reads nothing from the database once core is warm.
      *
      * Protocol: warm core by rendering once, then measure a second, fresh block whose

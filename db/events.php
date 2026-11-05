@@ -75,6 +75,39 @@ $observers = [
         'eventname' => '\core\event\course_completed',
         'callback' => '\block_compass\observer::completion_updated',
     ],
+    // What one user may see changed: their calendar strip and open-courses entries go, by their keys.
+    [
+        'eventname' => '\core\event\role_assigned',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\role_unassigned',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\user_enrolment_updated',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\user_enrolment_deleted',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\group_member_added',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\group_member_removed',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\cohort_member_added',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
+    [
+        'eventname' => '\core\event\cohort_member_removed',
+        'callback' => '\block_compass\observer::access_changed',
+    ],
     // Account deletion drops the user's inventory entry and the progress entries it lists.
     [
         'eventname' => '\core\event\user_deleted',

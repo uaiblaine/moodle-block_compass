@@ -1,0 +1,1 @@
+s/        calendar_cache::delete\(\$userid\);\n        news_cache::delete\(\$userid\);\n    \}\n\n    \/\*\*\n     \* An account was deleted/        calendar_cache::delete(\$userid);\n    }\n\n    \/**\n     * An account was deleted/;

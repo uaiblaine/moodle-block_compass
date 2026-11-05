@@ -463,7 +463,8 @@ final class cards_test extends advanced_testcase {
         $this->plugingen->enrol_at($this->userid, $suspended, self::NOW - DAYSECS, 'manual', ENROL_USER_SUSPENDED);
 
         $batch = [$later, $applied, $suspended, $enrolled];
-        $details = array_column(cards::details($this->userid, $batch, self::NOW), null, 'id');
+        // Applications listed, as tier 3 lists them with enable_pending on and enrol_apply installed.
+        $details = array_column(cards::details($this->userid, $batch, self::NOW, null, true), null, 'id');
 
         $this->assertSame([$later, $applied, $enrolled], array_keys($details));
         foreach ([$later, $applied] as $courseid) {
@@ -472,6 +473,57 @@ final class cards_test extends advanced_testcase {
             $this->assertNull($details[$courseid]['progress']);
         }
         $this->assertTrue($details[$enrolled]['hascompletion'], 'the enrolled course is answered in full');
+    }
+
+    /**
+     * With enable_pending off, details() answers no application, as tier 3 lists none; the later start stays.
+     *
+     * The ids come from the client, so the batch is not trusted to hold only rows tier 3 drew: an
+     * application would otherwise get its image and its crests through this call alone.
+     *
+     * @return void
+     */
+    public function test_details_answers_no_application_while_pending_is_off(): void {
+        set_config('enablecompletion', 0);
+        set_config('enable_pending', 0, 'block_compass');
+        $later = (int) $this->course('Later course')->id;
+        $applied = (int) $this->course('Applied course')->id;
+        $this->plugingen->enrol_at($this->userid, $later, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, self::NOW + DAYSECS);
+        $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
+
+        $details = array_column(cards::details($this->userid, [$later, $applied], self::NOW), null, 'id');
+        $this->assertSame([$later], array_keys($details), 'the later start is answered: the control');
+
+        // The default reads the setting: off means none, whether or not enrol_apply is installed.
+        $this->assertFalse(config::pending_enabled());
+        $listed = array_column(cards::details($this->userid, [$later, $applied], self::NOW, null, true), null, 'id');
+        $this->assertSame([$later, $applied], array_keys($listed), 'listed, the application is answered');
+    }
+
+    /**
+     * details() drops a hidden course for a viewer without viewhiddencourses, and answers it for one who holds it.
+     *
+     * Tier 3 lists a hidden course only to the capability's holder (explore::resolve()); the visible course
+     * of the same batch is the control.
+     *
+     * @return void
+     */
+    public function test_details_drops_a_hidden_course_without_the_capability(): void {
+        set_config('enablecompletion', 0);
+        $visible = (int) $this->course('Visible course')->id;
+        $hidden = (int) $this->course('Hidden course', ['visible' => 0])->id;
+        $this->plugingen->enrol_at($this->userid, $visible, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $hidden, self::NOW - DAYSECS);
+
+        $details = array_column(cards::details($this->userid, [$hidden, $visible], self::NOW), null, 'id');
+        $this->assertSame([$visible], array_keys($details));
+
+        $roleid = $this->getDataGenerator()->create_role();
+        assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $roleid, \core\context\system::instance()->id);
+        role_assign($roleid, $this->userid, \core\context\system::instance()->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $details = array_column(cards::details($this->userid, [$hidden, $visible], self::NOW), null, 'id');
+        $this->assertSame([$hidden, $visible], array_keys($details));
     }
 
     /**
@@ -496,7 +548,7 @@ final class cards_test extends advanced_testcase {
         $source = static function (array $courseids) use (&$asked, $crested): array {
             $asked[] = $courseids;
             $crest = static fn(string $name): array => [
-                'url' => "https://example.com/pluginfile.php/1/theme/badge/{$name}.png",
+                'url' => "https://www.example.com/moodle/pluginfile.php/1/theme/badge/{$name}.png",
                 'alt' => $name,
             ];
 
@@ -552,7 +604,7 @@ final class cards_test extends advanced_testcase {
         foreach ([$crested, $plain] as $courseid) {
             $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - DAYSECS);
         }
-        $crest = ['url' => 'https://example.com/pluginfile.php/1/theme_x/badge/a.png', 'alt' => 'A'];
+        $crest = ['url' => 'https://www.example.com/moodle/pluginfile.php/1/theme_x/badge/a.png', 'alt' => 'A'];
         \block_compass\fixtures\course_badges_listener::$answers = [$crested => [$crest], $stranger => [$crest]];
 
         $details = array_column(cards::details($this->userid, [$crested, $plain], self::NOW), null, 'id');
@@ -599,7 +651,7 @@ final class cards_test extends advanced_testcase {
         $source = static function (array $courseids) use (&$asked, $later): array {
             $asked[] = $courseids;
 
-            return [$later => [['url' => 'https://example.com/pluginfile.php/1/theme/badge/a.png', 'alt' => 'a']]];
+            return [$later => [['url' => 'https://www.example.com/moodle/pluginfile.php/1/theme/badge/a.png', 'alt' => 'a']]];
         };
         $tier = (new attention($this->userid, self::NOW, 12, 30))->build();
 

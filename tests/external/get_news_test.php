@@ -433,14 +433,15 @@ final class get_news_test extends advanced_testcase {
         $this->use_listeners(true);
         $crested = $this->category_with(1);
         $plain = $this->category_with(1);
+        $url = 'https://www.example.com/moodle/pluginfile.php/1/theme_x/b/crest.png';
         category_badges_listener::$answers = [
-            (int) $crested->id => [['url' => 'https://example.com/pluginfile.php/1/theme_x/b/crest.png', 'alt' => 'Crest']],
+            (int) $crested->id => [['url' => $url, 'alt' => 'Crest']],
         ];
         $this->setUser($this->getDataGenerator()->create_user());
 
         set_config('show_theme_badges', 1, 'block_compass');
         $groups = self::by_category($this->call());
-        $this->assertSame('https://example.com/pluginfile.php/1/theme_x/b/crest.png', $groups[(int) $crested->id]['crest']);
+        $this->assertSame($url, $groups[(int) $crested->id]['crest']);
         $this->assertSame('Crest', $groups[(int) $crested->id]['crestalt']);
         $this->assertArrayNotHasKey('crest', $groups[(int) $plain->id]);
         $this->assertArrayNotHasKey('crestalt', $groups[(int) $plain->id]);
@@ -498,7 +499,7 @@ final class get_news_test extends advanced_testcase {
         $course = $this->open_course(time() + DAYSECS + 5, (int) $category->id);
         $plugin->field_value($model, (int) $course->id, 2);
         category_badges_listener::$answers = [
-            (int) $category->id => [['url' => 'https://example.com/c.png', 'alt' => 'A&B <b>crest</b> 1 < 2']],
+            (int) $category->id => [['url' => 'https://www.example.com/moodle/c.png', 'alt' => 'A&B <b>crest</b> 1 < 2']],
         ];
         set_config('show_theme_badges', 1, 'block_compass');
         $this->setUser($this->getDataGenerator()->create_user());

@@ -312,7 +312,9 @@ final class cards {
      * classifies them (relationship::of_record()): a course the viewer is enrolled in gets
      * everything; one they hold a later start or an application in - a row tier 3 lists without
      * progress - gets its image and its crests only; every other id is silently dropped, because
-     * an unvalidated course id is an enumeration oracle. Whether completion is tracked comes from
+     * an unvalidated course id is an enumeration oracle. Dropped too, as tier 3 drops them: an
+     * application while enable_pending is off, and a hidden course for a viewer without
+     * viewhiddencourses. Whether completion is tracked comes from
      * the course layer (no record read); a cached answer costs nothing more; only the courses
      * whose progress must be computed cost one read for their records plus core's completion
      * computation (which loads course_modinfo — the reason this never runs on the first paint).
@@ -329,11 +331,19 @@ final class cards {
      * @param int[] $courseids At most DETAILS_BATCH ids.
      * @param int|null $now Unix time to treat as now; null for time().
      * @param callable|null $crests Stands in for the course_badges hook in tests; see theme_badges::for_courses().
+     * @param bool|null $pending Whether tier 3 lists applications; null for config::pending_enabled(). Tests
+     *     pass true to exercise the listed branch whether or not enrol_apply is installed, as explore::resolve() takes it.
      * @return array List of entries: id, hascompletion, progress, imageurl and hasimage, plus
      *     teacher (true) when completion is off and the viewer is not a learner, and badges when
      *     the course has crests.
      */
-    public static function details(int $userid, array $courseids, ?int $now = null, ?callable $crests = null): array {
+    public static function details(
+        int $userid,
+        array $courseids,
+        ?int $now = null,
+        ?callable $crests = null,
+        ?bool $pending = null
+    ): array {
         global $DB;
 
         $now = $now ?? time();
@@ -354,10 +364,15 @@ final class cards {
             $params
         );
         $relationship = [];
+        $pendingenabled = $pending ?? config::pending_enabled();
         foreach ($records as $record) {
             $courseid = (int) $record->courseid;
             $type = relationship::of_record($record, $now);
             if (!relationship::is_shown($type)) {
+                continue;
+            }
+            // Tier 3 lists no application while the setting is off (explore::resolve()), so none is answered here.
+            if (!$pendingenabled && relationship::is_awaiting($type)) {
                 continue;
             }
             if (!isset($relationship[$courseid]) || relationship::outranks($type, $relationship[$courseid])) {
@@ -372,7 +387,19 @@ final class cards {
 
         // The course layer answers "is completion tracked here" without a course record; only
         // the courses whose progress is not cached need their record for core's computation.
+        // Tier 3's visibility rule (explore::resolve()): a hidden course only for the holder of
+        // viewhiddencourses at the system context, asked only when the batch holds one. Ids the client
+        // sends are not trusted to be rows tier 3 drew.
         $meta = course_meta::get_many($allowed);
+        $seehidden = null;
+        foreach ($meta as $courseid => $entry) {
+            if (!$entry['visible']) {
+                $seehidden ??= has_capability('moodle/course:viewhiddencourses', \core\context\system::instance(), $userid);
+                if (!$seehidden) {
+                    unset($meta[$courseid]);
+                }
+            }
+        }
         $tracked = [];
         foreach ($meta as $courseid => $entry) {
             if (self::tracks_completion($relationship[$courseid] === access::RELATIONSHIP_ENROLLED, $entry)) {

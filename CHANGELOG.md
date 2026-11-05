@@ -13,6 +13,38 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Security
+
+Fixes from an external security report (2026-11-04). Versions 2026100528 (5.3) and 2026042025 (5.2); no schema
+change, no new string.
+
+- **A "log in as" session confined to one course is refused.** Such a session may act as the user only inside
+  that course, and core keeps it there through `require_login($course)`; the block's services validate the user
+  context and its page logs in to the site, which core never checks, and its own statements read every course
+  of the user. The ten services now refuse it with core's `loginasonecourse` error, the page does the same, and
+  the block draws nothing. This also keeps the shared per-user caches from being filled under a capability set
+  that answers false outside the one course. A "log in as" from the system context is served as before.
+- **The tier 1 shape is never written during "log in as".** The client writes `block_compass_tier1` on its own
+  once tier 1 settles; its permission callback now refuses an impersonation, so only looking at a dashboard
+  leaves no trace in the real user's preferences. The three preferences set by hand keep core's rule.
+- **Card details answer only what tier 3 lists.** `block_compass_get_card_details` takes ids from the client:
+  it now drops a hidden course for a viewer without `moodle/course:viewhiddencourses`, an application while
+  `enable_pending` is off and, on Moodle 5.3, a course being deleted.
+- **The open-courses line follows core's category listing rule.** A course is offered only when the viewer
+  holds `moodle/category:viewcourselist` in its category and in the group's, and every category on its path is
+  visible or the viewer may see hidden categories. The category layer now keeps each category's `visible` flag.
+- **A course queued for asynchronous deletion leaves the open catalogue at once** (Moodle 5.3). The mark comes without an
+  event, so the deletion hook now drops the catalogue entry, now and at the end of the request.
+- **An activity inside a subsection of a restricted section is no longer counted in the calendar strip.** The
+  strip asks modinfo about every activity of a delegated section, since core makes one unavailable through the
+  section that holds it.
+- **Losing a role, an enrolment, a group or a cohort drops the user's strip and open-courses entries.** A
+  reopened day and the line's candidates were otherwise served for up to 30 minutes after the change.
+- **The services refuse while the block type is hidden on Manage blocks** (core runs a hidden plugin's
+  services). The check reads core's plugin list cache: no database read.
+- **Crests point at this site only.** A listener's image address is kept only when it is on `wwwroot` (or a
+  root-relative path); an image elsewhere would tell another host who reads the dashboard.
+
 ## v5.3-r3 (2026100527) - 2026-11-01
 
 Third release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings ADR-019 to the open-for-enrolment
