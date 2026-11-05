@@ -92,7 +92,8 @@ class page extends block {
     }
 
     /**
-     * The page's two gates, after require_login(): no guest, and no page while it is off.
+     * The page's three gates, after require_login(): no "log in as" session confined to one course, no
+     * guest, and no page while it is off.
      *
      * A guest is sent to the front page, as my/index.php does for a guest when allowguestmymoodle
      * is off (my/index.php:76-78), unless that would loop ({@see self::guest_home_is_this_page()}), in
@@ -100,10 +101,15 @@ class page extends block {
      * redirects to the Dashboard: a start page stored before the setting changed must land
      * somewhere, and the Dashboard is where the block already is.
      *
+     * The first gate refuses as require_login() refuses a course outside a confined session
+     * ({@see \block_compass\local\session_guard}): require_login(null) logs in to the site course, which
+     * core never checks against loginascontext.
+     *
      * @return void
-     * @throws \moodle_exception For a guest whose home page is this page.
+     * @throws \moodle_exception For a session confined to one course; for a guest whose home page is this page.
      */
     public static function require_access(): void {
+        \block_compass\local\session_guard::require_unconfined();
         if (isguestuser()) {
             if (self::guest_home_is_this_page()) {
                 throw new \moodle_exception('noguest');
