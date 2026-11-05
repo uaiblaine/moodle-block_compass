@@ -1,1 +1,1 @@
-s/CASE WHEN cm\.availability IS NULL AND cs\.availability IS NULL THEN 0 ELSE 1 END AS restricted/CASE WHEN cm.availability IS NULL THEN 0 ELSE 1 END AS restricted/;
+s/CASE WHEN cm\.availability IS NULL AND cs\.availability IS NULL AND cs\.component IS NULL THEN 0/CASE WHEN cm.availability IS NULL AND cs.component IS NULL THEN 0/;

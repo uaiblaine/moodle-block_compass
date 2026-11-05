@@ -159,6 +159,31 @@ final class observer {
     }
 
     /**
+     * What the user may see changed - a role, an enrolment's status or its removal, a group, a cohort:
+     * drop the user's calendar strip and open-courses entries.
+     *
+     * Both entries hold answers decided under the user's roles and memberships: the strip's sets (which
+     * courses are taught, which groups an item is read through) and the days opened from them, which a
+     * reopened day serves without asking again (it costs the floor, ADR-014 amendment 5); the line's
+     * candidates, filtered by the roles on each course's path and by local_unlistedcourses' cohort rule.
+     * Without this, a role or a membership taken away would keep showing what it allowed until the entry's
+     * 30 minutes ran out. These are events about one user, so the deletes are per key, never a purge. The
+     * inventory checks its own stamp and the progress entries are the user's own completion: neither goes.
+     *
+     * @param \core\event\base $event A role, user enrolment, group member or cohort member event; relateduserid
+     *     is the user.
+     * @return void
+     */
+    public static function access_changed(\core\event\base $event): void {
+        if (empty($event->relateduserid)) {
+            return;
+        }
+        $userid = (int) $event->relateduserid;
+        calendar_cache::delete($userid);
+        news_cache::delete($userid);
+    }
+
+    /**
      * An account was deleted: drop what the three user layers hold about it.
      *
      * The inventory entry is read before it is dropped, because it is the only list of the

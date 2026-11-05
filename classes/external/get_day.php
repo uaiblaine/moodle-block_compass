@@ -27,6 +27,7 @@ namespace block_compass\external;
 use block_compass\local\calendar\day;
 use block_compass\local\calendar\strip;
 use block_compass\local\config;
+use block_compass\local\session_guard;
 use core\context\user as context_user;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -77,6 +78,7 @@ class get_day extends external_api {
         if (isguestuser()) {
             throw new \moodle_exception('noguest');
         }
+        session_guard::require_service();
         $userid = (int) $USER->id;
         self::validate_context(context_user::instance($userid));
 

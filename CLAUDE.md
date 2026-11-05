@@ -100,7 +100,9 @@ Breaking one is a design change: stop and raise it with the maintainer.
   instance and discoverability events, and its own `until`; ADR-017) and `news` (per user, the
   open-courses groups, 30 min TTL, keyed to the sign-in, the band, the language, `news_depth` and
   the catalogue's digest, deleted with the account). **Never invalidate `inventory`, `details`,
-  `calendarstrip` or `news` from course or calendar events.** A `calendarstrip` entry is whole
+  `calendarstrip` or `news` from course or calendar events.** One user's role, enrolment
+  (updated, deleted), group and cohort membership events drop that user's `calendarstrip` and `news` by key
+  (`observer::access_changed()`): a reopened day and the line's candidates were decided under them. A `calendarstrip` entry is whole
   or counted only (`past` false: no past, no days off, grading deferred without the ledger);
   `strip::complete()` adds the rest when the strip opens, the past to the entry's build instant.
   Names are formatted at response time with the filters of every shown context preloaded in one
@@ -275,6 +277,11 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `core_favourites\service_factory`; `course_category_updated` cannot tell a move from a rename
   (observer drops descendants); `user_deleted` fires after the enrolments are gone;
   `core_course_category::get_many()` is request-scoped, so the hot path reads `categorymeta`.
+- **Who is served** (`local/session_guard.php`): every service calls `require_service()` right after the
+  guest check, the page `require_unconfined()` and the block draws nothing, because a "log in as" session
+  started at a course context is confined to that course and core never checks the site course against it
+  (the plugin's own SQL reads every course of the user); the services also refuse while the block type is
+  hidden (core's plugin list cache, no read). `block_compass_tier1` refuses any "log in as" write.
 - **Web services**: the fleet checklist; all ten are reads and declare `readonlysession`
   (core's `$SESSION->calendarshoweventtype` memo is the one key tolerated, for `get_strip`, `get_day`
   and `get_soon`; `get_strip_counts` and `get_news` never reach core's vault; `get_soon`'s one write is the

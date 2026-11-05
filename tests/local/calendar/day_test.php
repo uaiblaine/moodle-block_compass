@@ -396,10 +396,12 @@ final class day_test extends advanced_testcase {
      * A user unenrolled inside the strip's cache entry is not shown the course events of the course.
      *
      * The strip is opened (the entry is built with the course in its sets) and a day of the course's
-     * events is opened first: the control that the event is listed while the user is enrolled. After
-     * core's unenrolment, a second day of the same course, never opened, is built from the entry:
-     * the inventory stamp differs, the entry is rebuilt, and the event is not listed. The course has
-     * no group, so the group comparison cannot be what rebuilt the entry.
+     * events is opened first: the control that the event is listed while the user is enrolled. The
+     * enrolment row is then deleted without core's API, as a sync writing the table directly would, so
+     * no user_enrolment_deleted event drops the entry (observer::access_changed(), whose own test is in
+     * observer_test): the entry is still cached. A second day of the same course, never opened, is built
+     * from it: the inventory stamp differs, the entry is rebuilt, and the event is not listed. The course
+     * has no group, so the group comparison cannot be what rebuilt the entry.
      *
      * @return void
      */
@@ -426,8 +428,9 @@ final class day_test extends advanced_testcase {
         $this->assertSame([$first], array_column($before['items'], 'id'), 'Control: enrolled, the event is listed.');
 
         $instance = $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'manual'], '*', MUST_EXIST);
-        enrol_get_plugin('manual')->unenrol_user($instance, $userid);
+        $DB->delete_records('user_enrolments', ['enrolid' => $instance->id, 'userid' => $userid]);
         $this->new_request();
+        $this->assertNotFalse(cache::make('block_compass', 'calendarstrip')->get($userid), 'no event dropped the entry');
         $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'learning', $now, $signin, $tz, $output);
         $this->assertNotContains($second, array_column($after['items'], 'id'));
         $this->assertSame([], $after['items']);
@@ -445,7 +448,7 @@ final class day_test extends advanced_testcase {
      * @return void
      */
     public function test_a_day_opened_after_leaving_a_group_does_not_list_the_groups_events(): void {
-        global $PAGE, $USER;
+        global $DB, $PAGE, $USER;
 
         $gen = $this->getDataGenerator();
         $now = time();
@@ -469,8 +472,11 @@ final class day_test extends advanced_testcase {
         $before = day::get($userid, strip::local_day($at, $tz), 'learning', $now, $signin, $tz, $output);
         $this->assertSame([$firstgroup], array_column($before['items'], 'id'), 'Control: a member sees the group event.');
 
-        groups_remove_member($group->id, $userid);
+        // Without core's API, as a sync writing the table directly would: no group_member_removed event drops
+        // the entry (observer::access_changed()), so only the group comparison can rebuild it.
+        $DB->delete_records('groups_members', ['groupid' => $group->id, 'userid' => $userid]);
         $this->new_request();
+        $this->assertNotFalse(cache::make('block_compass', 'calendarstrip')->get($userid), 'no event dropped the entry');
         $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'learning', $now, $signin, $tz, $output);
         $ids = array_column($after['items'], 'id');
         $this->assertNotContains($secondgroup, $ids);
@@ -489,7 +495,7 @@ final class day_test extends advanced_testcase {
      * @return void
      */
     public function test_a_teaching_day_opened_after_leaving_a_group_does_not_list_the_groups_events(): void {
-        global $PAGE;
+        global $DB, $PAGE;
 
         $gen = $this->getDataGenerator();
         $now = time();
@@ -513,8 +519,11 @@ final class day_test extends advanced_testcase {
         $before = day::get($userid, strip::local_day($at, $tz), 'teaching', $now, $signin, $tz, $output);
         $this->assertSame([$firstgroup], array_column($before['items'], 'id'), 'Control: a member sees the group event.');
 
-        groups_remove_member($group->id, $userid);
+        // Without core's API, as a sync writing the table directly would: no group_member_removed event drops
+        // the entry (observer::access_changed()), so only the group comparison can rebuild it.
+        $DB->delete_records('groups_members', ['groupid' => $group->id, 'userid' => $userid]);
         $this->new_request();
+        $this->assertNotFalse(cache::make('block_compass', 'calendarstrip')->get($userid), 'no event dropped the entry');
         $after = day::get($userid, strip::local_day($at + DAYSECS, $tz), 'teaching', $now, $signin, $tz, $output);
         $ids = array_column($after['items'], 'id');
         $this->assertNotContains($secondgroup, $ids);

@@ -91,7 +91,7 @@ final class theme_badges_test extends advanced_testcase {
      * @return array
      */
     private static function crest(string $name, string $alt): array {
-        return ['url' => "https://example.com/pluginfile.php/1/theme_x/badge/{$name}.png", 'alt' => $alt];
+        return ['url' => "https://www.example.com/moodle/pluginfile.php/1/theme_x/badge/{$name}.png", 'alt' => $alt];
     }
 
     /**
@@ -110,14 +110,23 @@ final class theme_badges_test extends advanced_testcase {
                 10 => [self::crest('a', '<b>Crest</b> A'), self::crest('b', 'B'), ['url' => 'javascript:alert(1)', 'alt' => 'C'],
                     self::crest('d', 'D')],
                 11 => 'not a list',
+                13 => [
+                    ['url' => 'https://cdn.example.org/badge.png', 'alt' => 'Elsewhere'],
+                    ['url' => '/pluginfile.php/1/x.png', 'alt' => 'Here'],
+                ],
                 99 => [self::crest('z', 'never asked')],
             ];
         };
 
-        $crests = theme_badges::for_courses([10, '11', 12, 0, -3, 10], $source);
+        $crests = theme_badges::for_courses([10, '11', 12, 0, -3, 10, 13], $source);
 
-        $this->assertSame([10, 11, 12], $given, 'the source is asked once, with the positive ids, each once');
-        $this->assertSame([10, 11, 12], array_keys($crests));
+        $this->assertSame([10, 11, 12, 13], $given, 'the source is asked once, with the positive ids, each once');
+        $this->assertSame([10, 11, 12, 13], array_keys($crests));
+        // An image on another host would leak the reader's address; a root-relative one is made absolute.
+        $this->assertSame(
+            [['url' => (new \core\url('/pluginfile.php/1/x.png'))->out(false), 'alt' => 'Here']],
+            $crests[13]
+        );
         $this->assertSame(['Crest A', 'B'], array_column($crests[10], 'alt'), 'three at most, and none without a clean address');
         $this->assertSame([], $crests[11]);
         $this->assertSame([], $crests[12]);
@@ -136,7 +145,7 @@ final class theme_badges_test extends advanced_testcase {
         $source = static function (array $courseids) use (&$calls): array {
             $calls++;
 
-            return [$courseids[0] => [['url' => 'https://example.com/a.png', 'alt' => 'A']]];
+            return [$courseids[0] => [['url' => 'https://www.example.com/moodle/a.png', 'alt' => 'A']]];
         };
 
         unset_config('show_theme_badges', 'block_compass');

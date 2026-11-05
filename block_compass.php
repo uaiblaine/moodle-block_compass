@@ -84,6 +84,9 @@ class block_compass extends block_base {
     /**
      * Render the shell for logged-in, non-guest users; nothing for anyone else.
      *
+     * A "log in as" session confined to one course gets nothing either: every service the shell would
+     * call refuses it ({@see \block_compass\local\session_guard}), and the Dashboard stays usable.
+     *
      * @return stdClass
      */
     public function get_content(): stdClass {
@@ -96,6 +99,9 @@ class block_compass extends block_base {
         $this->content->footer = '';
 
         if (!isloggedin() || isguestuser()) {
+            return $this->content;
+        }
+        if (\block_compass\local\session_guard::confined_to() !== null) {
             return $this->content;
         }
 

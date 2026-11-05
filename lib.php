@@ -40,7 +40,9 @@
  * relevance, open or closed), is declared the same way for the same reason and read by
  * {@see \block_compass\local\calendar_preference::read()}. The fourth, the shape tier 1 last settled
  * to on each surface (ADR-018), is declared the same way again and read by
- * {@see \block_compass\local\tier1_preference::read()}.
+ * {@see \block_compass\local\tier1_preference::read()}. Its permission callback also refuses a "log in as"
+ * session ({@see \block_compass\local\session_guard::may_remember_shape()}): the client writes it on its
+ * own, so an impersonator merely looking would otherwise change the real user's preferences.
  *
  * @return array The definitions, keyed by preference name.
  */
@@ -69,7 +71,7 @@ function block_compass_user_preferences(): array {
             'null' => NULL_ALLOWED,
             'default' => null,
             'type' => PARAM_RAW,
-            'permissioncallback' => [\core_user::class, 'is_current_user'],
+            'permissioncallback' => [\block_compass\local\session_guard::class, 'may_remember_shape'],
         ],
     ];
 }

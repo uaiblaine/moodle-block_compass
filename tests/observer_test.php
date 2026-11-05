@@ -910,4 +910,56 @@ final class observer_test extends advanced_testcase {
         \core_course\customfield\course_handler::create()->save_field_configuration($field, $record);
         $this->assert_catalogue_dropped($userid);
     }
+    /**
+     * Losing a role, an enrolment, a group or a cohort drops that user's strip and open-courses entries, and no one else's.
+     *
+     * A reopened day is served from the strip entry without asking again, and the line's candidates
+     * were filtered by the user's roles and cohorts: either would keep showing what the lost membership
+     * allowed until its TTL. The other user's entries are the control.
+     *
+     * @return void
+     */
+    public function test_losing_access_drops_only_that_users_strip_and_news(): void {
+        global $CFG, $DB;
+
+        require_once($CFG->dirroot . '/cohort/lib.php');
+        require_once($CFG->dirroot . '/group/lib.php');
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $user = $gen->create_user();
+        $other = $gen->create_user();
+        $course = $gen->create_course();
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $group = $gen->create_group(['courseid' => $course->id]);
+        $gen->create_group_member(['groupid' => $group->id, 'userid' => $user->id]);
+        $cohort = $gen->create_cohort();
+        cohort_add_member($cohort->id, $user->id);
+        $strip = cache::make('block_compass', 'calendarstrip');
+        $news = cache::make('block_compass', 'news');
+        $studentrole = (int) $DB->get_field('role', 'id', ['shortname' => 'student']);
+        $context = \core\context\course::instance((int) $course->id);
+
+        $losses = [
+            'cohort' => fn() => cohort_remove_member($cohort->id, $user->id),
+            'group' => fn() => groups_remove_member($group->id, $user->id),
+            'role' => fn() => role_unassign($studentrole, $user->id, $context->id),
+            'enrolment' => fn() => enrol_get_plugin('manual')->unenrol_user(
+                $DB->get_record('enrol', ['courseid' => $course->id, 'enrol' => 'manual']),
+                $user->id
+            ),
+        ];
+        foreach ($losses as $what => $lose) {
+            foreach ([(int) $user->id, (int) $other->id] as $userid) {
+                $strip->set($userid, ['marker' => $what]);
+                $news->set($userid, ['marker' => $what]);
+            }
+
+            $lose();
+
+            $this->assertFalse($strip->get((int) $user->id), $what . ': the strip entry survived');
+            $this->assertFalse($news->get((int) $user->id), $what . ': the news entry survived');
+            $this->assertSame(['marker' => $what], $strip->get((int) $other->id), $what . ': another user lost theirs');
+            $this->assertSame(['marker' => $what], $news->get((int) $other->id));
+        }
+    }
 }

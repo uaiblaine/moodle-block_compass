@@ -114,6 +114,119 @@ final class news_test extends \advanced_testcase {
     }
 
     /**
+     * A course in a category where the viewer may not list courses is not offered; its sibling is.
+     *
+     * core_course_category::can_view_category() wants moodle/category:viewcourselist at the category; a
+     * site that takes it away from the authenticated role in one category hides that catalogue, and the
+     * line must not name its courses, its category or its count.
+     *
+     * @return void
+     */
+    public function test_a_category_the_viewer_may_not_list_is_not_offered(): void {
+        global $CFG;
+
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $closed = $gen->create_category();
+        $open = $gen->create_category();
+        $this->open_course($start, (int) $closed->id);
+        $control = $this->open_course($start + 1, (int) $open->id);
+        $user = $gen->create_user();
+        assign_capability(
+            'moodle/category:viewcourselist',
+            CAP_PREVENT,
+            (int) $CFG->defaultuserroleid,
+            \core\context\coursecat::instance((int) $closed->id)->id
+        );
+        accesslib_clear_all_caches_for_unit_testing();
+
+        $entry = $this->entry_for($user);
+
+        $this->assertSame([(int) $open->id => 1], $this->counts($entry));
+        $this->assertSame((int) $control->id, $entry['groups'][0]['courseid']);
+    }
+
+    /**
+     * Both the course's own category and the group's must be listable: either one refused drops the course.
+     *
+     * Grouped at depth 1, a course in a child category shows its parent's name. Viewcourselist refused at
+     * the parent and allowed again at the child leaves the course listable but its group not; refused at
+     * the child alone, the group is listable and the course is not. The sibling course is the control.
+     *
+     * @return void
+     */
+    public function test_the_course_and_its_group_must_both_be_listable(): void {
+        global $CFG;
+
+        set_config('news_depth', 1, 'block_compass');
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $parent = $gen->create_category();
+        $child = $gen->create_category(['parent' => $parent->id]);
+        $sibling = $gen->create_category();
+        $this->open_course($start, (int) $child->id);
+        $control = $this->open_course($start + 1, (int) $sibling->id);
+        $user = $gen->create_user();
+        $role = (int) $CFG->defaultuserroleid;
+        $parentctx = \core\context\coursecat::instance((int) $parent->id)->id;
+        $childctx = \core\context\coursecat::instance((int) $child->id)->id;
+
+        assign_capability('moodle/category:viewcourselist', CAP_PREVENT, $role, $parentctx);
+        assign_capability('moodle/category:viewcourselist', CAP_ALLOW, $role, $childctx);
+        accesslib_clear_all_caches_for_unit_testing();
+        $entry = $this->entry_for($user);
+        $this->assertSame([(int) $sibling->id => 1], $this->counts($entry), 'the group refused');
+        $this->assertSame((int) $control->id, $entry['groups'][0]['courseid']);
+
+        assign_capability('moodle/category:viewcourselist', CAP_ALLOW, $role, $parentctx, true);
+        assign_capability('moodle/category:viewcourselist', CAP_PREVENT, $role, $childctx, true);
+        accesslib_clear_all_caches_for_unit_testing();
+        $entry = $this->entry_for($user);
+        $this->assertSame([(int) $sibling->id => 1], $this->counts($entry), 'the course category refused');
+
+        unassign_capability('moodle/category:viewcourselist', $role, $childctx);
+        accesslib_clear_all_caches_for_unit_testing();
+        $entry = $this->entry_for($user);
+        $this->assertSame([(int) $parent->id => 1, (int) $sibling->id => 1], $this->counts($entry), 'both listable: offered');
+    }
+
+    /**
+     * A visible category under a hidden parent is not offered to a viewer who cannot see hidden categories.
+     *
+     * Core's show() makes a child visible under a hidden parent (course/classes/category.php), and the
+     * catalogue reads only the course's own category. The parent's name would be the group's. The viewer
+     * who may see hidden categories is offered the course: the control of the rule, beside the sibling.
+     *
+     * @return void
+     */
+    public function test_a_course_under_a_hidden_parent_is_not_offered(): void {
+        global $DB;
+
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $parent = $gen->create_category();
+        $child = $gen->create_category(['parent' => $parent->id]);
+        $sibling = $gen->create_category();
+        $below = $this->open_course($start, (int) $child->id);
+        $this->open_course($start + 1, (int) $sibling->id);
+        $DB->set_field('course_categories', 'visible', 0, ['id' => $parent->id]);
+        $this->purge_open_caches();
+        \core_cache\cache::make('block_compass', 'categorymeta')->purge();
+        $user = $gen->create_user();
+
+        $entry = $this->entry_for($user);
+        $this->assertSame([(int) $sibling->id => 1], $this->counts($entry));
+
+        $roleid = $gen->create_role();
+        assign_capability('moodle/category:viewhiddencategories', CAP_ALLOW, $roleid, \core\context\system::instance()->id);
+        role_assign($roleid, (int) $user->id, \core\context\system::instance()->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $entry = $this->entry_for($user);
+        $this->assertSame(2, $entry['total'], 'the holder of viewhiddencategories is offered both');
+        $this->assertContains((int) $below->id, array_column($entry['groups'], 'courseid'));
+    }
+
+    /**
      * A role at a parent category excludes every course below it; a role at the system context does
      * not, so a manager by system role keeps the line.
      *

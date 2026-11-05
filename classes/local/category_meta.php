@@ -32,7 +32,7 @@ use stdClass;
 /**
  * Wrapper of the block_compass/categorymeta definition.
  *
- * Key: category id. Value: raw name, path, depth and the six context columns
+ * Key: category id. Value: raw name, path, depth, visible and the six context columns
  * needed to rebuild the category context without a query. Nothing formatted,
  * nothing language-dependent. Core keeps the same records in its
  * coursecatrecords cache, but that definition is request-scoped
@@ -48,7 +48,7 @@ use stdClass;
  */
 final class category_meta {
     /** @var string[] Category columns copied into an entry, in the order the SQL selects them. */
-    private const CATEGORY_FIELDS = ['id', 'name', 'path', 'depth'];
+    private const CATEGORY_FIELDS = ['id', 'name', 'path', 'depth', 'visible'];
 
     /**
      * The cache instance (never memoised here: see course_meta::cache()).
