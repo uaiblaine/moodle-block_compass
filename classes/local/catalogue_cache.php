@@ -118,4 +118,19 @@ final class catalogue_cache {
     public static function delete(): void {
         self::cache()->delete(self::KEY);
     }
+
+    /**
+     * Drop the entry now and again at the end of the request, for a course core is about to delete.
+     *
+     * The twin of {@see course_meta::forget_until_marked()}, for the same reason: the asynchronous
+     * deletion of Moodle 5.3 marks the course with set_field(), no event, so none of the nine events
+     * drops the entry, and the catalogue would keep offering the course until its own until. The refill
+     * after the request reads deletioninprogress as the database holds it (catalogue::fill() excludes 1).
+     *
+     * @return void
+     */
+    public static function forget_until_marked(): void {
+        self::delete();
+        \core_shutdown_manager::register_function([self::class, 'delete']);
+    }
 }

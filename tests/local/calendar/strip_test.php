@@ -596,6 +596,46 @@ final class strip_test extends advanced_testcase {
     }
 
     /**
+     * An activity inside a subsection of a restricted section is not counted, though no column of its row is restricted.
+     *
+     * A mod_subsection's section is delegated: core makes it unavailable when the section holding the
+     * subsection is (section_info::check_delegated_available()), while the activity's own availability and
+     * its own section's stay NULL. The control is the same activity before the outer section is restricted.
+     *
+     * @return void
+     */
+    public function test_an_activity_in_a_subsection_of_a_restricted_section_is_not_counted(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        set_config('enableavailability', 1);
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $user = $gen->create_user();
+        $course = $gen->create_course(['numsections' => 2]);
+        $gen->enrol_user($user->id, $course->id, 'student');
+        $subsection = $gen->create_module('subsection', ['course' => $course->id, 'section' => 1]);
+        $delegated = get_fast_modinfo($course->id)->get_section_info_by_component('mod_subsection', (int) $subsection->id);
+        $gen->create_module('assign', ['course' => $course->id, 'section' => $delegated->section, 'duedate' => $now + 3 * DAYSECS]);
+        $tz = \core_date::get_user_timezone_object();
+        $day = strip::local_day($now + 3 * DAYSECS, $tz);
+
+        $this->setUser($user);
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+        $this->assertSame(1, $days[$day]['graded'], 'Without the restriction the activity is counted: the control.');
+
+        $unmet = json_encode(\core_availability\tree::get_root_json(
+            [\availability_date\condition::get_json('>=', $now + 365 * DAYSECS)]
+        ));
+        $DB->set_field('course_sections', 'availability', $unmet, ['course' => $course->id, 'section' => 1]);
+        rebuild_course_cache((int) $course->id, true);
+        cache::make('block_compass', 'calendarstrip')->purge();
+        $this->setUser($user);
+        $days = strip::build((int) $user->id, $now, $tz)['views']['learning']['days'];
+        $this->assertArrayNotHasKey($day, $days);
+    }
+
+    /**
      * A learner whose role cannot view the activity does not get its deadline counted.
      *
      * mod/assign:view prohibited in one activity's context; the untouched sibling is the control.

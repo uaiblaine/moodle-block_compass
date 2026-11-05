@@ -16,6 +16,7 @@
 
 namespace block_compass;
 
+use block_compass\local\catalogue_cache;
 use block_compass\local\config;
 use block_compass\local\course_meta;
 use core\hook\output\before_standard_top_of_body_html_generation;
@@ -203,7 +204,9 @@ class hook_callbacks {
      * visible to tier 3 until then. The hook runs before the effect and a later listener can
      * abort the deletion, so nothing is written here that claims the deletion happened: the entry
      * is dropped, and dropped again once the request ends, so the refill reads both columns as the
-     * database finally holds them ({@see course_meta::forget_until_marked()}).
+     * database finally holds them ({@see course_meta::forget_until_marked()}). The open catalogue is
+     * dropped the same way ({@see catalogue_cache::forget_until_marked()}), or the open-courses line
+     * would keep counting the course until the entry's own until.
      *
      * @param before_course_deleted $hook The hook, carrying the course record.
      * @return void
@@ -214,6 +217,7 @@ class hook_callbacks {
                 return;
             }
             course_meta::forget_until_marked((int) $hook->course->id);
+            catalogue_cache::forget_until_marked();
         } catch (\Throwable $e) {
             // The deletion must not fail for the block's cache; course_deleted still drops the
             // entry when the course is gone.

@@ -108,17 +108,19 @@ final class news {
     public static function build(array $catalogue, int $depth): array {
         $truncated = !empty($catalogue['truncated']) || count($catalogue['rows']) > self::NEWS_PROBE;
 
-        return self::groups(self::counted($catalogue), $depth) + ['truncated' => $truncated];
+        return self::groups(self::counted($catalogue, $depth), $depth) + ['truncated' => $truncated];
     }
 
     /**
-     * The courses of a catalogue entry the current user could join: decision 2's conditions 3 and 4
-     * and the provider's listing filter, over the first NEWS_PROBE rows.
+     * The courses of a catalogue entry the current user could join: decision 2's conditions 3 and 4,
+     * core's category listing rule ({@see self::listable()}) and the provider's listing filter, over the
+     * first NEWS_PROBE rows.
      *
      * @param array $catalogue A catalogue entry ({@see catalogue_cache}).
+     * @param int|null $depth The grouping depth whose group must be listable; null for config::news_depth().
      * @return array Course id => [categoryid, startdate, model], in the catalogue's order.
      */
-    public static function counted(array $catalogue): array {
+    public static function counted(array $catalogue, ?int $depth = null): array {
         global $USER;
 
         $rows = $catalogue['rows'];
@@ -133,6 +135,11 @@ final class news {
             foreach (self::history_and_roles((int) $USER->id, array_keys($candidates)) as $courseid) {
                 unset($candidates[$courseid]);
             }
+        }
+
+        // Core's listing rule: a course whose category core would not list to the viewer is not offered.
+        if ($candidates) {
+            $candidates = self::listable($candidates, $depth ?? config::news_depth());
         }
 
         // Condition 3: the provider's batch answers open, by a route (never guest access).
@@ -155,6 +162,78 @@ final class news {
         }
 
         return $candidates;
+    }
+
+    /**
+     * The candidates core would list to the current user, with their group's name, by category.
+     *
+     * core_course_category::can_view_category() (course/classes/category.php) decides whether a category's
+     * courses are listed: viewcourselist at the category context, and viewhiddencategories when it is hidden.
+     * The catalogue reads only the course's own category's visible flag, and a viewer refused the capability
+     * would otherwise be told the course, its category's name and the group's. So each candidate's category
+     * must be listable; every category on its path, the group's included, visible or the viewer able to see
+     * it hidden (core's show() makes a child visible under a hidden parent); and the group, whose name the
+     * line shows, listable too. A course that fails is dropped, never regrouped under a name the viewer may
+     * see: the line is a suggestion, and a course left out costs nothing.
+     *
+     * Reads: the category layer (categorymeta) for the categories and their ancestors, one statement for
+     * the misses; the capabilities are the current user's access data, held for the request.
+     *
+     * @param array $candidates Course id => [categoryid, startdate, model].
+     * @param int $depth The grouping depth, config::news_depth().
+     * @return array The candidates kept, in their order.
+     */
+    private static function listable(array $candidates, int $depth): array {
+        $own = category_meta::get_many(array_column($candidates, 0));
+        $pathids = [];
+        foreach ($own as $entry) {
+            foreach (explode('/', $entry['path']) as $id) {
+                if ((int) $id > 0) {
+                    $pathids[(int) $id] = true;
+                }
+            }
+        }
+        $entries = $own + category_meta::get_many(array_keys(array_diff_key($pathids, $own)));
+
+        $seen = [];
+        $lists = [];
+        $sees = static function (int $id) use ($entries, &$seen): bool {
+            if (!isset($seen[$id])) {
+                // An entry cached before the column joined the layer reads as hidden (the upgrade purges them).
+                $seen[$id] = isset($entries[$id]) && (!empty($entries[$id]['visible'])
+                    || has_capability('moodle/category:viewhiddencategories', category_meta::context_of($entries[$id])));
+            }
+
+            return $seen[$id];
+        };
+        $listed = static function (int $id) use ($entries, &$lists): bool {
+            if (!isset($lists[$id])) {
+                $lists[$id] = isset($entries[$id])
+                    && has_capability('moodle/category:viewcourselist', category_meta::context_of($entries[$id]));
+            }
+
+            return $lists[$id];
+        };
+
+        $kept = [];
+        foreach ($candidates as $courseid => $candidate) {
+            $categoryid = $candidate[0];
+            if (!isset($entries[$categoryid])) {
+                continue;
+            }
+            $path = array_values(array_filter(array_map('intval', explode('/', $entries[$categoryid]['path']))));
+            foreach ($path as $id) {
+                if (!$sees($id)) {
+                    continue 2;
+                }
+            }
+            if (!$listed($categoryid) || !$listed(category_meta::group_id($entries[$categoryid], $depth))) {
+                continue;
+            }
+            $kept[$courseid] = $candidate;
+        }
+
+        return $kept;
     }
 
     /**

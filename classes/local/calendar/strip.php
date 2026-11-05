@@ -1212,7 +1212,8 @@ final class strip {
         $course = 'CASE WHEN e.courseid <> 0 THEN e.courseid ELSE COALESCE(cm.course, 0) END';
         $sql = "SELECT e.id, {$course} AS courseid, e.groupid, e.type, e.eventtype, e.modulename, e.instance,
                        e.{$sortcolumn} AS sorttime, e.timeduration, cm.id AS cmid, cm.visible AS cmvisible,
-                       CASE WHEN cm.availability IS NULL AND cs.availability IS NULL THEN 0 ELSE 1 END AS restricted,
+                       CASE WHEN cm.availability IS NULL AND cs.availability IS NULL AND cs.component IS NULL THEN 0
+                            ELSE 1 END AS restricted,
                        {$facts},
                        CASE WHEN c.groupmodeforce = 1 THEN c.groupmode ELSE cm.groupmode END AS groupmode, cm.groupingid,
                        " . context_helper::get_preload_record_columns_sql('ctx') . "
@@ -1423,7 +1424,9 @@ final class strip {
      *   a learning course's module is visible (the statement asks); a teaching course's module, and
      *   grading work, are visible or the user holds moodle/course:viewhiddenactivities; a module
      *   whose own availability or whose section's (the statement's `restricted`, cm_info.php:1488-1496)
-     *   carries a condition is asked of modinfo (decision 6, restricted()) unless the user holds
+     *   carries a condition, or whose section is delegated (a mod_subsection's: core makes it unavailable
+     *   when the subsection's own module or the section holding it is, section_info::check_delegated_available(),
+     *   which no column of the row shows), is asked of modinfo (decision 6, restricted()) unless the user holds
      *   moodle/course:ignoreavailabilityrestrictions. No extra read: the context columns are in the row.
      *
      * Without $grading (the counts pass, the ledger not the source) no grading is counted: each visible
@@ -1810,7 +1813,8 @@ final class strip {
      * Only the rows passed are asked, and only their courses' modinfo is built.
      *
      * @param int $userid The user.
-     * @param \stdClass[] $rows Rows from future() whose course module or its section carries an availability condition.
+     * @param \stdClass[] $rows Rows from future() whose course module or its section carries an availability condition, or
+     *     whose section is delegated.
      * @return array Course module id => true for each one the user cannot see.
      */
     public static function restricted(int $userid, array $rows): array {

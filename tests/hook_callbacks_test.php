@@ -382,6 +382,10 @@ final class hook_callbacks_test extends advanced_testcase {
         local\course_meta::get_many([(int) $doomed->id, (int) $control->id]);
         $this->assertSame(1, $coursemeta->get((int) $doomed->id)['visible']);
 
+        $catalogue = \core_cache\cache::make('block_compass', 'catalogue');
+        local\catalogue_cache::set(['rows' => []]);
+        $this->assertNotFalse($catalogue->get('site'));
+
         $before = $this->registered_shutdown_functions();
         hook_callbacks::before_course_deleted(
             new \core_course\hook\before_course_deleted($doomed)
@@ -389,9 +393,14 @@ final class hook_callbacks_test extends advanced_testcase {
 
         $this->assertFalse($coursemeta->get((int) $doomed->id));
         $this->assertSame(1, $coursemeta->get((int) $control->id)['visible']);
+        // The open catalogue goes too: the mark comes with no event, and the entry would keep offering the course.
+        $this->assertFalse($catalogue->get('site'));
         $added = array_slice($this->registered_shutdown_functions(), count($before));
         $this->assertSame(
-            [[[local\course_meta::class, 'delete'], [(int) $doomed->id]]],
+            [
+                [[local\course_meta::class, 'delete'], [(int) $doomed->id]],
+                [[local\catalogue_cache::class, 'delete'], []],
+            ],
             $added
         );
 

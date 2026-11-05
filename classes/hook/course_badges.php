@@ -42,7 +42,8 @@ namespace block_compass\hook;
  * - It calls add_badges() with a list of ['url' => string, 'alt' => string] per course, in the
  *   order the card should show them: the address of the image (content-hashed, so a changed file
  *   is a new address) and its alternative text as plain text. The block keeps at most three a
- *   course, drops one whose address PARAM_URL refuses and cleans the text to PARAM_TEXT.
+ *   course, drops one whose address is not on this site (wwwroot, or a root-relative path) and cleans
+ *   the text to PARAM_TEXT.
  * - It answers in one batch for every id, never with a query per course.
  * - It writes nothing to $SESSION: the block's services that dispatch this hook run with a
  *   read-only session.

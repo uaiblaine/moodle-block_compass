@@ -91,7 +91,9 @@ final class theme_badges {
      * The crests of many courses, in one dispatch of the hook.
      *
      * Nothing is asked when the setting is off or no course is given. Each course keeps at most
-     * MAX crests, in the order the answerers gave them; one without a URL is dropped, and the alternative text is
+     * MAX crests, in the order the answerers gave them; one whose URL is not an address on this site
+     * ({@see category_link::local_url()}: an external image would leak the reader's address and break a strict
+     * img-src) is dropped, and the alternative text is
      * cleaned to what a PARAM_TEXT return field accepts.
      *
      * @param int[] $courseids Course ids.
@@ -117,7 +119,7 @@ final class theme_badges {
         foreach ($ids as $courseid) {
             $given = is_array($answer) ? ($answer[$courseid] ?? []) : [];
             foreach (array_slice(array_values(is_array($given) ? $given : []), 0, self::MAX) as $crest) {
-                $url = clean_param((string) ($crest['url'] ?? ''), PARAM_URL);
+                $url = category_link::local_url($crest['url'] ?? null) ?? '';
                 if ($url === '') {
                     continue;
                 }
@@ -131,7 +133,7 @@ final class theme_badges {
     /**
      * The first crest of each of many categories, in one dispatch of the category_badges hook (ADR-019).
      *
-     * Nothing is asked when the setting is off or no category is given. The first crest with a URL is
+     * Nothing is asked when the setting is off or no category is given. The first crest with a URL on this site is
      * kept; its alternative text is cleaned as for_courses() cleans it.
      *
      * @param int[] $categoryids Category ids.
@@ -157,7 +159,7 @@ final class theme_badges {
         foreach ($ids as $categoryid) {
             $given = is_array($answer) ? ($answer[$categoryid] ?? []) : [];
             foreach (array_values(is_array($given) ? $given : []) as $crest) {
-                $url = clean_param((string) ($crest['url'] ?? ''), PARAM_URL);
+                $url = category_link::local_url($crest['url'] ?? null) ?? '';
                 if ($url !== '') {
                     $crests[$categoryid] = ['url' => $url, 'alt' => clean_param((string) ($crest['alt'] ?? ''), PARAM_TEXT)];
                     break;

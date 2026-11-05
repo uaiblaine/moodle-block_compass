@@ -26,6 +26,7 @@ namespace block_compass\external;
 
 use block_compass\local\explore;
 use block_compass\local\filter_fields;
+use block_compass\local\session_guard;
 use core\context\user as context_user;
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -88,6 +89,7 @@ class search_inventory extends external_api {
         if (isguestuser()) {
             throw new \moodle_exception('noguest');
         }
+        session_guard::require_service();
         $userid = (int) $USER->id;
         self::validate_context(context_user::instance($userid));
 

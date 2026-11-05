@@ -124,7 +124,8 @@ final class category_meta_test extends advanced_testcase {
         $this->assertSame($expectedkeys, $keys);
 
         $entry = $entries[$ids['mid']];
-        $this->assertSame(['id', 'name', 'path', 'depth', 'ctx'], array_keys($entry));
+        $this->assertSame(['id', 'name', 'path', 'depth', 'visible', 'ctx'], array_keys($entry));
+        $this->assertSame(1, $entry['visible']);
         $this->assertSame($ids['mid'], $entry['id']);
         $this->assertSame('Mid & department', $entry['name']);
         $this->assertSame('/' . $ids['top'] . '/' . $ids['mid'], $entry['path']);

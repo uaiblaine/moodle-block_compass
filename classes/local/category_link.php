@@ -92,11 +92,12 @@ final class category_link {
      * A \core\url is taken as it prints; a root-relative string gets wwwroot in front; then the
      * address must pass PARAM_LOCALURL unchanged and start with wwwroot. A protocol-relative
      * "//host" or a relative path without the leading slash is not an address on this site.
+     * Public because the crests' addresses pass the same door ({@see theme_badges}).
      *
      * @param mixed $answer What a listener gave.
      * @return string|null
      */
-    private static function local_url(mixed $answer): ?string {
+    public static function local_url(mixed $answer): ?string {
         global $CFG;
 
         if ($answer instanceof \core\url) {

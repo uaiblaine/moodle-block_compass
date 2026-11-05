@@ -25,6 +25,7 @@
 namespace block_compass\external;
 
 use block_compass\local\cards;
+use block_compass\local\session_guard;
 use block_compass\local\theme_badges;
 use core\context\user as context_user;
 use core_external\external_api;
@@ -80,6 +81,7 @@ class get_card_details extends external_api {
         if (isguestuser()) {
             throw new \moodle_exception('noguest');
         }
+        session_guard::require_service();
         $userid = (int) $USER->id;
         self::validate_context(context_user::instance($userid));
 

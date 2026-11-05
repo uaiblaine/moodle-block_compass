@@ -297,7 +297,7 @@ final class get_news_budget_test extends advanced_testcase {
         }
         $categoryids = array_map('intval', array_column(get_news::execute()['groups'], 'categoryid'));
         foreach ($categoryids as $categoryid) {
-            category_badges_listener::$answers[$categoryid] = [['url' => 'https://example.com/c.png', 'alt' => 'C']];
+            category_badges_listener::$answers[$categoryid] = [['url' => 'https://www.example.com/moodle/c.png', 'alt' => 'C']];
         }
         set_config('show_theme_badges', 1, 'block_compass');
 
@@ -309,6 +309,6 @@ final class get_news_budget_test extends advanced_testcase {
         $this->assertLessThanOrEqual(self::FLOOR, $reads, "A fresh entry with listeners cost {$reads} reads.");
         $this->assertSame($built, $fresh);
         $this->assertSame('course', $fresh['kinds'][0]['key'], 'The control: the kinds arrived.');
-        $this->assertSame('https://example.com/c.png', $fresh['groups'][0]['crest'], 'The control: a crest arrived.');
+        $this->assertSame('https://www.example.com/moodle/c.png', $fresh['groups'][0]['crest'], 'The control: a crest arrived.');
     }
 }
