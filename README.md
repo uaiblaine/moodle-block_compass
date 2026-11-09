@@ -185,7 +185,7 @@ the block drawer). A search left in force while its field is folded away shows a
 
 At that last step the Filters panel opens as a bottom sheet:
 
-![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality values, Clear filters and Show 14](docs/screenshots/explore-phone.png)
+![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality values, Clear filters and Show 38](docs/screenshots/explore-phone.png)
 
 **Pointing at a filter previews it.** A mouse or a pen on a scope, the star, a panel value or a
 suggestion, or the keyboard's focus on one, rings the courses on screen that it would keep,
