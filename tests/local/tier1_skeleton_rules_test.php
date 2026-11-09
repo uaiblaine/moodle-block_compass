@@ -366,7 +366,7 @@ final class tier1_skeleton_rules_test extends advanced_testcase {
      *
      * ADR-018, the owner's answer to Q1. Changes that must make it fail: the skeleton shown without
      * JavaScript, the step lost or not delayed, the sentence shown from the start, reduced motion cancelling
-     * the step (it is not motion), the sentence no longer right after the skeleton.
+     * the step (it is not motion), the sentence no longer right after the skeleton, a shimmer on the skeleton.
      *
      * @return void
      */
@@ -389,8 +389,15 @@ final class tier1_skeleton_rules_test extends advanced_testcase {
             '/@keyframes block_compass-preload-in \{\s*from,\s*to \{\s*position: static;\s*visibility: visible;\s*\}\s*\}/',
             $css
         );
-        // Reduced motion stops the shimmer and keeps the step.
-        $blocks = 0;
+        // The skeleton is grey blocks with no shimmer (the course card contract, section 5): nothing moves, so
+        // reduced motion has nothing of the skeleton to stop, and keeps the step.
+        $this->assertDoesNotMatchRegularExpression('/animation/', $this->rule('.block_compass .compass-skeleton'));
+        $this->assertMatchesRegularExpression(
+            '/\bbackground: var\(--block_compass-line\);/',
+            $this->rule('.block_compass .compass-skeleton'),
+            'the skeleton is no longer a grey block'
+        );
+        $this->assertStringNotContainsString('@keyframes block_compass-skeleton', $css, 'the shimmer is back');
         $offset = 0;
         while (($at = strpos($css, '@media (prefers-reduced-motion: reduce)', $offset)) !== false) {
             $depth = 0;
@@ -404,10 +411,8 @@ final class tier1_skeleton_rules_test extends advanced_testcase {
             }
             $media = substr($css, $at, $end - $at);
             $this->assertStringNotContainsString('compass-preload', $media, 'reduced motion cancels the step');
-            $blocks += str_contains($media, '.compass-skeleton') ? 1 : 0;
             $offset = $end;
         }
-        $this->assertGreaterThanOrEqual(1, $blocks, 'reduced motion no longer stops the skeleton\'s shimmer');
 
         $this->assertMatchesRegularExpression(
             '/<div class="compass-preload" aria-hidden="true">.*?<\/div>\s*<p class="compass-noscript">/s',

@@ -35,6 +35,10 @@
  * when the inventory says comp - a skeleton while the batch is out, then the bar, or nothing in
  * the same room when the course has no progress for this learner yet.
  *
+ * The row is the course card contract's list surface (moodle-dev/docs/course-card/CONTRACT.md, section 1):
+ * once complete, the bar goes and the state pill is the green seal (D4). Boost Union's settings (CardFlags)
+ * take the thumbnail away (a 4 px inline-start edge instead, green once complete) and the progress slot.
+ *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -42,6 +46,7 @@
 
 import {memo, useEffect, useRef} from 'react';
 import Archive from './Archive';
+import {isComplete} from './Card';
 import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
@@ -98,6 +103,8 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
     }, [observe, row.id]);
 
     const answered = enrolled && !waiting && detail !== undefined;
+    const complete = answered && isComplete(detail.progress);
+    const nothumb = !config.card.thumb;
     let thumb = <span className="compass-row-thumb-fill compass-card-img-empty"></span>;
     if (waiting) {
         thumb = <span className="compass-row-thumb-fill compass-skeleton"></span>;
@@ -114,27 +121,28 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
 
     return (
         <div
-            className={`compass-row d-flex align-items-center gap-2${enrolled ? '' : ' compass-row-pending'}`}
+            className={`compass-row d-flex align-items-center gap-2${enrolled ? '' : ' compass-row-pending'}`
+                + `${nothumb ? ' compass-row-nothumb' : ''}${complete ? ' compass-row-done' : ''}`}
             data-course-id={row.id}
             ref={element}
         >
             {/* The image is the name's decoration: the link already says which course this is. */}
-            <span className="compass-row-thumb" aria-hidden="true">{thumb}</span>
+            {!nothumb && <span className="compass-row-thumb" aria-hidden="true">{thumb}</span>}
             <a href={url} className="compass-row-link flex-grow-1 text-reset text-decoration-none">
                 <span className="compass-row-name compass-clamp" title={row.name}>{row.name}</span>
                 {row.new && <span className="badge bg-primary text-white">{labels.badge_new}</span>}
             </a>
-            <StatePill row={row} labels={labels} />
+            <StatePill row={row} labels={labels} complete={complete} />
             <Crests badges={detail?.badges} label={labels.crests} inline />
             {meta !== null && <span className="compass-row-meta compass-clamp small text-muted" title={meta}>{meta}</span>}
             {/* The progress slot, held from the first render when comp says a bar may come: a
                 skeleton while the batch is out, then the rule of Card.tsx completion() - a bar
                 when there is one, else the empty slot, which is also what a failed batch leaves.
                 "No completion configured" goes to a teacher only, on a row with no slot. */}
-            {enrolled && row.comp && (
+            {enrolled && row.comp && config.card.progress && (
                 <div className="compass-row-progress">
                     {waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
-                    {answered && detail.hascompletion && detail.progress !== null && (
+                    {answered && !complete && detail.hascompletion && detail.progress !== null && (
                         <Progress progress={detail.progress} labels={labels} compact />
                     )}
                 </div>

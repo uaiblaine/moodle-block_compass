@@ -119,7 +119,33 @@ const withCard = (data: Attention, courseid: number, change: (card: CourseCard) 
     const strip = (cards: CourseCard[]): CourseCard[] =>
         cards.map((card) => (card.id === courseid ? change(card) : card));
 
-    return {...data, "continue": strip(data.continue), "new": strip(data.new), favourites: strip(data.favourites)};
+    return {
+        ...data,
+        "continue": strip(data.continue),
+        "new": strip(data.new),
+        favourites: strip(data.favourites),
+        scheduled: strip(data.scheduled),
+    };
+};
+
+/**
+ * The ids tier 1 asks get_card_details for, each once, the pending ones first.
+ *
+ * A card marked pending lacks its progress; under Boost Union a card without an image of its own lacks the
+ * theme's generated one (the course card contract, section 8), which get_attention never asks the theme for.
+ * Both go in the same batches, so a generated image costs no request of its own, and a course in two strips
+ * (a favourite in Continue) is asked once.
+ *
+ * @param {object} payload The get_attention answer.
+ * @param {boolean} generated Whether a card without an image asks for the generated one (CardFlags).
+ * @returns {object} pending, the ids whose progress is asked; ids, every id to ask, pending first.
+ */
+const detailsWanted = (payload: Attention, generated: boolean): {pending: Set<number>, ids: number[]} => {
+    const cards = [payload.continue, payload.new, payload.favourites, payload.scheduled].flat();
+    const pending = new Set(cards.filter((card) => card.pending).map((card) => card.id));
+    const imageless = generated ? cards.filter((card) => !card.hasimage).map((card) => card.id) : [];
+
+    return {pending, ids: Array.from(new Set([...pending, ...imageless]))};
 };
 
 /**
@@ -293,15 +319,15 @@ const Block = (config: BlockConfig) => {
         // Tier 1 painted first; the strip asks now, while the cards' progress is still on its way.
         settleTier1();
 
-        const pending = [payload.continue, payload.new, payload.favourites]
-            .flat()
-            .filter((card) => card.pending)
-            .map((card) => card.id);
+        // A card drawn without its cover has no use for a generated image.
+        const generated = config.card.generated && config.card.cover;
+        const {pending, ids} = detailsWanted(payload, generated);
 
-        for (let at = 0; at < pending.length; at += DETAILS_BATCH) {
+        for (let at = 0; at < ids.length; at += DETAILS_BATCH) {
+            const batch = ids.slice(at, at + DETAILS_BATCH);
             let answer;
             try {
-                answer = await getCardDetails(pending.slice(at, at + DETAILS_BATCH));
+                answer = await getCardDetails(batch, generated);
             } catch (e) {
                 /*
                  * Say so, and stop claiming to be loading. A card whose progress never
@@ -311,10 +337,13 @@ const Block = (config: BlockConfig) => {
                  * render no progress at all, and the banner says which half failed. The
                  * cards themselves stay on screen; only their progress is missing.
                  */
-                if (seq.current === mine) {
+                const left = ids.slice(at).filter((id) => pending.has(id));
+                // Only a missing progress is a failure to report: a card left without its generated image
+                // keeps the cover it was drawn with.
+                if (seq.current === mine && left.length) {
                     setError(labels.progresserror || '');
                     setData((current) => (current
-                        ? pending.slice(at).reduce(
+                        ? left.reduce(
                             (into, id) => withCard(into, id, (card) => ({...card, pending: false})),
                             current
                         )
@@ -330,16 +359,21 @@ const Block = (config: BlockConfig) => {
                 ? answer.details.reduce(
                     (into, detail) => withCard(into, detail.id, (card) => ({
                         ...card,
-                        pending: false,
-                        hascompletion: detail.hascompletion,
-                        progress: detail.progress,
-                        teacher: detail.teacher,
+                        // The progress only where it was asked for: the rest of the card is get_attention's.
+                        ...(pending.has(detail.id) ? {
+                            pending: false,
+                            hascompletion: detail.hascompletion,
+                            progress: detail.progress,
+                            teacher: detail.teacher,
+                        } : {}),
+                        // The generated image only where the card had none.
+                        ...(!card.hasimage && detail.hasimage ? {imageurl: detail.imageurl, hasimage: true} : {}),
                     })),
                     current
                 )
                 : current));
         }
-    }, [labels, settleTier1]);
+    }, [labels, settleTier1, config.card.generated, config.card.cover]);
 
     useEffect(() => {
         load();

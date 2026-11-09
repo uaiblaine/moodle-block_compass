@@ -39,15 +39,21 @@ type StatePillProps = {
     // A tier 3 row, or a tier 1 card, which carries sched alone: the three fields are all the pill reads.
     row: Pick<InventoryRow, 'sched' | 'pend' | 'wait'>,
     labels: Record<string, string>,
+    // The course is complete for this learner: the green seal, under the progress setting or not (D4, D13).
+    complete?: boolean,
 };
 
 /**
- * The pill, or nothing for a row the learner can enter.
+ * The pill, or nothing for a row the learner can enter and has not completed.
  *
- * @param {object} props The row and the block labels; see StatePillProps.
+ * A completed course's pill is the green seal (the course card contract, section 3, D4): the bar goes and the
+ * seal says it, with the progress row turned off as well (D13). It is drawn only for a course the learner can
+ * enter, since one they cannot has no progress to complete.
+ *
+ * @param {object} props The row, the block labels and whether it is complete; see StatePillProps.
  * @returns {object} The rendered pill, or null.
  */
-const StatePill = ({row, labels}: StatePillProps) => {
+const StatePill = ({row, labels, complete = false}: StatePillProps) => {
     if (row.sched !== undefined) {
         return (
             <span className="compass-state compass-state-scheduled">
@@ -69,6 +75,14 @@ const StatePill = ({row, labels}: StatePillProps) => {
             <span className="compass-state compass-state-pending">
                 <i className="fa fa-hourglass-half" aria-hidden="true"></i>
                 <span>{labels.state_pending}</span>
+            </span>
+        );
+    }
+    if (complete) {
+        return (
+            <span className="compass-state compass-state-done">
+                <i className="fa fa-check" aria-hidden="true"></i>
+                <span>{labels.completed}</span>
             </span>
         );
     }

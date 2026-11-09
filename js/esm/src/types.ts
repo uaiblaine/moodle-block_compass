@@ -190,6 +190,8 @@ export type BlockConfig = {
     showsearch: boolean,
     showindex: boolean,
     showcategory: boolean,
+    // What Boost Union's settings leave of a card (classes/local/card_settings.php flags()).
+    card: CardFlags,
     // Where the block is, as a heading level for its sections: 4 under core's block title, 3
     // with the title hidden, 2 on the block's own page under its h1. See heading.ts.
     headinglevel: number,
@@ -202,6 +204,22 @@ export type BlockConfig = {
     news?: NewsConfig,
     // Tier 1's place while get_attention travels (ADR-018): the surface, the stored shapes and the skeleton.
     tier1: Tier1Config,
+};
+
+/**
+ * Boost Union's three course overview settings as the cards read them (the course card contract, section 8), decided
+ * on the server under the page's theme: under any other theme every flag is the compass's own rule, all true but
+ * generated.
+ */
+export type CardFlags = {
+    // The progress row and its percentage; the completed seal and base stay without it (D13).
+    progress: boolean,
+    // Card.tsx's and RowCard.tsx's cover; without it a 4 px top edge and a row of the kind, crests and star.
+    cover: boolean,
+    // Row.tsx's 56 px thumbnail; without it a 4 px inline-start edge.
+    thumb: boolean,
+    // A course with no image asks get_card_details for the theme's generated one.
+    generated: boolean,
 };
 
 /** One remembered strip: its name, how many cards it drew and whether any drew a completion area. */
@@ -234,6 +252,8 @@ export type SkeletonModel = {
     ghostalone: boolean,
     empty: boolean,
     category: boolean,
+    // Cards drawn without their cover (CardFlags.cover false).
+    nocover: boolean,
 };
 
 /**

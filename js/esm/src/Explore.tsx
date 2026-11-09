@@ -286,7 +286,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     const typed = useDeferredValue(query);
 
     // Progress and images for the rows in view; a failed batch is offered Try again below the toolbar.
-    const details = useRowDetails();
+    const details = useRowDetails(config.card.generated);
 
     const section = useRef<HTMLElement>(null);
     // The toolbar state as last read or written, so the mount - where React runs every effect

@@ -201,13 +201,14 @@ export const getAttention = (): Promise<Attention> =>
     read<Attention>('block_compass_get_attention', {});
 
 /**
- * Progress and image for a batch of courses: tier 1 cards marked pending, tier 3 rows in view.
+ * Progress and image for a batch of courses: tier 1 cards marked pending or without an image, tier 3 rows in view.
  *
  * @param {number[]} courseids At most 24 ids; the service refuses more.
+ * @param {boolean} generated Whether a course with no image gets the theme's generated one (CardFlags.generated).
  * @returns {Promise} The details list.
  */
-export const getCardDetails = (courseids: number[]): Promise<{details: CardDetail[]}> =>
-    read<{details: CardDetail[]}>('block_compass_get_card_details', {courseids});
+export const getCardDetails = (courseids: number[], generated = false): Promise<{details: CardDetail[]}> =>
+    read<{details: CardDetail[]}>('block_compass_get_card_details', {courseids, generated});
 
 /**
  * Set or unset the core course star, through core's own service, so it is the star the Course

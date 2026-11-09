@@ -491,4 +491,169 @@ final class get_card_details_test extends advanced_testcase {
             "a cold later-start image cost {$cold} reads: expected the enrolment check, get_course() and the file area"
         );
     }
+
+    /**
+     * Measure what one call reads, through the service, with the per-request state reset first.
+     *
+     * @param int $courseid The course asked for.
+     * @param bool $generated Whether the generated image is asked for.
+     * @return array The reads and the answer's one detail.
+     */
+    private function measure(int $courseid, bool $generated): array {
+        context_helper::reset_caches();
+        $meter = budget::start();
+        $answer = get_card_details::execute([$courseid], $generated);
+        $reads = $meter->reads();
+
+        return [$reads, $answer['details'][0]];
+    }
+
+    /**
+     * Budget: asking for the generated image costs nothing while every course of the batch has its own.
+     *
+     * The flag alone reads no theme: the closure that would is called only for a course without an image
+     * (cards::details()), so the call costs what it costs without the flag. Protocol: warm core with a first call
+     * of each kind, then measure each once more.
+     *
+     * @return void
+     */
+    public function test_the_generated_flag_costs_nothing_while_every_course_has_an_image(): void {
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 0, 'block_compass');
+        $this->setAdminUser();
+        $course = $this->course_with_image();
+        $user = $this->getDataGenerator()->create_user();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, 'student');
+        $this->setUser($user);
+        get_card_details::execute([(int) $course->id]);
+        get_card_details::execute([(int) $course->id], true);
+
+        [$without] = $this->measure((int) $course->id, false);
+        [$with, $detail] = $this->measure((int) $course->id, true);
+
+        $this->assertTrue($detail['hasimage'], 'precondition: the course has its own image');
+        $this->assertSame($without, $with, "the flag cost {$with} reads against {$without}");
+    }
+
+    /**
+     * Budget: under another theme a course without an image costs reading the theme once, and gets no image.
+     *
+     * Reading the request's theme initialises it ({@see \moodle_page::initialise_theme_and_output()}): core's
+     * renderer and the global filters, whose recordset is three reads on PostgreSQL and one on MariaDB. No other
+     * renderer is created and nothing is drawn. The client sends the flag only under Boost Union (CardFlags), so a
+     * site under another theme never pays this.
+     *
+     * @return void
+     */
+    public function test_under_another_theme_the_flag_reads_the_theme_and_draws_nothing(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 0, 'block_compass');
+        [$user, $course] = $this->fixture(0);
+        $this->setUser($user);
+        get_card_details::execute([(int) $course->id]);
+        get_card_details::execute([(int) $course->id], true);
+
+        [$without] = $this->measure((int) $course->id, false);
+        [$with, $detail] = $this->measure((int) $course->id, true);
+
+        $this->assertFalse($detail['hasimage'], 'no generated image under Boost');
+        $theme = $DB->get_dbfamily() === 'postgres' ? 3 : 1;
+        $this->assertSame($without + $theme, $with, "the theme cost " . ($with - $without) . " reads, expected {$theme}");
+    }
+
+    /**
+     * Budget and behaviour under Boost Union: the course without an image gets the generated one, for the cost of
+     * reading the theme and creating core's renderer once.
+     *
+     * Boost Union must be installed (the dev stacks mount it; GitHub's CI does not, and skips). The site's theme is
+     * set to it, so validate_context() leaves the request drawing in it.
+     *
+     * @return void
+     */
+    public function test_under_boost_union_a_course_without_an_image_gets_the_generated_one(): void {
+        global $DB;
+
+        if (\core_component::get_component_directory('theme_boost_union') === null) {
+            $this->markTestSkipped('Boost Union is not installed.');
+        }
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 0, 'block_compass');
+        set_config('theme', 'boost_union');
+        [$user, $course] = $this->fixture(0);
+        $this->setUser($user);
+        get_card_details::execute([(int) $course->id]);
+        get_card_details::execute([(int) $course->id], true);
+
+        [$without, $plain] = $this->measure((int) $course->id, false);
+        [$with, $detail] = $this->measure((int) $course->id, true);
+
+        $this->assertFalse($plain['hasimage'], 'control: without the flag no image');
+        $this->assertTrue($detail['hasimage']);
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $detail['imageurl'], 'Boost Union\'s pattern by default');
+        $theme = $DB->get_dbfamily() === 'postgres' ? 3 : 1;
+        $this->assertSame($without + $theme, $with, "the generated image cost " . ($with - $without) . " reads, expected {$theme}");
+    }
+
+    /**
+     * Budget under Boost Union with its fallback image chosen and uploaded: the image is the fallback's URL for every
+     * course without one, and the batch reads the file area once, whatever the number of such courses.
+     *
+     * Boost Union's renderer reads its file area on every call; cards::generated_images() reuses its first answer.
+     * Control: the measure is taken for one course and for three, and the cost does not move.
+     *
+     * @return void
+     */
+    public function test_under_boost_union_the_fallback_image_is_read_once_per_batch(): void {
+        global $DB;
+
+        if (\core_component::get_component_directory('theme_boost_union') === null) {
+            $this->markTestSkipped('Boost Union is not installed.');
+        }
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 0, 'block_compass');
+        set_config('theme', 'boost_union');
+        set_config('courseoverviewimagesource', 'courseplusfallback', 'theme_boost_union');
+        set_config('courseoverviewimagefallback', '/fallback.png', 'theme_boost_union');
+        get_file_storage()->create_file_from_string([
+            'contextid' => \core\context\system::instance()->id,
+            'component' => 'theme_boost_union',
+            'filearea' => 'courseoverviewimagefallback',
+            'itemid' => 0,
+            'filepath' => '/',
+            'filename' => 'fallback.png',
+        ], base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'));
+        $gen = $this->getDataGenerator();
+        $user = $gen->create_user();
+        $ids = [];
+        foreach ([1, 2, 3] as $unused) {
+            $course = $gen->create_course(['enablecompletion' => 0]);
+            $gen->enrol_user($user->id, $course->id, 'student');
+            $ids[] = (int) $course->id;
+        }
+        $this->setUser($user);
+        get_card_details::execute($ids);
+        get_card_details::execute($ids, true);
+
+        $costs = [];
+        foreach ([[$ids[0]], $ids] as $batch) {
+            context_helper::reset_caches();
+            $meter = budget::start();
+            get_card_details::execute($batch);
+            $without = $meter->reads();
+            context_helper::reset_caches();
+            $meter = budget::start();
+            $answer = get_card_details::execute($batch, true);
+            $costs[] = $meter->reads() - $without;
+            foreach ($answer['details'] as $detail) {
+                $this->assertTrue($detail['hasimage']);
+                $this->assertStringContainsString('/pluginfile.php', $detail['imageurl']);
+                $this->assertStringContainsString('fallback.png', $detail['imageurl']);
+            }
+        }
+        $this->assertSame($costs[0], $costs[1], 'the fallback image cost more for three courses than for one');
+        $theme = $DB->get_dbfamily() === 'postgres' ? 3 : 1;
+        $this->assertSame($theme + 1, $costs[0], 'the theme, then the fallback\'s file area once');
+    }
 }

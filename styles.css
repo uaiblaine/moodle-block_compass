@@ -29,6 +29,43 @@
     --block_compass-scheduled-text: var(--bs-primary-text-emphasis, #050073);
     --block_compass-awaiting-bg: var(--bs-warning-bg-subtle, #fcefdc);
     --block_compass-awaiting-text: var(--bs-warning-text-emphasis, #60451f);
+    /* The course card's tokens (moodle-dev/docs/course-card/CONTRACT.md, section 7): every visual value of
+       Card.tsx, RowCard.tsx and Row.tsx is one of these thirty names, each reading the family token
+       theme_dimensions declares first (--dimensions-card-*, never declared here), then the compass's own chain
+       ending in Bootstrap's property and a literal, so a theme restyles the card without a selector. The close
+       and locked tokens paint nothing of the compass's (no popover, no locked card) and are declared for the
+       contract's sake. tests/local/course_card_contract_test.php reads them. */
+    --block_compass-card-radius: var(--dimensions-card-radius, 12px);
+    --block_compass-card-border-width: var(--dimensions-card-border-width, var(--bs-border-width, 1px));
+    --block_compass-card-border: var(--dimensions-card-border, var(--bs-border-color, #dee2e6));
+    --block_compass-card-surface: var(--dimensions-card-surface, var(--bs-card-bg, var(--bs-body-bg, #fff)));
+    --block_compass-card-ink: var(--dimensions-card-ink, var(--bs-body-color, #1d2125));
+    --block_compass-card-ink-muted: var(--dimensions-card-ink-muted, var(--bs-secondary-color, #6a737b));
+    --block_compass-card-title-hover: var(--dimensions-card-title-hover, var(--bs-link-hover-color, #0c5699));
+    --block_compass-card-cover-height: var(--dimensions-card-cover-height, 150px);
+    --block_compass-card-cover-fallback: var(--dimensions-card-cover-fallback, var(--bs-primary, #0f6cbf));
+    --block_compass-card-cover-overlay: var(--dimensions-card-cover-overlay, linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(0, 0, 0, 0.34)));
+    --block_compass-card-chip-bg: var(--dimensions-card-chip-bg, rgba(255, 255, 255, 0.92));
+    --block_compass-card-chip-ink: var(--dimensions-card-chip-ink, #1f1f1f);
+    --block_compass-card-extra-bg: var(--dimensions-card-extra-bg, var(--bs-tertiary-bg, #f8f9fa));
+    --block_compass-card-extra-icon: var(--dimensions-card-extra-icon, var(--bs-primary-text-emphasis, #062b4c));
+    --block_compass-card-track: var(--dimensions-card-track, var(--bs-secondary-bg, #e9ecef));
+    --block_compass-card-fill: var(--dimensions-card-fill, var(--bs-primary, #0f6cbf));
+    --block_compass-card-track-height: var(--dimensions-card-track-height, 6px);
+    --block_compass-card-done: var(--dimensions-card-done, var(--bs-success, #357a32));
+    --block_compass-card-done-bg: var(--dimensions-card-done-bg, var(--bs-success-bg-subtle, #d7e4d6));
+    --block_compass-card-done-ink: var(--dimensions-card-done-ink, var(--bs-success-text-emphasis, #153114));
+    --block_compass-card-done-edge: var(--dimensions-card-done-edge, 4px);
+    --block_compass-card-shadow: var(--dimensions-card-shadow, 0 1px 2px rgba(0, 0, 0, 0.08));
+    --block_compass-card-shadow-hover: var(--dimensions-card-shadow-hover, 0 6px 16px rgba(0, 0, 0, 0.12));
+    /* The ring is never the brand and never a shadow alone: the family's focus ring, then the emphasis colour. */
+    --block_compass-card-focus-ring: var(--dimensions-card-focus-ring, var(--dimensions-focus-ring, var(--bs-emphasis-color, #000)));
+    --block_compass-card-focus-width: var(--dimensions-card-focus-width, 2px);
+    --block_compass-card-locked-opacity: var(--dimensions-card-locked-opacity, 0.62);
+    --block_compass-card-close-bg: var(--dimensions-card-close-bg, rgba(0, 0, 0, 0.5));
+    --block_compass-card-close-bg-hover: var(--dimensions-card-close-bg-hover, rgba(0, 0, 0, 0.7));
+    --block_compass-card-close-edge: var(--dimensions-card-close-edge, rgba(255, 255, 255, 0.4));
+    --block_compass-card-transition: var(--dimensions-card-transition, 150ms);
 }
 
 /* Brand-coloured text needs its own token: the brand on Boost's dark body is 3.02:1, under
@@ -82,6 +119,18 @@ body[data-bs-theme="dark"] .block_compass,
     --block_compass-news-crest-tile: var(--bs-gray-200, #e9ecef);
     --block_compass-news-crest-fg: var(--bs-body-bg, #1d2125);
     --block_compass-news-crestbox-bg: var(--block_compass-news-crest-tile);
+    /* The course card in dark mode, each still reading the family token first. The title's hover, the bar's
+       fill and the plugin slot's icon take the brand's ink (Bootstrap's link hover and the primary are under
+       3:1 on the dark card for a navy brand); the completed pair and base take Boost 5.3's dark success pair
+       (the success tinted 40 % and shaded 80 %); the shadows deepen to read on a dark page. */
+    --block_compass-card-title-hover: var(--dimensions-card-title-hover, var(--block_compass-brand-ink));
+    --block_compass-card-fill: var(--dimensions-card-fill, var(--block_compass-brand-ink));
+    --block_compass-card-extra-icon: var(--dimensions-card-extra-icon, var(--block_compass-brand-ink));
+    --block_compass-card-done: var(--dimensions-card-done, var(--bs-success-text-emphasis, #86af84));
+    --block_compass-card-done-bg: var(--dimensions-card-done-bg, var(--bs-success-bg-subtle, #0b180a));
+    --block_compass-card-done-ink: var(--dimensions-card-done-ink, var(--bs-success-text-emphasis, #86af84));
+    --block_compass-card-shadow: var(--dimensions-card-shadow, 0 1px 2px rgba(0, 0, 0, 0.5));
+    --block_compass-card-shadow-hover: var(--dimensions-card-shadow-hover, 0 6px 16px rgba(0, 0, 0, 0.6));
 }
 
 /* Bootstrap's outline buttons inside the block, in dark mode. A card's "Continue" or "Access" is
@@ -209,6 +258,12 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-awaiting-text);
 }
 
+/* A completed course's seal (the course card contract, section 3, D4): the card's completed pair. */
+.block_compass .compass-state-done {
+    background: var(--block_compass-card-done-bg);
+    color: var(--block_compass-card-done-ink);
+}
+
 /* A course name is at most two lines, ellipsis and all - Boost's own .clamp-2 pattern
    (theme/boost/scss/moodle/core.scss) - and the whole name rides in the element's title
    attribute. Visual only: the text stays whole in the DOM. */
@@ -259,45 +314,129 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     flex: 1 1 auto;
 }
 
+/* The course card (moodle-dev/docs/course-card/CONTRACT.md): tier 1's Card.tsx and tier 3's RowCard.tsx, both
+   .compass-card. Every value is a --block_compass-card-* token, declared on the block's root above; a card rule
+   writes no colour literal (tests/local/course_card_contract_test.php). The rest is a small shadow, a larger one
+   on hover with the title underlined in its hover colour, and nothing that moves: a transform would make the card
+   a stacking context and cut its shadow. */
 .block_compass .compass-card {
     position: relative;
-    border-color: var(--block_compass-line);
-    background: var(--block_compass-surface);
+    border: var(--block_compass-card-border-width) solid var(--block_compass-card-border);
+    border-radius: var(--block_compass-card-radius);
+    background: var(--block_compass-card-surface);
+    color: var(--block_compass-card-ink);
+    box-shadow: var(--block_compass-card-shadow);
+    transition: box-shadow var(--block_compass-card-transition) ease;
 }
 
-.block_compass .compass-card-new {
-    border-width: 2px;
-    border-color: var(--block_compass-brand);
+.block_compass .compass-card:hover {
+    box-shadow: var(--block_compass-card-shadow-hover);
 }
 
-.block_compass .compass-card-img {
-    height: 5.5rem;
+/* One target (contract section 4): Bootstrap's stretched-link draws the title's link over the whole card, in the
+   card's corners; the star, the archive control and the crests sit above it. The link takes the card's ink, so a
+   receding state on the card (the preview's dim) reaches the title. */
+.block_compass .compass-card .compass-card-link {
+    color: inherit;
+    text-decoration: none;
+    text-underline-offset: 2px;
+    transition: color var(--block_compass-card-transition) ease;
+}
+
+.block_compass .compass-card .compass-card-link::after {
+    border-radius: var(--block_compass-card-radius);
+}
+
+.block_compass .compass-card:hover .compass-card-link,
+.block_compass .compass-card .compass-card-link:focus-visible {
+    color: var(--block_compass-card-title-hover);
+    text-decoration: underline;
+}
+
+/* The keyboard's ring is the card's, drawn by the stretched link around the whole card with the hover's shadow.
+   The link's own outline stays, transparent: a forced-colours mode paints it, where the pseudo-element's may
+   not show. */
+.block_compass .compass-card .compass-card-link:focus-visible {
+    outline: var(--block_compass-card-focus-width) solid transparent;
+}
+
+.block_compass .compass-card .compass-card-link:focus-visible::after {
+    outline: var(--block_compass-card-focus-width) solid var(--block_compass-card-focus-ring);
+    outline-offset: 2px;
+    box-shadow: var(--block_compass-card-shadow-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .block_compass .compass-card,
+    .block_compass .compass-card .compass-card-link {
+        transition: none;
+    }
+}
+
+/* A card has the theme card's anatomy: the cover, the body padded 12px 16px 14px, the title at 1rem and 600. A
+   tier 3 card has the same look (ADR-013 decision 8). */
+.block_compass .compass-card .compass-card-img {
+    height: var(--block_compass-card-cover-height);
     object-fit: cover;
+    border-radius:
+        calc(var(--block_compass-card-radius) - var(--block_compass-card-border-width))
+        calc(var(--block_compass-card-radius) - var(--block_compass-card-border-width))
+        0
+        0;
 }
 
-/* A tier 1 card has the theme card's anatomy: a 150 px cover, the body padded 12px 16px 14px, the
-   title at 1rem and 600, the meta line at .8125rem. A tier 3 card has the same look (ADR-013
-   decision 8). */
-.block_compass .compass-card .compass-card-img,
-.block_compass .compass-rowcard .compass-card-img {
-    height: 150px;
+/* The completed card (D4): a 4 px green base under the cover. */
+.block_compass .compass-card-done .compass-card-img {
+    border-block-end: var(--block_compass-card-done-edge) solid var(--block_compass-card-done);
 }
 
-.block_compass .compass-card .card-body,
-.block_compass .compass-rowcard .card-body {
+.block_compass .compass-card .card-body {
     padding: 12px 16px 14px;
 }
 
-.block_compass .compass-card .compass-card-meta,
-.block_compass .compass-rowcard .compass-card-meta {
+/* The category, one line in sentence case (slot 5), cut with an ellipsis and its whole text in its title (the
+   skeleton's bar has no text to cut, so the cut is a class of its own). */
+.block_compass .compass-card .compass-card-category {
+    color: var(--block_compass-card-ink-muted);
+    font-size: 0.78125rem;
+    font-weight: 600;
+}
+
+.block_compass .compass-card-oneline {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The plugin slot (slot 8): one line after a clock on the quiet ground, cut with an ellipsis, its whole text in
+   its title. */
+.block_compass .compass-card .compass-card-extra {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--block_compass-card-extra-bg);
+    color: var(--block_compass-card-ink-muted);
     font-size: 0.8125rem;
 }
 
-/* The theme's crests (Crests.tsx): on a card, bottom-right of the 150 px cover, clear of the New
-   badge and the star, in a row that starts at the right edge as the theme card's does; in a list
-   row, 24 px and inline. 56 by 62 is the theme's own smaller size, the one a card narrower than its
-   widest takes; Compass measures its block, not the viewport, so its cards always take it. The
-   crests let a click through to the card's stretched link. */
+.block_compass .compass-card .compass-card-extra .fa {
+    flex: none;
+    color: var(--block_compass-card-extra-icon);
+}
+
+.block_compass .compass-card-extra-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The theme's crests (Crests.tsx): on a card, bottom-right of the cover, clear of the kind chip and the star, in a
+   row that starts at the right edge as the theme card's does; in a list row, 24 px and inline. 56 by 62 on every
+   card (D2). The crests let a click through to the card's stretched link. */
 .block_compass .compass-crests {
     display: flex;
     gap: 6px;
@@ -308,7 +447,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-crests-cover {
     position: absolute;
-    top: calc(150px - 62px - 8px);
+    top: calc(var(--block_compass-card-cover-height) - 62px - 8px);
     right: 8px;
     z-index: 1;
     flex-direction: row-reverse;
@@ -332,6 +471,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     object-fit: contain;
 }
 
+/* A course with no image of its own, under any theme but Boost Union and its children (whose renderer answers an
+   image for it, get_card_details): the grey hatch. */
 .block_compass .compass-card-img-empty {
     background:
         repeating-linear-gradient(
@@ -344,13 +485,61 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     opacity: 0.6;
 }
 
-/* The badge in a card's top-left corner - New on a new enrolment, and nothing else: an
-   application or a later start says so in its state pill - and the star in the top-right. */
-.block_compass .compass-card-badge {
+/* Boost Union's "Show course images" with Card unchecked (contract section 8): no cover; the kind chip leads a row
+   at the top of the body, the crests (24 by 26) and the star are placed in it, and a 4 px top edge in the cover's
+   fallback colour, green once complete. The compass holds no category colour. Written before the chip's own rule,
+   which its weight outranks. */
+.block_compass .compass-card.compass-card-nocover {
+    border-block-start: var(--block_compass-card-done-edge) solid var(--block_compass-card-cover-fallback);
+}
+
+.block_compass .compass-card.compass-card-nocover.compass-card-done {
+    border-block-start-color: var(--block_compass-card-done);
+}
+
+.block_compass .compass-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin-bottom: 6px;
+    padding-inline-end: 128px;
+}
+
+.block_compass .compass-card-nocover .compass-card-top .compass-card-kind {
+    position: static;
+    border: var(--block_compass-card-border-width) solid var(--block_compass-card-border);
+}
+
+.block_compass .compass-card-nocover .compass-crests-cover {
+    top: 15px;
+    right: 56px;
+    gap: 4px;
+}
+
+.block_compass .compass-card-nocover .compass-crests-cover img {
+    width: 24px;
+    height: 26px;
+    filter: none;
+}
+
+/* The kind chip in a card's top-left corner - New on a new enrolment, and nothing else: an application or a later
+   start says so in its state pill - light on any cover (contract section 2, slot 2), and the star in the
+   top-right. */
+.block_compass .compass-card-kind {
     position: absolute;
-    top: 0.5rem;
-    left: 0.5rem;
+    top: 10px;
+    left: 10px;
     z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--block_compass-card-chip-bg);
+    color: var(--block_compass-card-chip-ink);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .block_compass .compass-card-title,
@@ -362,9 +551,10 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 /* The star sits above the stretched link, or the link would swallow its clicks. Its glyph is
    painted with the text token rather than left to btn-link: Boost paints btn-link with the
-   brand itself, which on the dark body is 1.10:1 for a navy brand. On a card it takes the
-   image's top-right corner on a surface disc with a line border, so the control keeps 3:1
-   over any photograph, light or dark; in a list row it is inline. */
+   brand itself, which on the dark body is 1.10:1 for a navy brand. On a card it is the
+   contract's 32 px light disc in the cover's top-right corner, the kind chip's pair, so the
+   control keeps its contrast over any photograph, light or dark; without a cover it is the
+   outlined disc on the card's ground; in a list row it is inline. */
 .block_compass .compass-star {
     position: relative;
     z-index: 2;
@@ -372,21 +562,27 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-brand-text);
 }
 
-.block_compass .compass-card .compass-star,
-.block_compass .compass-rowcard .compass-star {
+.block_compass .compass-card .compass-star {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
+    top: 8px;
+    right: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
-    min-width: 1.5rem;
-    min-height: 1.5rem;
-    border: 1px solid var(--block_compass-line);
+    width: 32px;
+    height: 32px;
+    border: 0;
     border-radius: 50%;
-    background: var(--block_compass-surface);
+    background: var(--block_compass-card-chip-bg);
+    color: var(--block_compass-card-chip-ink);
+}
+
+.block_compass .compass-card-nocover .compass-star {
+    top: 12px;
+    right: 16px;
+    border: var(--block_compass-card-border-width) solid var(--block_compass-card-border);
+    background: var(--block_compass-card-surface);
+    color: var(--block_compass-card-ink);
 }
 
 .block_compass .compass-row .compass-star {
@@ -399,9 +595,42 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     outline-offset: 2px;
 }
 
-.block_compass .compass-progress-bar {
-    height: 0.4rem;
-    margin-bottom: 0.25rem;
+.block_compass .compass-card .compass-star:focus-visible {
+    outline: var(--block_compass-card-focus-width) solid var(--block_compass-card-focus-ring);
+}
+
+/* The progress row (contract section 3): a 6 px track and the percentage at its right in tabular figures. A
+   completed course draws the seal instead, and Boost Union's progress setting can take the row away. */
+.block_compass .compass-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.block_compass .compass-progress-track {
+    display: block;
+    flex: 1 1 auto;
+    height: var(--block_compass-card-track-height);
+    border-radius: var(--block_compass-card-track-height);
+    background: var(--block_compass-card-track);
+    overflow: hidden;
+}
+
+.block_compass .compass-progress-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--block_compass-card-fill);
+}
+
+.block_compass .compass-progress-pct {
+    flex: none;
+    min-width: 4ch;
+    color: var(--block_compass-card-ink);
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: end;
 }
 
 
@@ -546,6 +775,17 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     background: var(--block_compass-surface);
 }
 
+/* Boost Union's "Show course images" with List unchecked (contract section 8): no thumbnail, a 4 px edge at the
+   row's start in the cover's fallback colour, green once complete. */
+.block_compass .compass-row.compass-row-nothumb {
+    padding-inline-start: 12px;
+    border-inline-start: var(--block_compass-card-done-edge) solid var(--block_compass-card-cover-fallback);
+}
+
+.block_compass .compass-row.compass-row-nothumb.compass-row-done {
+    border-inline-start-color: var(--block_compass-card-done);
+}
+
 .block_compass .compass-row-thumb {
     display: flex;
     flex: 0 0 56px;
@@ -586,9 +826,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 /* The underline above marks the name; this marks the link, which is what a keyboard user
-   is actually on - a stretched link covers the whole row or card. */
-.block_compass .compass-row-link:focus-visible,
-.block_compass .compass-card-link:focus-visible {
+   is actually on. A card's ring is its stretched link's (the course card, above). */
+.block_compass .compass-row-link:focus-visible {
     outline: 2px solid var(--block_compass-brand);
     outline-offset: 2px;
 }
@@ -633,11 +872,10 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     min-width: 0;
 }
 
+/* A tier 3 card is a .compass-card (above): here only its height, every card of a row as tall as the tallest, the
+   archive control at the foot of each. */
 .block_compass .compass-rowcard {
-    position: relative;
     height: 100%;
-    border-color: var(--block_compass-line);
-    background: var(--block_compass-surface);
 }
 
 /* The row's date: a column of its own, so the progress bars line up, and narrow enough that a phone's
@@ -665,40 +903,17 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 /* A placeholder shaped like the value it is standing in for, while the batch that
-   answers for this row is out. */
+   answers for this row is out: a grey block with no shimmer (the course card contract, section 5),
+   so nothing moves while the page loads, under reduced motion or not. */
 .block_compass .compass-skeleton {
     display: block;
     min-height: 0.75rem;
     border-radius: 0.25rem;
-    background-image:
-        linear-gradient(
-            90deg,
-            var(--block_compass-line) 25%,
-            var(--block_compass-surface) 50%,
-            var(--block_compass-line) 75%
-        );
-    background-size: 400% 100%;
-    animation: block_compass-skeleton 1400ms ease-in-out infinite;
+    background: var(--block_compass-line);
 }
 
 .block_compass .compass-skeleton-progress {
     width: 6rem;
-}
-
-@keyframes block_compass-skeleton {
-    from {
-        background-position: 100% 0;
-    }
-
-    to {
-        background-position: 0 0;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .block_compass .compass-skeleton {
-        animation: none;
-    }
 }
 
 /* Tier 1's skeleton (ADR-018; templates/tier1_skeleton.mustache and Tier1Skeleton.tsx draw the same
@@ -769,7 +984,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 /* The shell's own skeleton (block.mustache): only with JavaScript, which core marks on the body before
    the block is parsed; without it the two sentences show. If the bundle never runs, a step about 10 s
    after the first paint takes the skeleton out of the flow and brings the "could not be loaded"
-   sentence back in its place, so no shimmer lasts for ever. A step, not motion: it is kept under
+   sentence back in its place, so no skeleton lasts for ever. A step, not motion: it is kept under
    reduced motion. React's first commit replaces all of it, so a mounted block never reaches the step. */
 .block_compass .compass-preload {
     display: none;
