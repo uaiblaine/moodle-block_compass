@@ -1292,18 +1292,18 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A tier 1 card has the theme card's anatomy, and the ghost stretches to its row.
      *
-     * ADR-013 decision 7: a 150 px cover, the body padded 12px 16px 14px, the title at 1rem and 600,
-     * the meta line at .8125rem - the theme card's numbers (a Boost Union child theme) - and a
-     * grid item that lets the ghost take its row's height. Each is read out of its own rule,
-     * because nothing else measures a size.
+     * ADR-013 decision 7 and the course card contract: a 150 px cover (the cover-height token, whose
+     * fallback is 150px), the body padded 12px 16px 14px, the title at 1rem and 600, the plugin slot at
+     * .8125rem - the theme card's numbers (a Boost Union child theme) - and a grid item that lets the
+     * ghost take its row's height. Each is read out of its own rule, because nothing else measures a size.
      *
      * @return void
      */
     public function test_a_tier_1_card_has_the_theme_cards_anatomy(): void {
         $wanted = [
-            '.compass-card .compass-card-img' => '/\bheight\s*:\s*150px\b/',
+            '.compass-card .compass-card-img' => '/\bheight\s*:\s*var\(--block_compass-card-cover-height\)/',
             '.compass-card .card-body' => '/\bpadding\s*:\s*12px 16px 14px\b/',
-            '.compass-card .compass-card-meta' => '/\bfont-size\s*:\s*0?\.8125rem\b/',
+            '.compass-card .compass-card-extra' => '/\bfont-size\s*:\s*0?\.8125rem\b/',
             '.compass-cards-item > .compass-ghost' => '/\bflex\s*:\s*1 1 auto\b/',
         ];
         $found = [];
@@ -1311,7 +1311,7 @@ final class accessibility_rules_test extends basic_testcase {
         foreach ($this->rules() as $rule) {
             [$selector, $body] = $rule;
             foreach ($wanted as $needle => $pattern) {
-                if (str_contains($selector, $needle)) {
+                if (str_ends_with(trim($selector), $needle)) {
                     $found[$needle] = $body;
                 }
             }
@@ -1326,19 +1326,25 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertNotNull($title, 'no .compass-card-title rule found in styles.css');
         $this->assertMatchesRegularExpression('/\bfont-size\s*:\s*1rem\b/', $title, 'the card title is not 1rem');
         $this->assertMatchesRegularExpression('/\bfont-weight\s*:\s*600\b/', $title, 'the card title is not 600');
+        $this->assertMatchesRegularExpression(
+            '/--block_compass-card-cover-height\s*:\s*var\(--dimensions-card-cover-height,\s*150px\)/',
+            $this->css(),
+            'the cover is no longer 150 px without the theme'
+        );
         // Compass has no viewport breakpoints: the counts are the block's, never a media query's.
         $this->assertDoesNotMatchRegularExpression('/@media[^{]*width/', $this->css(), 'a viewport breakpoint crept in');
     }
 
     /**
-     * On a card the star takes the top-right corner, on a disc, the badge the top-left, and the
+     * On a card the star takes the top-right corner, on a disc, the kind chip the top-left, and the
      * theme's crests the bottom-right of the cover.
      *
-     * The star's disc is what keeps the control at 3:1 over a photograph
-     * (WCAG 1.4.11): a surface background and a line border, both theme tokens. The crests sit
-     * where the theme card puts them (ADR-013 decision 9), measured from the 150 px cover, and let
-     * a click through to the stretched link. The two card components must render the star and the
-     * crests for the rule to be about anything, and the list row the inline crests.
+     * The star's disc is what keeps the control readable over a photograph (WCAG 1.4.11): the
+     * course card contract's 32 px light disc, the kind chip's own pair of tokens (chip-bg, chip-ink),
+     * which contrast_rules_test computes. The crests sit where the theme card puts them (ADR-013
+     * decision 9), measured from the cover's height, and let a click through to the stretched link.
+     * The two card components must render the star and the crests for the rule to be about anything,
+     * and the list row the inline crests.
      *
      * @return void
      */
@@ -1348,20 +1354,19 @@ final class accessibility_rules_test extends basic_testcase {
         $crests = null;
         foreach ($this->rules() as $rule) {
             [$selector, $body] = $rule;
-            if (preg_match('/\.compass-card-badge(?![\w-])/', $selector) && !str_contains($selector, ':')) {
+            if (trim($selector) === '.block_compass .compass-card-kind') {
                 $badge = $body;
             }
-            if (preg_match('/\.compass-crests-cover$/', trim($selector))) {
+            if (trim($selector) === '.block_compass .compass-crests-cover') {
                 $crests = $body;
             }
-            $cardstar = str_contains($selector, '.compass-card .compass-star');
-            if ($cardstar && str_contains($selector, '.compass-rowcard .compass-star')) {
+            if (trim($selector) === '.block_compass .compass-card .compass-star') {
                 $star = $body;
             }
         }
         // Vacuity guards: both rules must exist to read a corner out of.
-        $this->assertNotNull($badge, 'no .compass-card-badge rule found in styles.css');
-        $this->assertNotNull($star, 'no card star rule (.compass-card .compass-star, .compass-rowcard .compass-star) found');
+        $this->assertNotNull($badge, 'no .compass-card-kind rule found in styles.css');
+        $this->assertNotNull($star, 'no card star rule (.compass-card .compass-star) found');
 
         $this->assertMatchesRegularExpression('/\bleft\s*:/', $badge, 'the badge is not anchored left');
         $this->assertDoesNotMatchRegularExpression('/\bright\s*:/', $badge, 'the badge is still anchored right');
@@ -1369,12 +1374,17 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertMatchesRegularExpression('/\bright\s*:/', $star, 'the card star is not anchored right');
         $this->assertMatchesRegularExpression('/\btop\s*:/', $star, 'the card star is not anchored top');
         $this->assertMatchesRegularExpression('/border-radius\s*:\s*50%/', $star, 'the star has no disc');
+        $this->assertMatchesRegularExpression('/\bwidth\s*:\s*32px\b/', $star, 'the star is not the contract\'s 32 px');
         $this->assertMatchesRegularExpression(
-            '/\bbackground\s*:\s*var\(--block_compass-surface/',
+            '/\bbackground\s*:\s*var\(--block_compass-card-chip-bg\)/',
             $star,
-            'the disc is not painted with the surface token'
+            'the disc is not painted with the chip token'
         );
-        $this->assertMatchesRegularExpression('/\bborder\s*:.*var\(--block_compass-line/', $star, 'the disc has no line border');
+        $this->assertMatchesRegularExpression(
+            '/(?<![\w-])color\s*:\s*var\(--block_compass-card-chip-ink\)/',
+            $star,
+            'the disc\'s glyph is not the chip\'s ink'
+        );
 
         foreach (['js/esm/src/Card.tsx', 'js/esm/src/RowCard.tsx'] as $file) {
             $this->assertNotEmpty(
@@ -1387,9 +1397,13 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertNotNull($crests, 'no .compass-crests-cover rule found in styles.css');
         $this->assertMatchesRegularExpression('/\bposition\s*:\s*absolute\b/', $crests, 'the crests are not over the cover');
         $this->assertMatchesRegularExpression('/\bright\s*:/', $crests, 'the crests are not anchored right');
-        $this->assertMatchesRegularExpression('/\btop\s*:\s*calc\(150px\b/', $crests, 'the crests are not measured from the cover');
+        $this->assertMatchesRegularExpression(
+            '/\btop\s*:\s*calc\(var\(--block_compass-card-cover-height\)/',
+            $crests,
+            'the crests are not measured from the cover'
+        );
         $this->assertMatchesRegularExpression('/\bpointer-events\s*:\s*none\b/', $crests, 'the crests swallow the card\'s click');
-        $this->assertDoesNotMatchRegularExpression('/\bleft\s*:/', $crests, 'the crests reach the New badge\'s corner');
+        $this->assertDoesNotMatchRegularExpression('/\bleft\s*:/', $crests, 'the crests reach the kind chip\'s corner');
         $inline = array_filter(
             $this->tags($this->sources()['js/esm/src/Row.tsx'], 'Crests'),
             static fn(string $tag): bool => (bool) preg_match('/\binline\b/', $tag)

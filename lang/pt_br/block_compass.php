@@ -418,6 +418,7 @@ $string['privacy:metadata:preference:block_compass_view'] = 'A escolha de quem u
 $string['progresserror'] = 'Não foi possível carregar parte do progresso.';
 $string['progressloading'] = 'Carregando progresso';
 $string['progresspercent'] = '{$a}% concluído';
+$string['progressvalue'] = '{$a}%';
 $string['reconnecting'] = 'Reconectando… (tentativa {$a->attempt} de {$a->attempts})';
 $string['reloading'] = 'Recarregando…';
 $string['reloadpage'] = 'Recarregar página';

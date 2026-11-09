@@ -38,6 +38,7 @@
     * ghostalone - whether the ghost stands alone after the strips.
     * empty - whether the empty state's line stands in for the strips.
     * category - whether cards draw their category line.
+    * nocover - whether cards are drawn without their cover (Boost Union's card view unchecked).
 
     Example context (json):
     {
@@ -69,7 +70,8 @@
         ],
         "ghostalone": false,
         "empty": false,
-        "category": true
+        "category": true,
+        "nocover": false
     }
 }}
 <div class="compass-tier1-skeleton" data-region="tier1-skeleton" aria-hidden="true">
@@ -83,23 +85,30 @@
             <div class="compass-cards-list compass-sk-cards{{#onerow}} compass-sk-onerow{{/onerow}}">
                 {{#cards}}
                 <div class="compass-cards-item">
-                    <div class="compass-card card h-100">
+                    <div class="compass-card card h-100{{#nocover}} compass-card-nocover{{/nocover}}">
+                        {{^nocover}}
                         <div class="compass-card-img compass-skeleton card-img-top"></div>
+                        {{/nocover}}
                         <div class="card-body d-flex flex-column">
+                            {{#nocover}}
+                            <div class="compass-card-top"></div>
+                            {{/nocover}}
                             {{#category}}
-                            <span class="compass-card-category small"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                            <span class="compass-card-category"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
                             {{/category}}
                             <div class="compass-card-title h6 mb-1"><span class="compass-skeleton compass-skeleton-line compass-skeleton-wide"></span></div>
                             {{#later}}
                             <span class="compass-state compass-skeleton compass-skeleton-pill">&nbsp;</span>
                             {{/later}}
                             {{^later}}
-                            <p class="compass-card-meta small mb-2"><span class="compass-skeleton compass-skeleton-line"></span></p>
+                            <p class="compass-card-extra mb-2"><span class="compass-skeleton compass-skeleton-line"></span></p>
                             {{/later}}
                             {{#completion}}
                             <div class="compass-progress mb-2">
-                                <div class="progress compass-progress-bar"></div>
-                                <span class="compass-progress-text small"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                                <div class="compass-progress-row">
+                                    <span class="compass-progress-track"></span>
+                                    <span class="compass-progress-pct"><span class="compass-skeleton compass-skeleton-line compass-skeleton-narrow"></span></span>
+                                </div>
                             </div>
                             {{/completion}}
                             {{^later}}

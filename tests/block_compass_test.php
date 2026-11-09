@@ -963,6 +963,31 @@ final class block_compass_test extends advanced_testcase {
     }
 
     /**
+     * The skeleton follows Boost Union's flags: no cover while the card view's images are off, no progress row while
+     * the progress is off, whatever the shape remembers.
+     *
+     * The control is the same shape with both flags at their default: the cover and the remembered completion areas.
+     *
+     * @return void
+     */
+    public function test_the_skeleton_follows_the_cover_and_progress_flags(): void {
+        $strips = [['name' => 'continue', 'title' => 'C'], ['name' => 'new', 'title' => 'N']];
+        $shape = ['strips' => [['continue', 2, true], ['new', 1, false]], 'ghost' => false, 'pending' => false];
+
+        $model = shell::skeleton($shape, $strips, true);
+        $this->assertFalse($model['nocover']);
+        $this->assertSame([true, false], array_map(fn($slot) => $slot['strip']['completion'], $model['slots']));
+        $this->assertTrue(shell::skeleton(null, $strips, true)['slots'][0]['strip']['completion']);
+
+        $model = shell::skeleton($shape, $strips, true, true, false);
+        $this->assertTrue($model['nocover']);
+        $this->assertSame([false, false], array_map(fn($slot) => $slot['strip']['completion'], $model['slots']));
+        $fallback = shell::skeleton(null, $strips, true, true, false);
+        $this->assertTrue($fallback['nocover']);
+        $this->assertFalse($fallback['slots'][0]['strip']['completion'], 'the fallback strip draws no progress row either');
+    }
+
+    /**
      * The skeleton's model holds a strip's card count to the reader's bounds itself: skeleton() is public, and
      * only tier1_preference::read() bounds what reaches it from the stored value.
      *

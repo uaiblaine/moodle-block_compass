@@ -1,1 +1,1 @@
-s/\n                'imageurl' => new external_value\(PARAM_URL[^\n]+//;
+s/\n                'imageurl' => new external_value\(\n.*?\n                \),//s;
