@@ -32,7 +32,7 @@ import { getCardDetails } from "./repository";
 const BATCH = 24;
 const BUFFER_PX = 200;
 const FLUSH_MS = 100;
-const useRowDetails = /* @__PURE__ */ __name(() => {
+const useRowDetails = /* @__PURE__ */ __name((generated) => {
   const [records, setRecords] = useState({});
   const [waiting, setWaiting] = useState({});
   const [failed, setFailed] = useState(false);
@@ -69,7 +69,7 @@ const useRowDetails = /* @__PURE__ */ __name(() => {
     batch.forEach((id) => pending.current.delete(id));
     inflight.current = batch;
     try {
-      const answer = await getCardDetails(batch);
+      const answer = await getCardDetails(batch, generated);
       const arrived = {};
       answer.details.forEach((detail) => {
         arrived[detail.id] = {
@@ -94,7 +94,7 @@ const useRowDetails = /* @__PURE__ */ __name(() => {
         return next;
       });
     }
-  }, [release, stop]);
+  }, [generated, release, stop]);
   const start = useCallback(() => {
     if (timer.current === null) {
       timer.current = window.setInterval(() => {

@@ -35,10 +35,12 @@
  * and has no star, no archive control and no progress. It registers for details like any other
  * card, and the batch answers it with its image and crests only.
  *
- * The card has the theme card's look (ADR-013 decision 8): a 150 px cover with the theme's crests
- * in its bottom-right corner when it is installed, the theme card's body measures, the state pill;
- * the stretched title link, the missing call to action and the footer with progress and the
- * archive control are Compass's own.
+ * The card is the fleet's course card (moodle-dev/docs/course-card/CONTRACT.md), Card.tsx's anatomy: a
+ * 150 px cover with the theme's crests in its bottom-right corner, New as the light kind chip, the
+ * category, the title, the plugin slot (when the course was last opened, after a clock), the state pill
+ * (the green seal once complete) and the progress row; the stretched title link is the card's one target.
+ * An inventory card has no main action (D5): its foot holds the archive control alone, at the far right.
+ * Boost Union's settings (CardFlags) take the cover away as Card.tsx's does, and the progress row.
  *
  * @module     block_compass/RowCard
  * @copyright  2026 Anderson Blaine
@@ -47,6 +49,7 @@
 
 import {memo, useEffect, useRef} from 'react';
 import Archive from './Archive';
+import {isComplete} from './Card';
 import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
@@ -105,6 +108,7 @@ const RowCard = ({
         return observe(row.id, node);
     }, [observe, row.id]);
 
+    const nocover = !config.card.cover;
     /*
      * The image keeps loading="lazy", so the browser never requests the file while the card
      * is off screen; the cards view needs no virtualisation of its own for that.
@@ -116,6 +120,7 @@ const RowCard = ({
         image = <img className="compass-card-img card-img-top" src={detail.imageurl} alt="" loading="lazy" />;
     }
     const answered = enrolled && !waiting && detail !== undefined;
+    const complete = answered && isComplete(detail.progress);
     // An application says when access comes; an enrolment that starts later says it in its pill.
     let meta: string | null = null;
     if (row.pend) {
@@ -123,17 +128,19 @@ const RowCard = ({
     } else if (enrolled) {
         meta = opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened;
     }
+    const kind = row.new ? <span className="compass-card-kind">{labels.badge_new}</span> : null;
 
     return (
         <div
-            className={`compass-rowcard card h-100${enrolled ? '' : ' compass-row-pending'}`}
+            className={`compass-rowcard compass-card card h-100${enrolled ? '' : ' compass-row-pending'}`
+                + `${nocover ? ' compass-card-nocover' : ''}${complete ? ' compass-card-done' : ''}`}
             data-course-id={row.id}
             ref={element}
         >
-            {image}
-            {row.new && <span className="compass-card-badge badge bg-primary text-white">{labels.badge_new}</span>}
-            {/* The star follows the image in the DOM as it does on screen: a screen reader meets it
-                before the title, where the badge already is. */}
+            {!nocover && image}
+            {!nocover && kind}
+            {/* The star follows the cover in the DOM as it does on screen: a screen reader meets it
+                before the title, where the kind chip already is. */}
             {enrolled && config.favouritesenabled && (
                 <Star
                     courseid={row.id}
@@ -144,25 +151,31 @@ const RowCard = ({
                 />
             )}
             <div className="card-body d-flex flex-column">
+                {nocover && <div className="compass-card-top">{kind}</div>}
                 {category && config.showcategory && (
-                    <span className="compass-card-category small text-muted">{category}</span>
+                    <span className="compass-card-category compass-card-oneline" title={category}>{category}</span>
                 )}
                 <Title className="compass-rowcard-title compass-clamp h6 mb-1" title={row.name}>
-                    <a href={url} className="compass-row-link stretched-link text-reset text-decoration-none">
+                    <a href={url} className="compass-row-link compass-card-link stretched-link">
                         {row.name}
                     </a>
                 </Title>
-                {meta !== null && <p className="compass-card-meta small text-muted mb-2">{meta}</p>}
-                <StatePill row={row} labels={labels} />
+                {meta !== null && (
+                    <p className="compass-card-extra mb-2">
+                        <i className="fa-regular fa-clock" aria-hidden="true"></i>
+                        <span className="compass-card-extra-text" title={meta}>{meta}</span>
+                    </p>
+                )}
+                <StatePill row={row} labels={labels} complete={complete} />
                 {/* Read after the title, as the theme card reads them, and drawn on the cover. */}
                 <Crests badges={detail?.badges} label={labels.crests} />
                 <div className="compass-rowcard-foot mt-auto d-flex align-items-center justify-content-between gap-2">
                     <div className="compass-row-progress flex-grow-1">
                         {/* Only where a bar may come, as in Row.tsx: comp says so before the answer. */}
-                        {enrolled && row.comp && waiting && (
+                        {enrolled && row.comp && waiting && config.card.progress && (
                             <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>
                         )}
-                        {answered && detail.hascompletion && detail.progress !== null && (
+                        {answered && config.card.progress && !complete && detail.hascompletion && detail.progress !== null && (
                             <Progress progress={detail.progress} labels={labels} />
                         )}
                         {answered && !detail.hascompletion && detail.teacher && (

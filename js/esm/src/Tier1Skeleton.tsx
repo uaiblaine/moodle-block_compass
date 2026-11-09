@@ -63,110 +63,119 @@ const ACTION = 'btn btn-sm compass-skeleton compass-skeleton-action';
  * @param {object} props The skeleton model the shell shipped; see SkeletonModel.
  * @returns {object} The rendered skeleton.
  */
-const Tier1Skeleton = ({skeleton}: {skeleton: SkeletonModel}) => (
-    <div className="compass-tier1-skeleton" data-region="tier1-skeleton" aria-hidden="true">
-        {skeleton.slots.map(({strip, note}, at) => (
-            <Fragment key={at}>
-                {strip && (
-                    <div className="compass-strip">
-                        <div className="compass-strip-head">
-                            <div className="compass-strip-title h6 fw-bold text-muted mb-0">
-                                {strip.hastitle
-                                    ? strip.title
-                                    : <span className={BAR_TITLE}></span>}
+const Tier1Skeleton = ({skeleton}: {skeleton: SkeletonModel}) => {
+    const {nocover} = skeleton;
+
+    return (
+        <div className="compass-tier1-skeleton" data-region="tier1-skeleton" aria-hidden="true">
+            {skeleton.slots.map(({strip, note}, at) => (
+                <Fragment key={at}>
+                    {strip && (
+                        <div className="compass-strip">
+                            <div className="compass-strip-head">
+                                <div className="compass-strip-title h6 fw-bold text-muted mb-0">
+                                    {strip.hastitle
+                                        ? strip.title
+                                        : <span className={BAR_TITLE}></span>}
+                                </div>
                             </div>
-                        </div>
-                        <div className="compass-cards">
-                            <div className={`compass-cards-list compass-sk-cards${strip.onerow ? ' compass-sk-onerow' : ''}`}>
-                                {Array.from({length: strip.count}, (unused, index) => (
-                                    <div className="compass-cards-item" key={index}>
-                                        <div className="compass-card card h-100">
-                                            <div className="compass-card-img compass-skeleton card-img-top"></div>
-                                            <div className="card-body d-flex flex-column">
-                                                {skeleton.category && (
-                                                    <span className="compass-card-category small">
-                                                        <span className={BAR_NARROW}></span>
-                                                    </span>
+                            <div className="compass-cards">
+                                <div className={`compass-cards-list compass-sk-cards${strip.onerow ? ' compass-sk-onerow' : ''}`}>
+                                    {Array.from({length: strip.count}, (unused, index) => (
+                                        <div className="compass-cards-item" key={index}>
+                                            <div className={`compass-card card h-100${nocover ? ' compass-card-nocover' : ''}`}>
+                                                {!nocover && (
+                                                    <div className="compass-card-img compass-skeleton card-img-top"></div>
                                                 )}
-                                                <div className="compass-card-title h6 mb-1">
-                                                    <span className={BAR_WIDE}></span>
-                                                </div>
-                                                {strip.later && (
-                                                    <span className={PILL}>{NBSP}</span>
-                                                )}
-                                                {!strip.later && (
-                                                    <p className="compass-card-meta small mb-2">
-                                                        <span className={BAR}></span>
-                                                    </p>
-                                                )}
-                                                {strip.completion && (
-                                                    <div className="compass-progress mb-2">
-                                                        <div className="progress compass-progress-bar"></div>
-                                                        <span className="compass-progress-text small">
+                                                <div className="card-body d-flex flex-column">
+                                                    {nocover && <div className="compass-card-top"></div>}
+                                                    {skeleton.category && (
+                                                        <span className="compass-card-category">
                                                             <span className={BAR_NARROW}></span>
                                                         </span>
+                                                    )}
+                                                    <div className="compass-card-title h6 mb-1">
+                                                        <span className={BAR_WIDE}></span>
                                                     </div>
-                                                )}
-                                                {!strip.later && (
-                                                    <div className="compass-card-actions mt-auto d-flex align-items-center">
-                                                        <span className={ACTION}>{NBSP}</span>
-                                                    </div>
-                                                )}
+                                                    {strip.later && (
+                                                        <span className={PILL}>{NBSP}</span>
+                                                    )}
+                                                    {!strip.later && (
+                                                        <p className="compass-card-extra mb-2">
+                                                            <span className={BAR}></span>
+                                                        </p>
+                                                    )}
+                                                    {strip.completion && (
+                                                        <div className="compass-progress mb-2">
+                                                            <div className="compass-progress-row">
+                                                                <span className="compass-progress-track"></span>
+                                                                <span className="compass-progress-pct">
+                                                                    <span className={BAR_NARROW}></span>
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {!strip.later && (
+                                                        <div className="compass-card-actions mt-auto d-flex align-items-center">
+                                                            <span className={ACTION}>{NBSP}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
-                                {strip.closing && (
-                                    <div className="compass-cards-item">
-                                        <div className="compass-ghost card h-100 text-center w-100">
-                                            <span className="card-body d-flex flex-column justify-content-center">
-                                                <span className="compass-ghost-count">
-                                                    <span className={BAR_NARROW}></span>
+                                    ))}
+                                    {strip.closing && (
+                                        <div className="compass-cards-item">
+                                            <div className="compass-ghost card h-100 text-center w-100">
+                                                <span className="card-body d-flex flex-column justify-content-center">
+                                                    <span className="compass-ghost-count">
+                                                        <span className={BAR_NARROW}></span>
+                                                    </span>
+                                                    <span className="compass-ghost-text small">
+                                                        <span className={BAR}></span>
+                                                    </span>
+                                                    <span className="compass-ghost-cta small mt-2">
+                                                        <span className={BAR_NARROW}></span>
+                                                    </span>
                                                 </span>
-                                                <span className="compass-ghost-text small">
-                                                    <span className={BAR}></span>
-                                                </span>
-                                                <span className="compass-ghost-cta small mt-2">
-                                                    <span className={BAR_NARROW}></span>
-                                                </span>
-                                            </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
+                    )}
+                    {note && (
+                        <p className="compass-strip-note small">
+                            <span className={BAR_WIDE}></span>
+                        </p>
+                    )}
+                </Fragment>
+            ))}
+            {skeleton.ghostalone && (
+                <div className="compass-ghost-wrap compass-sk-cards">
+                    <div className="compass-ghost card h-100 text-center w-100">
+                        <span className="card-body d-flex flex-column justify-content-center">
+                            <span className="compass-ghost-count">
+                                <span className={BAR_NARROW}></span>
+                            </span>
+                            <span className="compass-ghost-text small">
+                                <span className={BAR}></span>
+                            </span>
+                            <span className="compass-ghost-cta small mt-2">
+                                <span className={BAR_NARROW}></span>
+                            </span>
+                        </span>
                     </div>
-                )}
-                {note && (
-                    <p className="compass-strip-note small">
-                        <span className={BAR_WIDE}></span>
-                    </p>
-                )}
-            </Fragment>
-        ))}
-        {skeleton.ghostalone && (
-            <div className="compass-ghost-wrap compass-sk-cards">
-                <div className="compass-ghost card h-100 text-center w-100">
-                    <span className="card-body d-flex flex-column justify-content-center">
-                        <span className="compass-ghost-count">
-                            <span className={BAR_NARROW}></span>
-                        </span>
-                        <span className="compass-ghost-text small">
-                            <span className={BAR}></span>
-                        </span>
-                        <span className="compass-ghost-cta small mt-2">
-                            <span className={BAR_NARROW}></span>
-                        </span>
-                    </span>
                 </div>
-            </div>
-        )}
-        {skeleton.empty && (
-            <p className="compass-empty">
-                <span className={BAR_WIDE}></span>
-            </p>
-        )}
-    </div>
-);
+            )}
+            {skeleton.empty && (
+                <p className="compass-empty">
+                    <span className={BAR_WIDE}></span>
+                </p>
+            )}
+        </div>
+    );
+};
 
 export default Tier1Skeleton;

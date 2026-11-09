@@ -69,10 +69,12 @@ export type RowDetails = {
 /**
  * Fetch the details of the rows that come into view.
  *
+ * @param {boolean} generated Whether a row of a course with no image asks for the theme's generated one
+ *     (CardFlags.generated): the same batch carries it, so it costs no request of its own.
  * @returns {object} The records, the rows still waiting, the failure and its retry, and the
  *     registration function.
  */
-export const useRowDetails = (): RowDetails => {
+export const useRowDetails = (generated: boolean): RowDetails => {
     const [records, setRecords] = useState<Record<number, RowDetail>>({});
     // Why this is state and the sets below are refs: a skeleton is something the reader
     // sees, so it has to re-render; the bookkeeping the observer and the timer do must not.
@@ -136,7 +138,7 @@ export const useRowDetails = (): RowDetails => {
         batch.forEach((id) => pending.current.delete(id));
         inflight.current = batch;
         try {
-            const answer = await getCardDetails(batch);
+            const answer = await getCardDetails(batch, generated);
             const arrived: Record<number, RowDetail> = {};
             answer.details.forEach((detail) => {
                 arrived[detail.id] = {
@@ -168,7 +170,7 @@ export const useRowDetails = (): RowDetails => {
                 return next;
             });
         }
-    }, [release, stop]);
+    }, [generated, release, stop]);
 
     /**
      * Start the interval unless it is already running.

@@ -27,6 +27,7 @@ namespace block_compass\output;
 use block_compass\local\calendar\day;
 use block_compass\local\calendar\grading;
 use block_compass\local\calendar_preference;
+use block_compass\local\card_settings;
 use block_compass\local\config;
 use block_compass\local\explore_preference;
 use block_compass\local\tier1_preference;
@@ -179,7 +180,8 @@ class block implements renderable, templatable {
             'favouriteerror', 'loaderror', 'nocourses', 'emptyattention', 'nocompletion',
             'lastopened', 'resultsshown', 'resultsshown_one', 'noresults', 'coursesingroup', 'coursesingroup_one',
             'searchtooshort', 'searchtruncated', 'loadingrows', 'pagednote', 'filterupdated',
-            'badge_new', 'progressloading', 'progresserror', 'progresspercent', 'completed', 'retry',
+            'badge_new', 'progressloading', 'progresserror', 'progresspercent', 'progressvalue', 'completed', 'retry',
+            'action_review',
             'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'chip_pending', 'chip_scheduled',
             'filterby',
             'filter', 'filteractive', 'filteractive_one', 'filterpanel', 'clearfilters', 'status',
@@ -218,7 +220,16 @@ class block implements renderable, templatable {
         // Tier 1's shape as it last settled here, and on the other surface, validated (ADR-018): the
         // skeleton is drawn from this surface's, and the client's write carries the other's along.
         $shapes = tier1_preference::all($favouritesenabled, $pendingenabled);
-        $skeleton = self::skeleton($shapes[$this->surface] ?? null, $strips, config::category_shown());
+        // Boost Union's three card settings, read under the theme of the page that renders the shell (the course
+        // card contract, section 8): config reads only, so get_attention's budget does not move.
+        $card = card_settings::of_request($output->get_page()->theme)->flags();
+        $skeleton = self::skeleton(
+            $shapes[$this->surface] ?? null,
+            $strips,
+            config::category_shown(),
+            !$card['cover'],
+            $card['progress']
+        );
         $props = [
             'labels' => $labels,
             'icons' => [
@@ -254,6 +265,9 @@ class block implements renderable, templatable {
             'showindex' => config::index_shown(),
             // Whether cards show their category line.
             'showcategory' => config::category_shown(),
+            // What Boost Union's settings leave of a card (card_settings::flags()): the progress row, the card
+            // views' cover, the list's thumbnail, and whether a course with no image asks for the generated one.
+            'card' => $card,
             // Where the block is, as the level of its section headings (see heading.ts): 4 under
             // core's block title, 3 when hide_block_title has removed it and the headings move one
             // level up, 2 on the block's own page.
@@ -312,12 +326,21 @@ class block implements renderable, templatable {
      * @param array|null $shape The validated shape (tier1_preference), or null.
      * @param array $strips The declared strips, name and title each, in order.
      * @param bool $category Whether cards draw their category line (show_category).
-     * @return array slots (each strip or null, and note), ghostalone, empty and category; a strip holds
+     * @param bool $nocover Whether cards are drawn without their cover (Boost Union's card view unchecked).
+     * @param bool $progress Whether cards draw the progress row (Boost Union's setting): without it no strip
+     *     draws a completion area, whatever the shape remembers.
+     * @return array slots (each strip or null, and note), ghostalone, empty, category and nocover; a strip holds
      *     hastitle, title, count, later, completion, closing, onerow and cards, a list of count items.
      */
-    public static function skeleton(?array $shape, array $strips, bool $category): array {
+    public static function skeleton(
+        ?array $shape,
+        array $strips,
+        bool $category,
+        bool $nocover = false,
+        bool $progress = true
+    ): array {
         if ($shape === null) {
-            $strip = self::skeleton_strip('', 3, false, true, false);
+            $strip = self::skeleton_strip('', 3, false, $progress, false);
             $strip['onerow'] = true;
 
             return [
@@ -325,6 +348,7 @@ class block implements renderable, templatable {
                 'ghostalone' => false,
                 'empty' => false,
                 'category' => $category,
+                'nocover' => $nocover,
             ];
         }
         $remembered = [];
@@ -347,7 +371,13 @@ class block implements renderable, templatable {
             $strip = null;
             if (isset($remembered[$name])) {
                 [$count, $completion] = $remembered[$name];
-                $strip = self::skeleton_strip($declared['title'], $count, $name === 'scheduled', $completion, $name === $closing);
+                $strip = self::skeleton_strip(
+                    $declared['title'],
+                    $count,
+                    $name === 'scheduled',
+                    $completion && $progress,
+                    $name === $closing
+                );
             }
             // The notice follows New enrolments' place whether or not that strip has cards, as in Block.tsx.
             $note = $name === 'new' && $shape['pending'];
@@ -361,6 +391,7 @@ class block implements renderable, templatable {
             'ghostalone' => $shape['ghost'] && $closing === null,
             'empty' => $shape['strips'] === [],
             'category' => $category,
+            'nocover' => $nocover,
         ];
     }
 

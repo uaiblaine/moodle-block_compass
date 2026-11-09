@@ -386,6 +386,32 @@ The answering component decides which courses the current user may see a crest f
 keeps at most three a course and ignores an answer for a course it did not ask about. The
 contract is the hook class's docblock and ADR-013 decision 9, amended 2026-10-14.
 
+**Boost Union settings that change the cards**
+
+Compass draws the fleet's course card (its covers, its progress row, its completed seal) under any
+theme. When the site's theme is [Boost Union](https://moodle.org/plugins/theme_boost_union), or a
+child theme of it such as Dimensions, three of Boost Union's course overview settings decide
+Compass's cards as well as Boost Union's own: the cards of the first strips and of *All courses* in
+its cards view, and the rows of *All courses* in its list view. They apply only under Boost Union
+or a child theme, and only while Boost Union is installed; Compass adds no setting of its own for
+them, and under any other theme it keeps its own rule (progress shown, images shown, a grey hatch
+for a course with no image). An administrator finds them under *Site administration › Appearance ›
+Boost Union › Look*, tab *Dashboard / My courses*.
+
+- **Show course progress** (`courseoverviewshowcourseprogress`). *No* removes the progress row and
+  its percentage from every Compass card and row. A completed course keeps its green *Completed*
+  seal and the green base of its cover.
+- **Course image source** (`courseoverviewimagesource`). Decides the picture of a course that has
+  no course image of its own, which Compass asks the theme for once the card is on screen (in the
+  same request as its progress). With *Course image with pattern fallback* (the default) that is
+  the theme's generated pattern (with Dimensions, the course category's cover); with *Course image
+  with fallback image* and a fallback image uploaded, every such course shows that image.
+- **Show course images** (`courseoverviewshowcourseimages`). With *Card* unchecked the cards are
+  drawn without their cover: the *New* chip, the crests and the star move to a row at the top of
+  the card, over a thin top edge in the theme's primary colour, green once the course is completed.
+  With *List* unchecked the rows of the list view lose their thumbnail and get the same edge at
+  their start. *Summary* changes nothing in Compass, which has no summary view.
+
 
 Capabilities
 ------------

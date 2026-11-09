@@ -418,6 +418,7 @@ $string['privacy:metadata:preference:block_compass_view'] = 'The viewer\'s choic
 $string['progresserror'] = 'Some progress could not be loaded.';
 $string['progressloading'] = 'Loading progress';
 $string['progresspercent'] = '{$a}% complete';
+$string['progressvalue'] = '{$a}%';
 $string['reconnecting'] = 'Reconnecting… (attempt {$a->attempt} of {$a->attempts})';
 $string['reloading'] = 'Reloading…';
 $string['reloadpage'] = 'Reload page';

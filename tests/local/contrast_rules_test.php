@@ -93,6 +93,16 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-news-tipcrest',
     ];
 
+    /** @var string[] The course card's fills (the course card contract): the card, its slot, chip, stars and seal. */
+    private const CARD_FILLS = [
+        '.block_compass .compass-card',
+        '.block_compass .compass-card .compass-card-extra',
+        '.block_compass .compass-card-kind',
+        '.block_compass .compass-card .compass-star',
+        '.block_compass .compass-card-nocover .compass-star',
+        '.block_compass .compass-state-done',
+    ];
+
     /** @var string The scope of a dimmed column of the open row. */
     private const COL_DIM = '.block_compass .compass-cal-col.compass-cal-col-dim';
 
@@ -462,7 +472,7 @@ final class contrast_rules_test extends basic_testcase {
         ];
         // The filter line's fills (ADR-015): the scope's track, cells and counts, the search, the icon
         // buttons, Filters and its badge, the floating layers, a hovered option, the mark and a chip.
-        $filled = array_merge($filled, self::LINE_FILLS, self::NEWS_FILLS);
+        $filled = array_merge($filled, self::LINE_FILLS, self::NEWS_FILLS, self::CARD_FILLS);
         foreach ($filled as $selector) {
             [, $body] = $this->rule($selectors, $selector);
             $this->assertArrayHasKey('background', $body, "{$selector} no longer fills: is it still a pair?");
@@ -745,6 +755,25 @@ final class contrast_rules_test extends basic_testcase {
             ['a crest\'s slot', $slot, $slot, ['root']],
             ['the tooltip\'s crest tile', $tipcrest, $tipcrest, ['root']],
         ]);
+        // The course card (the course card contract, sections 7 and 11): its texts over the card's surface, the
+        // plugin slot's text and icon over the quiet ground, the kind chip and the star's disc (light over any
+        // cover, so their pair is fixed), the outlined star of a card without its cover, the green seal.
+        $card = '.block_compass .compass-card';
+        $extra = '.block_compass .compass-card .compass-card-extra';
+        $pairs = array_merge($pairs, [
+            ['a card\'s title', $card, $card, ['root']],
+            ['a card\'s title hovered', '.block_compass .compass-card:hover .compass-card-link', $card, ['root']],
+            ['a card\'s category', '.block_compass .compass-card .compass-card-category', $card, ['root']],
+            ['a card\'s plugin slot', $extra, $extra, ['root']],
+            ['a card\'s plugin slot icon', '.block_compass .compass-card .compass-card-extra .fa', $extra, ['root']],
+            ['a card\'s percentage', '.block_compass .compass-progress-pct', $card, ['root']],
+            ['a card\'s kind chip', '.block_compass .compass-card-kind', '.block_compass .compass-card-kind', ['root']],
+            ['a card\'s star', '.block_compass .compass-card .compass-star', '.block_compass .compass-card .compass-star',
+                ['root']],
+            ['a coverless card\'s star', '.block_compass .compass-card-nocover .compass-star',
+                '.block_compass .compass-card-nocover .compass-star', ['root']],
+            ['the completed seal', '.block_compass .compass-state-done', '.block_compass .compass-state-done', ['root']],
+        ]);
         // Marks, 3:1 against the surface they sit on: the dots, the late diamond, the ring.
         $marks = [
             ['a to-do dot', '.block_compass .compass-cal-dot-todo', $col],
@@ -755,6 +784,10 @@ final class contrast_rules_test extends basic_testcase {
             // or not; the ink at now is the accent above.
             ['the imminent ring', 'var(--block_compass-cal-soon-ring)', $all],
             ['the dot on now', '.block_compass .compass-soon-dot', ['root']],
+            // The course card: the progress bar's fill, the completed base, the card's focus ring.
+            ['a card\'s progress fill', '.block_compass .compass-progress-fill', ['root']],
+            ['a card\'s completed base', 'var(--block_compass-card-done)', ['root']],
+            ['a card\'s focus ring', 'var(--block_compass-card-focus-ring)', ['root']],
         ];
 
         $computed = 0;
