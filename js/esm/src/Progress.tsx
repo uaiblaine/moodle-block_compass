@@ -14,12 +14,17 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The progress bar of a card.
+ * The progress row of a card (the course card contract, sections 3 and 11).
  *
- * Callers draw it only for a known percentage: a null progress is never drawn as 0%,
- * because "you have done nothing" and "there is nothing to do" are different facts.
- * What shows instead is decided by completion() in Card.tsx, whose rule Row and RowCard
- * follow.
+ * Callers draw it only for a known percentage below 100: a null progress is never drawn as 0%,
+ * because "you have done nothing" and "there is nothing to do" are different facts, and a
+ * completed course draws the green seal instead (StatePill.tsx, D4). What shows instead is
+ * decided by completion() in Card.tsx, whose rule Row and RowCard follow, and none of it is drawn
+ * while Boost Union's course progress setting is off (CardFlags.progress).
+ *
+ * A 6 px track and the percentage at its right in tabular figures, the whole row the
+ * progressbar: its name is "{n}% complete", so the visible number beside the bar is decoration
+ * to assistive technology.
  *
  * @module     block_compass/Progress
  * @copyright  2026 Anderson Blaine
@@ -35,38 +40,31 @@ type ProgressProps = {
 };
 
 /**
- * The bar, and its text unless the caller is short of room.
+ * The row, and its percentage unless the caller is short of room.
  *
  * A tier 3 row has little room, so it takes the compact form: the percentage is still
- * announced, because it is the bar's own accessible name rather than the text beside it.
+ * announced, because it is the row's own accessible name rather than the text beside it.
  *
  * @param {object} props The percentage, the block labels and whether to drop the text;
  *     see ProgressProps.
- * @returns {object} The rendered bar.
+ * @returns {object} The rendered row.
  */
-const Progress = ({progress, labels, compact = false}: ProgressProps) => {
-    const complete = progress >= 100;
-    const percent = fill(labels.progresspercent, String(progress));
-
-    return (
-        <>
-            <div
-                className="progress compass-progress-bar"
-                role="progressbar"
-                aria-valuenow={progress}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={percent}
-            >
-                <div className={`progress-bar${complete ? ' bg-success' : ''}`} style={{width: `${progress}%`}}></div>
-            </div>
-            {!compact && (
-                <span className="compass-progress-text small text-muted">
-                    {complete ? labels.completed : percent}
-                </span>
-            )}
-        </>
-    );
-};
+const Progress = ({progress, labels, compact = false}: ProgressProps) => (
+    <div
+        className="compass-progress-row"
+        role="progressbar"
+        aria-valuenow={progress}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={fill(labels.progresspercent, String(progress))}
+    >
+        <span className="compass-progress-track">
+            <span className="compass-progress-fill" style={{width: `${progress}%`}}></span>
+        </span>
+        {!compact && (
+            <span className="compass-progress-pct" aria-hidden="true">{fill(labels.progressvalue, String(progress))}</span>
+        )}
+    </div>
+);
 
 export default Progress;

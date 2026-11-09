@@ -231,18 +231,22 @@ final class cards {
     }
 
     /**
-     * The card's button label: Start for a new enrolment, Review once complete,
+     * The card's button label: Review once complete, Start for a new enrolment,
      * Continue while completion is tracked, Open otherwise.
+     *
+     * Complete is asked first (the course card contract, section 3, D4): a new enrolment that is
+     * already complete reads Review, whatever else is true of it. The client takes the same word
+     * for a card whose progress arrives complete after the first paint (Card.tsx).
      *
      * @param array $card The card so far (isnew, iscomplete, hascompletion set).
      * @return string
      */
     private static function action_text(array $card): string {
-        if ($card['isnew']) {
-            return get_string('action_start', 'block_compass');
-        }
         if ($card['iscomplete']) {
             return get_string('action_review', 'block_compass');
+        }
+        if ($card['isnew']) {
+            return get_string('action_start', 'block_compass');
         }
         if ($card['hascompletion']) {
             return get_string('action_continue', 'block_compass');
@@ -333,16 +337,22 @@ final class cards {
      * @param callable|null $crests Stands in for the course_badges hook in tests; see theme_badges::for_courses().
      * @param bool|null $pending Whether tier 3 lists applications; null for config::pending_enabled(). Tests
      *     pass true to exercise the listed branch whether or not enrol_apply is installed, as explore::resolve() takes it.
+     * @param callable|null $generated The image of a course with none of its own (the course card contract, section
+     *     8): called once, with the ids of the answered courses that have no image, and only when there is one, so
+     *     whatever it costs (core's renderer, {@see generated_images()}) is never paid by a batch whose every course
+     *     has its image. It answers course id => the renderer's image; an answer that is not a data URI of an image
+     *     or a local pluginfile URL ({@see is_generated_image()}) is dropped. Null asks for none.
      * @return array List of entries: id, hascompletion, progress, imageurl and hasimage, plus
      *     teacher (true) when completion is off and the viewer is not a learner, and badges when
-     *     the course has crests.
+     *     the course has crests. A generated image is an imageurl like the course's own, hasimage true.
      */
     public static function details(
         int $userid,
         array $courseids,
         ?int $now = null,
         ?callable $crests = null,
-        ?bool $pending = null
+        ?bool $pending = null,
+        ?callable $generated = null
     ): array {
         global $DB;
 
@@ -467,6 +477,9 @@ final class cards {
         $ids = array_column($result, 'id');
         $images = self::images($ids);
         $badges = theme_badges::for_courses($ids, $crests);
+        if ($generated !== null) {
+            $images = self::with_generated($images, $generated);
+        }
 
         return array_map(static function (array $detail) use ($images, $badges): array {
             $image = (string) $images[$detail['id']];
@@ -478,6 +491,98 @@ final class cards {
 
             return $detail;
         }, $result);
+    }
+
+    /**
+     * The images with the renderer's answer for every course that has none, asked only when one has none.
+     *
+     * @param array $images Course id => absolute URL string, or false for a course without an image (images()).
+     * @param callable $generated Course ids => [course id => image]; see details().
+     * @return array The same map, a valid generated image in place of each false it answered.
+     */
+    private static function with_generated(array $images, callable $generated): array {
+        $missing = array_keys(array_filter($images, static fn($image): bool => $image === false));
+        if (empty($missing)) {
+            return $images;
+        }
+        foreach ($generated($missing) as $courseid => $image) {
+            $courseid = (int) $courseid;
+            if (($images[$courseid] ?? null) === false && is_string($image) && self::is_generated_image($image)) {
+                $images[$courseid] = $image;
+            }
+        }
+
+        return $images;
+    }
+
+    /**
+     * Whether a renderer's answer for a course with no image is one the client may draw.
+     *
+     * Two shapes only (the course card contract, section 8): a base64 SVG data URI, which core's pattern
+     * (core_geopattern::datauri()) and theme_dimensions' category cover are, and a URL of this site's pluginfile.php,
+     * which Boost Union's fallback image is (with slash arguments or without). Anything else - another host, another
+     * script, another scheme, a quote - is refused: the value reaches an img src, and get_card_details returns it as
+     * PARAM_RAW because PARAM_URL refuses every data URI.
+     *
+     * @param string $image The answer.
+     * @return bool
+     */
+    public static function is_generated_image(string $image): bool {
+        global $CFG;
+
+        if (preg_match('~^data:image/svg\+xml;base64,[A-Za-z0-9+/]+={0,2}$~D', $image)) {
+            return true;
+        }
+        $pluginfile = $CFG->wwwroot . '/pluginfile.php';
+        $next = substr($image, strlen($pluginfile), 1);
+        if (!str_starts_with($image, $pluginfile) || ($next !== '/' && $next !== '?')) {
+            return false;
+        }
+
+        return clean_param($image, PARAM_URL) === $image && !preg_match('/[\s"\'<>\\\\]/', $image);
+    }
+
+    /**
+     * The renderer's image for courses with none of their own, under Boost Union or a child theme only.
+     *
+     * The closure details() calls once a course of the batch lacks an image: only then is the request's theme read
+     * (which initialises it, with core's renderer and the global filters, if nothing has yet) and, under Boost
+     * Union or a child, core's renderer created. The general target, never the request's: an AJAX request's
+     * factory answers core's ajax renderer, which no theme overrides, and would lose Boost Union's
+     * get_generated_image_for_id() (theme_dimensions' {@see \theme_dimensions\local\category\cards::images()}
+     * does the same under the command line).
+     *
+     * Boost Union's fallback image is one file for every course, and its renderer reads the file area on every
+     * call: while the fallback is the administrator's choice, its first answer that is not a data URI (the file's
+     * URL) is reused for the rest of the batch, one read where there would be one per course. Re-read Boost Union's
+     * get_generated_image_for_id() on every update of it: an answer that ever depends on the course breaks this.
+     *
+     * @param card_settings|null $settings Stands in for the request's settings in tests; read when called otherwise.
+     * @param object|null $renderer Stands in for core's renderer in tests (get_generated_image_for_id() only).
+     * @return callable Course ids => [course id => the renderer's image]; nothing under another theme.
+     */
+    public static function generated_images(?card_settings $settings = null, ?object $renderer = null): callable {
+        return static function (array $courseids) use ($settings, $renderer): array {
+            global $PAGE;
+
+            $settings ??= card_settings::of_request();
+            if (!$settings->active()) {
+                return [];
+            }
+            $renderer ??= $PAGE->get_renderer('core', null, RENDERER_TARGET_GENERAL);
+            $fallback = $settings->image_source() === card_settings::SOURCE_FALLBACK;
+            $shared = null;
+            $images = [];
+            foreach ($courseids as $courseid) {
+                $image = $shared ?? (string) $renderer->get_generated_image_for_id((int) $courseid);
+                if ($fallback && !str_starts_with($image, 'data:')) {
+                    $shared = $image;
+                }
+                $images[(int) $courseid] = $image;
+            }
+
+            return $images;
+        };
     }
 
     /**

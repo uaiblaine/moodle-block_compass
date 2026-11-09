@@ -130,7 +130,8 @@ Breaking one is a design change: stop and raise it with the maintainer.
   parameters) and `search_inventory` (PHP matching with `filter.ts`'s rule, never `sql_like()`:
   it cannot be accent-insensitive on PostgreSQL).
 - **Budgets** (§6.6): `get_attention` ≤ 7 warm / 8 cold; `get_inventory` ≤ 3 / 6;
-  rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses;
+  rows, search and paged headers ≤ 3; `get_card_details` 1 + computed courses (plus the theme's initialisation, 3 on
+  PostgreSQL, +1 with Boost Union's fallback image, only for a batch that asks for and needs a generated image; ADR-020);
   `prewarm::run()` 1 per user plus a fixed 7 per sweep; all "+ 1" at the web-service layer.
   `get_strip` 2 on a hit, ≤ 61 cold or warm (62 with `block_feedback_tracker` installed: its
   calendar's one statement, ADR-014 amendment 10), 6 to complete a counted-only entry (7 with

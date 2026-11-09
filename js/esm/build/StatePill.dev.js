@@ -20,22 +20,22 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { fill } from "./str";
-const StatePill = /* @__PURE__ */ __name(({ row, labels }) => {
+const StatePill = /* @__PURE__ */ __name(({ row, labels, complete = false }) => {
   if (row.sched !== void 0) {
     return /* @__PURE__ */ jsxDEV("span", { className: "compass-state compass-state-scheduled", children: [
       /* @__PURE__ */ jsxDEV("i", { className: "fa fa-calendar", "aria-hidden": "true" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-        lineNumber: 54,
+        lineNumber: 60,
         columnNumber: 17
       }),
       /* @__PURE__ */ jsxDEV("span", { children: fill(labels.state_scheduled, row.sched) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-        lineNumber: 55,
+        lineNumber: 61,
         columnNumber: 17
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-      lineNumber: 53,
+      lineNumber: 59,
       columnNumber: 13
     });
   }
@@ -43,17 +43,17 @@ const StatePill = /* @__PURE__ */ __name(({ row, labels }) => {
     return /* @__PURE__ */ jsxDEV("span", { className: "compass-state compass-state-waitlisted", children: [
       /* @__PURE__ */ jsxDEV("i", { className: "fa fa-list-ul", "aria-hidden": "true" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-        lineNumber: 62,
+        lineNumber: 68,
         columnNumber: 17
       }),
       /* @__PURE__ */ jsxDEV("span", { children: labels.state_waitlisted }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-        lineNumber: 63,
+        lineNumber: 69,
         columnNumber: 17
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-      lineNumber: 61,
+      lineNumber: 67,
       columnNumber: 13
     });
   }
@@ -61,17 +61,35 @@ const StatePill = /* @__PURE__ */ __name(({ row, labels }) => {
     return /* @__PURE__ */ jsxDEV("span", { className: "compass-state compass-state-pending", children: [
       /* @__PURE__ */ jsxDEV("i", { className: "fa fa-hourglass-half", "aria-hidden": "true" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-        lineNumber: 70,
+        lineNumber: 76,
         columnNumber: 17
       }),
       /* @__PURE__ */ jsxDEV("span", { children: labels.state_pending }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-        lineNumber: 71,
+        lineNumber: 77,
         columnNumber: 17
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
-      lineNumber: 69,
+      lineNumber: 75,
+      columnNumber: 13
+    });
+  }
+  if (complete) {
+    return /* @__PURE__ */ jsxDEV("span", { className: "compass-state compass-state-done", children: [
+      /* @__PURE__ */ jsxDEV("i", { className: "fa fa-check", "aria-hidden": "true" }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
+        lineNumber: 84,
+        columnNumber: 17
+      }),
+      /* @__PURE__ */ jsxDEV("span", { children: labels.completed }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
+        lineNumber: 85,
+        columnNumber: 17
+      })
+    ] }, void 0, true, {
+      fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
+      lineNumber: 83,
       columnNumber: 13
     });
   }

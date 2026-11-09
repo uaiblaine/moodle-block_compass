@@ -42,7 +42,19 @@ use core_external\external_value;
  * one they hold a later start or an application in gets its image and crests only, and every
  * other id is dropped, not reported (cards::details()). Both halves of the client call it: tier 1
  * for the cards get_attention marked pending, tier 3 for the rows that entered the viewport. The
- * image and the crests are for tier 3; tier 1 already has them from get_attention.
+ * image and the crests are for tier 3; tier 1 already has them from get_attention, except the image
+ * of a course with none, which only this call asks the theme's renderer for.
+ *
+ * That image (the course card contract, section 8) is asked only when the client says so, from the
+ * flag the shell shipped (card_settings::flags()), and then decided again here on the request's own
+ * theme (card_settings::of_request(), after validate_context()): Boost Union or a child theme, and a
+ * course in the batch without an image of its own. Without the flag no batch reads the theme, so a site
+ * under any other theme keeps the budget below; with it, the batch that needs the renderer pays for it
+ * once ({@see cards::generated_images()}).
+ *
+ * Budget: 1 + the computed courses (the enrolment check, then each course whose progress is not cached),
+ * plus, only when a generated image was needed, what reading the theme and creating core's renderer cost
+ * (tests/external/get_card_details_test.php states it).
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -60,6 +72,12 @@ class get_card_details extends external_api {
                 new external_value(PARAM_INT, 'Course id'),
                 'Courses whose progress is wanted, at most ' . cards::DETAILS_BATCH
             ),
+            'generated' => new external_value(
+                PARAM_BOOL,
+                'Whether a course with no image gets the theme\'s generated one, under Boost Union or a child theme only',
+                VALUE_DEFAULT,
+                false
+            ),
         ]);
     }
 
@@ -67,12 +85,16 @@ class get_card_details extends external_api {
      * Compute progress for the given courses of the current user.
      *
      * @param array $courseids Course ids.
+     * @param bool $generated Whether a course with no image gets the theme's generated one.
      * @return array
      */
-    public static function execute(array $courseids): array {
+    public static function execute(array $courseids, bool $generated = false): array {
         global $USER;
 
-        $params = self::validate_parameters(self::execute_parameters(), ['courseids' => $courseids]);
+        $params = self::validate_parameters(
+            self::execute_parameters(),
+            ['courseids' => $courseids, 'generated' => $generated]
+        );
         if (count($params['courseids']) > cards::DETAILS_BATCH) {
             throw new \invalid_parameter_exception('At most ' . cards::DETAILS_BATCH . ' course ids per call.');
         }
@@ -85,7 +107,14 @@ class get_card_details extends external_api {
         $userid = (int) $USER->id;
         self::validate_context(context_user::instance($userid));
 
-        return ['details' => cards::details($userid, $params['courseids'])];
+        return ['details' => cards::details(
+            $userid,
+            $params['courseids'],
+            null,
+            null,
+            null,
+            $params['generated'] ? cards::generated_images() : null
+        )];
     }
 
     /**
@@ -104,7 +133,12 @@ class get_card_details extends external_api {
                     'Present, and true, only when completion is off and the viewer is not a learner of the course',
                     VALUE_OPTIONAL
                 ),
-                'imageurl' => new external_value(PARAM_URL, 'Course image URL, empty when the course has none'),
+                // PARAM_RAW, because PARAM_URL refuses every data URI: the course's own image is core's URL, and a
+                // generated one passed cards::is_generated_image() (a base64 SVG data URI or this site's pluginfile.php).
+                'imageurl' => new external_value(
+                    PARAM_RAW,
+                    'Course image URL, or the theme\'s generated image (an SVG data URI or a local file URL); empty for none'
+                ),
                 'hasimage' => new external_value(PARAM_BOOL, 'Whether imageurl is set'),
                 'badges' => theme_badges::structure(),
             ]), 'One entry per course the user is enrolled in, or holds a later start or an application in'),

@@ -1,4 +1,4 @@
-import{fill as n}from"./str";import{jsx as a,jsxs as t}from"react/jsx-runtime";/**
+import{fill as p}from"./str";import{jsx as a,jsxs as t}from"react/jsx-runtime";/**
  * The state area of a tier 3 row or card, and of a tier 1 Starts-soon card: one pill, an icon and
  * a sentence.
  *
@@ -15,4 +15,4 @@ import{fill as n}from"./str";import{jsx as a,jsxs as t}from"react/jsx-runtime";/
  * @module     block_compass/StatePill
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const i=({row:s,labels:e})=>s.sched!==void 0?t("span",{className:"compass-state compass-state-scheduled",children:[a("i",{className:"fa fa-calendar","aria-hidden":"true"}),a("span",{children:n(e.state_scheduled,s.sched)})]}):s.pend&&s.wait?t("span",{className:"compass-state compass-state-waitlisted",children:[a("i",{className:"fa fa-list-ul","aria-hidden":"true"}),a("span",{children:e.state_waitlisted})]}):s.pend?t("span",{className:"compass-state compass-state-pending",children:[a("i",{className:"fa fa-hourglass-half","aria-hidden":"true"}),a("span",{children:e.state_pending})]}):null;var d=i;export{d as default};
+ */const i=({row:s,labels:e,complete:n=!1})=>s.sched!==void 0?t("span",{className:"compass-state compass-state-scheduled",children:[a("i",{className:"fa fa-calendar","aria-hidden":"true"}),a("span",{children:p(e.state_scheduled,s.sched)})]}):s.pend&&s.wait?t("span",{className:"compass-state compass-state-waitlisted",children:[a("i",{className:"fa fa-list-ul","aria-hidden":"true"}),a("span",{children:e.state_waitlisted})]}):s.pend?t("span",{className:"compass-state compass-state-pending",children:[a("i",{className:"fa fa-hourglass-half","aria-hidden":"true"}),a("span",{children:e.state_pending})]}):n?t("span",{className:"compass-state compass-state-done",children:[a("i",{className:"fa fa-check","aria-hidden":"true"}),a("span",{children:e.completed})]}):null;var c=i;export{c as default};

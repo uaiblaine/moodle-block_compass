@@ -291,4 +291,43 @@ final class page_test extends advanced_testcase {
             $this->assertSame('redirecterrordetected', $e->errorcode);
         }
     }
+
+    /**
+     * The shell ships Boost Union's card settings as flags, read under the theme of the page that renders it.
+     *
+     * Under Boost the flags are the compass's own rule, whatever Boost Union's settings say; the tier 1 skeleton draws
+     * covers and progress rows. Under Boost Union (installed on the dev stacks, skipped where it is not) the same
+     * settings turn the progress row and the card view's cover off, and the skeleton follows: no cover, no row.
+     *
+     * @return void
+     */
+    public function test_the_card_flags_follow_boost_union_under_its_theme_only(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('courseoverviewshowcourseprogress', 'no', 'theme_boost_union');
+        set_config('courseoverviewshowcourseimages', 'list,summary', 'theme_boost_union');
+
+        [$html, $props] = $this->render(new block());
+        $this->assertSame(['progress' => true, 'cover' => true, 'thumb' => true, 'generated' => false], $props['card']);
+        $this->assertFalse($props['tier1']['skeleton']['nocover']);
+        $this->assertStringContainsString('compass-progress-row', $html, 'control: the skeleton draws a progress row');
+        $this->assertStringContainsString('compass-card-img compass-skeleton', $html, 'control: and a cover');
+
+        if (\core_component::get_component_directory('theme_boost_union') === null) {
+            $this->markTestSkipped('Boost Union is not installed.');
+        }
+        $page = new \moodle_page();
+        $page->set_url('/');
+        $page->set_context(\core\context\system::instance());
+        $page->force_theme('boost_union');
+        $html = $page->get_renderer('core')->render(new block());
+        preg_match('/data-react-props=\'(.*?)\'/', $html, $matches);
+        $props = json_decode(html_entity_decode($matches[1]), true);
+
+        $this->assertSame(['progress' => false, 'cover' => false, 'thumb' => true, 'generated' => true], $props['card']);
+        $this->assertTrue($props['tier1']['skeleton']['nocover']);
+        $this->assertStringContainsString('<div class="compass-card card h-100 compass-card-nocover">', $html);
+        $this->assertStringNotContainsString('compass-progress-row', $html, 'the progress row is off');
+        $this->assertStringNotContainsString('compass-card-img compass-skeleton', $html, 'the cover is off');
+    }
 }

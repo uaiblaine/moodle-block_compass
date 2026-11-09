@@ -970,4 +970,203 @@ final class cards_test extends advanced_testcase {
         $this->assertFalse($card['iscomplete']);
         $this->assertArrayNotHasKey('nodata', $card);
     }
+
+    /**
+     * A new enrolment that is already complete reads Review, not Start (the course card contract, section 3, D4).
+     *
+     * Control: the same new course with its progress at 40 reads Start, so the label is the completion's doing.
+     *
+     * @return void
+     */
+    public function test_a_new_enrolment_already_complete_reads_review(): void {
+        $courses = $this->completion_fixture();
+        $newid = (int) $courses['new']->id;
+        details::set($this->userid, $newid, 100);
+
+        $card = $this->by_id($this->build_cards())[$newid];
+
+        $this->assertTrue($card['isnew'], 'precondition: the course is a new enrolment');
+        $this->assertTrue($card['iscomplete']);
+        $this->assertSame(get_string('action_review', 'block_compass'), $card['actiontext']);
+
+        details::set($this->userid, $newid, 40);
+        $card = $this->by_id($this->build_cards())[$newid];
+        $this->assertSame(get_string('action_start', 'block_compass'), $card['actiontext'], 'control: not complete');
+    }
+
+    /**
+     * Two shapes of a generated image are drawn: a base64 SVG data URI, and this site's pluginfile.php.
+     *
+     * Changes that must make it fail: the data URI check widened to any data URI or to a trailing payload; the
+     * pluginfile check reduced to the host, or to a prefix that lets pluginfile.phpx or another script through; the
+     * host check, PARAM_URL or the quote check dropped.
+     *
+     * @return void
+     */
+    public function test_a_generated_image_is_a_data_uri_or_a_local_file(): void {
+        global $CFG;
+
+        $pattern = (new \core_geopattern())->datauri();
+        $this->assertTrue(cards::is_generated_image($pattern), 'core\'s pattern');
+        $this->assertTrue(cards::is_generated_image('data:image/svg+xml;base64,PHN2Zy8+'));
+        $this->assertTrue(cards::is_generated_image($CFG->wwwroot . '/pluginfile.php/1/theme_boost_union/fallback/0/a.png'));
+        $this->assertTrue(cards::is_generated_image($CFG->wwwroot . '/pluginfile.php?file=%2F1%2Ftheme_boost_union%2Fa.png'));
+
+        $refused = [
+            '',
+            'data:image/png;base64,iVBORw0KGgo=',
+            'data:text/html;base64,PHNjcmlwdD4=',
+            "data:image/svg+xml;base64,PHN2Zy8+\n",
+            'data:image/svg+xml,<svg onload="x"/>',
+            'javascript:alert(1)',
+            'https://elsewhere.example/pluginfile.php/1/a.png',
+            $CFG->wwwroot . '/course/view.php?id=1',
+            $CFG->wwwroot . '/pluginfile.phpx/1/a.png',
+            $CFG->wwwroot . '/pluginfile.php/1/a b.png',
+            $CFG->wwwroot . '/pluginfile.php/1/a".png',
+            // PARAM_URL keeps a single quote; the check refuses it.
+            $CFG->wwwroot . "/pluginfile.php/1/a'b.png",
+            // PARAM_URL refuses a bar; nothing else here does.
+            $CFG->wwwroot . '/pluginfile.php/1/a|b.png',
+            // Another host whose path has a slash where this site's pluginfile.php ends.
+            'https://elsewhere.example/' . str_repeat('a', strlen($CFG->wwwroot . '/pluginfile.php') - 26) . '/1/a.png',
+        ];
+        foreach ($refused as $image) {
+            $this->assertFalse(cards::is_generated_image($image), "accepted: {$image}");
+        }
+    }
+
+    /**
+     * The generated image is asked for only when a course of the batch has none, for those courses only.
+     *
+     * The stand-in counts its calls in place of core's renderer: a batch whose every course has its image never
+     * calls it (core's renderer is never created), a batch with one course without calls it once with that course,
+     * and its answer becomes the course's image. An answer of another shape is dropped. Without a stand-in nothing
+     * is asked for.
+     *
+     * @return void
+     */
+    public function test_details_asks_for_the_generated_image_only_when_a_course_has_none(): void {
+        $with = $this->course('Course with an image');
+        $without = $this->course('Course without an image');
+        $withid = (int) $with->id;
+        $withoutid = (int) $without->id;
+        get_file_storage()->create_file_from_string([
+            'contextid' => \core\context\course::instance($withid)->id,
+            'component' => 'course',
+            'filearea' => 'overviewfiles',
+            'itemid' => 0,
+            'filepath' => '/',
+            'filename' => 'cover.png',
+        ], base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+        foreach ([$withid, $withoutid] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 200 * DAYSECS);
+        }
+        \core_cache\cache::make('core', 'course_image')->purge();
+        $asked = [];
+        $image = 'data:image/svg+xml;base64,PHN2Zy8+';
+        // The stand-in answers for the course with an image too, as a careless renderer could: it must not replace it.
+        $generated = static function (array $courseids) use (&$asked, $image, $withid): array {
+            $asked[] = $courseids;
+
+            return array_fill_keys(array_merge($courseids, [$withid]), $image);
+        };
+
+        // Every course has its image: the stand-in is never called.
+        $details = cards::details($this->userid, [$withid], self::NOW, null, null, $generated);
+        $this->assertSame([], $asked, 'a batch whose every course has an image creates no renderer');
+        $this->assertTrue($details[0]['hasimage']);
+
+        // One course without: called once, with that course alone, and its answer drawn.
+        $details = array_column(
+            cards::details($this->userid, [$withid, $withoutid], self::NOW, null, null, $generated),
+            null,
+            'id'
+        );
+        $this->assertSame([[$withoutid]], $asked);
+        $this->assertTrue($details[$withoutid]['hasimage']);
+        $this->assertSame($image, $details[$withoutid]['imageurl']);
+        $this->assertStringContainsString('cover.png', $details[$withid]['imageurl'], 'the course\'s own image is kept');
+
+        // An answer of another shape is dropped, and the course keeps saying it has no image.
+        $foreign = static fn(array $courseids): array => array_fill_keys($courseids, 'https://elsewhere.example/a.png');
+        $details = array_column(cards::details($this->userid, [$withoutid], self::NOW, null, null, $foreign), null, 'id');
+        $this->assertFalse($details[$withoutid]['hasimage']);
+        $this->assertSame('', $details[$withoutid]['imageurl']);
+
+        // Control: without a stand-in nothing is asked and the course has no image.
+        $details = array_column(cards::details($this->userid, [$withoutid], self::NOW), null, 'id');
+        $this->assertFalse($details[$withoutid]['hasimage']);
+
+        // The generated image survives the service's allowlist, which PARAM_URL would empty.
+        $answer = \core_external\external_api::clean_returnvalue(
+            \block_compass\external\get_card_details::execute_returns(),
+            ['details' => array_values(array_column(
+                cards::details($this->userid, [$withoutid], self::NOW, null, null, $generated),
+                null,
+                'id'
+            ))]
+        );
+        $this->assertSame($image, $answer['details'][0]['imageurl']);
+    }
+
+    /**
+     * The renderer's closure answers nothing under a theme that is not Boost Union or a child of it.
+     *
+     * The request's theme here is the site's, Boost: the closure reads it and returns before creating a renderer.
+     *
+     * @return void
+     */
+    public function test_the_generated_images_closure_answers_nothing_under_another_theme(): void {
+        global $PAGE;
+
+        $this->assertFalse(card_settings::applies($PAGE->theme, true), 'precondition: the request\'s theme is not Boost Union');
+        $this->assertSame([], (cards::generated_images())([1, 2]));
+    }
+
+    /**
+     * While Boost Union's fallback image is chosen, the renderer is asked once per batch: its answer is one file for
+     * every course, and asking again would read the file area once per course.
+     *
+     * A stand-in renderer counts the calls, so the test needs no Boost Union; a data URI answer (the pattern) is asked
+     * per course, as the control.
+     *
+     * @return void
+     */
+    public function test_the_fallback_image_is_asked_once_per_batch(): void {
+        global $CFG;
+
+        $this->resetAfterTest();
+        $renderer = new class {
+            /** @var int The calls so far. */
+            public int $calls = 0;
+            /** @var string What every call answers. */
+            public string $answer = '';
+
+            /**
+             * The theme's image for a course.
+             *
+             * @param int $courseid The course.
+             * @return string
+             */
+            public function get_generated_image_for_id(int $courseid): string {
+                $this->calls++;
+                return $this->answer;
+            }
+        };
+        $settings = new card_settings(true);
+
+        set_config(card_settings::SETTING_IMAGESOURCE, card_settings::SOURCE_FALLBACK, card_settings::COMPONENT);
+        $renderer->answer = $CFG->wwwroot . '/pluginfile.php/1/theme_boost_union/courseoverviewimagefallback/0/f.png';
+        $images = (cards::generated_images($settings, $renderer))([11, 12, 13]);
+        $this->assertSame(1, $renderer->calls, 'the fallback image was asked for once per course');
+        $this->assertSame([11, 12, 13], array_keys($images));
+        $this->assertSame([$renderer->answer], array_values(array_unique($images)));
+
+        set_config(card_settings::SETTING_IMAGESOURCE, card_settings::SOURCE_PATTERN, card_settings::COMPONENT);
+        $renderer->calls = 0;
+        $renderer->answer = 'data:image/svg+xml;base64,PHN2Zy8+';
+        (cards::generated_images($settings, $renderer))([11, 12, 13]);
+        $this->assertSame(3, $renderer->calls, 'control: the pattern is asked per course');
+    }
 }

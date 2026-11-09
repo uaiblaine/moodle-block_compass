@@ -13,6 +13,32 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Changed
+
+- **The fleet's course card** (ADR-020, `moodle-dev/docs/course-card/CONTRACT.md`). The first strips' cards, the
+  cards of *All courses* and its list rows follow one anatomy: the cover, *New* as a light chip in its top-left
+  corner, the star as a 32 px light disc in its top-right corner, the category in sentence case on one line, the
+  title on two lines at most, the last access or the enrolment on one line after a clock, the state, a 6 px progress
+  bar with its percentage, and the main action. The whole card is one link, named by the course; a hover raises its
+  shadow and underlines the title, and nothing moves. Every colour and measure is a `--block_compass-card-*` custom
+  property that reads the Dimensions theme's `--dimensions-card-*` first. Loading cards are grey blocks, without the
+  shimmer.
+- **A completed course** shows a green *Completed* seal in place of its bar, a green base under its cover, and
+  *Review* as its action, also when it is a new enrolment (it read *Start*). The first strips' *Review* is an
+  outline button, every other action a filled one; the cards of *All courses* show no action button.
+- **`block_compass_get_card_details`** takes an optional `generated` parameter and returns `imageurl` as raw text:
+  a generated image is an SVG data URI, which `PARAM_URL` refuses, or a URL of the site's `pluginfile.php`, and
+  nothing else is returned.
+
+### Added
+
+- **Boost Union's course overview settings decide the cards** under Boost Union or a child theme
+  (`courseoverviewshowcourseprogress`, `courseoverviewimagesource`, `courseoverviewshowcourseimages`; README):
+  the progress row can be turned off (the seal stays), the covers of the card views and the thumbnails of the list
+  view can be turned off (a 4 px coloured edge instead), and a course with no image shows the theme's generated
+  image, asked with the progress of the cards on screen. Under any other theme nothing changes.
+- One string, `progressvalue` (the percentage beside the bar).
+
 ## v5.3-r4 (2026100528) - 2026-11-05
 
 Fourth release for Moodle 5.3, from `main`, `MATURITY_BETA`. A security release: the fixes of an external

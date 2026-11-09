@@ -65,7 +65,7 @@ const read = /* @__PURE__ */ __name(async (methodname, args, first = null) => {
   }
 }, "read");
 const getAttention = /* @__PURE__ */ __name(() => read("block_compass_get_attention", {}), "getAttention");
-const getCardDetails = /* @__PURE__ */ __name((courseids) => read("block_compass_get_card_details", { courseids }), "getCardDetails");
+const getCardDetails = /* @__PURE__ */ __name((courseids, generated = false) => read("block_compass_get_card_details", { courseids, generated }), "getCardDetails");
 const setFavourite = /* @__PURE__ */ __name((courseid, favourite) => call("core_course_set_favourite_courses", { courses: [{ id: courseid, favourite }] }), "setFavourite");
 const getInventory = /* @__PURE__ */ __name(() => read("block_compass_get_inventory", {}), "getInventory");
 const getInventoryRows = /* @__PURE__ */ __name((groupid, after, chip, sort, filters) => read("block_compass_get_inventory_rows", { groupid, after, chip, sort, filters }), "getInventoryRows");
