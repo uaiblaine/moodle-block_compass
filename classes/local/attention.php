@@ -211,7 +211,7 @@ final class attention {
     }
 
     /**
-     * New: enrolled inside the window, never accessed, one row per course.
+     * New: enrolled inside the window, never accessed, not completed, one row per course.
      *
      * The derived table yields the earliest active enrolment time of each course
      * (MIN(timecreated), the same aggregate the counts use), and the join picks
@@ -219,7 +219,9 @@ final class attention {
      * and the deadline shown all come from one row and a course with two methods
      * is "new" only if its first enrolment is. Index: user_enrolments (userid) for
      * the derived table; enrol (courseid) then user_enrolments (enrolid, userid)
-     * for the row lookup; user_lastaccess (userid, courseid) for the anti-join.
+     * for the row lookup; user_lastaccess (userid, courseid) and course_completions
+     * (userid, course) for the two anti-joins. A course completed without a visit (manual
+     * completion, prior learning) is not new, as Continue already leaves it out.
      *
      * @param int $limit Rows to fetch.
      * @return stdClass[] Keyed by course id, newest first.
@@ -232,6 +234,7 @@ final class attention {
             'siteid' => SITEID,
             'since' => $this->now - $this->newwindow,
             'lauser' => $this->userid,
+            'ccuser' => $this->userid,
         ];
         $sql = "SELECT " . course_meta::select_sql() . ", ue.timecreated, ue.timeend, e.enrol, e.enrolenddate, "
                     . $this->favourite_flag_sql('fa') . "
@@ -247,6 +250,11 @@ final class attention {
                            SELECT 1
                              FROM {user_lastaccess} la
                             WHERE la.userid = :lauser AND la.courseid = c.id
+                       )
+                   AND NOT EXISTS (
+                           SELECT 1
+                             FROM {course_completions} cc
+                            WHERE cc.userid = :ccuser AND cc.course = c.id AND cc.timecompleted IS NOT NULL
                        )
               ORDER BY x.timecreated DESC, c.fullname ASC, c.id ASC";
 
@@ -351,6 +359,7 @@ final class attention {
         $params = [
             'since' => $this->now - $this->newwindow,
             'lauser' => $this->userid,
+            'ccuser' => $this->userid,
         ];
         $restrict = '';
         if ($onlycourses !== null) {
@@ -359,12 +368,14 @@ final class attention {
             $restrict = " AND c.id {$insql}";
         }
         $sql = "SELECT COUNT(*) AS total,
-                       SUM(CASE WHEN x.timecreated > :since AND la.id IS NULL THEN 1 ELSE 0 END) AS newcount,
+                       SUM(CASE WHEN x.timecreated > :since AND la.id IS NULL AND cc.id IS NULL THEN 1 ELSE 0 END) AS newcount,
                        SUM(CASE WHEN ffa.id IS NULL THEN 0 ELSE 1 END) AS favcount
                   FROM ("
                     . $this->per_course_enrolments_sql('MIN(uex.timecreated) AS timecreated', 'x', $params, true, $restrict)
                     . ") x
              LEFT JOIN {user_lastaccess} la ON la.userid = :lauser AND la.courseid = x.courseid
+             LEFT JOIN {course_completions} cc ON cc.userid = :ccuser AND cc.course = x.courseid
+                       AND cc.timecompleted IS NOT NULL
                   " . $this->favourite_join_sql('fa', $params, 'x.courseid');
         $row = $DB->get_record_sql($sql, $params);
 

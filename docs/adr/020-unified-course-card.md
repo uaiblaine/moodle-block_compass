@@ -1,6 +1,6 @@
 # ADR-020: The fleet's course card in Compass, and Boost Union's three settings
 
-**Status:** Accepted (2026-11-08). The owner accepted the course card contract
+**Status:** Accepted by the maintainer (2026-11-09), after reading this record. The owner accepted the course card contract
 (`moodle-dev/docs/course-card/CONTRACT.md`) and its decisions D1 to D15, as recommended (D6 adjusted), in
 uaiblaine/moodle-dev#157. This record is Compass's share of it: stage 2 of the contract's order of work, on
 `MOODLE_503_STABLE` first, then `MOODLE_502_STABLE`.
@@ -41,7 +41,8 @@ global filters, a recordset of three reads on PostgreSQL).
 ### 1. One card, three surfaces
 
 `Card.tsx` (tier 1) and `RowCard.tsx` (tier 3's cards view) are both `.compass-card`, in the contract's slot order:
-the 150 px cover (the course image, else the generated one under Boost Union, else the grey hatch); *New* as the
+the 150 px cover (the course image, else the generated one under Boost Union, else the cover fallback colour under the overlay, which is also the
+ground of an image still loading); *New* as the
 light kind chip in the cover's top-left corner (chip-bg and chip-ink, in place of `badge bg-primary text-white`);
 the star as a 32 px light disc in its top-right corner, above the stretched link; the crests at 56 × 62
 bottom-right; then the category (12.5 px, 600, one line with its whole text in `title`), the title (two lines at

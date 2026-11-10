@@ -128,12 +128,15 @@ const RowCard = ({
     } else if (enrolled) {
         meta = opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened;
     }
-    const kind = row.new ? <span className="compass-card-kind">{labels.badge_new}</span> : null;
+    // A course answered complete is never new, whatever its enrolment date and last access say.
+    const isnew = row.new && !complete;
+    const kind = isnew ? <span className="compass-card-kind">{labels.badge_new}</span> : null;
 
     return (
         <div
             className={`compass-rowcard compass-card card h-100${enrolled ? '' : ' compass-row-pending'}`
-                + `${nocover ? ' compass-card-nocover' : ''}${complete ? ' compass-card-done' : ''}`}
+                + `${nocover ? ' compass-card-nocover' : ''}${complete ? ' compass-card-done' : ''}`
+                + (isnew ? ' compass-card-new' : '')}
             data-course-id={row.id}
             ref={element}
         >

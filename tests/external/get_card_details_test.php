@@ -176,10 +176,15 @@ final class get_card_details_test extends advanced_testcase {
      * @return void
      */
     public function test_more_than_the_batch_ceiling_is_refused(): void {
+        global $DB;
+
         $this->resetAfterTest();
         [$user] = $this->fixture();
         $this->setUser($user);
-        $ids = range(100000, 100000 + cards::DETAILS_BATCH);
+        // Ids no course holds: PHPUnit offsets the id sequences on some databases, so a fixed range can meet the
+        // fixture's own course (it did on MariaDB at 100000).
+        $first = (int) $DB->get_field_sql('SELECT MAX(id) FROM {course}') + 1000;
+        $ids = range($first, $first + cards::DETAILS_BATCH);
         $this->assertCount(cards::DETAILS_BATCH + 1, $ids);
 
         $this->assertSame('invalidparameter', $this->failing_call($ids));
