@@ -317,8 +317,8 @@ final class attention_test extends advanced_testcase {
         $both = (int) $this->course('Active now and later')->id;
         $archived = (int) $this->course('Archived and later')->id;
         $invisible = (int) $this->course('Invisible and later', ['visible' => 0])->id;
-        // The application first: its row has the lower id, so a pass that kept the first row it met
-        // would count the course as an application.
+        // The application beside a later start: the order the statement reads them in is pinned by
+        // test_the_strongest_relationship_wins_whichever_row_is_read_first(), not by row ids here.
         $this->plugingen->apply_at($this->userid, $applied, self::NOW - DAYSECS);
         foreach ([$later, $applied, $disabled, $archived, $invisible] as $courseid) {
             $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $start);
@@ -350,6 +350,73 @@ final class attention_test extends advanced_testcase {
         $this->assertSame(0, $started['scheduled']);
         $this->assertSame(3, $started['total'], 'starts later, later and applied, active now and later');
         $this->assertSame(0, $started['pending'], 'the active enrolment outranks the application');
+    }
+
+    /**
+     * A course holding a later start and an application counts as scheduled, whichever row is read first.
+     *
+     * The statement reads later starts first and soonest first, and the provider's queue rule
+     * ignores an application's start date, so an application given a start earlier than the
+     * course's scheduled one is read before it. A pass that kept the first relationship it met
+     * would then count the course as an application, against tier 3's listing. Control: the same
+     * statement's order puts the application's row first, and a course where the application is
+     * read last (no start of its own) gives the same counts.
+     *
+     * @return void
+     */
+    public function test_the_strongest_relationship_wins_whichever_row_is_read_first(): void {
+        global $DB;
+
+        $start = self::NOW + 10 * DAYSECS;
+        $first = (int) $this->course('Application read first')->id;
+        $last = (int) $this->course('Application read last')->id;
+        $ids = [];
+        $ids['first'] = $this->plugingen->apply_at($this->userid, $first, self::NOW - DAYSECS);
+        $DB->set_field('user_enrolments', 'timestart', $start - 5 * DAYSECS, ['id' => $ids['first']]);
+        $ids['firstlater'] = $this->plugingen->enrol_at(
+            $this->userid,
+            $first,
+            self::NOW - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            $start
+        );
+        $ids['last'] = $this->plugingen->apply_at($this->userid, $last, self::NOW - DAYSECS);
+        $ids['lastlater'] = $this->plugingen->enrol_at(
+            $this->userid,
+            $last,
+            self::NOW - DAYSECS,
+            'manual',
+            ENROL_USER_ACTIVE,
+            $start
+        );
+
+        // Control: the statement's own order (later starts first, then soonest, then id) reads the
+        // application of the first course before its scheduled row, and the other course's after.
+        $order = $DB->get_fieldset_sql(
+            "SELECT ue.id
+               FROM {user_enrolments} ue
+              WHERE ue.userid = :userid
+           ORDER BY CASE WHEN ue.timestart > :later THEN 0 ELSE 1 END, ue.timestart ASC, ue.id ASC",
+            ['userid' => $this->userid, 'later' => self::NOW]
+        );
+        $order = array_map('intval', $order);
+        $this->assertLessThan(array_search($ids['firstlater'], $order, true), array_search($ids['first'], $order, true));
+        $this->assertGreaterThan(array_search($ids['lastlater'], $order, true), array_search($ids['last'], $order, true));
+        $record = $DB->get_record('user_enrolments', ['id' => $ids['first']], '*', MUST_EXIST);
+        $record->enrol = 'apply';
+        $record->instancestatus = ENROL_INSTANCE_ENABLED;
+        $this->assertSame(
+            \local_unlistedcourses\access::RELATIONSHIP_PENDING,
+            relationship::of_record($record, self::NOW),
+            'the early row is an application'
+        );
+
+        $built = $this->build(3, 30, true);
+
+        $this->assertSame(2, $built['counts']['scheduled']);
+        $this->assertSame(0, $built['counts']['pending']);
+        $this->assertEqualsCanonicalizing([$first, $last], $this->ids($built['scheduled']));
     }
 
     /**
