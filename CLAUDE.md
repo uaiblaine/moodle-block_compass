@@ -119,7 +119,7 @@ Breaking one is a design change: stop and raise it with the maintainer.
   context). **The one stated exception is `news`** (ADR-017, accepted 2026-10-29): its entry keeps
   the category and course names already formatted, so a hit costs the floor; the entry is keyed to
   the language and lives 30 minutes. Redis recommended for all nine.
-- **Stamp validation** (ADR-002): one statement of seven `userid`-indexed aggregates decides
+- **Stamp validation** (ADR-002): one statement of nine `userid`-indexed aggregates decides
   whether a cached inventory is valid; on a miss the stamp comes from the fill's own rows.
 - **Pre-warming** (ADR-003): the task is always scheduled and gated by `enable_prewarm` (never
   set means off); keyset selection in batches of 200; cursor persisted after every batch;
