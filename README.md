@@ -394,7 +394,7 @@ child theme of it such as Dimensions, three of Boost Union's course overview set
 Compass's cards as well as Boost Union's own: the cards of the first strips and of *All courses* in
 its cards view, and the rows of *All courses* in its list view. They apply only under Boost Union
 or a child theme, and only while Boost Union is installed; Compass adds no setting of its own for
-them, and under any other theme it keeps its own rule (progress shown, images shown, a grey hatch
+them, and under any other theme it keeps its own rule (progress shown, images shown, the theme colour
 for a course with no image). An administrator finds them under *Site administration › Appearance ›
 Boost Union › Look*, tab *Dashboard / My courses*.
 

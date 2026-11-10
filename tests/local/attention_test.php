@@ -706,6 +706,31 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
+     * A course completed without a visit (manual completion, prior learning) is not new: it leaves
+     * the New strip and its count, and lands in no strip, as Continue already leaves it out.
+     *
+     * Control: "Twin" differs from "Completed" only by the {course_completions} row, and is new.
+     *
+     * @return void
+     */
+    public function test_a_completed_course_is_never_new(): void {
+        $completed = $this->course('Completed course');
+        $twin = $this->course('Twin course');
+        foreach ([$completed, $twin] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 2 * DAYSECS);
+        }
+        $this->plugingen->complete_at($this->userid, (int) $completed->id, self::NOW - DAYSECS);
+
+        $tier = $this->build(5, 30);
+
+        $this->assertSame([(int) $twin->id], $this->ids($tier['new']));
+        $this->assertSame(1, $tier['counts']['new']);
+        $this->assertSame([], $this->ids($tier['continue']));
+        // Completion leaves New only; the course is still an active enrolment.
+        $this->assertSame(2, $tier['counts']['total']);
+    }
+
+    /**
      * Opening a new course moves it from New to Continue, with nothing else changed.
      *
      * @return void
