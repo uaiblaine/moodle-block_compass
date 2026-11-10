@@ -333,6 +333,35 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     box-shadow: var(--block_compass-card-shadow-hover);
 }
 
+/* The action button sits above the stretched link, as the star does, so the pointer reaches it and Bootstrap's
+   hover shows on the button itself; it links to the same course, so a click lands where the card's would. A
+   state pill (Completed above Review) keeps the progress row's gap from the button. */
+.block_compass .compass-card .compass-card-actions .btn {
+    position: relative;
+    z-index: 2;
+}
+
+.block_compass .compass-card .compass-state {
+    margin-bottom: 0.5rem;
+}
+
+/* A new enrolment keeps the card's one variant from before the contract, accepted by the maintainer: a 2 px edge
+   in the brand, and the cover's corners follow it. A token of the plugin's own, since a contract token reads the
+   family's first (course_card_contract_test); a course answered complete never carries it (Card.tsx, RowCard.tsx). */
+.block_compass .compass-card.compass-card-new {
+    --block_compass-new-edge: 2px;
+    border-width: var(--block_compass-new-edge);
+    border-color: var(--block_compass-brand);
+}
+
+.block_compass .compass-card.compass-card-new .compass-card-img {
+    border-radius:
+        calc(var(--block_compass-card-radius) - var(--block_compass-new-edge))
+        calc(var(--block_compass-card-radius) - var(--block_compass-new-edge))
+        0
+        0;
+}
+
 /* One target (contract section 4): Bootstrap's stretched-link draws the title's link over the whole card, in the
    card's corners; the star, the archive control and the crests sit above it. The link takes the card's ink, so a
    receding state on the card (the preview's dim) reaches the title. */
@@ -471,18 +500,14 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     object-fit: contain;
 }
 
-/* A course with no image of its own, under any theme but Boost Union and its children (whose renderer answers an
-   image for it, get_card_details): the grey hatch. */
-.block_compass .compass-card-img-empty {
-    background:
-        repeating-linear-gradient(
-            135deg,
-            var(--block_compass-line) 0,
-            var(--block_compass-line) 6px,
-            var(--block_compass-surface) 6px,
-            var(--block_compass-surface) 14px
-        );
-    opacity: 0.6;
+/* A course with no image of its own (contract section 2, slot 1): the cover fallback under the overlay gradient.
+   Under Boost Union and its children get_card_details answers the theme's generated image a moment later, drawn
+   on the same primary, so the swap shows no flash; an image still loading shows the same ground, never the card's
+   surface. */
+.block_compass .compass-card-img-empty,
+.block_compass img.compass-card-img,
+.block_compass img.compass-row-thumb-fill {
+    background: var(--block_compass-card-cover-overlay), var(--block_compass-card-cover-fallback);
 }
 
 /* Boost Union's "Show course images" with Card unchecked (contract section 8): no cover; the kind chip leads a row
