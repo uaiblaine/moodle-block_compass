@@ -822,10 +822,12 @@ final class explore {
     }
 
     /**
-     * Whether an enrolment is new: never opened and created inside the window.
+     * Whether an enrolment is new: never opened, not completed and created inside the window.
      *
      * Only an active enrolment is new: an application or an enrolment that starts later is not one
-     * the learner can open yet, and calling it new would put it under the New chip.
+     * the learner can open yet, and calling it new would put it under the New chip. A completed
+     * course is done, not new, whatever its last access says: the rule tier 1 applies in its own
+     * statement ({@see attention::new_rows()}).
      *
      * @param array $course A resolve() course row.
      * @param int $now Unix time to treat as now.
@@ -833,7 +835,10 @@ final class explore {
      * @return bool
      */
     private static function is_new(array $course, int $now, int $newwindow): bool {
-        return self::is_enrolled($course) && $course['timeaccess'] === 0 && $course['timecreated'] > $now - $newwindow;
+        return self::is_enrolled($course)
+            && $course['timeaccess'] === 0
+            && !$course['completed']
+            && $course['timecreated'] > $now - $newwindow;
     }
 
     /**

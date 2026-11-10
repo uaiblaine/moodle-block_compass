@@ -237,8 +237,9 @@ final class inventory_test extends advanced_testcase {
             inventory::TIMEACCESS,
             inventory::ISFAVOURITE,
             inventory::APPLYINSTANCE,
+            inventory::COMPLETED,
         ];
-        $this->assertSame(range(0, 10), $documentedorder, 'the row fields are the first eleven integers, in order');
+        $this->assertSame(range(0, 11), $documentedorder, 'the row fields are the first twelve integers, in order');
         $this->assertSame($documentedorder, array_keys($entry['rows'][$openedue]));
 
         $emodified = (int) $this->enrol_instance((int) $opened->id)->timemodified;
@@ -254,6 +255,7 @@ final class inventory_test extends advanced_testcase {
             inventory::TIMEACCESS => self::NOW - HOURSECS,
             inventory::ISFAVOURITE => 0,
             inventory::APPLYINSTANCE => 0,
+            inventory::COMPLETED => 0,
         ];
         $this->assertSame($expectedrow, $entry['rows'][$openedue]);
         $this->assertSame(1, $entry['rows'][$starredue][inventory::ISFAVOURITE]);
@@ -337,6 +339,8 @@ final class inventory_test extends advanced_testcase {
             'maxaccess' => null,
             'favourites' => 0,
             'maxfavourite' => null,
+            'completions' => 0,
+            'maxcompleted' => null,
         ];
         $this->assertSame([], $entry['rows']);
         $this->assertSame($expected, $entry['stamp']);
@@ -453,6 +457,74 @@ final class inventory_test extends advanced_testcase {
         $this->assertSame(0, $removed['rows'][$oneue][inventory::ISFAVOURITE]);
         $this->assertSame(1, $removed['rows'][$twoue][inventory::ISFAVOURITE]);
         $this->assertSame(inventory::stamp($this->userid), $removed['stamp']);
+    }
+
+    /**
+     * A course completion and its reset each move the stamp and set the row's flag; module
+     * completion, which writes a row with no timecompleted, moves nothing.
+     *
+     * Two courses so the reset is visible: resetting the only completion would restore the
+     * original stamp exactly, and the test would pass on a cache that never noticed either write.
+     *
+     * @return void
+     */
+    public function test_a_completion_and_its_reset_each_move_the_stamp(): void {
+        global $DB;
+
+        $one = $this->course('Completed first');
+        $two = $this->course('Completed second');
+        $oneue = $this->plugingen->enrol_at($this->userid, (int) $one->id, self::NOW - 10 * DAYSECS);
+        $twoue = $this->plugingen->enrol_at($this->userid, (int) $two->id, self::NOW - 10 * DAYSECS);
+        $bare = inventory::get($this->userid);
+
+        // Module completion: core keeps a row per user and course before the course is complete.
+        $DB->insert_record('course_completions', (object) [
+            'userid' => $this->userid,
+            'course' => (int) $one->id,
+            'timeenrolled' => self::NOW - 10 * DAYSECS,
+            'timestarted' => self::NOW - 5 * DAYSECS,
+            'timecompleted' => null,
+            'reaggregate' => 0,
+        ]);
+        $started = inventory::get($this->userid);
+        $refilled = inventory::fill($this->userid);
+        $startedstamp = inventory::stamp($this->userid);
+        $this->plugingen->complete_at($this->userid, (int) $one->id, self::NOW - 2 * DAYSECS);
+        $first = inventory::get($this->userid);
+        $this->plugingen->complete_at($this->userid, (int) $two->id, self::NOW - DAYSECS);
+        $both = inventory::get($this->userid);
+        $bothstamp = inventory::stamp($this->userid);
+        $DB->delete_records('course_completions', ['userid' => $this->userid, 'course' => (int) $two->id]);
+        $reset = inventory::get($this->userid);
+
+        $this->assertSame(0, $bare['stamp']['completions']);
+        $this->assertNull($bare['stamp']['maxcompleted']);
+        $this->assertSame(0, $bare['rows'][$oneue][inventory::COMPLETED]);
+        $this->assertSame($bare['stamp'], $started['stamp'], 'a row with no timecompleted moves nothing');
+        // The fill's own aggregates and the stamp statement agree on it too.
+        $this->assertSame($bare['stamp'], $refilled['stamp']);
+        $this->assertSame($bare['stamp'], $startedstamp);
+        $this->assertSame(0, $refilled['rows'][$oneue][inventory::COMPLETED]);
+
+        $this->assertSame(1, $first['stamp']['completions']);
+        $this->assertSame(self::NOW - 2 * DAYSECS, $first['stamp']['maxcompleted']);
+        $this->assertSame(1, $first['rows'][$oneue][inventory::COMPLETED]);
+        $this->assertSame(0, $first['rows'][$twoue][inventory::COMPLETED]);
+
+        $this->assertSame(2, $both['stamp']['completions']);
+        $this->assertSame(self::NOW - DAYSECS, $both['stamp']['maxcompleted']);
+        $this->assertSame(1, $both['rows'][$twoue][inventory::COMPLETED]);
+        $this->assertSame($bothstamp, $both['stamp']);
+
+        $this->assertSame(1, $reset['stamp']['completions']);
+        $this->assertSame(self::NOW - 2 * DAYSECS, $reset['stamp']['maxcompleted']);
+        $this->assertSame(0, $reset['rows'][$twoue][inventory::COMPLETED]);
+        $this->assertSame(1, $reset['rows'][$oneue][inventory::COMPLETED]);
+        $this->assertSame(inventory::stamp($this->userid), $reset['stamp']);
+        // The read-time entry carries the flag explore::is_new() reads.
+        $courses = inventory::courses($reset, self::NOW);
+        $this->assertTrue($courses[(int) $one->id]['completed']);
+        $this->assertFalse($courses[(int) $two->id]['completed']);
     }
 
     /**

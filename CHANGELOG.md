@@ -17,7 +17,10 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 - **A completed course is never new.** A course completed without a visit (manual completion, prior learning) no
   longer lands in *New enrolments* or its count, as *Continue* already left it out; a card of *All courses* whose
-  progress arrives complete drops its *New* chip.
+  progress arrives complete drops its *New* chip. *All courses* applies the rule too: its *New* filter and count leave
+  out a completed course, from a completion flag the inventory cache now keeps per enrolment, with two completion
+  aggregates in its stamp (ADR-002, amendment of 2026-11-10; no read added). A course completed or reset rebuilds
+  the calendar strip's entry when the next day opens, so a completed course leaves its deadlines sooner.
 - **No flash on a cover without an image.** The grey hatch is gone: such a cover is the theme colour under the
   overlay (the contract's fallback), which is also the ground of an image still loading, so Boost Union's generated
   image replaces it without a flash.

@@ -182,6 +182,32 @@ final class strip_test extends advanced_testcase {
     }
 
     /**
+     * A course completed still rebuilds an unbounded entry, and the course leaves the set.
+     *
+     * The course set leaves out a completed course, and the inventory stamp counts completions, so the
+     * next day built after a completion is built from a set without it. Control: the other course, not
+     * completed, stays.
+     *
+     * @return void
+     */
+    public function test_a_completion_still_rebuilds_an_unbounded_entry(): void {
+        [$userid, $courses, $tz] = $this->revalidation_fixture();
+        $now = time();
+        $entry = strip::entry($userid, $now, 1700000000, $tz);
+        $completed = (int) $courses[0]->id;
+        $kept = (int) $courses[1]->id;
+        $this->assertArrayHasKey($completed, $entry['sets']['courses'], 'Precondition: the course is in the set.');
+
+        $this->getDataGenerator()->get_plugin_generator('block_compass')->complete_at($userid, $completed, $now - HOURSECS);
+        $this->new_request();
+        $rebuilt = strip::revalidated($userid, $entry, $now, 1700000000, $tz);
+
+        $this->assertNotSame($entry['stamp'], $rebuilt['stamp']);
+        $this->assertArrayNotHasKey($completed, $rebuilt['sets']['courses'], 'A completed course must leave the set.');
+        $this->assertArrayHasKey($kept, $rebuilt['sets']['courses']);
+    }
+
+    /**
      * A course where the user is graded is a learning course; one where they teach is a teaching course.
      *
      * The same kind of deadline lands in the learning view as graded work and in the teaching
