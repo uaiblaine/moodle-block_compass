@@ -13,8 +13,20 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Fixed
+
+- **A completed course is never new.** A course completed without a visit (manual completion, prior learning) no
+  longer lands in *New enrolments* or its count, as *Continue* already left it out; a card of *All courses* whose
+  progress arrives complete drops its *New* chip.
+- **No flash on a cover without an image.** The grey hatch is gone: such a cover is the theme colour under the
+  overlay (the contract's fallback), which is also the ground of an image still loading, so Boost Union's generated
+  image replaces it without a flash.
+- **The action button has its own hover.** It sits above the card's stretched link, as the star does.
+- **Completed sits apart from Review.** A state pill keeps the progress row's gap from the button below it.
+
 ### Changed
 
+- **New enrolments keep their 2 px brand edge**, the card's one variant from before the contract.
 - **The fleet's course card** (ADR-020, `moodle-dev/docs/course-card/CONTRACT.md`). The first strips' cards, the
   cards of *All courses* and its list rows follow one anatomy: the cover, *New* as a light chip in its top-left
   corner, the star as a 32 px light disc in its top-right corner, the category in sentence case on one line, the

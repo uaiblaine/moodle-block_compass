@@ -196,6 +196,77 @@ final class course_card_rules_test extends \basic_testcase {
     }
 
     /**
+     * A cover with no image, and an image still loading, show the cover fallback under the overlay: no hatch, so
+     * Boost Union's generated image, drawn on the same primary, replaces it without a flash.
+     *
+     * Changes that must make it fail: the hatch brought back; the loading image or the row's thumbnail left on the
+     * card's surface; the fallback or the overlay dropped from the ground.
+     *
+     * @return void
+     */
+    public function test_a_cover_without_an_image_is_the_fallback_colour(): void {
+        $css = preg_replace('#/\*.*?\*/#s', '', (string) file_get_contents(dirname(__DIR__, 2) . '/styles.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card-img-empty,\s*\.block_compass img\.compass-card-img,\s*'
+                . '\.block_compass img\.compass-row-thumb-fill \{\s*'
+                . 'background: var\(--block_compass-card-cover-overlay\), var\(--block_compass-card-cover-fallback\);\s*\}/',
+            $css,
+            'an empty or loading cover is not the fallback under the overlay'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/\.compass-card-img-empty[^{]*\{[^}]*repeating-linear-gradient/',
+            $css,
+            'the grey hatch is back on an imageless cover'
+        );
+    }
+
+    /**
+     * The action button takes the pointer above the stretched link, so its own hover shows; a state pill keeps the
+     * progress row's gap from it; a new enrolment that is not complete carries the 2 px brand edge.
+     *
+     * Changes that must make it fail: the button left under the link (no position, or no z-index above the link's
+     * one); the pill's gap dropped; the new edge taken off or thinned, its corners left to the plain card's, or
+     * written for a completed card.
+     *
+     * @return void
+     */
+    public function test_the_button_hovers_the_pill_breathes_and_new_keeps_its_edge(): void {
+        $css = preg_replace('#/\*.*?\*/#s', '', (string) file_get_contents(dirname(__DIR__, 2) . '/styles.css'));
+
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card \.compass-card-actions \.btn \{\s*position: relative;\s*z-index: 2;\s*\}/',
+            $css,
+            'the action button sits under the stretched link'
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card \.compass-state \{\s*margin-bottom: 0\.5rem;\s*\}/',
+            $css,
+            'the state pill touches the button below it'
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card\.compass-card-new \{\s*--block_compass-new-edge: 2px;\s*'
+                . 'border-width: var\(--block_compass-new-edge\);\s*border-color: var\(--block_compass-brand\);\s*\}/',
+            $css,
+            'a new enrolment lost its brand edge'
+        );
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card\.compass-card-new \.compass-card-img \{\s*border-radius:\s*'
+                . 'calc\(var\(--block_compass-card-radius\) - var\(--block_compass-new-edge\)\)/',
+            $css,
+            'the new card\'s cover keeps the plain card\'s corners'
+        );
+        $this->assertStringContainsString(
+            "(card.isnew && !complete ? ' compass-card-new' : '')",
+            $this->source('Card.tsx'),
+            'tier 1 draws the new edge on a completed card'
+        );
+        $rowcard = $this->source('RowCard.tsx');
+        $this->assertStringContainsString('const isnew = row.new && !complete;', $rowcard, 'tier 3 calls a completed card new');
+        $this->assertStringContainsString("(isnew ? ' compass-card-new' : '')", $rowcard, 'tier 3 draws no new edge');
+    }
+
+    /**
      * A card's title keeps no underline at rest in dark mode, and the hover and the keyboard's focus underline it.
      *
      * Core's dark mode underlines every link of #region-main at (1,6,1), read here from core's own stylesheet, and a

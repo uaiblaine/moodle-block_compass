@@ -7,7 +7,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * It renders from the block_compass_get_attention payload and re-renders when the star or
  * the progress changes, which is what makes patching one card cheap. The slots are the
  * contract's, in its order: the 150 px cover (the course image, else the theme's generated one
- * under Boost Union, else the grey hatch), New as the light kind chip in its top-left corner, the
+ * under Boost Union, else the cover fallback colour), New as the light kind chip in its top-left corner, the
  * star in its top-right, the crests bottom-right; then the category (show_category), the title,
  * the plugin slot (the last access, or the enrolment and its deadline, after a clock), the state
  * (the green seal once complete) and the progress row, and the main action. The title's level
@@ -71,15 +71,15 @@ const Card = /* @__PURE__ */ __name(({ card, config, onToggleFavourite, lit, onP
   const complete = !later && isComplete(card.progress);
   const meta = card.isnew ? [card.enrolledtext, card.deadlinetext].filter(Boolean).join(" \xB7 ") : card.lastaccesstext;
   const action = complete ? labels.action_review : card.actiontext;
-  const kind = card.isnew ? /* @__PURE__ */ jsxDEV("span", { className: "compass-card-kind", children: labels.badge_new }, void 0, false, {
+  const kind = card.isnew && !complete ? /* @__PURE__ */ jsxDEV("span", { className: "compass-card-kind", children: labels.badge_new }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Card.tsx",
     lineNumber: 122,
-    columnNumber: 31
+    columnNumber: 44
   }) : null;
   return /* @__PURE__ */ jsxDEV(
     "div",
     {
-      className: `compass-card card h-100${nocover ? " compass-card-nocover" : ""}${complete ? " compass-card-done" : ""}` + (lit ? " compass-card-lit" : ""),
+      className: `compass-card card h-100${nocover ? " compass-card-nocover" : ""}${complete ? " compass-card-done" : ""}` + (card.isnew && !complete ? " compass-card-new" : "") + (lit ? " compass-card-lit" : ""),
       "data-course-id": card.id,
       onPointerEnter: (event) => {
         if (event.pointerType !== "touch") {
