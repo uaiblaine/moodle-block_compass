@@ -93,11 +93,11 @@ $definitions = [
         'staticaccelerationsize' => 1,
     ],
 
-    // User layer. Key: userid. Value: the seven-field stamp plus one row per enrolment
+    // User layer. Key: userid. Value: the nine-field stamp plus one row per enrolment
     // keyed by user_enrolments id — [courseid, timecreated, timestart, timeend,
-    // uestatus, estatus, uemodified, emodified, timeaccess, isfavourite, applyinstance], eleven
-    // integers, no course data; "active" and "awaiting approval" are decided at read time.
-    // Validity is decided by the stamp, one statement of seven userid-indexed aggregates; the
+    // uestatus, estatus, uemodified, emodified, timeaccess, isfavourite, applyinstance, completed],
+    // twelve integers, no course data; "active" and "awaiting approval" are decided at read time.
+    // Validity is decided by the stamp, one statement of nine userid-indexed aggregates; the
     // TTL is a safety net, never the rule.
     'inventory' => [
         'mode' => \core_cache\store::MODE_APPLICATION,

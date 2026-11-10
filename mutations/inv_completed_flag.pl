@@ -1,0 +1,1 @@
+s/CASE WHEN cc\.id IS NULL THEN 0 ELSE 1 END AS completed/CASE WHEN cc.id IS NULL THEN 0 ELSE 0 END AS completed/;

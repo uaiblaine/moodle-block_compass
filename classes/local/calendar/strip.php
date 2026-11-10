@@ -519,15 +519,16 @@ final class strip {
      * group sets can change inside that time, and a day built from stale sets would list the course-level
      * and group events of a course or group the user has left (core's api::get_events() does not check
      * enrolment). So, only when a day is about to be built, the sets are compared with recorded facts:
-     * the inventory stamp the entry was built under against the current one (enrolments, one read on a
-     * valid inventory hit, {@see inventory::get()}), and the entry's group set against groups() over the
-     * entry's own courses (one read). Either difference rebuilds the entry whole, the path a miss takes.
+     * the inventory stamp the entry was built under against the current one (enrolments and completions,
+     * one read on a valid inventory hit, {@see inventory::get()}), and the entry's group set against
+     * groups() over the entry's own courses (one read). Either difference rebuilds the entry whole, the
+     * path a miss takes.
      * The stamp's last access is compared only for a bounded set ({@see self::stamp_compared()}): it moves
      * on every course visit, and an unbounded set does not depend on it.
      *
      * Residual: the strip's counts (numbers and course ids, never names) and the days already opened
      * are served from the entry as they were until TTL or until the next day opening finds a difference;
-     * a hidden-course, completion or role change is not in the stamp or the group set and reaches the
+     * a hidden-course or role change is not in the stamp or the group set and reaches the
      * sets only at the next rebuild, and so does a visit's recency in an item's weight.
      *
      * @param int $userid The current user.
@@ -559,7 +560,8 @@ final class strip {
      * starred, which an item shows; both are compared always. The last access moves on every course visit
      * (core writes user_lastaccess at most once a minute a course), and only a bounded set depends on it:
      * above inventory_max the set keeps the most recently opened courses ({@see self::courses()}). An
-     * unbounded set uses it for an item's weight alone, which may be as old as the entry.
+     * unbounded set uses it for an item's weight alone, which may be as old as the entry. The completion
+     * fields are compared always: the course set leaves out a completed course ({@see self::courses()}).
      *
      * @param array $stamp A stamp, keyed by inventory::STAMP_FIELDS.
      * @param bool $bounded Whether the entry's course set was bounded at inventory_max.

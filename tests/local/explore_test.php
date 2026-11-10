@@ -671,6 +671,44 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
+     * A completed course is never new, in full mode and in a paged New page, and a completion
+     * written after the entry was cached is seen through the stamp.
+     *
+     * Control: "Twin" differs from "Completed" only by the {course_completions} row, and is new;
+     * "Later" is new until it is completed with the entry already cached, so the stamp, not a
+     * fresh fill, is what drops it.
+     *
+     * @return void
+     */
+    public function test_a_completed_course_is_never_new(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $completed = $this->course_in($alpha, 'Alfa completed course');
+        $twin = $this->course_in($alpha, 'Bravo twin course');
+        $later = $this->course_in($alpha, 'Charlie later course');
+        foreach ([$completed, $twin, $later] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 2 * DAYSECS);
+        }
+        $this->plugingen->complete_at($this->userid, (int) $completed->id, self::NOW - DAYSECS);
+
+        $rows = $this->rows_by_id($this->build(1, 30));
+
+        $this->assertFalse($rows[(int) $completed->id]['new'], 'a completed course is not new');
+        $this->assertTrue($rows[(int) $twin->id]['new']);
+        $this->assertTrue($rows[(int) $later->id]['new']);
+        $new = $this->row_ids($this->rows($alpha, 0, 'new'));
+        sort($new);
+        $this->assertSame([(int) $twin->id, (int) $later->id], $new);
+
+        $this->plugingen->complete_at($this->userid, (int) $later->id, self::NOW - HOURSECS);
+        $after = $this->rows_by_id($this->build(1, 30));
+
+        $this->assertFalse($after[(int) $later->id]['new'], 'a completion after the fill reaches the cached entry');
+        $this->assertTrue($after[(int) $twin->id]['new']);
+        $this->assertSame([(int) $twin->id], $this->row_ids($this->rows($alpha, 0, 'new')));
+    }
+
+    /**
      * Course and category names are filtered for the viewer's language.
      *
      * The class-based multilang span is read by both of the filter's regular expressions on

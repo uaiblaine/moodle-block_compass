@@ -30,8 +30,8 @@ use local_unlistedcourses\access;
 /**
  * Wrapper of the block_compass/inventory definition.
  *
- * Key: user id. Value: a seven-field stamp and one row per enrolment, keyed by
- * the user_enrolments id — eleven integers, no course data. Nothing invalidates
+ * Key: user id. Value: a nine-field stamp and one row per enrolment, keyed by
+ * the user_enrolments id — twelve integers, no course data. Nothing invalidates
  * the entry from events: before it is trusted, one statement recomputes the
  * stamp and any difference recomputes the entry. "Active" is decided at read
  * time from the stored window and statuses, because a window opening or
@@ -72,10 +72,23 @@ final class inventory {
      * reads as 0.
      */
     public const APPLYINSTANCE = 10;
+    /**
+     * @var int Row field: 1 when core records the course completed for the user, else 0.
+     *
+     * It keeps a completed course out of New (explore::is_new()), the rule tier 1 applies in its own
+     * statement (attention::new_rows()); a cached row that lacks it reads as 0.
+     */
+    public const COMPLETED = 11;
 
-    /** @var string[] The stamp's fields, in the order they are compared. */
+    /**
+     * @var string[] The stamp's fields, in the order they are compared.
+     *
+     * The two completion aggregates count only rows with a timecompleted, so module completion,
+     * which writes course_completions without finishing the course, never moves the stamp.
+     */
     public const STAMP_FIELDS = [
         'enrolments', 'maxid', 'maxuemodified', 'maxemodified', 'maxaccess', 'favourites', 'maxfavourite',
+        'completions', 'maxcompleted',
     ];
 
     /**
@@ -114,7 +127,8 @@ final class inventory {
      * beyond it travel as scalar subqueries in this statement. With no rows there
      * is nothing to carry them, so the stamp statement runs instead.
      * Index: user_enrolments (userid) foreign key; enrol primary key;
-     * user_lastaccess (userid, courseid); favourite (userid) foreign key.
+     * user_lastaccess (userid, courseid); favourite (userid) foreign key;
+     * course_completions (userid, course) unique.
      *
      * @param int $userid The user.
      * @return array The stored entry.
@@ -135,29 +149,38 @@ final class inventory {
             'fcomp4' => attention::FAVOURITE_COMPONENT,
             'ftype4' => attention::FAVOURITE_ITEMTYPE,
             'applymethod' => relationship::APPLY_METHOD,
+            'ccuser5' => $userid,
+            'ccuser6' => $userid,
         ];
         $records = $DB->get_records_sql(
             "SELECT ue.id, e.courseid, ue.timecreated, ue.timestart, ue.timeend, ue.status AS uestatus, e.status AS estatus,
                     ue.timemodified AS uemodified, e.timemodified AS emodified,
                     la.timeaccess, CASE WHEN f.id IS NULL THEN 0 ELSE 1 END AS isfavourite,
                     CASE WHEN e.enrol = :applymethod THEN e.id ELSE 0 END AS applyinstance,
+                    CASE WHEN cc.id IS NULL THEN 0 ELSE 1 END AS completed,
                     (SELECT MAX(la2.timeaccess) FROM {user_lastaccess} la2 WHERE la2.userid = :lauser) AS maxaccess,
                     (SELECT COUNT(*) FROM {favourite} f3
                       WHERE f3.userid = :fuser3 AND f3.component = :fcomp3 AND f3.itemtype = :ftype3) AS favourites,
                     (SELECT MAX(f4.timemodified) FROM {favourite} f4
-                      WHERE f4.userid = :fuser4 AND f4.component = :fcomp4 AND f4.itemtype = :ftype4) AS maxfavourite
+                      WHERE f4.userid = :fuser4 AND f4.component = :fcomp4 AND f4.itemtype = :ftype4) AS maxfavourite,
+                    (SELECT COUNT(*) FROM {course_completions} cc5
+                      WHERE cc5.userid = :ccuser5 AND cc5.timecompleted IS NOT NULL) AS completions,
+                    (SELECT MAX(cc6.timecompleted) FROM {course_completions} cc6
+                      WHERE cc6.userid = :ccuser6) AS maxcompleted
                FROM {user_enrolments} ue
                JOIN {enrol} e ON e.id = ue.enrolid
           LEFT JOIN {user_lastaccess} la ON la.userid = ue.userid AND la.courseid = e.courseid
           LEFT JOIN {favourite} f ON f.userid = ue.userid AND f.component = :fcomp AND f.itemtype = :ftype
                                   AND f.itemid = e.courseid
+          LEFT JOIN {course_completions} cc ON cc.userid = ue.userid AND cc.course = e.courseid
+                                           AND cc.timecompleted IS NOT NULL
               WHERE ue.userid = :userid AND e.courseid <> :siteid",
             $params
         );
 
         $rows = [];
         $stamp = ['enrolments' => 0, 'maxid' => null, 'maxuemodified' => null, 'maxemodified' => null,
-            'maxaccess' => null, 'favourites' => 0, 'maxfavourite' => null];
+            'maxaccess' => null, 'favourites' => 0, 'maxfavourite' => null, 'completions' => 0, 'maxcompleted' => null];
         foreach ($records as $record) {
             $ueid = (int) $record->id;
             $rows[$ueid] = [
@@ -172,6 +195,7 @@ final class inventory {
                 self::TIMEACCESS => (int) $record->timeaccess,
                 self::ISFAVOURITE => (int) $record->isfavourite,
                 self::APPLYINSTANCE => (int) $record->applyinstance,
+                self::COMPLETED => (int) $record->completed,
             ];
             $stamp['enrolments']++;
             $stamp['maxid'] = max($stamp['maxid'] ?? 0, $ueid);
@@ -180,6 +204,8 @@ final class inventory {
             $stamp['maxaccess'] = $record->maxaccess === null ? null : (int) $record->maxaccess;
             $stamp['favourites'] = (int) $record->favourites;
             $stamp['maxfavourite'] = $record->maxfavourite === null ? null : (int) $record->maxfavourite;
+            $stamp['completions'] = (int) $record->completions;
+            $stamp['maxcompleted'] = $record->maxcompleted === null ? null : (int) $record->maxcompleted;
         }
         if (empty($rows)) {
             // No row can carry the cross-table aggregates: ask the statement.
@@ -193,9 +219,10 @@ final class inventory {
     }
 
     /**
-     * The stamp statement: seven aggregates over the same row set as fill(), one read.
+     * The stamp statement: nine aggregates over the same row set as fill(), one read.
      * Index: user_enrolments (userid) foreign key; enrol primary key;
-     * user_lastaccess (userid, courseid); favourite (userid) foreign key.
+     * user_lastaccess (userid, courseid); favourite (userid) foreign key;
+     * course_completions (userid, course) unique.
      *
      * @param int $userid The user.
      * @return array Keyed by STAMP_FIELDS; counts as int, maxima as int or null.
@@ -213,6 +240,8 @@ final class inventory {
             'u4' => $userid,
             'fcomponent2' => attention::FAVOURITE_COMPONENT,
             'fitemtype2' => attention::FAVOURITE_ITEMTYPE,
+            'u5' => $userid,
+            'u6' => $userid,
         ];
         $record = $DB->get_record_sql(
             "SELECT COUNT(*) AS enrolments,
@@ -223,7 +252,10 @@ final class inventory {
                     (SELECT COUNT(*) FROM {favourite} f
                       WHERE f.userid = :u3 AND f.component = :fcomponent AND f.itemtype = :fitemtype) AS favourites,
                     (SELECT MAX(f2.timemodified) FROM {favourite} f2
-                      WHERE f2.userid = :u4 AND f2.component = :fcomponent2 AND f2.itemtype = :fitemtype2) AS maxfavourite
+                      WHERE f2.userid = :u4 AND f2.component = :fcomponent2 AND f2.itemtype = :fitemtype2) AS maxfavourite,
+                    (SELECT COUNT(*) FROM {course_completions} cc
+                      WHERE cc.userid = :u5 AND cc.timecompleted IS NOT NULL) AS completions,
+                    (SELECT MAX(cc2.timecompleted) FROM {course_completions} cc2 WHERE cc2.userid = :u6) AS maxcompleted
                FROM {user_enrolments} ue
                JOIN {enrol} e ON e.id = ue.enrolid
               WHERE ue.userid = :u1
@@ -234,7 +266,7 @@ final class inventory {
         $stamp = [];
         foreach (self::STAMP_FIELDS as $field) {
             $value = $record->$field ?? null;
-            if ($field === 'enrolments' || $field === 'favourites') {
+            if ($field === 'enrolments' || $field === 'favourites' || $field === 'completions') {
                 $stamp[$field] = (int) $value;
             } else {
                 $stamp[$field] = $value === null ? null : (int) $value;
@@ -294,7 +326,7 @@ final class inventory {
      * @param int $now Unix time to treat as now.
      * @param int[] $hidden Course ids the user hid (archived).
      * @param bool $onlyhidden Return the hidden courses instead of the rest.
-     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite'].
+     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'completed'].
      */
     public static function courses(array $entry, int $now, array $hidden = [], bool $onlyhidden = false): array {
         $hidden = array_flip(array_map('intval', $hidden));
@@ -329,7 +361,7 @@ final class inventory {
      * @param int $now Unix time to treat as now.
      * @param int[] $hidden Course ids the user hid (archived).
      * @param int[] $activecourseids The course ids courses() returned for the same entry and instant.
-     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'timestart'].
+     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'completed', 'timestart'].
      */
     public static function scheduled(array $entry, int $now, array $hidden, array $activecourseids): array {
         $skip = array_flip(array_merge(array_map('intval', $hidden), array_map('intval', $activecourseids)));
@@ -366,7 +398,7 @@ final class inventory {
      * @param int $now Unix time to treat as now.
      * @param int[] $hidden Course ids the user hid (archived).
      * @param int[] $excludedcourseids The course ids courses() and scheduled() returned for the same entry and instant.
-     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'waitlisted'].
+     * @return array Course id => ['courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'completed', 'waitlisted'].
      */
     public static function pending(array $entry, int $now, array $hidden, array $excludedcourseids): array {
         $skip = array_flip(array_merge(array_map('intval', $hidden), array_map('intval', $excludedcourseids)));
@@ -418,7 +450,7 @@ final class inventory {
      * @param int $courseid The row's course.
      * @param int $ueid The row's user_enrolments id.
      * @param array $row The row.
-     * @return array 'courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite'.
+     * @return array 'courseid', 'ueid', 'timecreated', 'timeaccess', 'isfavourite', 'completed'.
      */
     private static function entry(int $courseid, int $ueid, array $row): array {
         return [
@@ -427,6 +459,7 @@ final class inventory {
             'timecreated' => $row[self::TIMECREATED],
             'timeaccess' => $row[self::TIMEACCESS],
             'isfavourite' => $row[self::ISFAVOURITE] === 1,
+            'completed' => ($row[self::COMPLETED] ?? 0) === 1,
         ];
     }
 }

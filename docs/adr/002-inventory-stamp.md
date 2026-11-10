@@ -2,7 +2,8 @@
 
 - **Status:** Accepted (2026-09-04, maintainer); amended 2026-09-04 after the
   Phase 2 review — the payload keys and the `inventory_max` default ("The
-  payload" below; ADR-000 decision 21)
+  payload" below; ADR-000 decision 21); amended 2026-11-10 — the completion
+  flag and two completion aggregates ("Amendment: completion" below)
 - **Date:** 2026-09-04
 - **Deciders:** Anderson Blaine (maintainer); drafted by the agent, then verified
   claim by claim against the 5.2 source by an adversarial pass (32 claims,
@@ -137,6 +138,25 @@ subqueries on `userid` indexes — 15 ms for a 3 000-enrolment user on the
 bench, under 10 ms for an ordinary one) and close three real staleness holes
 — a method switched off, a star toggled from the Course overview block, a
 course opened — that would otherwise last up to the TTL.
+
+### Amendment: completion (2026-11-10)
+
+A course the learner has completed is never New (ADR-020's follow-up round, the
+maintainer, 2026-11-09): tier 1 applies it in its own statement, and tier 3's New
+is derived from this entry, which held no completion. So the entry gains a
+twelfth row integer, `completed` (`LEFT JOIN {course_completions}` on the unique
+`(userid, course)` index with `timecompleted IS NOT NULL`), and the stamp two
+aggregates over the same index, `completions` (`COUNT(*)` of the user's rows with
+a `timecompleted`) and `maxcompleted` (`MAX(timecompleted)`); in the fill they
+travel as two more scalar subqueries. No read is added: the stamp is still one
+statement and the fill one. The count catches a completion reset (core deletes
+the row), the maximum a course completed while another is reset. Module
+completion writes `course_completions` rows without a `timecompleted`, so it
+never moves the stamp. The calendar strip compares both fields
+(`strip::stamp_compared()`): its course set leaves out a completed course, so a
+completion now rebuilds the strip's entry when the next day is built, a residual
+ADR-014 had left to the entry's TTL. An entry cached before the amendment, of
+either layer, fails the comparison once and is rebuilt.
 
 ### When the stamp is not run
 
