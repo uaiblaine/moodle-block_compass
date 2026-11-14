@@ -592,6 +592,9 @@ const Block = (config: BlockConfig) => {
             ? {count: data.counts.more, text: ghosttext, cta: labels.ghost_explore, line: specialLine(labels, data.counts)}
             : null;
     }, [data, exploring, labels]);
+    // The ghost is drawn for the special groups alone: its line already says what is there, so the empty-state
+    // sentence under it would contradict it (ADR-022).
+    const specialonly = data !== null && data.counts.more === 0 && specialLine(labels, data.counts) !== '';
     const laststrip = data
         ? [...activestrips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
         : null;
@@ -735,7 +738,7 @@ const Block = (config: BlockConfig) => {
                     />
                 </div>
             )}
-            {data && shown === 0 && (
+            {data && shown === 0 && !specialonly && (
                 <p className="compass-empty text-muted">
                     {data.counts.total === 0 && !ghostDrawn(data.counts) ? labels.nocourses : labels.emptyattention}
                 </p>
