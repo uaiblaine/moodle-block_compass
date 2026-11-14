@@ -154,4 +154,58 @@ final class ghost_rules_test extends advanced_testcase {
         $this->assertStringContainsString('compass-ghost-line', $alone);
         $this->assertSame(1, substr_count($ghost, '+{count}'), 'the count is drawn in one place');
     }
+
+    /**
+     * The empty-state sentence yields to a ghost drawn for the special groups alone, and only to that one.
+     *
+     * With "+N" at 0 and a non-empty line, the ghost already says what is there ("1 hidden"), so
+     * "Nothing to show here right now" under it contradicts the screen. A ghost with "+N" above 0
+     * keeps the sentence, and no ghost keeps the "not enrolled in any course yet" one (ADR-022).
+     *
+     * Changes that must make it fail: the sentence drawn under the line again, or the suppression
+     * widened to every ghost (the control: "+N" above 0 still draws it).
+     *
+     * @return void
+     */
+    public function test_the_empty_sentence_is_not_drawn_under_a_ghost_for_the_special_groups_alone(): void {
+        $block = $this->source('Block.tsx');
+        $this->assertStringContainsString(
+            'const specialonly = data !== null && data.counts.more === 0 && specialLine(labels, data.counts) !== \'\';',
+            $block
+        );
+        $this->assertStringContainsString('{data && shown === 0 && !specialonly && (', $block);
+        // Controls: the sentences themselves are still chosen as before.
+        $this->assertStringContainsString(
+            'data.counts.total === 0 && !ghostDrawn(data.counts) ? labels.nocourses : labels.emptyattention',
+            $block
+        );
+        $this->assertStringNotContainsString('more >= 0 && specialLine', $block, 'a ghost with "+N" keeps the sentence');
+    }
+
+    /**
+     * "No course matches." is not drawn under a special group while nothing is typed, starred, scoped or selected.
+     *
+     * Hidden and archived courses stay out of the total (ADR-021), so with the filter at rest the
+     * listed total can be 0 while the Hidden group holds rows. With a query, the star, a scope or a
+     * selection active the sentence stays.
+     *
+     * Changes that must make it fail: the sentence drawn under a special group again, or an active
+     * query (the control) no longer counting as a filter.
+     *
+     * @return void
+     */
+    public function test_no_match_sentence_yields_to_a_special_group_only_while_unfiltered(): void {
+        $explore = $this->source('Explore.tsx');
+        $this->assertStringContainsString(
+            "const unfiltered = term === '' && !star && scope === 'all' && Object.keys(selection).length === 0;",
+            $explore
+        );
+        $drawn = $this->slice($explore, 'const specialdrawn', ');');
+        $this->assertStringContainsString('group.id === GROUP_DORMANT || ondemand(group.id)', $drawn);
+        $this->assertStringContainsString('slice.show && slice.count > 0', $drawn);
+        $this->assertStringContainsString('const noresults = nomatch && !(unfiltered && specialdrawn);', $explore);
+        // Control: the sentence is still drawn from noresults, and the old test is the base of nomatch.
+        $this->assertStringContainsString('{noresults && <p className="compass-noresults', $explore);
+        $this->assertStringContainsString('const nomatch = paged ? keepsnothing', $explore);
+    }
 }
