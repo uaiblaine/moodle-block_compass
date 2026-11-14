@@ -1,1 +1,1 @@
-s/if \(during_initial_install\(\) \|\| !config::page_enabled\(\)\) \{\n                return;\n            \}\n            \$hook->add_option/if (during_initial_install()) {\n                return;\n            }\n            \$hook->add_option/;
+s/if \(during_initial_install\(\) \|\| !config::page_enabled\(\) \|\| !session_guard::block_enabled\(\)\) \{/if (during_initial_install() || !session_guard::block_enabled()) {/;

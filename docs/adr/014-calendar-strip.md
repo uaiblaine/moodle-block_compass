@@ -1246,6 +1246,29 @@ with. The decision text above is kept as the maintainer reviewed it.
     What a card shows does not change (`timestart`, `timeduration` and amendment 9's words). Fact 3, decision 7
     and amendment 3 stay as written, as the record of what was decided then; the line numbers here are those
     before the change.
+15. **A grader with no usable group counts no grading work (the maintainer, 2026-11-13).** Implementation
+    amendments 6 and 9 mirrored core's default active group for `SEPARATEGROUPS`: a grader without
+    `moodle/site:accessallgroups` and in no participation group inside the activity's grouping got group 0,
+    every participant, and so a course-wide "to grade" count. Core's Dashboard timeline counts exactly that
+    (`count_submissions_need_grading()` with group 0), but core's grading page refuses that grader:
+    `assign::can_view_grades()` (`mod/assign/locallib.php:4184-4197`) is false in separate groups without
+    accessallgroups and without an allowed group (`groups_get_activity_allowed_groups()`, the grader's own
+    groups). The strip now follows what the grader can grade, not that count, a deliberate departure from the
+    Dashboard's number: `strip::active_group()` answers `false` for that case (`classes/local/calendar/strip.php:1798`)
+    and `strip::grading_groups()` (`:1746`) leaves the assignment out of the map it returns. That map is the one
+    selection point of grading work, so the build, the day's teaching items (both through `collect()`), the
+    completion of a counted-only entry (`deferred_grading()`) and both sources (`grading` and
+    `tracker_grading`) never see the assignment: no statement counts it and no grading item is drawn. It is
+    left out, not mapped to a group, because `block_feedback_tracker` files a student without a group under
+    group 0, which a cast `false` would count. `VISIBLEGROUPS` (the grader's group, else the course's first),
+    no group mode and a grader with accessallgroups are unchanged. Tests, with core's own answer as the control
+    (`can_view_grades()` false for the excluded grader, true for the member): `grading_test::
+    test_a_separate_groups_grader_without_a_group_counts_nothing` (which replaces
+    `…_counts_everyone`) and `…::test_a_grader_without_a_usable_group_hands_no_source_the_assignment`,
+    `day_test::test_a_separate_groups_grader_in_no_group_gets_no_grading_on_the_day`,
+    `counts_test::test_completion_counts_no_grading_for_a_separate_groups_grader_in_no_group`; gates
+    `cal_strip_grading_separate_excluded`, `cal_strip_grading_excluded_skip`, and
+    `cal_strip_grading_separate_none` re-pointed.
 
 ## Consequences
 

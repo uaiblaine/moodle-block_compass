@@ -33,6 +33,7 @@ use block_compass\local\details;
 use block_compass\local\filter_fields;
 use block_compass\local\inventory;
 use block_compass\local\news_cache;
+use block_compass\local\pending_deletes;
 use core\event\course_category_deleted;
 use core\event\course_category_updated;
 use core\event\course_deleted;
@@ -157,7 +158,10 @@ final class observer {
     }
 
     /**
-     * A user's completion in a course changed: drop that one progress entry.
+     * A user's completion in a course changed: drop that one progress entry, with the process's next batch.
+     *
+     * Batched as access_changed() is ({@see pending_deletes}): a bulk completion raises one event per user
+     * and activity, and a reader of the entry in this process sends the batch first.
      *
      * @param \core\event\base $event A course_module_completion_updated or course_completed event.
      * @return void
@@ -166,7 +170,7 @@ final class observer {
         if (empty($event->relateduserid) || empty($event->courseid)) {
             return;
         }
-        details::delete((int) $event->relateduserid, (int) $event->courseid);
+        pending_deletes::instance()->drop_progress((int) $event->relateduserid, (int) $event->courseid);
     }
 
     /**
@@ -180,6 +184,9 @@ final class observer {
      * Without this, a role or a membership taken away would keep showing what it allowed until the entry's
      * 30 minutes ran out. These are events about one user, so the deletes are per key, never a purge. The
      * inventory checks its own stamp and the progress entries are the user's own completion: neither goes.
+     * A sync raises these by the thousand, so the keys are collected and deleted in batches
+     * ({@see pending_deletes}, which states the window that adds); a reader in this process sends the
+     * batch before it reads.
      *
      * @param \core\event\base $event A role, user enrolment, group member or cohort member event; relateduserid
      *     is the user.
@@ -189,13 +196,11 @@ final class observer {
         if (empty($event->relateduserid)) {
             return;
         }
-        $userid = (int) $event->relateduserid;
-        calendar_cache::delete($userid);
-        news_cache::delete($userid);
+        pending_deletes::instance()->drop_access((int) $event->relateduserid);
     }
 
     /**
-     * An account was deleted: drop what the three user layers hold about it.
+     * An account was deleted: drop what the three user layers hold about it, at once, never batched.
      *
      * The inventory entry is read before it is dropped, because it is the only list of the
      * details keys the user can have: those keys are "<userid>_<courseid>" and a cache store

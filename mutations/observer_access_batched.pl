@@ -1,0 +1,1 @@
+s/        pending_deletes::instance\(\)->drop_access\(\(int\) \$event->relateduserid\);/        calendar_cache::delete((int) \$event->relateduserid);\n        news_cache::delete((int) \$event->relateduserid);/;
