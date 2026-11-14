@@ -39,6 +39,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Fixed
 
+- **A teacher in no group is shown no grading work in separate groups.** In an assignment in separate groups, a
+  grader without access to all groups and in none of the activity's groups was shown every participant's
+  submissions waiting, on the strip, in the day card and in the opened strip of a closed count (core's own count,
+  for its active group 0), although core's grading page lets that grader grade none of them. Such an assignment
+  now counts nothing for that grader, with either grading source (ADR-014, amendment of 2026-11-13). Visible
+  groups, activities without groups and graders with access to all groups count as before.
+- **The start page option follows the block type.** "Compass" is no longer offered as a start page while the block
+  type is hidden under *Manage blocks*, where the page only redirects to the Dashboard (ADR-012, amendment of
+  2026-11-13). The check reads core's plugin list cache, not the database.
 - **Pointing at a card or resizing the block renders only what it changes** (client audit, 2026-11-13). The block
   keeps in state the brackets its parts branch on (tier 1's column count and the narrow forms of the open-courses
   line and of the calendar strip), not its measured width, so a resize renders it only when one of them moves; the
@@ -80,6 +89,17 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **Access and completion changes drop the user's cache entries in batches** (ADR-001, amendment of 2026-11-13).
+  A role, enrolment, group or cohort change dropped that user's calendar strip and open-courses entries, and a
+  completion their progress entry, one delete per event: two store commands each on Redis, so a sync of 10,000
+  users sent tens of thousands while it waited. The deletes are now collected and sent as one delete per cache for
+  up to 200 entries, at the end of the request, or after 5 seconds at the next event in a long cron process; a
+  read or write of one of those entries in the same request sends them first. Another web node may serve such an entry
+  until then, within its own expiry. Deleting an account still drops its entries at once.
+- **Opening a new calendar day no longer loads the course list** (ADR-002, amendment of 2026-11-13). The check
+  that a cached strip still matches the user's enrolments asked the cached course list for its stamp, which read
+  the whole list (about 163 KB for 1,000 enrolments) and rewrote it when stale; it now asks the stamp's own
+  statement, the same one read. No read is added and the stamp is unchanged.
 - **New enrolments keep their 2 px brand edge**, the card's one variant from before the contract.
 - **The fleet's course card** (ADR-020, `moodle-dev/docs/course-card/CONTRACT.md`). The first strips' cards, the
   cards of *All courses* and its list rows follow one anatomy: the cover, *New* as a light chip in its top-left

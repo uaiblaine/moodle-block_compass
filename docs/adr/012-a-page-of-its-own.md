@@ -555,3 +555,16 @@ written under `.block_compass`, so the page's wrapper inherits them. A static ru
 class the stylesheet styles and nothing renders (gate `css_no_dead_selector`); it also found
 `.compass-row-star`, dead since the tier 3 star became the shared `Star` component, and removed
 with it.
+
+## Amendment 6 (2026-11-13): the start page option follows the block type
+
+The maintainer decided on 2026-11-13. Since the page redirects to the Dashboard while the block type is hidden
+under *Manage blocks* (`page::require_access()`), decision 3's offer led nowhere then. The callback now offers the
+option only while `enable_page` is on AND the block type is enabled (`classes/hook_callbacks.php:247`), through
+`session_guard::block_enabled()`, the check the services and the page already make. It reads core's plugin
+manager, whose enabled list comes from the `core/plugin_manager` application cache (`enable_plugin()` resets it):
+no database read on a warm site, which matters because the preference registry dispatches this hook on every
+preference write core's router validates. Pinned by
+`hook_callbacks_test::test_the_start_page_option_follows_the_block_type` (hidden: not offered; enabled: offered;
+with the plugin manager's in-memory copy dropped, the dispatch reads nothing) and the gate
+`homepage_option_block_type`; `homepage_option_setting`'s pattern follows the new condition.

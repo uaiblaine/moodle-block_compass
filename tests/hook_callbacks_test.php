@@ -281,4 +281,41 @@ final class hook_callbacks_test extends advanced_testcase {
             get_default_home_page_url()->out(false)
         );
     }
+
+    /**
+     * The start page option is withdrawn while the block type is hidden on Manage blocks, at no database read.
+     *
+     * The page is on throughout, so the only force is the block type: hidden, the page redirects to
+     * the Dashboard and the option is not offered; enabled again, it is (the control). The read count is
+     * taken on a warm site with the plugin manager's in-memory copy dropped, so the enabled list comes
+     * from core's application cache, as it does on the first dispatch of a request; the preference
+     * registry dispatches this hook on every preference write core's router validates.
+     *
+     * @return void
+     */
+    public function test_the_start_page_option_follows_the_block_type(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('enable_page', 1, 'block_compass');
+        $manager = \core\di::get(\core\hook\manager::class);
+
+        \core\plugininfo\block::enable_plugin('compass', 0);
+        $hook = new extend_default_homepage();
+        $manager->dispatch($hook);
+        $this->assertArrayNotHasKey('/blocks/compass/index.php', $hook->get_options(), 'offered while the block is hidden');
+
+        \core\plugininfo\block::enable_plugin('compass', 1);
+        $hook = new extend_default_homepage();
+        $manager->dispatch($hook);
+        $this->assertArrayHasKey('/blocks/compass/index.php', $hook->get_options(), 'withheld while the block is enabled');
+
+        $instance = new \ReflectionProperty(\core_plugin_manager::class, 'singletoninstance');
+        $instance->setValue(null, null);
+        get_config('block_compass', 'enable_page');
+        $meter = \block_compass\local\budget::start();
+        $hook = new extend_default_homepage();
+        $manager->dispatch($hook);
+        $this->assertSame(0, $meter->reads(), 'the option read the database');
+        $this->assertArrayHasKey('/blocks/compass/index.php', $hook->get_options());
+    }
 }
