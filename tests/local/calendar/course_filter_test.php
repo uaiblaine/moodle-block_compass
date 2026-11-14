@@ -156,4 +156,40 @@ final class course_filter_test extends advanced_testcase {
         $this->assertCount(3, $courses);
         $this->assertNotFalse($coursemeta->get((int) $cut->id));
     }
+
+    /**
+     * The strip stores only the entries that were absent before its statement.
+     *
+     * A present entry was written by a reader that missed, or refilled after an observer's delete, so
+     * it is at least as fresh as the rows the strip reads; storing over it is the write a hide can
+     * race (ADR-001, amendment of 2026-11-14). Course A holds a sentinel entry, course B is cold: A
+     * keeps the sentinel, B is written from the row. The day keeps its saving: B's entry is warm after.
+     *
+     * @return void
+     */
+    public function test_the_strip_stores_only_the_entries_that_were_absent(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+        $user = $gen->create_user();
+        $warm = $gen->create_course();
+        $cold = $gen->create_course();
+        foreach ([$warm, $cold] as $course) {
+            $plugin->enrol_at((int) $user->id, (int) $course->id, $now - 10 * DAYSECS);
+        }
+        $coursemeta = \core_cache\cache::make('block_compass', 'coursemeta');
+        $coursemeta->purge();
+        $sentinel = \block_compass\local\course_meta::get_many([(int) $warm->id])[(int) $warm->id];
+        $sentinel['shortname'] = 'sentinel';
+        $coursemeta->set((int) $warm->id, $sentinel);
+
+        $this->setUser($user);
+        [$courses] = strip::courses((int) $user->id, $now);
+
+        $this->assertArrayHasKey((int) $warm->id, $courses, 'Precondition: the warm course is in the set.');
+        $this->assertArrayHasKey((int) $cold->id, $courses);
+        $this->assertSame('sentinel', $coursemeta->get((int) $warm->id)['shortname'], 'A present entry is not overwritten.');
+        $this->assertSame($cold->shortname, $coursemeta->get((int) $cold->id)['shortname'], 'An absent one is written.');
+    }
 }

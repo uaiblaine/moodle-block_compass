@@ -160,9 +160,9 @@ final class course_fields_test extends advanced_testcase {
     }
 
     /**
-     * Tier 1's write into coursemeta leaves coursefields untouched, which is why the values have a cache of their own.
+     * A coursemeta write from rows without field columns leaves coursefields untouched: the values have a cache of their own.
      *
-     * cards::build() writes coursemeta entries from strip rows that carry no field columns
+     * The calendar strip writes coursemeta entries from rows that carry no field columns
      * (course_meta::set_from_rows()). Had the values lived inside that entry, this write would
      * have replaced a course's values with none and tier 3 would have read the result as a hit.
      * The control: the values are warm before the write, and identical, at zero reads, after it.
@@ -176,7 +176,7 @@ final class course_fields_test extends advanced_testcase {
         $before = course_fields::get_many([$both], [$modality, $certified])[$both];
         $this->assertSame([$modality => 2, $certified => 1], $before);
 
-        // The same rows tier 1's strip queries carry, written the same way.
+        // The same columns the strip's statement carries, written the same way.
         $rows = $DB->get_records_sql(
             "SELECT " . course_meta::select_sql() . "
                FROM {course} c
