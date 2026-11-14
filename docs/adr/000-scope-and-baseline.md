@@ -77,6 +77,12 @@ when completion is disabled or the user is not tracked.
     context, evaluated once per request. A teacher's own hidden course does not
     appear in Compass although it does in the Course overview block; the block is
     learner-facing and this is documented.
+    *Amended 2026-11-13 by [ADR-021](021-hidden-courses-group-and-kind-pill.md):*
+    this decision now holds for tier 1 only. Tier 3 and `get_card_details` ask the
+    capability per hidden course at the **course** context, as
+    `enrol_get_my_courses()` does, and tier 3 lists the hidden courses the viewer
+    may see in a *Hidden* group of their own (reserved id `-3`, rows on demand),
+    never in a category group, for every viewer.
 13. **Active enrolment** is exactly the `enrol_get_my_courses()` predicate quoted
     above. The front page (`SITEID`) is excluded explicitly. Instance-level
     `enrolstartdate`/`enrolenddate` do not filter; they are displayed as the

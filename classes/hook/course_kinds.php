@@ -28,9 +28,10 @@ namespace block_compass\hook;
  * Asks any listener for the course custom field that classifies courses, and what each of its values is called.
  *
  * Dispatched by {@see \block_compass\local\course_kinds} (ADR-019 decision 4): when the open catalogue is
- * built, for the field alone (no language enters the shared entry), and per response of the open-courses
- * line, for the nouns in the current language. The block names no theme and no field: a site where
- * nothing listens counts every course as a course.
+ * built, for the field alone (no language enters the shared entry), per response of the open-courses
+ * line, for the nouns in the current language, and once per response of tier 3 that ships rows or their
+ * headers, for the kind each row draws (ADR-021 decision 2). The block names no theme and no field: a site
+ * where nothing listens counts every course as a course.
  *
  * The contract a listener keeps:
  * - It names one course custom field of the select type by its shortname (set_field()). The block uses it

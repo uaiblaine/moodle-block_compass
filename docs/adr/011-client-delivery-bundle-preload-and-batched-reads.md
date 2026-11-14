@@ -523,3 +523,90 @@ map core writes for the same page, asserts none repeats a head preload of core's
 each through `import_map::get_path_for_script()` to a file on disk (the last one
 `blocks/compass/js/esm/build/bundle.js`). Gates: `preload_core_skip`, `preload_current_theme`,
 `preload_longest_prefix`, and `preload_revision` rewritten for the new call.
+
+## Amendment 8 (2026-11-14, `MOODLE_503_STABLE`): a second bundle for tier 3, tried and not kept; the package trimmed
+
+**Status: Accepted** (2026-11-14). Two questions the maintainer put on 2026-11-13, answered on 2026-11-14 from the
+measurements below: whether tier 3 should leave the Dashboard's bundle and be loaded on first use (it was built and
+measured; **the single bundle of decision 1 is kept**), and whether the release package should leave out the `.dev.js`
+files and the source maps (**adopted**). The 5.2 branch is unchanged.
+
+### 1. Tier 3 as a second ES module: what was built
+
+The motive: the bundle had grown to 198,863 bytes (62,517 gzip), and tier 3 (Explore, FilterLine, FilterPanel,
+FilterToggle, OrganiseMenu, Platter, Row, RowCard, RowList, Group, ScopeGroup, Archive, ViewToggle, filter, rowdetails)
+was about 70 KB of it, downloaded and parsed on every Dashboard and run only after a press of the ghost card, a strip's
+overflow link or the pending notice. Decision 1 had rejected a second bundle without measuring it.
+
+- **Two modules.** `build/bundle.js` (entry `Block.tsx`) and `build/bundle-explore.js` (entry `Explore.tsx`), addressed as
+  `@moodle/lms/block_compass/bundle-explore`. Core 5.3.1 serves any path under a component's `js/esm/build`
+  (`import_map::resolve_module_identifier()`), asks for `<path>.dev.js` only at revision -1 and falls back to the file
+  itself when the twin is absent (`resolve_candidate_path()`), serves an immutable year at a current revision, and
+  ignores a query string; `grunt esm` never writes that name.
+- **The single-instance rule.** Tier 3 uses thirteen sources tier 1 also uses (repository, pending, markup, notify,
+  str, amd, heading, RetryNotice, Card, Crests, Progress, Star, StatePill), and several hold module state: the
+  repository's retry counter and its one listener (the "Reconnecting…" line), the pending holds Behat waits on,
+  markup()'s memo. A second bundle carrying copies would split that state. So the second bundle imported every shared
+  source from the first by the first one's import-map specifier, which the browser resolves to the URL the mount had
+  already loaded, and the first exported exactly the names the second used (25). The build did it, not the sources:
+  moodle-dev's bundler replaced each shared import by a re-export from that specifier, found the used names with a
+  probe build of pure marker calls, and checked the result in the built files.
+- **Why not esbuild's code splitting.** Measured: one entry with tier 3 behind `import()` wrote `bundle.js` (105,377
+  bytes), the tier 3 chunk (73,081) and a hashed chunk of the shared code (20,450) that `bundle.js` imports statically:
+  one more request on the critical path, resolved relative to the router URL outside the import map, under a name the
+  head's hints would have had to read from a manifest.
+- **Loading.** One door (`ExploreLoader`, drawn by Block where Explore was, memoised), one promise per page, the module
+  prefetched with `requestIdleCallback` (2 s timeout; a 1 s timer where it is missing; nothing under Save-Data) once a
+  way into tier 3 was on the page, never in the head's hints; a press before the prefetch drew Explore's own loading
+  section and held Behat's counter; a failed fetch drew the amber RetryNotice, whose Try again fetched `?retry=N`.
+
+### 2. What it measured
+
+m503b on 2026-11-14 (`compass_s50`, the Dashboard holding the block with its ghost, theme Dimensions, `cachejs` on, 4x
+CPU, 1358 px), with moodle-dev's `docs/client-performance-audit/block_compass-2026-11-14/` instruments: two interleaved
+rounds, five loads a series, only `bundle.js` swapped between the sides and `mdl purge m503b` after each swap; load
+average 2.6 to 3.6. Cold means the HTTP cache (and V8's code cache) cleared before every load. Each cell is the median of
+a series, round 1 / round 2.
+
+| | single bundle | two modules |
+|---|---|---|
+| first bundle, raw / gzip / brotli | 198,863 / 62,517 / 55,292 B | 129,669 / 41,054 / 36,609 B |
+| second bundle | none | 74,094 / 25,117 / 22,273 B |
+| ES module requests on a load (whole Dashboard) | 99 | 100: the second bundle at 1,447 / 1,415 ms cold (done in 8 / 7 ms), 1,086 / 1,015 ms warm |
+| first bundle's request, cold (start to end) | 281-315 / 264-299 ms | 275-312 / 286-318 ms |
+| first card, warm / cold | 322 / 443 (outlier), 507 / 494 ms | 339 / 325, 515 / 524 ms |
+| bundle's top-level evaluation in the CPU profile, warm / cold | 6.0 / 4.5, 3.5 / 2.8 ms | 4.4 / 6.7, 3.1 / 4.0 ms |
+| every frame of the bundle (evaluation and renders), warm / cold | 107 / 98, 112 / 120 ms | 106 / 99, 119 / 112 ms |
+| TBT on load, warm / cold | 1 / 0, 0 / 7 ms | 2 / 0, 2 / 0 ms |
+| parse, compile and evaluate (Blob import on a settled page, 11 runs) | 4.7 ms | 3.8 ms first, 2.5 ms second |
+| press to tier 3's section, warm | 104 / 102 ms | 108 / 106 ms prefetched; 95 / 92 ms press first |
+| press to tier 3's title (the inventory drawn), warm | 267 / 259 ms | 266 / 266 ms prefetched; 311 / 313 ms press first, module in the HTTP cache |
+| press to tier 3's title, cold | 269 / 263 ms | 256 / 266 ms prefetched; 342 / 348 ms press first |
+| CLS on load | 0.0672 | 0.0671-0.0675 |
+
+On this stack the first paint and the main thread did not move beyond noise: the bundle's evaluation was already small
+(V8 compiles function bodies lazily), the whole parse-and-evaluate saving was about 1 ms a load at 4x CPU, and the
+renders, most of the bundle's time, are the same code. What the split bought was 69 KB raw (21.5 KB gzip) less to fetch
+before the first paint, which a LAN stack does not show (the bundle arrives in 35 ms either way). A press after the
+prefetch was as fast as before; a press that beat it waited 45 to 50 ms more with the module in the HTTP cache and about
+80 ms more on a cold one.
+
+### 3. Decision
+
+- **The single bundle stays** (the maintainer, 2026-11-14): a gain within noise does not pay for a second module, a
+  loader, a build capability in moodle-dev to maintain, and a slower press when the prefetch has not run. Decision 1's
+  bundle, its manifest, the seven hints and `js/esm/bundle.json`'s single `{entry, outfile}` are unchanged; the build
+  support was reverted in moodle-dev and its instruments kept there as documentation, with how the two-module build
+  was made, so the experiment can be repeated.
+- **The release package leaves the development build out.** `.gitattributes` export-ignores `/js/esm/build/*.dev.js` and
+  `/js/esm/build/*.js.map`. A site with developer debugging asks for the `.dev.js` twin and gets the production file
+  (fact above), so it runs the same; the files stay tracked because `mdl ci` compares the whole `js/esm` with a fresh
+  build. `bundle_test::test_the_package_leaves_the_development_build_out` reads the rules (the two lines present, every
+  other file of the build kept, no wider rule over the client); gates `package_devjs_shipped` and
+  `package_maps_shipped`. `test_the_marker_names_the_entry_and_the_output` stops asserting the bundle's map, which a site
+  installed from the package no longer has.
+
+What the trim measured (`git archive` of the working tree through a temporary index, the same tree with and without
+the two lines, 2026-11-14): 362 files and 1,927,163 bytes zipped (6,582,643 uncompressed) become 275 files and 1,294,141
+bytes (4,325,415), a third of the zip. The 87 files that no longer ship are the 43 `.dev.js` twins and 44 source maps
+(the twins' 43 and `bundle.js.map`); no production output, manifest or marker is left out.

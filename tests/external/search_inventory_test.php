@@ -26,9 +26,11 @@
 namespace block_compass\external;
 
 use advanced_testcase;
+use block_compass\fixtures\course_kinds_listener;
 use block_compass\local\budget;
 use block_compass\local\explore;
 use block_compass\local\inventory;
+use core\hook\manager;
 use core_cache\cache;
 use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -335,6 +337,46 @@ final class search_inventory_test extends advanced_testcase {
         $this->assertSame(['rows' => [], 'truncated' => false], $this->call('   '));
         // Control: two characters are enough.
         $this->assertCount(1, $this->call('al')['rows']);
+    }
+
+    /**
+     * A hit's kd survives the allowlist; the search never finds a hidden course, not even its teacher's.
+     *
+     * The teacher holds the capability in the hidden course and sees it in the Hidden group; the
+     * paged search stays blind to that group as to Archived (ADR-021, answer 5). The visible event is
+     * the control that the search answered with kinds on.
+     *
+     * @return void
+     */
+    public function test_a_hit_carries_its_kind_and_no_hidden_course_is_found(): void {
+        $this->resetAfterTest();
+        [$user, $courses] = $this->fixture();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $hidden = $gen->create_course(['fullname' => 'Hidden course', 'visible' => 0]);
+        $plugin->enrol_at((int) $user->id, (int) $hidden->id, time() - DAYSECS);
+        $gen->role_assign('editingteacher', $user->id, \core\context\course::instance($hidden->id)->id);
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        course_kinds_listener::reset();
+        \core\di::set(manager::class, manager::phpunit_get_instance([
+            'block_compass_kinds' => __DIR__ . '/../fixtures/course_kinds_hooks.php',
+        ]));
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[2, 'event', 'evento', 'eventos']];
+        $plugin->field_value($model, (int) $courses['alpha']->id, 2);
+        $plugin->field_value($model, (int) $hidden->id, 2);
+        $this->setUser($user);
+
+        $rows = array_column($this->call('course')['rows'], null, 'id');
+
+        $this->assertSame(
+            [(int) $courses['alpha']->id, (int) $courses['beta']->id, (int) $courses['gamma']->id],
+            array_keys($rows)
+        );
+        $this->assertSame(0, $rows[(int) $courses['alpha']->id]['kd']);
+        $this->assertArrayNotHasKey('kd', $rows[(int) $courses['beta']->id]);
+        $this->assertSame(1, course_kinds_listener::$calls);
     }
 
     /**

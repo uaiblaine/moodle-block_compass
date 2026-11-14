@@ -1,1 +1,1 @@
-s/if \(!\$seehidden && !\$entrymeta\['visible'\]\) \{/if (false) {/;
+s/if \(!course_meta::visible_to\(\$entrymeta, \$userid\)\) \{/if (false) {/;

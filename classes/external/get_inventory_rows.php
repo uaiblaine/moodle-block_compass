@@ -40,8 +40,9 @@ use core_external\external_value;
  *
  * In paged mode (above inventory_max) get_inventory ships group headers only; the
  * client fetches the rows of a group here when it is opened, explore::PAGE_SIZE at
- * a time, sending back the id of the last row it holds. The archived group's rows
- * come from here in both modes. The chip and the sort are parameters
+ * a time, sending back the id of the last row it holds. The rows of the Hidden
+ * and Archived groups come from here in both modes; a viewer who may see no
+ * hidden course gets an empty Hidden page. The chip and the sort are parameters
  * because the browser does not hold the group's rows to filter or reorder them
  * itself. Read-only, current user only; three database reads per request with
  * the shared layers warm (the stamp or the fill, preferences, the filter preload
@@ -60,8 +61,8 @@ class get_inventory_rows extends external_api {
     /** @var string[] The orders a page can be returned in; anything else is rejected before any work. */
     public const SORTS = ['name', 'recent'];
 
-    /** @var int[] The two group ids that are not categories. */
-    public const RESERVED_GROUPS = [dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED];
+    /** @var int[] The three group ids that are not categories. */
+    public const RESERVED_GROUPS = [dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED, dormancy::GROUP_INVISIBLE];
 
     /**
      * Parameters: the group, the cursor, the chip, the sort and the custom-field filters. The
@@ -155,7 +156,7 @@ class get_inventory_rows extends external_api {
         if (!in_array($params['sort'], self::SORTS, true)) {
             throw new \invalid_parameter_exception('sort must be one of ' . implode(', ', self::SORTS) . '.');
         }
-        // A group id is a category id, except for the two reserved negatives. Any other negative is
+        // A group id is a category id, except for the three reserved negatives. Any other negative is
         // a client bug, and it is refused here rather than answered with an empty page that would
         // look like a category the user has no course in.
         if ($params['groupid'] < 0 && !in_array($params['groupid'], self::RESERVED_GROUPS, true)) {
@@ -193,9 +194,9 @@ class get_inventory_rows extends external_api {
      * both through the same components. Shared with search_inventory, which adds a groupid, and
      * with get_inventory itself.
      *
-     * pend, wait, sched, comp and cf are optional and omitted when they do not apply — never sent as
-     * false or empty — because a VALUE_OPTIONAL key the domain leaves out never enters the response
-     * and costs no bytes on the rows it does not describe.
+     * pend, wait, sched, comp, cf, invis and kd are optional and omitted when they do not apply —
+     * never sent as false or empty — because a VALUE_OPTIONAL key the domain leaves out never enters
+     * the response and costs no bytes on the rows it does not describe.
      *
      * @return array Field name => external_value.
      */
@@ -230,6 +231,16 @@ class get_inventory_rows extends external_api {
             'cf' => new external_multiple_structure(
                 new external_value(PARAM_INT, 'A field index into the top-level fields array, then its value key'),
                 'Custom-field values in pairs; present only when the row holds one',
+                VALUE_OPTIONAL
+            ),
+            'invis' => new external_value(
+                PARAM_BOOL,
+                'Present, and true, only on a course hidden from students (visible = 0)',
+                VALUE_OPTIONAL
+            ),
+            'kd' => new external_value(
+                PARAM_INT,
+                'Index of the course\'s kind in get_inventory\'s top-level kinds; absent for the default kind',
                 VALUE_OPTIONAL
             ),
         ];

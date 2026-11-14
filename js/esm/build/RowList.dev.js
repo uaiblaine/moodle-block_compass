@@ -24,6 +24,8 @@ const RowList = /* @__PURE__ */ __name(({
   now,
   lang,
   details,
+  kinds,
+  markhidden,
   archived,
   onArchive,
   onToggleFavourite,
@@ -42,6 +44,8 @@ const RowList = /* @__PURE__ */ __name(({
         detail: records[row.id],
         waiting: !!waiting[row.id],
         observe,
+        kinds,
+        markhidden,
         archived,
         onArchive,
         onToggleFavourite,
@@ -51,16 +55,16 @@ const RowList = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-        lineNumber: 67,
+        lineNumber: 71,
         columnNumber: 25
       }
     ) }, row.id, false, {
       fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-      lineNumber: 66,
+      lineNumber: 70,
       columnNumber: 21
     })) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-      lineNumber: 64,
+      lineNumber: 68,
       columnNumber: 13
     });
   }
@@ -74,6 +78,8 @@ const RowList = /* @__PURE__ */ __name(({
       detail: records[row.id],
       waiting: !!waiting[row.id],
       observe,
+      kinds,
+      markhidden,
       archived,
       onArchive,
       onToggleFavourite,
@@ -83,16 +89,16 @@ const RowList = /* @__PURE__ */ __name(({
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-      lineNumber: 91,
+      lineNumber: 97,
       columnNumber: 21
     }
   ) }, row.id, false, {
     fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-    lineNumber: 90,
+    lineNumber: 96,
     columnNumber: 17
   })) }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/RowList.tsx",
-    lineNumber: 88,
+    lineNumber: 94,
     columnNumber: 9
   });
 }, "RowList");

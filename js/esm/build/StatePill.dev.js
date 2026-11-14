@@ -9,7 +9,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * colour families and icons: Access from a date for an enrolment that starts later, Application
  * under review for one awaiting a decision, On the waiting list for one a manager deferred. A row
  * the learner can enter draws none, because every course Compass lists is the learner's own and
- * Enrolled would be said on every card.
+ * Enrolled would be said on every card. Beside it, InvisiblePill says a tier 3 course is hidden from students.
  *
  * The colours are the plugin's own tokens (styles.css), each pair stating its text colour, and
  * every situation is a whole literal class: the sentence carries the meaning, the icon repeats it
@@ -95,8 +95,25 @@ const StatePill = /* @__PURE__ */ __name(({ row, labels, complete = false }) => 
   }
   return null;
 }, "StatePill");
+const InvisiblePill = /* @__PURE__ */ __name(({ label }) => /* @__PURE__ */ jsxDEV("span", { className: "compass-state compass-state-invisible", children: [
+  /* @__PURE__ */ jsxDEV("i", { className: "fa fa-eye-slash", "aria-hidden": "true" }, void 0, false, {
+    fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
+    lineNumber: 108,
+    columnNumber: 9
+  }),
+  /* @__PURE__ */ jsxDEV("span", { children: label }, void 0, false, {
+    fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
+    lineNumber: 109,
+    columnNumber: 9
+  })
+] }, void 0, true, {
+  fileName: "public/blocks/compass/js/esm/src/StatePill.tsx",
+  lineNumber: 107,
+  columnNumber: 5
+}), "InvisiblePill");
 var StatePill_default = StatePill;
 export {
+  InvisiblePill,
   StatePill_default as default
 };
 //# sourceMappingURL=StatePill.dev.js.map

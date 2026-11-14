@@ -1,0 +1,1 @@
+s/return has_capability\('moodle\/course:viewhiddencourses', self::context_of\(\$entry\), \$userid\);/return has_capability('moodle\/course:viewhiddencourses', \\core\\context\\system::instance(), \$userid);/;

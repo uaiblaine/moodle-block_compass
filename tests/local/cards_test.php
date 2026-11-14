@@ -501,6 +501,30 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
+     * details() answers a hidden course to a teacher holding viewhiddencourses only in that course.
+     *
+     * The rule is tier 3's (ADR-021 decision 1.7): the capability at the course's own context, so a
+     * course-level teacher's hidden course is answered where the system-context read dropped it. The
+     * second hidden course, where the same user is a student only, is the control in the same batch.
+     *
+     * @return void
+     */
+    public function test_details_answers_a_hidden_course_to_its_course_level_teacher(): void {
+        set_config('enablecompletion', 0);
+        $taught = (int) $this->course('Taught hidden course', ['visible' => 0])->id;
+        $studied = (int) $this->course('Studied hidden course', ['visible' => 0])->id;
+        $this->plugingen->enrol_at($this->userid, $taught, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $studied, self::NOW - DAYSECS);
+        $this->getDataGenerator()->role_assign('editingteacher', $this->userid, \core\context\course::instance($taught)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', \core\context\system::instance(), $this->userid));
+
+        $details = array_column(cards::details($this->userid, [$studied, $taught], self::NOW), null, 'id');
+
+        $this->assertSame([$taught], array_keys($details));
+    }
+
+    /**
      * details() drops a hidden course for a viewer without viewhiddencourses, and answers it for one who holds it.
      *
      * Tier 3 lists a hidden course only to the capability's holder (explore::resolve()); the visible course

@@ -185,6 +185,31 @@ final class course_meta {
     }
 
     /**
+     * Whether the viewer may see the course of an entry: always while it is visible, and while it is
+     * hidden only when moodle/course:viewhiddencourses holds at the course's own context.
+     *
+     * Core's rule, asked where core asks it: enrol_get_my_courses() and enrol_get_users_courses()
+     * (lib/enrollib.php) check the capability per hidden course at the course context, so a teacher
+     * whose role is in the course sees it, and a prohibit or an override in a category or the course
+     * counts. The context is rebuilt from the entry (context_of()), and for the current user
+     * has_capability() answers from the session's access data and the role definitions' cache: no
+     * database read once core is warm, CPU per hidden course only. Asked only for a hidden course. Tier
+     * 3 and the details batch decide by this (ADR-021); tier 1 keeps its one system-context read in SQL
+     * ({@see attention}). A course core is deleting is the caller's to drop first (is_being_deleted()).
+     *
+     * @param array $entry An entry from get_many() or set_from_rows().
+     * @param int $userid The viewer.
+     * @return bool
+     */
+    public static function visible_to(array $entry, int $userid): bool {
+        if ($entry['visible']) {
+            return true;
+        }
+
+        return has_capability('moodle/course:viewhiddencourses', self::context_of($entry), $userid);
+    }
+
+    /**
      * Whether an entry is a course core is deleting: the reader leaves it out for everyone.
      *
      * Core hides such a course (visible 0) when it marks it, so the visibility rule already drops

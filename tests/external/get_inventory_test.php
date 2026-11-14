@@ -26,10 +26,13 @@
 namespace block_compass\external;
 
 use advanced_testcase;
+use block_compass\fixtures\course_kinds_listener;
 use block_compass\local\budget;
 use block_compass\local\config;
+use block_compass\local\dormancy;
 use block_compass\local\explore;
 use block_compass\local\inventory;
+use core\hook\manager;
 use core_cache\cache;
 use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -583,5 +586,154 @@ final class get_inventory_test extends advanced_testcase {
             $reads,
             "get_inventory cost {$reads} reads with every plugin cache cold; the budget is 6 + 1."
         );
+    }
+
+    /**
+     * The reads of one get_inventory in a new request, after a warm-up call: the valid-hit protocol.
+     *
+     * @return array The payload and the reads it cost.
+     */
+    private function measured_hit(): array {
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        get_inventory::execute();
+        $plugin->simulate_new_request();
+        $meter = budget::start();
+        $data = get_inventory::execute();
+
+        return [$data, $meter->reads()];
+    }
+
+    /**
+     * The Hidden header costs no read: a course-level teacher of three hidden courses pays what a learner pays.
+     *
+     * ADR-021 decision 1.5: which courses are hidden is in the course layer already, and the
+     * capability is asked per hidden course from the session's access data. Two users, the same three
+     * visible courses; the teacher also teaches three hidden ones. Same protocol as the valid-hit
+     * budget (warm, a new request, measure), and the two costs are compared. The controls: the
+     * learner has no Hidden header, the teacher's says three.
+     *
+     * @return void
+     */
+    public function test_the_hidden_header_of_a_course_level_teacher_costs_no_read(): void {
+        $this->resetAfterTest();
+        [$learner, $courses] = $this->fixture();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $teacher = $gen->create_user();
+        foreach ($courses as $course) {
+            $plugin->enrol_at((int) $teacher->id, (int) $course->id, time() - 40 * DAYSECS);
+        }
+        for ($i = 1; $i <= 3; $i++) {
+            $hidden = $gen->create_course(['fullname' => "Hidden course {$i}", 'visible' => 0]);
+            $plugin->enrol_at((int) $teacher->id, (int) $hidden->id, time() - 40 * DAYSECS);
+            $gen->role_assign('editingteacher', $teacher->id, \core\context\course::instance($hidden->id)->id);
+        }
+
+        $this->setUser($learner);
+        [$learnerdata, $learnerreads] = $this->measured_hit();
+        $this->setUser($teacher);
+        [$teacherdata, $teacherreads] = $this->measured_hit();
+
+        $this->assertNotContains(dormancy::GROUP_INVISIBLE, array_column($learnerdata['groups'], 'id'));
+        $hiddengroup = array_column($teacherdata['groups'], null, 'id')[dormancy::GROUP_INVISIBLE];
+        $this->assertSame(3, $hiddengroup['count']);
+        $this->assertSame([], $hiddengroup['courses']);
+        $this->assertSame(3, $teacherdata['total'], 'the headline counts the visible courses');
+        $this->assertSame($learnerreads, $teacherreads, "the teacher cost {$teacherreads} reads, the learner {$learnerreads}");
+        $this->assertLessThanOrEqual(4, $teacherreads, "get_inventory cost {$teacherreads} reads; the budget is 3 + 1.");
+    }
+
+    /**
+     * Register the course_kinds fixture listener and give the fixture's courses a classifier field.
+     *
+     * Alpha is an event, beta a course of the default kind, gamma has no value.
+     *
+     * @param array $courses The fixture's courses.
+     * @param array $kinds The listener's kinds, lists of [value, key, one, many].
+     * @return void
+     */
+    private function listen_for_kinds(array $courses, array $kinds): void {
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        course_kinds_listener::reset();
+        \core\di::set(manager::class, manager::phpunit_get_instance([
+            'block_compass_kinds' => __DIR__ . '/../fixtures/course_kinds_hooks.php',
+        ]));
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = $kinds;
+        $plugin->field_value($model, (int) $courses['alpha']->id, 2);
+        $plugin->field_value($model, (int) $courses['beta']->id, 1);
+    }
+
+    /**
+     * The kinds and a row's kd survive the allowlist; a noun with markup or a trailing "<" does not fail the answer.
+     *
+     * The noun goes through the hook's cleaning, then gains a capital letter here; the response's
+     * validation is the proof it stayed plain text. The default kind and the course with no value
+     * carry no kd.
+     *
+     * @return void
+     */
+    public function test_kinds_and_kd_survive_the_allowlist_with_nouns_that_carry_markup(): void {
+        $this->resetAfterTest();
+        [$user, $courses] = $this->fixture();
+        $this->listen_for_kinds($courses, [[1, 'course', 'curso', 'cursos'], [2, 'event', 'p&D <b>1</b> < 2 < ', 'eventos']]);
+        $this->setUser($user);
+
+        $data = $this->call();
+
+        $this->assertSame([['key' => 'event', 'name' => 'P&D 1 < 2']], $data['kinds']);
+        $rows = [];
+        foreach ($data['groups'] as $group) {
+            $rows += array_column($group['courses'], null, 'id');
+        }
+        $this->assertSame(0, $rows[(int) $courses['alpha']->id]['kd']);
+        $this->assertArrayNotHasKey('kd', $rows[(int) $courses['beta']->id]);
+        $this->assertArrayNotHasKey('kd', $rows[(int) $courses['gamma']->id]);
+        $this->assertSame(1, course_kinds_listener::$calls, 'one dispatch for the response');
+    }
+
+    /**
+     * With a listener, the kinds add no read to a warm request; cold, they add the two layers' fills (ADR-021 H0).
+     *
+     * Warm: the same valid-hit protocol, with and without the listener, compared. Cold: the same
+     * protocol with coursefields and filterfields purged between the warm-up and the measure, the
+     * site's first request after a custom-field event, with no filter field configured, so the kinds
+     * alone pay the filterfields fill: core's handler, two recordsets (three reads each on
+     * PostgreSQL, one on MariaDB, see budget), plus the coursefields fill's one statement.
+     *
+     * @return void
+     */
+    public function test_kinds_add_no_read_warm_and_the_two_fills_cold(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        [$user, $courses] = $this->fixture();
+        $this->setUser($user);
+        \core\di::set(manager::class, manager::phpunit_get_instance([]));
+        [$plain, $plainreads] = $this->measured_hit();
+        $this->assertArrayNotHasKey('kinds', $plain);
+
+        $this->listen_for_kinds($courses, [[1, 'course', 'curso', 'cursos'], [2, 'event', 'evento', 'eventos']]);
+        [$warm, $warmreads] = $this->measured_hit();
+        $this->assertSame([['key' => 'event', 'name' => 'Evento']], $warm['kinds'], 'the kinds are on');
+        $this->assertSame($plainreads, $warmreads, "warm, the kinds cost {$warmreads} reads against {$plainreads}");
+
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        get_inventory::execute();
+        cache::make('block_compass', 'coursefields')->purge();
+        cache::make('block_compass', 'filterfields')->purge();
+        $plugin->simulate_new_request();
+        // Core keeps the course handler, and the categories it loaded, for the rest of the request:
+        // a new request starts without them, so the fill measured here pays core's two recordsets.
+        \core_customfield\handler::reset_caches();
+        $meter = budget::start();
+        $cold = get_inventory::execute();
+        $coldreads = $meter->reads() - $warmreads;
+
+        $this->assertSame($warm, $cold);
+        $expected = $DB->get_dbfamily() === 'postgres' ? 7 : 3;
+        $this->assertSame($expected, $coldreads, "cold, the kinds cost {$coldreads} reads more than warm");
     }
 }

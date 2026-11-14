@@ -179,4 +179,78 @@ final class course_kinds_test extends advanced_testcase {
         $this->assertSame(['field' => null, 'kinds' => []], $answer);
         $this->assertSame(1, course_kinds_listener::$calls, 'the listener was reached');
     }
+
+    /**
+     * The field and the kinds come from one dispatch, on field_id()'s conditions (ADR-021 decision 2.2).
+     *
+     * The source counts its calls, as the fixture listener counts the hook's. The teachers-only field
+     * is the case where the kinds go with the field.
+     *
+     * @return void
+     */
+    public function test_the_field_and_the_kinds_come_from_one_dispatch(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $gen->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        $gen->course_field('select', 'hiddenmodel', ['options' => "Course\nEvent", 'visibility' => 1]);
+        $calls = 0;
+        $source = static function () use (&$calls): array {
+            $calls++;
+
+            return ['field' => 'model', 'kinds' => self::KINDS];
+        };
+
+        $this->assertSame(['fieldid' => (int) $model->get('id'), 'kinds' => self::KINDS], course_kinds::answer($source));
+        $this->assertSame(1, $calls);
+        $calls = 0;
+        $pills = course_kinds::pills($source);
+        $this->assertSame(1, $calls, 'pills() dispatches once');
+        $this->assertSame((int) $model->get('id'), $pills['fieldid']);
+        $this->assertSame(['fieldid' => 0, 'kinds' => []], course_kinds::answer(self::source('hiddenmodel')));
+    }
+
+    /**
+     * The pills: every kind but the default, one per key in the listener's order, named with a capital letter.
+     *
+     * Two values sharing a key share an entry, named by the first; the default kind gives no entry
+     * and no index; a site whose only kind is the default has nothing to draw, and its field is off.
+     *
+     * @return void
+     */
+    public function test_the_pills_leave_out_the_default_kind_and_fold_values_by_key(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $gen->course_field('select', 'model', ['options' => "Course\nEvent\nTrail\nMeeting", 'visibility' => 2]);
+        $kinds = [
+            3 => ['key' => 'trail', 'one' => 'trilha', 'many' => 'trilhas'],
+            1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos'],
+            2 => ['key' => 'event', 'one' => 'évènement', 'many' => 'évènements'],
+            4 => ['key' => 'event', 'one' => 'encontro', 'many' => 'encontros'],
+        ];
+
+        $pills = course_kinds::pills(self::source('model', $kinds));
+
+        $this->assertSame((int) $model->get('id'), $pills['fieldid']);
+        $this->assertSame([['key' => 'trail', 'name' => 'Trilha'], ['key' => 'event', 'name' => 'Évènement']], $pills['kinds']);
+        $this->assertSame([3 => 0, 2 => 1, 4 => 1], $pills['index'], 'no index for the default kind');
+        $this->assertSame(
+            ['fieldid' => 0, 'kinds' => [], 'index' => []],
+            course_kinds::pills(self::source('model', [1 => self::KINDS[1]])),
+            'the default kind alone draws nothing'
+        );
+        $this->assertSame(['fieldid' => 0, 'kinds' => [], 'index' => []], course_kinds::pills(self::source(null)));
+    }
+
+    /**
+     * A label is the noun with its first character upper-cased, multibyte included, and stays plain text.
+     *
+     * @return void
+     */
+    public function test_a_label_capitalises_the_first_letter_only(): void {
+        $this->assertSame('Evento', course_kinds::label('evento'));
+        $this->assertSame('Évènement à venir', course_kinds::label('évènement à venir'));
+        $this->assertSame('P&D 1 < 2', course_kinds::label('p&D 1 < 2'));
+        $this->assertSame('P&D 1 < 2', clean_param(course_kinds::label('p&D 1 < 2'), PARAM_TEXT), 'PARAM_TEXT keeps it');
+        $this->assertSame('', course_kinds::label(''));
+    }
 }
