@@ -74,7 +74,14 @@ final class cards {
             return array_map(static fn(array $rows): array => [], $strips);
         }
 
-        $entries = course_meta::set_from_rows($allrows);
+        // The entries are built from the rows and NOT stored: these rows were read before this
+        // call and a hide can commit while it runs, so a store here could put a pre-commit
+        // `visible` back after the observer deleted it. coursemeta is filled only by the readers
+        // that miss ({@see course_meta::get_many()}).
+        $entries = [];
+        foreach ($allrows as $courseid => $row) {
+            $entries[$courseid] = course_meta::entry_from_row($row);
+        }
         $contexts = [];
         foreach ($entries as $courseid => $entry) {
             $contexts[$courseid] = course_meta::context_of($entry);

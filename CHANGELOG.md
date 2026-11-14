@@ -39,6 +39,13 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Fixed
 
+- **A hidden course no longer comes back in the shared course layer.** `get_attention` and the calendar strip stored
+  `coursemeta` entries from rows they had read themselves, so a request that read before a category hide committed
+  stored the old `visible` after the observer's delete, and nothing expired it (18 of 40 hides on a two-node cluster
+  under load). `get_attention` now stores nothing there, the strip stores only entries that were absent before its
+  statement, and `coursemeta`, `categorymeta` and `coursefields` expire after 10 minutes, which bounds the rare entry
+  a request that missed before the change can still store (2026100535).
+
 - **A teacher in no group is shown no grading work in separate groups.** In an assignment in separate groups, a
   grader without access to all groups and in none of the activity's groups was shown every participant's
   submissions waiting, on the strip, in the day card and in the opened strip of a closed count (core's own count,
