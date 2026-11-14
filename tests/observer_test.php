@@ -26,7 +26,9 @@
 namespace block_compass;
 
 use advanced_testcase;
+use block_compass\local\attention;
 use block_compass\local\calendar_cache;
+use block_compass\local\cards;
 use block_compass\local\catalogue_cache;
 use block_compass\local\category_meta;
 use block_compass\local\course_fields;
@@ -403,8 +405,8 @@ final class observer_test extends advanced_testcase {
     /**
      * A deletion drops that course from the course layer, and leaves the others alone.
      *
-     * The coursemeta definition has no TTL and no invalidation events, so this observer is the
-     * only thing that ever drops a deleted course's entry.
+     * The coursemeta definition has no invalidation events, so this observer is the only thing that
+     * drops a deleted course's entry before its 10-minute TTL does.
      *
      * @return void
      */
@@ -461,8 +463,8 @@ final class observer_test extends advanced_testcase {
      *
      * core_course_category::hide() and show() write course.visible for the category and its
      * descendants and raise one course_category_updated, with no course_updated for any course.
-     * The entries hold visible and the definition has no TTL, so this observer is the only thing
-     * that keeps a hidden course from being listed. Controls: the database really changed, and a
+     * The entries hold visible and core raises no event per course, so this observer is the only thing
+     * that keeps a hidden course from being listed before the 10-minute TTL ends. Controls: the database really changed, and a
      * course outside the subtree keeps its entry.
      *
      * @return void
@@ -554,8 +556,8 @@ final class observer_test extends advanced_testcase {
      * A category hidden inside a transaction drops its courses' entries only once it commits.
      *
      * Core's category and bulk web services write inside a delegated transaction; a delete run
-     * before the commit leaves another request free to store the old row again, and the course
-     * layer has no TTL. Control: inside the transaction the row already says hidden, so the
+     * before the commit leaves another request free to store the old row again, and a store after the
+     * delete lasts until the TTL. Control: inside the transaction the row already says hidden, so the
      * entry that stays is the observer waiting, not a hide that changed nothing.
      *
      * @return void
@@ -1105,5 +1107,45 @@ final class observer_test extends advanced_testcase {
             $this->assertSame(['marker' => $what], $strip->get((int) $other->id), $what . ': another user lost theirs');
             $this->assertSame(['marker' => $what], $news->get((int) $other->id));
         }
+    }
+
+    /**
+     * Tier 1 holds rows read before a hide, the hide commits and its observer deletes the entry, and
+     * the stale build then runs: it leaves no entry behind.
+     *
+     * The race of ADR-001's amendment of 2026-11-14, in one process: cards::build() used to store
+     * coursemeta from the rows it was handed, so these rows (visible) would have been stored after the
+     * delete. The observers run after the commit, hence preventResetByRollback() in setUp(). Controls:
+     * the entry was warm and is deleted by the hide, the database really says hidden, and the rows the
+     * build received said visible.
+     *
+     * @return void
+     */
+    public function test_a_tier_one_build_over_rows_read_before_a_hide_stores_no_entry(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $user = $gen->create_user();
+        $categoryid = (int) $gen->create_category()->id;
+        $courseid = (int) $gen->create_course(['category' => $categoryid])->id;
+        $gen->get_plugin_generator('block_compass')->enrol_at((int) $user->id, $courseid, time() - DAYSECS);
+        course_meta::get_many([$courseid]);
+        $this->assertNotFalse($this->coursemeta()->get($courseid), 'Control: the entry is warm.');
+
+        $now = time();
+        $tier = (new attention((int) $user->id, $now, 12, 30))->build();
+        $strips = ['continue' => $tier['continue'], 'new' => $tier['new'], 'favourites' => $tier['favourites']];
+        $rows = array_replace($tier['continue'], $tier['new'], $tier['favourites']);
+        $this->assertSame(1, (int) $rows[$courseid]->visible, 'Control: the rows were read before the hide.');
+
+        core_course_category::get($categoryid, MUST_EXIST, true)->hide();
+        $this->assertSame('0', (string) $DB->get_field('course', 'visible', ['id' => $courseid]));
+        $this->assertFalse($this->coursemeta()->get($courseid), 'Control: the observer deleted the entry.');
+
+        cards::build((int) $user->id, $strips, $now);
+
+        $this->assertFalse($this->coursemeta()->get($courseid), 'The stale build stored nothing.');
+        $this->assertSame(0, (int) course_meta::get_many([$courseid])[$courseid]['visible'], 'A reader refills from the live row.');
     }
 }

@@ -620,3 +620,49 @@ definition (immediate). Gates `observer_access_batched`, `observer_completion_ba
 `pending_reader_scope`, `pending_read_strip`, `pending_read_news`, `pending_read_details`, `pending_write_strip`,
 `pending_write_day`, `pending_write_news`, `pending_write_details`; `sec_obs_access_strip`
 and `sec_obs_access_news` re-pointed at the batch.
+
+## Amendment (2026-11-14): a pre-commit read must not refill the shared course layers
+
+**Status: Accepted** (2026-11-14; proposed the same day and accepted by the maintainer as written).
+
+**Measurement.** On a two-node cluster (one 5.3 site, Redis MUC, no stickiness) a category was hidden on one node
+while twelve reader threads called `get_attention` on the other: 18 of 40 hides left one to three stale
+`coursemeta` entries (`visible = 1`), all still there 60 seconds after the readers stopped, and a learner then saw
+the hidden course in *All courses* through the second node. `get_inventory` alone left none in 40.
+
+**Cause.** `cards::build()` stored `coursemeta` from the rows tier 1's statements had read, on every call, and the
+calendar strip did the same for its kept courses. A request that read its rows before the hide committed stored
+them after the observer's delete, and the definition has no TTL. Tier 3, card details, the day card and the news
+line then decided visibility from that entry. The after-commit observers of the second amendment close the
+window only for readers that fill on a miss.
+
+**Why "write only on a miss" alone does not close it.** Checked after the statement, just before the store, the
+entry is absent exactly because the observer deleted it, so the stale store goes ahead. Checked before the
+statement, the writer shrinks to the window of a miss-then-fill reader (`course_meta::get_many()`) that missed
+before the hide and stored after the delete: smaller, still open, and without a TTL still permanent.
+
+**Decision.**
+1. Tier 1 stores nothing in `coursemeta`: `cards::build()` builds its entries from the rows with
+   `course_meta::entry_from_row()`. It costs one Redis write less and no database read; later readers fill on
+   their own miss.
+2. The calendar strip stores only the entries that were absent before its statement
+   (`course_meta::absent()`, one cache read, no database read), so the day card keeps the saving the strip's
+   write gave it.
+3. `coursemeta`, `categorymeta` and `coursefields` get `'ttl' => 600`, the catalogue's `MAX_AGE`. On Redis core
+   wraps the value (the store has no native TTL), so a read is still one HMGET and a write adds a sorted-set
+   member. Static acceleration holds the unwrapped value and checks no TTL: the bound does not apply inside a
+   long-lived process.
+
+**Left open, on purpose.** A reader that missed before the hide (an entry absent after a purge, an earlier edit
+or an expiry) and stores after the observer's delete can still leave a stale entry, for at most 600 seconds. The
+same shape exists on `course_updated` (rename, move) and for core write paths that raise no event.
+
+**Considered and not built.** A per-course generation key: the observer writes a new token per course instead of
+only deleting, `get_many()` reads entries and tokens in its one HMGET and stores entries tagged with the token it
+saw before its statement, and a tag different from the current token counts as a miss. That closes the window
+for fills exactly, at about fifty lines in `course_meta.php` and the observer, a doubled HMGET and tokens that
+never expire. Not worth it while the residue is rare and bounded.
+
+**Amends** the Layer 1 table (`Invalidation`: "No TTL" is now a 600-second TTL, and tier 1 no longer writes the
+layer) and the first-paint accounting (`coursemeta::set_many()` from rows 1-3: tier 1 stores nothing; the
+entries come from the rows).

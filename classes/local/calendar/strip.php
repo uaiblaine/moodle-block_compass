@@ -960,7 +960,10 @@ final class strip {
      * no read of its own. Only the kept courses are written: every later reader of coursemeta on
      * the strip's paths reads the courses of the set (day::export_teaching_items() and the rest
      * through the items of future(), which asks for the set's courses only), and a course cut at the
-     * bound would cost a write per request for an entry nothing here reads. Reads: those of
+     * bound would cost a write per request for an entry nothing here reads. Of those, only the entries
+     * absent before the statement are written ({@see course_meta::absent()}, one cache read): a
+     * hide that commits during the request deletes its entries, and a store of rows read before the
+     * commit would bring the old `visible` back. Reads: those of
      * inventory::get() (one on a valid hit), the preference load behind hidden_courses::ids() when
      * the request has not loaded them yet, and this one.
      *
@@ -976,7 +979,11 @@ final class strip {
         $courses = inventory::courses($inventory ?? inventory::get($userid), $now, hidden_courses::ids($userid));
         $paths = [];
         $rows = [];
+        $absent = [];
         if ($courses) {
+            // Asked before the statement below: an entry absent only after it may be one the
+            // observers just deleted, which a store of this statement's rows would resurrect.
+            $absent = array_fill_keys(course_meta::absent(array_keys($courses)), true);
             // Hidden courses and courses the user has completed do not count (the maintainer,
             // 2026-10-13). Unlike tier 1 there is no moodle/course:viewhiddencourses exception:
             // {@see \block_compass\local\attention::visible_sql()} is tier 1's rule. A course
@@ -1018,7 +1025,9 @@ final class strip {
             $bounded = true;
         }
         if ($courses) {
-            course_meta::set_from_rows(array_intersect_key($rows, $courses));
+            // Only the entries that were absent before the statement: a present one is as fresh as
+            // these rows or fresher, and a store here is the write a hide can race.
+            course_meta::set_from_rows(array_intersect_key($rows, $courses, $absent));
         }
         $categoryids = [];
         foreach (array_keys($courses) as $courseid) {

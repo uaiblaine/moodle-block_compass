@@ -49,9 +49,14 @@ use core\event\user_deleted;
  * which courses it holds delete that key, and never a per-user entry (ADR-001's rule).
  *
  * Every observer runs after the commit ('internal' => false in db/events.php): run inside a
- * transaction, a delete would come before the rows were visible to other requests, and one of them
- * could store the pre-commit state again in a layer that has no TTL. None needs the transaction:
- * each reads only ids from the event, and user_deleted the cached inventory entry, not the user row.
+ * transaction, a delete would come before the rows were visible to other requests, and any request
+ * could refill the entry from the old rows. After the commit that is closed only for readers whose
+ * store depends on a miss they saw before reading (a request that read the rows before the commit and
+ * stores them after the delete still re-stores the old state), so the writers that stored
+ * unconditionally were changed (tier 1 stores nothing; the calendar strip stores only absent
+ * entries) and coursemeta, categorymeta and coursefields carry a 10-minute TTL for what is left
+ * (ADR-001, amendment of 2026-11-14). None needs the transaction: each reads only ids from the
+ * event, and user_deleted the cached inventory entry, not the user row.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

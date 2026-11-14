@@ -39,14 +39,18 @@ $definitions = [
     // enablecompletion, and the six context columns that rebuild the course context
     // without a query. No image (core's course_image cache owns it), no category name (that is
     // categorymeta's, below: core's coursecatrecords cache is request-scoped), nothing
-    // formatted. Deleted per key by the course_updated and course_deleted observers; shared by
-    // every user, so it stays hot on its own.
+    // formatted. Deleted per key by the course_updated and course_deleted observers after the
+    // commit; shared by every user, so it stays hot on its own. The TTL bounds an entry that a
+    // request re-stored from rows it read before a commit, after the observer's delete (ADR-001,
+    // amendment of 2026-11-14): the observers alone cannot close that window. Static acceleration
+    // keeps the unwrapped value and checks no TTL, which matters only in a long-lived process.
     'coursemeta' => [
         'mode' => \core_cache\store::MODE_APPLICATION,
         'simplekeys' => true,
         'simpledata' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 50,
+        'ttl' => 600,
     ],
 
     // Category layer. Key: category id. Value: raw name, path, depth and the six context
@@ -54,7 +58,8 @@ $definitions = [
     // definition is MODE_REQUEST (lib/db/caches.php), so without this layer every request pays
     // a read for names the last one had already fetched. Deleted per key by the course_category_updated and course_category_deleted
     // observers — an update also drops the descendants, because a move rewrites their paths
-    // and the event cannot tell a move from a rename; shared by every user; no TTL. Static
+    // and the event cannot tell a move from a rename; shared by every user; a 10-minute TTL
+    // bounds a pre-commit re-store, as for coursemeta. Static
     // acceleration holds the distinct categories of one response.
     'categorymeta' => [
         'mode' => \core_cache\store::MODE_APPLICATION,
@@ -62,13 +67,14 @@ $definitions = [
         'simpledata' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 20,
+        'ttl' => 600,
     ],
 
     // Course custom field values. Key: courseid. Value: field id => stored intvalue for the
     // filterable fields the course has a data row for; an empty array is a value. A sibling
-    // of coursemeta on purpose: cards.php writes coursemeta from tier 1's strip rows, which
-    // carry no field columns, so folding the values into that entry would let tier 1 write
-    // field-less entries that tier 3 reads as hits. Deleted per key by the
+    // of coursemeta on purpose: the strip writes coursemeta from rows that carry no field
+    // columns, so folding the values into that entry would let it write field-less entries that
+    // tier 3 reads as hits. A 10-minute TTL bounds a pre-commit re-store. Deleted per key by the
     // course_updated and course_deleted observers; purged whole by the four core_customfield
     // observers, since a field created or made eligible is one no existing entry knows about.
     'coursefields' => [
@@ -77,6 +83,7 @@ $definitions = [
         'simpledata' => true,
         'staticacceleration' => true,
         'staticaccelerationsize' => 50,
+        'ttl' => 600,
     ],
 
     // The filter panel's vocabulary. One entry for the whole site: every eligible course
