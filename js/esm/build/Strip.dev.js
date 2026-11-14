@@ -100,11 +100,24 @@ const Strip = /* @__PURE__ */ __name(({
         lineNumber: 120,
         columnNumber: 25
       })),
-      ghost && /* @__PURE__ */ jsxDEV("div", { className: "compass-cards-item", role: "listitem", children: /* @__PURE__ */ jsxDEV(Ghost, { count: ghost.count, text: ghost.text, cta: ghost.cta, kind: "tier2", onExplore }, void 0, false, {
-        fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-        lineNumber: 132,
-        columnNumber: 29
-      }) }, void 0, false, {
+      ghost && /* @__PURE__ */ jsxDEV("div", { className: "compass-cards-item", role: "listitem", children: /* @__PURE__ */ jsxDEV(
+        Ghost,
+        {
+          count: ghost.count,
+          text: ghost.text,
+          cta: ghost.cta,
+          line: ghost.line,
+          kind: "tier2",
+          onExplore
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
+          lineNumber: 132,
+          columnNumber: 29
+        }
+      ) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
         lineNumber: 131,
         columnNumber: 25

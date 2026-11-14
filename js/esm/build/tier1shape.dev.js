@@ -27,6 +27,7 @@ const VERSION = 1;
 const MAX_CARDS = 24;
 let held = null;
 const drawsCompletion = /* @__PURE__ */ __name((card) => card.hascompletion || Boolean(card.teacher), "drawsCompletion");
+const ghostDrawn = /* @__PURE__ */ __name((counts) => counts.more > 0 || counts.invisible > 0 || counts.archived > 0, "ghostDrawn");
 const settledShape = /* @__PURE__ */ __name((data, strips, favouritesenabled, pendingenabled) => {
   const cards = strips.flatMap((strip) => data[strip.name]);
   if (cards.some((card) => card.pending)) {
@@ -38,7 +39,7 @@ const settledShape = /* @__PURE__ */ __name((data, strips, favouritesenabled, pe
       Math.min(MAX_CARDS, data[strip.name].length),
       data[strip.name].some(drawsCompletion)
     ]),
-    ghost: data.counts.more > 0,
+    ghost: ghostDrawn(data.counts),
     pending: pendingenabled && data.counts.pending > 0
   };
 }, "settledShape");
@@ -63,6 +64,7 @@ const rememberShape = /* @__PURE__ */ __name((tier1, shape) => {
 }, "rememberShape");
 export {
   MAX_CARDS,
+  ghostDrawn,
   rememberShape,
   settledShape
 };

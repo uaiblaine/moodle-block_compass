@@ -21,6 +21,11 @@
  * above; what did not fit a strip is a link in that strip's heading instead. The kind decides
  * which chip tier 3 opens on, and the heading links and the pending notice reuse it.
  *
+ * Its line names tier 3's special groups that hold something ("3 hidden · 1 archived", ADR-022), which
+ * total never counts; with nothing else left to count the card is drawn for them alone, with no "+0":
+ * its call to action stands in the count's place, then the line. The line is inside the button, so it
+ * is part of the button's accessible name.
+ *
  * @module     block_compass/Ghost
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -35,6 +40,8 @@ type GhostProps = {
     count: number,
     text: string,
     cta?: string,
+    // The special groups that hold something, already filled; empty for none.
+    line?: string,
     kind: GhostKind,
     onExplore: (kind: GhostKind) => Promise<void>,
 };
@@ -42,11 +49,11 @@ type GhostProps = {
 /**
  * The ghost card.
  *
- * @param {object} props The count, its already-translated text and call to action,
- *     the kind of ghost, and what to do when it is pressed; see GhostProps.
+ * @param {object} props The count, its already-translated text, call to action and special
+ *     groups' line, the kind of ghost, and what to do when it is pressed; see GhostProps.
  * @returns {object} The rendered button.
  */
-const Ghost = ({count, text, cta, kind, onExplore}: GhostProps) => {
+const Ghost = ({count, text, cta, line, kind, onExplore}: GhostProps) => {
     const [busy, setBusy] = useState(false);
 
     /**
@@ -74,11 +81,19 @@ const Ghost = ({count, text, cta, kind, onExplore}: GhostProps) => {
             aria-busy={busy}
             onClick={click}
         >
-            <span className="card-body d-flex flex-column justify-content-center">
-                <span className="compass-ghost-count">+{count}</span>
-                <span className="compass-ghost-text small text-muted">{text}</span>
-                {cta ? <span className="compass-ghost-cta small mt-2">{cta}</span> : null}
-            </span>
+            {count > 0 ? (
+                <span className="card-body d-flex flex-column justify-content-center">
+                    <span className="compass-ghost-count">+{count}</span>
+                    <span className="compass-ghost-text small text-muted">{text}</span>
+                    {line ? <span className="compass-ghost-line small text-muted">{line}</span> : null}
+                    {cta ? <span className="compass-ghost-cta small mt-2">{cta}</span> : null}
+                </span>
+            ) : (
+                <span className="card-body d-flex flex-column justify-content-center">
+                    <span className="compass-ghost-cta compass-ghost-alone">{cta}</span>
+                    {line ? <span className="compass-ghost-line small text-muted mt-1">{line}</span> : null}
+                </span>
+            )}
         </button>
     );
 };

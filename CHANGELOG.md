@@ -167,6 +167,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   view can be turned off (a 4 px coloured edge instead), and a course with no image shows the theme's generated
   image, asked with the progress of the cards on screen. Under any other theme nothing changes.
 - One string, `progressvalue` (the percentage beside the bar).
+- **A way into *All courses* when the ghost counts nothing** (ADR-022): the ghost card names the *Hidden* and
+  *Archived* groups that hold something on a line of its own ("3 hidden · 1 archived"), and is drawn for that line
+  alone, as *Explore all* with no "+0", when every other course fits the strips or every course is hidden. The
+  hidden count is the viewer's only where `moodle/course:viewhiddencourses` holds at the course's context, so a
+  student enrolled in a hidden course gets no count and no door from it. `block_compass_get_attention`'s counts gain
+  `invisible` and `archived`, carried by the counting and the situations statements: no read is added, warm or
+  cold (`test_the_special_counts_add_no_read_warm_or_cold`). Four strings, `ghost_invisible`, `ghost_archived` and
+  their `_one` twins; with only those groups to show, the empty state no longer says "You are not enrolled in any
+  course yet".
 - **A *Hidden* group in *All courses*** (ADR-021): the hidden courses the viewer may see, collapsed, after
   *Dormant* and before *Archived*, its exact count in the first answer and its rows loaded when it is opened,
   through `block_compass_get_inventory_rows` with the reserved id `-3`. A hidden row carries `invis`, from which
