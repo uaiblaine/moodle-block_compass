@@ -280,6 +280,7 @@ const Block = /* @__PURE__ */ __name((config) => {
     const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
     return data && ghostDrawn(data.counts) && !exploring ? { count: data.counts.more, text: ghosttext, cta: labels.ghost_explore, line: specialLine(labels, data.counts) } : null;
   }, [data, exploring, labels]);
+  const specialonly = data !== null && data.counts.more === 0 && specialLine(labels, data.counts) !== "";
   const laststrip = data ? [...activestrips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null : null;
   const { columns } = brackets;
   const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
@@ -297,7 +298,7 @@ const Block = /* @__PURE__ */ __name((config) => {
   const firststrip = data ? config.strips.find((strip) => data[strip.name].length > 0)?.name ?? null : null;
   const newsAt = /* @__PURE__ */ __name((place) => config.news && newsplace === place ? /* @__PURE__ */ jsxDEV(OpenCourses, { config, news: config.news, state: news, mode: newsmode, narrow: brackets.newsnarrow }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 629,
+    lineNumber: 632,
     columnNumber: 9
   }) : null, "newsAt");
   const notice = /* @__PURE__ */ __name((kind, text, label, view) => /* @__PURE__ */ jsxDEV("p", { className: "compass-strip-note small text-muted", "data-region": `${kind}-notice`, children: [
@@ -316,13 +317,13 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 647,
+        lineNumber: 650,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 644,
+    lineNumber: 647,
     columnNumber: 9
   }), "notice");
   return /* @__PURE__ */ jsxDEV("div", { ref: root, className: "compass-body", tabIndex: -1, children: [
@@ -344,7 +345,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 663,
+        lineNumber: 666,
         columnNumber: 17
       }
     ),
@@ -355,22 +356,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       attempts: String(reconnecting.attempts)
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 679,
+      lineNumber: 682,
       columnNumber: 17
     }),
     !data && error === null && reconnecting === null && /* @__PURE__ */ jsxDEV("div", { className: "compass-status visually-hidden", role: "status", "aria-live": "polite", children: labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 689,
+      lineNumber: 692,
       columnNumber: 17
     }),
     !data && error === null && /* @__PURE__ */ jsxDEV(Tier1Skeleton, { skeleton: config.tier1.skeleton }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 693,
+      lineNumber: 696,
       columnNumber: 41
     }),
     error !== null && /* @__PURE__ */ jsxDEV(RetryNotice, { message: error, retrying: false, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 695,
+      lineNumber: 698,
       columnNumber: 17
     }),
     data && config.strips.map((strip) => /* @__PURE__ */ jsxDEV(Fragment, { children: [
@@ -393,7 +394,7 @@ const Block = /* @__PURE__ */ __name((config) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-          lineNumber: 699,
+          lineNumber: 702,
           columnNumber: 21
         }
       ),
@@ -406,7 +407,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       strip.name === firststrip && newsAt("below")
     ] }, strip.name, true, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 698,
+      lineNumber: 701,
       columnNumber: 17
     })),
     data && firststrip === null && newsAt("below"),
@@ -424,17 +425,17 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 728,
+        lineNumber: 731,
         columnNumber: 21
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 727,
+      lineNumber: 730,
       columnNumber: 17
     }),
-    data && shown === 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-empty text-muted", children: data.counts.total === 0 && !ghostDrawn(data.counts) ? labels.nocourses : labels.emptyattention }, void 0, false, {
+    data && shown === 0 && !specialonly && /* @__PURE__ */ jsxDEV("p", { className: "compass-empty text-muted", children: data.counts.total === 0 && !ghostDrawn(data.counts) ? labels.nocourses : labels.emptyattention }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 739,
+      lineNumber: 742,
       columnNumber: 17
     }),
     newsAt("empty"),
@@ -454,22 +455,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 746,
+        lineNumber: 749,
         columnNumber: 21
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 745,
+      lineNumber: 748,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "alert", "aria-live": "assertive", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 760,
+      lineNumber: 763,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 661,
+    lineNumber: 664,
     columnNumber: 9
   });
 }, "Block");
