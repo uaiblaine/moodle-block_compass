@@ -77,4 +77,31 @@ final class course_kinds_test extends \advanced_testcase {
             1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos'],
         ], $hook->get_kinds(), 'cleaned to plain text, in the order given, the first per value kept');
     }
+
+    /**
+     * A noun whose trailing "<" a trim would expose ends on a value PARAM_TEXT gives back unchanged.
+     *
+     * Control: PARAM_TEXT keeps "Evento < " whole and cuts the trimmed "Evento <", so a single clean and
+     * trim would hand the service a value its return validation refuses.
+     *
+     * @return void
+     */
+    public function test_a_noun_ending_in_a_bare_angle_bracket_is_stable_under_param_text(): void {
+        $this->assertSame('Evento < ', clean_param('Evento < ', PARAM_TEXT));
+        $this->assertSame('Evento ', clean_param('Evento <', PARAM_TEXT));
+
+        $hook = new course_kinds();
+        $hook->add_kind(2, 'event', 'Evento < ', 'Eventos < < ');
+        $hook->add_kind(3, 'track', 'A < B', 'A < B <');
+        $kinds = $hook->get_kinds();
+
+        $this->assertSame('Evento', $kinds[2]['one']);
+        $this->assertSame('Eventos', $kinds[2]['many']);
+        $this->assertSame('A < B', $kinds[3]['one'], 'a "<" inside the noun stays');
+        $this->assertSame('A < B', $kinds[3]['many']);
+        foreach ($kinds as $kind) {
+            $this->assertSame($kind['one'], clean_param($kind['one'], PARAM_TEXT));
+            $this->assertSame($kind['many'], clean_param($kind['many'], PARAM_TEXT));
+        }
+    }
 }

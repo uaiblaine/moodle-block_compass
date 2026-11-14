@@ -284,4 +284,46 @@ final class calendar_preference_test extends advanced_testcase {
         set_user_preference(calendar_preference::NAME, json_encode(['open' => true]), $user);
         $this->assertTrue(calendar_preference::read()['open'], 'the viewer opened it on a site that starts closed');
     }
+
+    /**
+     * The same JSON object grown to exactly a length by a member no reader knows.
+     *
+     * @param string $json A JSON object.
+     * @param int $bytes The length wanted, at least the object's own plus 10.
+     * @return string
+     */
+    private static function padded(string $json, int $bytes): string {
+        $rest = substr($json, 1);
+
+        return '{"pad":"' . str_repeat('x', $bytes - strlen($rest) - 10) . '",' . $rest;
+    }
+
+    /**
+     * A stored value longer than MAX_BYTES reads as the defaults, and its soon and news members as not hidden.
+     *
+     * The three readings share one decode, so one oversized row is ignored by all of them.
+     * Control: the same value padded to exactly the cap is read whole.
+     *
+     * @return void
+     */
+    public function test_a_stored_value_over_the_cap_reads_as_the_defaults_and_hides_nothing(): void {
+        $json = json_encode([
+            'view' => 'teaching',
+            'filter' => 'todo',
+            'relevance' => false,
+            'open' => true,
+            'soon' => ['rank' => 2, 'signin' => 1760000000],
+            'news' => ['signin' => 1760000000],
+        ]);
+
+        $atcap = self::padded($json, calendar_preference::MAX_BYTES);
+        $this->assertSame('teaching', calendar_preference::validate($atcap, true)['view']);
+        $this->assertSame(['rank' => 2, 'signin' => 1760000000], calendar_preference::soon($atcap, 1760000000));
+        $this->assertSame(['signin' => 1760000000], calendar_preference::news($atcap, 1760000000));
+
+        $over = self::padded($json, calendar_preference::MAX_BYTES + 1);
+        $this->assertSame(calendar_preference::defaults(true, false), calendar_preference::validate($over, true));
+        $this->assertNull(calendar_preference::soon($over, 1760000000));
+        $this->assertNull(calendar_preference::news($over, 1760000000));
+    }
 }

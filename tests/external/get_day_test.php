@@ -205,6 +205,34 @@ final class get_day_test extends advanced_testcase {
     }
 
     /**
+     * No field of an item is raw HTML: every value the day and Up next return is checked text, a URL or a number.
+     *
+     * A PARAM_RAW field crosses the service unchecked and the client would have to trust it; the
+     * allowlist is the builders' side of the same rule. Control: the structure has fields to walk.
+     *
+     * @return void
+     */
+    public function test_no_item_field_is_raw_html(): void {
+        $types = [];
+        $walk = function (\core_external\external_description $description, string $path) use (&$walk, &$types): void {
+            if ($description instanceof \core_external\external_value) {
+                $types[$path] = $description->type;
+            } else if ($description instanceof \core_external\external_single_structure) {
+                foreach ($description->keys as $key => $child) {
+                    $walk($child, $path . '/' . $key);
+                }
+            } else if ($description instanceof \core_external\external_multiple_structure) {
+                $walk($description->content, $path . '/*');
+            }
+        };
+        $walk(get_day::item_structure(), '');
+
+        $this->assertArrayHasKey('/name', $types);
+        $this->assertSame([], array_keys(array_filter($types, fn(string $type): bool => $type === PARAM_RAW)));
+        $this->assertNotContains('formattedtime', day::ALLOWLIST);
+    }
+
+    /**
      * Both views return the day's items with exactly the allowlist, and the kinds agree with the strip.
      *
      * The teaching day holds grading work (core's Grade action and the two submissions waiting)
