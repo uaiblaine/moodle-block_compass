@@ -29,6 +29,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+import { memo } from "react";
 import Crests from "./Crests";
 import Progress from "./Progress";
 import Star from "./Star";
@@ -39,7 +40,7 @@ const completion = /* @__PURE__ */ __name((card, labels, showprogress) => {
   if (!card.hascompletion) {
     return card.teacher ? /* @__PURE__ */ jsxDEV("p", { className: "compass-card-nocompletion small text-muted mb-2", children: labels.nocompletion }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-      lineNumber: 87,
+      lineNumber: 88,
       columnNumber: 15
     }) : null;
   }
@@ -49,17 +50,17 @@ const completion = /* @__PURE__ */ __name((card, labels, showprogress) => {
   return /* @__PURE__ */ jsxDEV("div", { className: "compass-progress mb-2", children: [
     card.pending && /* @__PURE__ */ jsxDEV("span", { className: "small text-muted", children: labels.progressloading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-      lineNumber: 96,
+      lineNumber: 97,
       columnNumber: 30
     }),
     !card.pending && card.progress !== null && /* @__PURE__ */ jsxDEV(Progress, { progress: card.progress, labels }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-      lineNumber: 97,
+      lineNumber: 98,
       columnNumber: 57
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-    lineNumber: 95,
+    lineNumber: 96,
     columnNumber: 9
   });
 }, "completion");
@@ -73,7 +74,7 @@ const Card = /* @__PURE__ */ __name(({ card, config, onToggleFavourite, lit, onP
   const action = complete ? labels.action_review : card.actiontext;
   const kind = card.isnew && !complete ? /* @__PURE__ */ jsxDEV("span", { className: "compass-card-kind", children: labels.badge_new }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-    lineNumber: 122,
+    lineNumber: 123,
     columnNumber: 44
   }) : null;
   return /* @__PURE__ */ jsxDEV(
@@ -96,11 +97,11 @@ const Card = /* @__PURE__ */ __name(({ card, config, onToggleFavourite, lit, onP
       children: [
         !nocover && (card.hasimage ? /* @__PURE__ */ jsxDEV("img", { className: "compass-card-img card-img-top", src: card.imageurl, alt: "", loading: "lazy" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-          lineNumber: 144,
+          lineNumber: 145,
           columnNumber: 19
         }) : /* @__PURE__ */ jsxDEV("div", { className: "compass-card-img compass-card-img-empty card-img-top", "aria-hidden": "true" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-          lineNumber: 145,
+          lineNumber: 146,
           columnNumber: 19
         })),
         !nocover && kind,
@@ -117,54 +118,54 @@ const Card = /* @__PURE__ */ __name(({ card, config, onToggleFavourite, lit, onP
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 150,
+            lineNumber: 151,
             columnNumber: 17
           }
         ),
         /* @__PURE__ */ jsxDEV("div", { className: "card-body d-flex flex-column", children: [
           nocover && /* @__PURE__ */ jsxDEV("div", { className: "compass-card-top", children: kind }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 160,
+            lineNumber: 161,
             columnNumber: 29
           }),
           card.category && config.showcategory && /* @__PURE__ */ jsxDEV("span", { className: "compass-card-category compass-card-oneline", title: card.category, children: card.category }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 162,
+            lineNumber: 163,
             columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV(Title, { className: "compass-card-title compass-clamp h6 mb-1", title: card.fullname, children: /* @__PURE__ */ jsxDEV("a", { href: card.url, className: "compass-card-link stretched-link", children: card.fullname }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 165,
+            lineNumber: 166,
             columnNumber: 21
           }) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 164,
+            lineNumber: 165,
             columnNumber: 17
           }),
           !later && meta && /* @__PURE__ */ jsxDEV("p", { className: "compass-card-extra mb-2", children: [
             /* @__PURE__ */ jsxDEV("i", { className: "fa-regular fa-clock", "aria-hidden": "true" }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-              lineNumber: 171,
+              lineNumber: 172,
               columnNumber: 25
             }),
             /* @__PURE__ */ jsxDEV("span", { className: "compass-card-extra-text", title: meta, children: meta }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-              lineNumber: 172,
+              lineNumber: 173,
               columnNumber: 25
             })
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 170,
+            lineNumber: 171,
             columnNumber: 21
           }),
           (later || complete) && /* @__PURE__ */ jsxDEV(StatePill, { row: card, labels, complete }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 175,
+            lineNumber: 176,
             columnNumber: 41
           }),
           /* @__PURE__ */ jsxDEV(Crests, { badges: card.badges, label: labels.crests }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 177,
+            lineNumber: 178,
             columnNumber: 17
           }),
           completion(card, labels, config.card.progress),
@@ -181,17 +182,17 @@ const Card = /* @__PURE__ */ __name(({ card, config, onToggleFavourite, lit, onP
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-              lineNumber: 184,
+              lineNumber: 185,
               columnNumber: 25
             }
           ) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-            lineNumber: 181,
+            lineNumber: 182,
             columnNumber: 21
           })
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-          lineNumber: 158,
+          lineNumber: 159,
           columnNumber: 13
         })
       ]
@@ -200,12 +201,12 @@ const Card = /* @__PURE__ */ __name(({ card, config, onToggleFavourite, lit, onP
     true,
     {
       fileName: "public/blocks/compass/js/esm/src/Card.tsx",
-      lineNumber: 125,
+      lineNumber: 126,
       columnNumber: 9
     }
   );
 }, "Card");
-var Card_default = Card;
+var Card_default = memo(Card);
 export {
   Card_default as default,
   isComplete

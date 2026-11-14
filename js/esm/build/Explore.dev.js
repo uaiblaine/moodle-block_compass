@@ -26,7 +26,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import FilterLine from "./FilterLine";
 import FilterPanel from "./FilterPanel";
 import Group from "./Group";
@@ -1181,7 +1181,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     columnNumber: 9
   });
 }, "Explore");
-var Explore_default = Explore;
+var Explore_default = memo(Explore);
 export {
   Explore_default as default
 };

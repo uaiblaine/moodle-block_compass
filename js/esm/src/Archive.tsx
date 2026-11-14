@@ -28,6 +28,7 @@
 
 import {fill} from './str';
 import type {BlockConfig} from './types';
+import {markup} from './markup';
 
 type ArchiveProps = {
     courseid: number,
@@ -69,7 +70,7 @@ const Archive = ({courseid, name, archived, busy, config, onArchive}: ArchivePro
             <span
                 className="icon-no-margin"
                 aria-hidden="true"
-                dangerouslySetInnerHTML={{__html: archived ? icons.unarchive : icons.archive}}
+                dangerouslySetInnerHTML={markup(archived ? icons.unarchive : icons.archive)}
             />
         </button>
     );

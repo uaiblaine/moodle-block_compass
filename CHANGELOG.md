@@ -13,8 +13,59 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Security
+
+- **The cache observers run after the commit.** Every observer of `db/events.php` is now `'internal' => false`:
+  core holds the event until the transaction that raised it commits, so a request reading the rows meanwhile can
+  no longer store the old state again after the delete, in layers that have no expiry (a category hidden through
+  core's category web service or a bulk operation, an enrolment sync).
+- **The three JSON preferences have a size cap.** `block_compass_explore`, `block_compass_calendar` and
+  `block_compass_tier1` are refused by core's preference route when longer than their reader reads (1 KB, 512 bytes
+  and 1 KB, twice the largest value the block writes) or when their reader cannot decode them; core loads a user's
+  preferences on every request and stored any length. A longer value stored earlier is ignored and the defaults
+  apply.
+- **The block's page follows the block type.** While Compass is hidden under *Manage blocks*, its page redirects to
+  the Dashboard instead of drawing a shell whose every service refuses.
+- **A listener's course kind cannot break the open-courses line.** A noun ending in a bare `<` (`Events < `) was
+  trimmed into a value core's return validation refuses, which failed `block_compass_get_news` for every viewer;
+  the noun is now cleaned until it is stable. Crest texts were already safe and are now pinned by a test through
+  the service.
+- **No raw HTML in a day's items.** `block_compass_get_day` and `block_compass_get_soon` no longer return
+  `formattedtime`, core's rendered time period, which crossed the services unchecked as `PARAM_RAW` and which the
+  client never read.
+- **Grading work completed later is asked again.** When the open strip completes counts taken earlier, a deferred
+  assignment's context is rebuilt from the course's current category and `mod/assign:grade` is checked again, so a
+  course moved out of the grader's reach, or a capability lost, since the count shows no grading work.
+
 ### Fixed
 
+- **Pointing at a card or resizing the block renders only what it changes** (client audit, 2026-11-13). The block
+  keeps in state the brackets its parts branch on (tier 1's column count and the narrow forms of the open-courses
+  line and of the calendar strip), not its measured width, so a resize renders it only when one of them moves; the
+  strip follows its own row through the observer on its head. The strips, their cards, the open-courses line and
+  tier 3 are memoised with props kept between renders, so a card pointed at renders the calendar strip that lights
+  its days and nothing else, and a new open day renders only the cards whose outline moves.
+- **Icons keep their element across renders.** Every icon drawn from the server's markup (the card star, the archive
+  box, a group's chevron, the calendar strip's glyphs, chevrons and arrows, Up next's and the open-courses line's
+  icons) goes through `markup()`, one object per string, so React 19 no longer writes its HTML again on each render
+  (a rewrite between a press and its release lost the click). A static rule now fails on any site that builds its
+  own object.
+- **Right-to-left polish.** Tier 3's category index draws its rule and its padding on the inline end, and the
+  calendar's day card aligns its text to the start, so both follow a right-to-left language; nothing moves in a
+  left-to-right one.
+- **Read retries no longer return in step** (ADR-010 decision 12, amended 2026-11-13). Every failed read is still
+  asked again twice, after any failure, with the same *Reconnecting…* line; each wait is now 2 s give or take up to
+  500 ms, drawn per wait, so reads that failed together no longer come back together in two waves. A Behat site
+  waits exactly 2 s.
+- **A calendar day item no longer requires `formattedtime`.** The client never read it (the time is written from
+  `timestart`), and its type no longer declares it.
+
+- **A course in a hidden category leaves *All courses*.** Hiding a category hides its courses without an event of
+  their own, so the course cache kept them visible, with no expiry: an enrolled student went on seeing the name,
+  link, image and progress of such a course in *All courses*, in the search and in the card details (the first tier
+  was right, and the course itself stayed closed). A category update now drops the cached courses of the category
+  and of its subcategories, which also covers a category shown again and one moved under a hidden parent. The
+  upgrade purges the entries a site already holds.
 - **A completed course is never new.** A course completed without a visit (manual completion, prior learning) no
   longer lands in *New enrolments* or its count, as *Continue* already left it out; a card of *All courses* whose
   progress arrives complete drops its *New* chip. *All courses* applies the rule too: its *New* filter and count leave
@@ -44,6 +95,19 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 - **`block_compass_get_card_details`** takes an optional `generated` parameter and returns `imageurl` as raw text:
   a generated image is an SVG data URI, which `PARAM_URL` refuses, or a URL of the site's `pluginfile.php`, and
   nothing else is returned.
+- **A role held at the course is matched by equality.** The calendar strip's learning courses and the open-courses
+  line's held courses joined every role of the viewer to every course by context path, which nothing can hash; a
+  course role now joins its own context, and only a role at a category (and, for the strip, the system) is matched
+  by path. The answers are the same at every context level; for a viewer with 1,000 student roles the strip's
+  statement went from 73 ms to 1.4 ms over 1,000 courses and from 21 ms to 0.6 ms over 250.
+- **The inventory stamp reads the latest completion from the viewer's own rows.** `MAX(timecompleted + 0)` keeps
+  the planner off the site-wide `timecompleted` index, which it could walk backwards from everyone's newest
+  completion until it met the viewer's; the stamp's value is unchanged (ADR-002).
+- **The calendar strip's groups are bounded within the course set.** The statement filters the course set before
+  its `GROUPS_LIMIT`, in group order, so a member of many groups elsewhere no longer loses the groups of the
+  strip's courses to them, and the groups kept are the same on every call.
+- **The calendar strip warms the course layer for the courses it keeps.** Above `inventory_max` the courses cut
+  from the set are no longer written to `coursemeta`; nothing on the strip's paths reads them.
 
 ### Added
 

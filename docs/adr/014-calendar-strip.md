@@ -1235,6 +1235,17 @@ with. The decision text above is kept as the maintainer reviewed it.
          in and 3:1 for the marks, with the dim still visible (each dimmed fill at most half as far
          from the surface, the dimmed text quieter by a ratio over 1.15). Sixteen mutation gates
          (`mutations/gates.conf`, "Contrast pairs").
+14. **`formattedtime` leaves the day item's allowlist (2026-11-13).** Fact 3 lists it among what core
+    hands each item, decision 7's allowlist names it, and amendment 3 kept it on the wire while the client
+    formatted the time itself from `timestart`. It was core's rendered `humantimeperiod`, HTML carrying links
+    into the calendar, returned as `PARAM_RAW` (`classes/external/get_day.php:132`), copied from the exporter
+    or rendered from the period (`classes/local/calendar/day.php:76,518,786`) and declared in the client's
+    type (`js/esm/src/types.ts:546,560`), and no client code read it (`CalendarCard.tsx:28-30` says why it is
+    never injected). It leaves `day::ALLOWLIST`, the service's returns and `DayItem`: the day item's structure
+    carries no `PARAM_RAW` field any more, and a teaching item no longer pays a render of its period for it.
+    What a card shows does not change (`timestart`, `timeduration` and amendment 9's words). Fact 3, decision 7
+    and amendment 3 stay as written, as the record of what was decided then; the line numbers here are those
+    before the change.
 
 ## Consequences
 

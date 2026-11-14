@@ -15,6 +15,10 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * last so that it closes their card grid; the Starts-soon strip, whose courses it does not count,
  * never carries it.
  *
+ * The strip and its cards are memoised: every prop the block hands them is kept between its renders, so
+ * pointing at a card renders the calendar strip that lights its days and no card (ADR-014 decision 9), and
+ * a change of the open day's courses renders only the cards whose outline it moves.
+ *
  * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
  * The grid's column count is the block's (columns.ts), so the theme card's three tracks become two
  * and then one as the block narrows, and the ghost keeps a track of its own.
@@ -23,7 +27,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useId } from "react";
+import { memo, useId } from "react";
 import Card from "./Card";
 import Ghost from "./Ghost";
 import { sectionTag } from "./heading";
@@ -49,7 +53,7 @@ const Strip = /* @__PURE__ */ __name(({
     /* @__PURE__ */ jsxDEV("div", { className: "compass-strip-head", children: [
       /* @__PURE__ */ jsxDEV(Heading, { className: "compass-strip-title h6 fw-bold text-muted mb-0", id: headingid, children: title }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-        lineNumber: 101,
+        lineNumber: 105,
         columnNumber: 17
       }),
       overflow && /* @__PURE__ */ jsxDEV(
@@ -65,13 +69,13 @@ const Strip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-          lineNumber: 103,
+          lineNumber: 107,
           columnNumber: 21
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-      lineNumber: 98,
+      lineNumber: 102,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cards", children: /* @__PURE__ */ jsxDEV("div", { className: `compass-cards-list compass-cards-${columns}`, role: "list", children: [
@@ -88,39 +92,39 @@ const Strip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-          lineNumber: 117,
+          lineNumber: 121,
           columnNumber: 29
         }
       ) }, card.id, false, {
         fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-        lineNumber: 116,
+        lineNumber: 120,
         columnNumber: 25
       })),
       ghost && /* @__PURE__ */ jsxDEV("div", { className: "compass-cards-item", role: "listitem", children: /* @__PURE__ */ jsxDEV(Ghost, { count: ghost.count, text: ghost.text, cta: ghost.cta, kind: "tier2", onExplore }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-        lineNumber: 128,
+        lineNumber: 132,
         columnNumber: 29
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-        lineNumber: 127,
+        lineNumber: 131,
         columnNumber: 25
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-      lineNumber: 114,
+      lineNumber: 118,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-      lineNumber: 113,
+      lineNumber: 117,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
-    lineNumber: 97,
+    lineNumber: 101,
     columnNumber: 9
   });
 }, "Strip");
-var Strip_default = Strip;
+var Strip_default = memo(Strip);
 export {
   Strip_default as default
 };
