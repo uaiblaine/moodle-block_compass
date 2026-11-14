@@ -49,6 +49,9 @@ use core_external\external_value;
  * theme answers the block's hooks pays that theme's reads on top. The situations read is the price
  * of asking local_unlistedcourses which rows are applications and which start later (ADR-013): it
  * carries the pending count and the whole Starts-soon strip, course columns included, so that strip costs no read of its own.
+ * The special groups' counts, which let the ghost open tier 3 when nothing else is left to count (ADR-022), ride on
+ * the counting and situations statements and cost no read either: the capability behind the hidden count is the
+ * current user's, answered from the session's access data.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -121,6 +124,8 @@ class get_attention extends external_api {
                 'pending' => $counts['pending'],
                 'scheduled' => $counts['scheduled'],
                 'scheduledmore' => max(0, $counts['scheduled'] - count($strips[cards::SCHEDULED_STRIP])),
+                'invisible' => $tier['special']['invisible'],
+                'archived' => $tier['special']['archived'],
             ],
             'favouritesenabled' => $favouritesenabled,
         ];
@@ -195,6 +200,15 @@ class get_attention extends external_api {
                 ),
                 'scheduled' => new external_value(PARAM_INT, 'Courses holding an enrolment that starts later'),
                 'scheduledmore' => new external_value(PARAM_INT, 'Enrolments that start later not shown in the Starts-soon strip'),
+                'invisible' => new external_value(
+                    PARAM_INT,
+                    'Hidden courses tier 3 lists in its Hidden group: only those where the viewer holds '
+                        . 'moodle/course:viewhiddencourses at the course context'
+                ),
+                'archived' => new external_value(
+                    PARAM_INT,
+                    'Archived courses tier 3 lists in its Archived group, a hidden one only where the viewer may see it'
+                ),
             ]),
             'favouritesenabled' => new external_value(PARAM_BOOL, 'Whether the favourites feature is on'),
         ]);

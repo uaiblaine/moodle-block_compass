@@ -48,7 +48,7 @@ import {sectionTag} from './heading';
 import type {BlockConfig, CourseCard} from './types';
 
 /** The tier 2 ghost, when this strip is the last one and there is more below. */
-export type StripGhost = {count: number, text: string, cta: string};
+export type StripGhost = {count: number, text: string, cta: string, line: string};
 
 /** The strip's own overflow: how many did not fit, the link text, and its accessible name. */
 export type StripOverflow = {count: number, kind: GhostKind, text: string, label: string};
@@ -129,7 +129,14 @@ const Strip = ({
                     ))}
                     {ghost && (
                         <div className="compass-cards-item" role="listitem">
-                            <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={onExplore} />
+                            <Ghost
+                                count={ghost.count}
+                                text={ghost.text}
+                                cta={ghost.cta}
+                                line={ghost.line}
+                                kind="tier2"
+                                onExplore={onExplore}
+                            />
                         </div>
                     )}
                 </div>

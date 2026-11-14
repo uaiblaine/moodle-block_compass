@@ -133,8 +133,12 @@ final class attention {
      * no active enrolment, and comes from the situations read at no read of its own; its rows
      * carry course_meta::select_sql()'s columns and timestart, the course's earliest later start.
      *
-     * @return array continue, new, favourites, scheduled (rows keyed by course id) and counts
-     *               (total, new, favourites, pending, scheduled).
+     * The special groups (ADR-022) are tier 3's Hidden and Archived headers as tier 1 can count them
+     * from the same two statements: invisible, the listed hidden courses, and archived, the archived
+     * active courses, each hidden one only where course_meta::visible_to() allows it.
+     *
+     * @return array continue, new, favourites, scheduled (rows keyed by course id), counts
+     *               (total, new, favourites, pending, scheduled) and special (invisible, archived) - all int.
      */
     public function build(): array {
         $margin = $this->hiddeninsql ? 0 : count($this->hidden);
@@ -147,14 +151,49 @@ final class attention {
         }
 
         $situations = $this->situations();
+        $counts = $this->counts();
+        $archivedvisible = $counts['archived'];
+        unset($counts['archived']);
 
         return [
             'continue' => $continue,
             'new' => $new,
             'favourites' => array_slice($favourites, 0, $this->max, true),
             'scheduled' => array_slice($situations['scheduled'], 0, $this->max, true),
-            'counts' => $this->counts() + $situations['counts'],
+            'counts' => $counts + $situations['counts'],
+            'special' => $this->special($situations['invisible'], $situations['enrolledinvisible'], $archivedvisible),
         ];
+    }
+
+    /**
+     * The special groups' counts: tier 3's Hidden and Archived headers, as explore::resolve() decides them.
+     *
+     * A hidden course counts only where moodle/course:viewhiddencourses holds at its own course
+     * context (course_meta::visible_to()), the rule tier 3 applies, so a student enrolled in a course
+     * their teacher hid gets no count and no door from it. The context is rebuilt from the row's own
+     * context columns and the capability is the current user's, answered from the session's access
+     * data and the role definitions' cache: no read. A hidden course the viewer archived counts as
+     * archived, as tier 3's precedence puts it (ADR-021 decision 1.3); a listed hidden course is never
+     * an archived one, because the situations statement leaves archived courses out of that branch.
+     *
+     * @param array $listedinvisible Hidden courses starting later or applied to, course id => row with
+     *     course_meta::select_sql()'s columns.
+     * @param array $enrolledinvisible Hidden courses holding an active enrolment, course id => row with
+     *     the same columns; disjoint from $listedinvisible by course.
+     * @param int $archivedvisible Visible archived courses holding an active enrolment, from the counts.
+     * @return array invisible and archived, both int.
+     */
+    private function special(array $listedinvisible, array $enrolledinvisible, int $archivedvisible): array {
+        $archived = array_flip($this->hidden);
+        $special = ['invisible' => 0, 'archived' => $archivedvisible];
+        foreach ($enrolledinvisible + $listedinvisible as $courseid => $row) {
+            if (!course_meta::visible_to(course_meta::entry_from_row($row), $this->userid)) {
+                continue;
+            }
+            $special[isset($archived[$courseid]) ? 'archived' : 'invisible']++;
+        }
+
+        return $special;
     }
 
     /**
@@ -319,14 +358,15 @@ final class attention {
     }
 
     /**
-     * Counts in one statement: active courses, new-and-never-accessed, and favourited.
+     * Counts in one statement: active courses, new-and-never-accessed, favourited, and the visible
+     * archived ones.
      *
      * The derived table has one row per course (earliest timecreated), so a
      * course with two methods counts once; the LEFT JOIN to favourite matches
      * at most one row thanks to its unique index and the single course-context
      * write path of the core star. Index: user_enrolments (userid).
      *
-     * @return array total, new, favourites — all int.
+     * @return array total, new, favourites, archived — all int.
      */
     private function counts(): array {
         $counts = $this->count_courses();
@@ -335,25 +375,34 @@ final class attention {
         }
 
         // Too many hidden ids to bind in one statement: count the hidden subset in chunks of
-        // SQL_LIMIT and subtract it, so the ghost never counts what the learner archived.
+        // SQL_LIMIT and subtract it, so the ghost never counts what the learner archived. A chunk's
+        // own archived count is its visible courses, the Archived header's share of it.
         foreach (array_chunk($this->hidden, hidden_courses::SQL_LIMIT) as $chunk) {
             $hidden = $this->count_courses($chunk);
-            foreach ($counts as $key => $value) {
-                $counts[$key] = max(0, $value - $hidden[$key]);
+            foreach (['total', 'new', 'favourites'] as $key) {
+                $counts[$key] = max(0, $counts[$key] - $hidden[$key]);
             }
+            $counts['archived'] += $hidden['archived'];
         }
 
         return $counts;
     }
 
     /**
-     * One counting statement over the user's active, visible courses, optionally restricted
-     * to a list of course ids (used to count the archived subset).
+     * One counting statement over the user's active courses, optionally restricted to one chunk of
+     * the archived ones (used to count the archived subset when it is too long to bind at once).
      *
-     * @param int[]|null $onlycourses Restrict to these course ids; null for all.
-     * @return array total, new, favourites — all int.
+     * The visibility and the archive are columns of the derived table rather than filters of it, so
+     * one statement yields both what the ghost counts (not archived, and visible unless the viewer
+     * holds moodle/course:viewhiddencourses at the system context, the rule of visible_sql()) and the
+     * visible archived courses, tier 3's Archived header minus its hidden courses, which the
+     * situations statement brings (ADR-022). A chunk is archived by definition: its total, new and
+     * favourites are what the unrestricted statement counted of it, to be subtracted.
+     *
+     * @param int[]|null $chunk Restrict to these archived course ids; null for all.
+     * @return array total, new, favourites, archived — all int.
      */
-    private function count_courses(?array $onlycourses = null): array {
+    private function count_courses(?array $chunk = null): array {
         global $DB;
 
         $params = [
@@ -362,16 +411,33 @@ final class attention {
             'ccuser' => $this->userid,
         ];
         $restrict = '';
-        if ($onlycourses !== null) {
-            [$insql, $inparams] = $DB->get_in_or_equal($onlycourses, SQL_PARAMS_NAMED, 'oc');
+        $archived = '0';
+        if ($chunk !== null) {
+            [$insql, $inparams] = $DB->get_in_or_equal($chunk, SQL_PARAMS_NAMED, 'oc');
             $params += $inparams;
             $restrict = " AND c.id {$insql}";
+            $archived = '1';
+        } else if ($this->hiddeninsql && !empty($this->hidden)) {
+            [$insql, $inparams] = $DB->get_in_or_equal($this->hidden, SQL_PARAMS_NAMED, 'ar');
+            $params += $inparams;
+            $archived = "MAX(CASE WHEN ex.courseid {$insql} THEN 1 ELSE 0 END)";
         }
-        $sql = "SELECT COUNT(*) AS total,
-                       SUM(CASE WHEN x.timecreated > :since AND la.id IS NULL AND cc.id IS NULL THEN 1 ELSE 0 END) AS newcount,
-                       SUM(CASE WHEN ffa.id IS NULL THEN 0 ELSE 1 END) AS favcount
+        $rule = [];
+        if ($chunk === null) {
+            $rule[] = 'x.arch = 0';
+        }
+        if (!$this->seehidden) {
+            $rule[] = 'x.vis = 1';
+        }
+        $counted = empty($rule) ? '1 = 1' : implode(' AND ', $rule);
+        $columns = "MIN(uex.timecreated) AS timecreated, MAX(c.visible) AS vis, {$archived} AS arch";
+        $sql = "SELECT SUM(CASE WHEN {$counted} THEN 1 ELSE 0 END) AS total,
+                       SUM(CASE WHEN {$counted} AND x.timecreated > :since AND la.id IS NULL AND cc.id IS NULL
+                                THEN 1 ELSE 0 END) AS newcount,
+                       SUM(CASE WHEN {$counted} AND ffa.id IS NOT NULL THEN 1 ELSE 0 END) AS favcount,
+                       SUM(CASE WHEN x.arch = 1 AND x.vis = 1 THEN 1 ELSE 0 END) AS archcount
                   FROM ("
-                    . $this->per_course_enrolments_sql('MIN(uex.timecreated) AS timecreated', 'x', $params, true, $restrict)
+                    . $this->per_course_enrolments_sql($columns, 'x', $params, true, $restrict)
                     . ") x
              LEFT JOIN {user_lastaccess} la ON la.userid = :lauser AND la.courseid = x.courseid
              LEFT JOIN {course_completions} cc ON cc.userid = :ccuser AND cc.course = x.courseid
@@ -383,6 +449,7 @@ final class attention {
             'total' => (int) ($row->total ?? 0),
             'new' => (int) ($row->newcount ?? 0),
             'favourites' => (int) ($row->favcount ?? 0),
+            'archived' => (int) ($row->archcount ?? 0),
         ];
     }
 
@@ -416,8 +483,19 @@ final class attention {
      * applications being the first left out. Past hidden_courses::SQL_LIMIT the archived courses
      * are dropped here, in PHP.
      *
-     * @return array scheduled (rows keyed by course id, soonest first, every one of them) and
-     *               counts (pending, scheduled - both int).
+     * The same statement carries the special groups' hidden courses (ADR-022), at no read of its
+     * own: the visibility rule is decided in PHP rather than in the WHERE clause, so a hidden course
+     * starting later or applied to reaches PHP and leaves the strip and the counts there unless the
+     * viewer holds moodle/course:viewhiddencourses at the system context, as visible_sql() decided
+     * before; and a second branch reads the active rows of hidden courses, archived ones included,
+     * which no other statement of tier 1 can see for a viewer without that capability. Both kinds
+     * are ordered after every other row, so they never take the bound's room from the strip and the
+     * notice; past the bound their counts are a floor too.
+     *
+     * @return array scheduled (rows keyed by course id, soonest first, every one of them), counts
+     *               (pending, scheduled - both int), invisible (hidden courses starting later or
+     *               applied to, as tier 3 lists them: course id => row) and enrolledinvisible (hidden
+     *               courses holding an active enrolment, course id => row).
      */
     private function situations(): array {
         global $DB;
@@ -427,6 +505,9 @@ final class attention {
             'su' => $this->userid,
             'ssite' => SITEID,
             'snow' => $this->now,
+            'sua' => ENROL_USER_ACTIVE,
+            'sie' => ENROL_INSTANCE_ENABLED,
+            'sstarted' => $this->now,
             'slater' => $this->now,
         ];
         $sql = "SELECT ue.id AS ueid, e.courseid, ue.status, ue.timestart, ue.timeend, e.enrol, e.status AS instancestatus, "
@@ -435,21 +516,30 @@ final class attention {
                   JOIN {enrol} e ON e.id = ue.enrolid
                   JOIN {course} c ON c.id = e.courseid
                   JOIN {context} ctx ON ctx.instanceid = c.id AND ctx.contextlevel = :sctxlevel
-                 WHERE ue.userid = :su AND c.id <> :ssite AND (ue.timeend = 0 OR ue.timeend > :snow)"
-                    . $this->visible_sql() . $this->not_hidden_sql('hs', $params) . "
-                   AND NOT " . $this->active_enrolment_sql('e.courseid', 's', $params) . "
-              ORDER BY CASE WHEN ue.timestart > :slater THEN 0 ELSE 1 END, ue.timestart ASC, ue.id ASC";
+                 WHERE ue.userid = :su AND c.id <> :ssite AND (ue.timeend = 0 OR ue.timeend > :snow)
+                   AND ((NOT " . $this->active_enrolment_sql('e.courseid', 's', $params)
+                        . $this->not_hidden_sql('hs', $params) . ")
+                        OR (c.visible = 0 AND ue.status = :sua AND e.status = :sie AND ue.timestart <= :sstarted))
+              ORDER BY CASE WHEN ue.timestart > :slater THEN 0 WHEN c.visible = 1 THEN 1 ELSE 2 END, ue.timestart ASC, ue.id ASC";
         $records = $DB->get_records_sql($sql, $params, 0, $this->situationslimit);
 
         $hidden = $this->hiddeninsql ? [] : array_flip($this->hidden);
         $best = [];
         $soonest = [];
+        $first = [];
+        $enrolledinvisible = [];
         foreach ($records as $record) {
             $courseid = (int) $record->courseid;
+            // Only the second branch yields an active row: the first one reads courses holding none.
+            if ($this->is_active_row($record)) {
+                $enrolledinvisible[$courseid] = $enrolledinvisible[$courseid] ?? $record;
+                continue;
+            }
             $type = relationship::of_record($record, $this->now);
             if (isset($hidden[$courseid]) || !relationship::is_shown($type)) {
                 continue;
             }
+            $first[$courseid] = $first[$courseid] ?? $record;
             if (!isset($best[$courseid]) || relationship::outranks($type, $best[$courseid])) {
                 $best[$courseid] = $type;
             }
@@ -463,7 +553,17 @@ final class attention {
 
         $counts = ['pending' => 0, 'scheduled' => 0];
         $scheduled = [];
+        $invisible = [];
         foreach ($best as $courseid => $type) {
+            $listed = $type === access::RELATIONSHIP_SCHEDULED || ($this->pending && relationship::is_awaiting($type));
+            if (!(int) $first[$courseid]->visible) {
+                if ($listed) {
+                    $invisible[$courseid] = $first[$courseid];
+                }
+                if (!$this->seehidden) {
+                    continue;
+                }
+            }
             if ($type === access::RELATIONSHIP_SCHEDULED) {
                 $counts['scheduled']++;
                 $scheduled[] = $soonest[$courseid];
@@ -472,7 +572,25 @@ final class attention {
             }
         }
 
-        return ['scheduled' => self::soonest_first($scheduled), 'counts' => $counts];
+        return [
+            'scheduled' => self::soonest_first($scheduled),
+            'counts' => $counts,
+            'invisible' => $invisible,
+            'enrolledinvisible' => $enrolledinvisible,
+        ];
+    }
+
+    /**
+     * Whether a situations row is an active enrolment, by the second branch of that statement's
+     * WHERE clause; the statement has already dropped every row that has ended.
+     *
+     * @param stdClass $record A situations row.
+     * @return bool
+     */
+    private function is_active_row(stdClass $record): bool {
+        return (int) $record->status === ENROL_USER_ACTIVE
+            && (int) $record->instancestatus === ENROL_INSTANCE_ENABLED
+            && (int) $record->timestart <= $this->now;
     }
 
     /**
@@ -500,7 +618,8 @@ final class attention {
      * @param string $aggregate Aggregate column to select beside the course id.
      * @param string $suffix Placeholder suffix, unique within the statement.
      * @param array $params Placeholders, extended in place.
-     * @param bool $withcourse Also join {course} and apply the visibility, hidden and SITEID rules.
+     * @param bool $withcourse Also join {course} c and apply the SITEID rule; the visibility and the
+     *     archive are the caller's, as columns (count_courses()).
      * @param string $extrawhere Extra AND clause on the course alias c, placeholders already in $params.
      * @return string SQL without surrounding parentheses.
      */
@@ -521,8 +640,7 @@ final class attention {
         if ($withcourse) {
             $params["site{$suffix}"] = SITEID;
             $coursejoin = 'JOIN {course} c ON c.id = ex.courseid';
-            $coursewhere = " AND c.id <> :site{$suffix}" . $this->visible_sql()
-                . $this->not_hidden_sql("h{$suffix}", $params) . $extrawhere;
+            $coursewhere = " AND c.id <> :site{$suffix}" . $extrawhere;
         }
 
         return "SELECT ex.courseid, {$aggregate}
