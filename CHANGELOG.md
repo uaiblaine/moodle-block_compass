@@ -13,6 +13,10 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Fixed
+
+- **No contradicting empty messages under the special groups.** Tier 1 no longer says "Nothing to show here right now" under a ghost that is drawn for the Hidden or Archived groups alone, and tier 3 no longer says "No course matches." under a Hidden, Archived or Dormant group that holds rows while nothing is typed, starred or filtered.
+
 ### Security
 
 - **The cache observers run after the commit.** Every observer of `db/events.php` is now `'internal' => false`:

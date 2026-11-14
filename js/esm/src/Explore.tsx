@@ -1639,7 +1639,16 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // Inside the invisible group a hidden row draws no pill (the heading says it, ADR-021 answer 4); elsewhere,
     // in the archive above all, it does (markhidden). The kinds are one array until the first payload lands.
     const rowkinds = kinds ?? NO_KINDS;
-    const noresults = paged ? keepsnothing || (keptHits !== null && keptHits.length === 0) : shown === 0;
+    const nomatch = paged ? keepsnothing || (keptHits !== null && keptHits.length === 0) : shown === 0;
+    // With nothing typed, starred, scoped or selected, a Dormant, Hidden or Archived header that holds rows is
+    // an answer: "No course matches." under it would contradict the screen (ADR-022).
+    const unfiltered = term === '' && !star && scope === 'all' && Object.keys(selection).length === 0;
+    const specialdrawn = data.groups.some((group) => {
+        const slice = slices.get(group.id) ?? NO_SLICE;
+
+        return (group.id === GROUP_DORMANT || ondemand(group.id)) && slice.show && slice.count > 0;
+    });
+    const noresults = nomatch && !(unfiltered && specialdrawn);
 
     // The panel title's level comes from heading.ts. The h5 class keeps the size, and
     // keepFocus() finds the element by its class, so the level is free to move.
