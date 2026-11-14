@@ -375,11 +375,28 @@ severely. The settings page repeats this notice.
 The user's `calendarstrip`, `news` and `details` entries that role, enrolment, group, cohort and
 completion events drop are deleted in batches, one delete per cache for up to 200 users, so an
 enrolment sync or a cohort of 10,000 users does not send a delete per event to the store. A batch
-is sent when it holds 200 entries, at the end of the request, at the next event once its oldest
-delete has waited 5 seconds, and before the same request reads or writes one of those entries. Another web
-node may therefore serve such an entry until the request that changed the user's access ends (in
-a cron process, until its next event 5 seconds on, or its end); the entries' own TTLs still bound
-it. Deleting an account drops its entries at once.
+is sent when it holds 200 entries, at the end of the process, at the next event once the oldest
+pending delete has waited more than 5 seconds, and before the same process reads or writes one of those
+entries. Another web node may therefore serve such an entry until the request that changed the user's
+access ends. In a cron or CLI process the window is the gap to the next such event once the oldest delete
+has waited 5 seconds, or until the process ends: 5 seconds is a floor, not a bound (measured on a two-node
+cluster with events 8 seconds apart, the entry stayed 8 seconds). A process that is killed before then
+never sends its batch, and the entries wait for their own TTLs (30 minutes for the strip and the news, one
+hour for the progress). Deleting an account drops its entries at once.
+
+After a course, enrolment method or discoverability change the shared `catalogue` entry is deleted, and
+the next requests that miss it rebuild it; nothing serialises the rebuild across web nodes. On the
+two-node cluster the number of concurrent rebuilds levelled off at 6 to 9 whatever the number of waiting
+requests (8 CPUs; on production hardware, the web tier's concurrent PHP workers), each one statement of about one
+sequential scan of `{course}` (18.5 ms for 101,206 courses). A burst of 64 requests added about 50 ms at
+the median compared with the same burst on a warm entry. That is tens of milliseconds once per change, so
+the block takes no lock. Revisit it on a site where such changes arrive many times a minute while very
+many requests are in flight, or where `{course}` is far larger than that fixture.
+
+Core's static acceleration in a cache checks no TTL, so a cron or CLI process keeps the copy of a shared
+entry it has read (`coursemeta` keeps 50) for as long as it lives: a CLI loop kept answering a course as
+visible for the 15 seconds a category was hidden. A web request lives too short for that. The only
+long-lived reader in the block is the pre-warm task, which fills caches and renders nothing for learners.
 
 **Course crests**
 
@@ -584,9 +601,13 @@ Every web service has a database-read budget asserted by a PHPUnit test: the fir
 most 7 reads with the shared caches warm and a page of *All courses* or a search at most 3, each
 plus one read of the web-service layer, and a calendar strip already cached costs 2. On
 PostgreSQL with over a million enrolments, an ordinary user's first paint took under 6 ms of
-database time. One cached course list of 2 000 enrolments occupies about 272 KB in a default
-Redis store (122 KB with igbinary). Methods, numbers and their dates are in
-[`docs/perf/`](docs/perf/); the reasoning in [`docs/adr/`](docs/adr/README.md).
+database time. The budgets are the block's own reads: they are asserted with the theme badges switched
+off, so the listeners of the block's hooks (see *Hooks*) add theirs. On a two-node cluster whose theme
+(theme_dimensions) answers the course badge and kind hooks, `get_attention` cost 16 to 19 reads warm for the
+student viewers (13 for a course-level teacher), web-service layer included; for the 50-enrolment viewer, 7 of
+the 16 were the theme's (6 context reads and 1 custom field read). Those are that site's figures; another
+theme adds a different number. Methods, numbers and their dates
+are in [`docs/perf/`](docs/perf/); the reasoning in [`docs/adr/`](docs/adr/README.md).
 
 ### Sizing
 
@@ -606,14 +627,32 @@ the site's JavaScript revision, so a browser keeps it until the next upgrade or 
 release package carries no `.dev.js` files and no source maps: with developer debugging on, core
 serves the production files instead.
 
-The block's web services declare `readonlysession`, which core honours only when config.php sets
-`$CFG->enable_read_only_sessions = true;`. It is not an admin setting. Without it, one viewer's
+The block's web services declare `readonlysession`, which core honours only when
+`$CFG->enable_read_only_sessions` is true. Set it in config.php (`$CFG->enable_read_only_sessions = true;`)
+or as a row of the site configuration, `php admin/cli/cfg.php --name=enable_read_only_sessions --set=1`:
+core loads that configuration into `$CFG` before the session starts, and the configuration row was
+measured to work. It is not on any admin page. Without it, one viewer's
 requests wait for each other on the session lock, and on a Dashboard the block's reads also wait
-for core's own. Measured with four concurrent `get_attention` calls: sharing one session, 19
+for core's own. Measured on the development stack with four concurrent `get_attention` calls: sharing one session, 19
 requests a second and a 95th percentile of 989 ms (1,467 ms at eight calls); on separate sessions,
-59 to 69 requests a second and 75 to 192 ms. Before enabling it, map every cache definition in
+59 to 69 requests a second and 75 to 192 ms. Measured on the two-node cluster (96 calls of a 50-enrolment
+viewer, Redis sessions, the flag set as a configuration row): sharing one session without the flag, 36.8
+requests a second and a 95th percentile of 346 ms at four concurrent calls, 40.3 and 765 ms at eight; with the
+flag, 140.3 and 32.8 ms at four, 207.3 and 43.2 ms at eight, the same as separate sessions. The two sets come
+from different hardware and fixtures; compare each set with itself. Before enabling it, map every cache definition in
 session mode to a store other than the session store: core refuses to start a session otherwise.
 *Site administration > Reports > Performance overview* shows a check that says whether the flag is set.
+
+Redis memory, measured on the two-node cluster (core 5.3.1) after a pre-warm sweep of 3,008 users, with the
+store instance on PHP's `serialize()` and no compressor: a typical user (5 enrolments) costs about 5.9 KB for
+the three per-user entries as Redis stores them (hash field and TTL member): `inventory` 2,336 bytes,
+`calendarstrip` 2,471 and `news` 1,097. A shared `coursemeta` entry takes 463 bytes per course read and a
+`categorymeta` entry 370 per category. The inventory grows with the enrolments, about 157 bytes each: the
+entry's value measured 8,149 bytes for 50 enrolments, 47,403 for 300 and 157,452 (157 KB) for 1,000. Re-encoding
+the stored values with igbinary gave 878 bytes against 1,869 for the mean inventory and 68,005 against 157,452
+for the 1,000-enrolment one, so igbinary roughly halves an entry; that is computed, the store's serializer
+was not switched, and the CPU cost was not measured. Switching it needs the extension on every web and cron
+node and a purge of the stores.
 
 
 Troubleshooting

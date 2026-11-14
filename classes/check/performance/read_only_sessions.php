@@ -31,8 +31,9 @@ use core\check\result;
  * Whether the site lets one viewer's parallel requests run side by side.
  *
  * The block's web services declare `readonlysession`, and core honours that only when
- * $CFG->enable_read_only_sessions is set in config.php. Without it every request holds the session
- * lock, so the several reads one Dashboard load makes wait for each other and for core's own.
+ * $CFG->enable_read_only_sessions is true, whether config.php sets it or a row of the site configuration
+ * does (admin/cli/cfg.php). Without it every request holds the session lock, so the several reads one
+ * Dashboard load makes wait for each other and for core's own.
  *
  * - OK when the flag is set.
  * - WARNING when it is not. The flag is not an admin setting and core refuses it while any cache
