@@ -72,7 +72,9 @@ export type CourseCard = {
  * The counts that decide the ghost card, the strip overflow links and the pending notice.
  *
  * scheduled counts the courses whose enrolment starts later, which total never includes: they
- * are not active, and the ghost stands for active courses only.
+ * are not active, and the ghost stands for active courses only. invisible and archived are tier 3's
+ * Hidden and Archived headers, which total never includes either: the ghost names them on a line of
+ * its own and is drawn for them alone when nothing else is left to count (ADR-022).
  */
 export type Counts = {
     total: number,
@@ -83,6 +85,10 @@ export type Counts = {
     pending: number,
     scheduled: number,
     scheduledmore: number,
+    // Hidden courses the viewer may see at their course context: tier 3's Hidden header.
+    invisible: number,
+    // Archived courses with an active enrolment, a hidden one only where it may be seen: the Archived header.
+    archived: number,
 };
 
 /** The whole tier 1 payload. */

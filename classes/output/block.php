@@ -172,7 +172,8 @@ class block implements renderable, templatable {
      */
     public function export_for_template(renderer_base $output): array {
         $keys = [
-            'ghost_more', 'ghost_more_one', 'ghost_explore', 'strip_more_new', 'strip_more_new_label', 'strip_more_new_label_one',
+            'ghost_more', 'ghost_more_one', 'ghost_explore', 'ghost_invisible', 'ghost_invisible_one', 'ghost_archived',
+            'ghost_archived_one', 'strip_more_new', 'strip_more_new_label', 'strip_more_new_label_one',
             'strip_more_favourites', 'strip_more_favourites_label', 'strip_more_favourites_one',
             'strip_more_favourites_label_one', 'strip_more_scheduled', 'strip_more_scheduled_label',
             'strip_more_scheduled_label_one',

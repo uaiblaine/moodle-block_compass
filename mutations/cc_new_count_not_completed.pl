@@ -1,1 +1,1 @@
-s/ AND la\.id IS NULL AND cc\.id IS NULL THEN/ AND la.id IS NULL THEN/;
+s/ AND la\.id IS NULL AND cc\.id IS NULL(\s+THEN)/ AND la.id IS NULL$1/;

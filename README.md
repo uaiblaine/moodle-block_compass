@@ -29,7 +29,10 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
   you left off*, *New enrolments*, *Starts soon* and *My favourites*. A strip that overflows
   says so in its heading ("+4 new").
 - **Tier 2, frontier.** One ghost card that only counts: "+87 other courses". Counting is
-  cheap; rendering is not.
+  cheap; rendering is not. A line under the count names the *Hidden* and *Archived* groups of
+  *All courses* when they hold something ("3 hidden · 1 archived"), and when every other course
+  fits the strips the card is drawn for that line alone, as *Explore all*, so those groups are
+  never out of reach.
 - **Tier 3, exploration.** *All courses*, grouped by category, with a side index and one filter
   line: a scope, a search that suggests as you type, a favourites star, filters, a sort and a
   list or cards view. Rows fetch their progress and image only once they are on screen. Courses
@@ -143,7 +146,10 @@ All courses and the Compass page
 
 ![All courses on the Compass page: the filter line on one row (the scope with its counts, the search field, the star, Filters, Organise and the list/cards switch), the category index and the first group open as cards](docs/screenshots/explore.png)
 
-*All courses* opens from the ghost card or from a strip's "+N" link. Above it sits one filter
+*All courses* opens from the ghost card or from a strip's "+N" link. The ghost is there whenever
+*All courses* has something tier 1 does not show, its *Hidden* and *Archived* groups included: a
+teacher whose every course is hidden, or a learner whose other courses are all archived, gets it
+with no count, as *Explore all* over the line naming the two groups. Above it sits one filter
 line, the one the plugin shares with the other Dimensions surfaces, in this order:
 
 - **The scope**: All, New, Awaiting approval (with `enable_pending`) and Scheduled, each with its
