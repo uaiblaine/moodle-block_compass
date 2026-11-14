@@ -314,37 +314,17 @@ final class bootstrap_compat_test extends basic_testcase {
         );
         $this->assertNull(self::badge_defect('badge bg-warning text-dark'), 'the badge rule rejects a correct badge');
 
-        $badges = 0;
         foreach ($this->sources() as $file => $contents) {
             foreach (self::badges($contents) as $classes) {
-                $badges++;
                 $defect = self::badge_defect($classes);
                 $this->assertNull($defect, "{$file}: {$defect}: {$classes}");
             }
         }
-        // The rule must have had something to check, or a renamed class silently disables it.
-        $this->assertGreaterThanOrEqual(
-            1,
-            $badges,
-            'no badge found: have the New badges of Card.tsx, Row.tsx and RowCard.tsx been removed, or '
-                . 'has the attribute pattern stopped reading them?'
-        );
-
-        // The total above could be met by a Mustache badge alone; this count proves the
-        // className spelling of the pattern still reads the React badges.
-        $reactbadges = 0;
-        foreach ($this->sources() as $file => $contents) {
-            if (!str_ends_with($file, '.tsx')) {
-                continue;
-            }
-            $reactbadges += preg_match_all(self::BADGE_ATTRIBUTE, $contents);
-        }
-        $this->assertGreaterThanOrEqual(
-            1,
-            $reactbadges,
-            'no badge found in the React sources: has Card.tsx lost its New badge, or has the '
-                . 'attribute regex stopped reading className?'
-        );
+        // Since ADR-021 the plugin draws no Bootstrap badge: New is the course card's chip in the list view as on the
+        // cards. The controls above prove the pattern reads both spellings in both quote styles; this proves the scan
+        // read the React sources, so a badge added to any of them is checked.
+        $react = array_filter(array_keys($this->sources()), static fn(string $file): bool => str_ends_with($file, '.tsx'));
+        $this->assertGreaterThanOrEqual(20, count($react), 'the badge rule read too few React sources to be reading the client');
     }
 
     /**
@@ -410,7 +390,7 @@ final class bootstrap_compat_test extends basic_testcase {
      * {@see self::test_every_badge_states_its_text_colour()} reads a quoted attribute value,
      * so a computed className={cx('badge', tone)} would carry a badge it cannot see. React
      * sources therefore write a badge's className as a string literal; a conditional badge
-     * picks between whole elements, as Row.tsx does for its New and pending badges. The
+     * picks between whole elements, as StatePill.tsx picks between its pills. The
      * expression is read to its matching brace, so a badge written after a template literal's
      * placeholder is seen, {@see self::COMPUTED_CLASSNAME}.
      *

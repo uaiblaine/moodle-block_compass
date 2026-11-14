@@ -26,10 +26,12 @@
 namespace block_compass\external;
 
 use advanced_testcase;
+use block_compass\fixtures\course_kinds_listener;
 use block_compass\local\budget;
 use block_compass\local\dormancy;
 use block_compass\local\inventory;
 use core\exception\invalid_parameter_exception;
+use core\hook\manager;
 use core_cache\cache;
 use core_external\external_api;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -250,18 +252,26 @@ final class get_inventory_rows_test extends advanced_testcase {
 
         // The vocabulary is made cold on purpose: a shape refusal must not need it, and a check that
         // reached the vocabulary would pay core's handler here and fail the zero-read assertion.
+        // Each refusal is measured as a fresh request pays it: filter_fields::validate() refuses a
+        // duplicate too, before its own vocabulary read, so in a warm process a shape check moved after
+        // require_login() and validate_context() would still cost nothing here; a new request's
+        // validate_context() reads the user context, and that read is what the early refusal saves.
+        // Every group takes the same path, the three reserved ids included.
         cache::make('block_compass', 'filterfields')->purge();
-        $meter = budget::start();
-        try {
-            get_inventory_rows::execute($groupid, 0, 'all', 'name', [
-                ['field' => 'modality', 'value' => 1],
-                ['field' => 'modality', 'value' => 2],
-            ]);
-            $this->fail('a field named twice must be refused');
-        } catch (invalid_parameter_exception $e) {
-            $this->assertStringContainsString('filters', $e->getMessage());
+        foreach ([$groupid, dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED, dormancy::GROUP_INVISIBLE] as $group) {
+            $plugin->simulate_new_request();
+            $meter = budget::start();
+            try {
+                get_inventory_rows::execute($group, 0, 'all', 'name', [
+                    ['field' => 'modality', 'value' => 1],
+                    ['field' => 'modality', 'value' => 2],
+                ]);
+                $this->fail("a field named twice must be refused for group {$group}");
+            } catch (invalid_parameter_exception $e) {
+                $this->assertStringContainsString('filters', $e->getMessage());
+            }
+            $this->assertSame(0, $meter->reads(), "a refused shape must cost nothing, group {$group}");
         }
-        $this->assertSame(0, $meter->reads(), 'a refused shape must cost nothing');
 
         $this->assertSame(
             'invalidparameter',
@@ -316,11 +326,11 @@ final class get_inventory_rows_test extends advanced_testcase {
     }
 
     /**
-     * The two reserved group ids are accepted and any other negative is refused before any work.
+     * The three reserved group ids are accepted and any other negative is refused before any work.
      *
      * A negative id is not a category, so letting it through would answer an empty page that
-     * reads like a category the user has no course in — a client bug made invisible. The two
-     * reserved ones are the dormant and archived groups.
+     * reads like a category the user has no course in — a client bug made invisible. The three
+     * reserved ones are the dormant, archived and hidden groups.
      *
      * @return void
      */
@@ -331,17 +341,80 @@ final class get_inventory_rows_test extends advanced_testcase {
 
         $this->assertSame(dormancy::GROUP_DORMANT, $this->call(['groupid' => dormancy::GROUP_DORMANT])['groupid']);
         $this->assertSame(dormancy::GROUP_ARCHIVED, $this->call(['groupid' => dormancy::GROUP_ARCHIVED])['groupid']);
+        $this->assertSame(dormancy::GROUP_INVISIBLE, $this->call(['groupid' => dormancy::GROUP_INVISIBLE])['groupid']);
 
         $meter = budget::start();
         try {
-            get_inventory_rows::execute(-3, 0, 'all', 'name');
+            get_inventory_rows::execute(-4, 0, 'all', 'name');
             $this->fail('an unknown negative group id must be refused');
         } catch (invalid_parameter_exception $e) {
             $this->assertStringContainsString('groupid', $e->getMessage());
         }
         $this->assertSame(0, $meter->reads(), 'a refused group id must cost nothing');
-        $this->assertSame('invalidparameter', $this->failing_call(['groupid' => -3]));
-        $this->assertSame([dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED], get_inventory_rows::RESERVED_GROUPS);
+        $this->assertSame('invalidparameter', $this->failing_call(['groupid' => -4]));
+        $this->assertSame(
+            [dormancy::GROUP_DORMANT, dormancy::GROUP_ARCHIVED, dormancy::GROUP_INVISIBLE],
+            get_inventory_rows::RESERVED_GROUPS
+        );
+    }
+
+    /**
+     * A student asking for the Hidden group by its id gets an empty page; the course's teacher gets its rows, with invis.
+     *
+     * The id is public (the client holds it), so the capability is the guard, not the header: a
+     * student who never saw a Hidden header can still ask for -3. Both users hold the same
+     * enrolments; the teacher's page is the control, read through clean_returnvalue(), so it also
+     * proves invis is on the allowlist.
+     *
+     * @return void
+     */
+    public function test_a_student_asking_for_the_hidden_group_gets_an_empty_page(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $hidden = $gen->create_course(['fullname' => 'Hidden course', 'visible' => 0]);
+        $student = $gen->create_user();
+        $teacher = $gen->create_user();
+        foreach ([$student, $teacher] as $user) {
+            $plugin->enrol_at((int) $user->id, (int) $hidden->id, time() - DAYSECS);
+        }
+        $gen->role_assign('editingteacher', $teacher->id, \core\context\course::instance($hidden->id)->id);
+
+        $this->setUser($student);
+        $this->assertSame([], $this->call(['groupid' => dormancy::GROUP_INVISIBLE])['rows']);
+
+        $this->setUser($teacher);
+        $page = $this->call(['groupid' => dormancy::GROUP_INVISIBLE]);
+        $this->assertSame([(int) $hidden->id], array_column($page['rows'], 'id'));
+        $this->assertTrue($page['rows'][0]['invis']);
+    }
+
+    /**
+     * A row's kd survives the allowlist, and a row of the default kind carries none.
+     *
+     * @return void
+     */
+    public function test_the_kind_of_a_row_survives_the_allowlist(): void {
+        $this->resetAfterTest();
+        [$user, $courses, $cata] = $this->fixture();
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        course_kinds_listener::reset();
+        \core\di::set(manager::class, manager::phpunit_get_instance([
+            'block_compass_kinds' => __DIR__ . '/../fixtures/course_kinds_hooks.php',
+        ]));
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[1, 'course', 'curso', 'cursos'], [2, 'event', 'evento', 'eventos']];
+        $plugin->field_value($model, (int) $courses['alpha']->id, 2);
+        $plugin->field_value($model, (int) $courses['beta']->id, 1);
+        $this->setUser($user);
+
+        $rows = array_column($this->call(['groupid' => (int) $cata->id])['rows'], null, 'id');
+
+        $this->assertSame(0, $rows[(int) $courses['alpha']->id]['kd']);
+        $this->assertArrayNotHasKey('kd', $rows[(int) $courses['beta']->id]);
+        $this->assertSame(1, course_kinds_listener::$calls);
     }
 
     /**
@@ -592,5 +665,53 @@ final class get_inventory_rows_test extends advanced_testcase {
             $reads,
             "opening the archived group cost {$reads} reads on a valid hit in a new request; the budget is 3 + 1."
         );
+    }
+
+    /**
+     * Budget: opening the Hidden group costs what opening the Archived group costs.
+     *
+     * The hidden population comes out of the same get_many() as the rest, and the capability is
+     * asked per hidden course of the current user from the session's access data: no read of its
+     * own (ADR-021 decision 1.5). Same protocol as the archived budget, same fixture, with the
+     * course hidden from students and taught by the user instead of archived; the two opens are
+     * measured in the same test and compared.
+     *
+     * @return void
+     */
+    public function test_opening_the_hidden_group_costs_what_opening_the_archived_group_costs(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        [$user, $courses] = $this->fixture();
+        $this->setUser($user);
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $gammaid = (int) $courses['gamma']->id;
+
+        $plugin->hide((int) $user->id, $gammaid);
+        $this->purge_plugin_caches();
+        get_inventory_rows::execute(dormancy::GROUP_ARCHIVED);
+        $plugin->simulate_new_request();
+        $meter = budget::start();
+        $archived = get_inventory_rows::execute(dormancy::GROUP_ARCHIVED);
+        $archivedreads = $meter->reads();
+
+        unset_user_preference('block_myoverview_hidden_course_' . $gammaid);
+        $DB->set_field('course', 'visible', 0, ['id' => $gammaid]);
+        $this->getDataGenerator()->role_assign('editingteacher', $user->id, \core\context\course::instance($gammaid)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->setUser($user);
+        $this->purge_plugin_caches();
+        get_inventory_rows::execute(dormancy::GROUP_INVISIBLE);
+        $plugin->simulate_new_request();
+        $meter = budget::start();
+        $hidden = get_inventory_rows::execute(dormancy::GROUP_INVISIBLE);
+        $hiddenreads = $meter->reads();
+
+        // Controls: each page is the one course, so each measured call did the work.
+        $this->assertSame([$gammaid], array_column($archived['rows'], 'id'));
+        $this->assertSame([$gammaid], array_column($hidden['rows'], 'id'));
+        $this->assertTrue($hidden['rows'][0]['invis']);
+        $this->assertSame($archivedreads, $hiddenreads, "Hidden cost {$hiddenreads} reads, Archived {$archivedreads}.");
+        $this->assertLessThanOrEqual(4, $hiddenreads, "opening the hidden group cost {$hiddenreads} reads; the budget is 3 + 1.");
     }
 }

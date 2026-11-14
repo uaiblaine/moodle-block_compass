@@ -44,6 +44,9 @@ final class bundle_test extends basic_testcase {
     /**
      * The marker names the entry and the output the bundle step builds.
      *
+     * The bundle's source map is not asserted: it is a development file the release package leaves out
+     * (test_the_package_leaves_the_development_build_out), so a site installed from the package has none.
+     *
      * @return void
      */
     public function test_the_marker_names_the_entry_and_the_output(): void {
@@ -52,7 +55,6 @@ final class bundle_test extends basic_testcase {
         $this->assertSame('src/Block.tsx', $marker['entry'] ?? null);
         $this->assertSame('build/bundle.js', $marker['outfile'] ?? null);
         $this->assertFileExists(self::ROOT . '/js/esm/build/bundle.js');
-        $this->assertFileExists(self::ROOT . '/js/esm/build/bundle.js.map');
     }
 
     /**
@@ -127,6 +129,74 @@ final class bundle_test extends basic_testcase {
             foreach ($matches[1] as $module) {
                 $this->assertSame('bundle', $module, basename($template) . " names the per-file module {$module}");
             }
+        }
+    }
+
+    /**
+     * The release package leaves the source maps out and keeps every file the import map can address.
+     *
+     * Moodle 5.2's build writes X.js with X.js.map beside it for every source, and the bundle step
+     * bundle.js with bundle.js.map. The ESM route serves a .js.map only when one is asked for
+     * (import_map::add_import()'s allowed suffixes); nothing on a page asks: the import map, the
+     * modulepreload hints and the bundle's imports name .js files, and only developer tools follow a
+     * sourceMappingURL comment. So the package (`git archive` of a commit, which honours
+     * export-ignore) runs the same without them, and they stay tracked because `mdl ci` compares
+     * js/esm with a fresh build. 5.2 writes no X.dev.js (5.3's development twin): the build is
+     * asserted to hold none, so the .dev.js rule .gitattributes keeps for parity with the 5.3 branch
+     * covers nothing here and is not what this test proves. git's own matching is not available to a
+     * test, so the rules are read as written: the line that leaves the maps out, and no rule that
+     * takes out a production file, the manifest or the marker.
+     *
+     * Changes that must make it fail: the maps' line dropped; a wider rule over js/esm/build (or
+     * js/esm) added; a .dev.js file in the build (5.3's build committed on this branch).
+     *
+     * @return void
+     */
+    public function test_the_package_leaves_the_development_build_out(): void {
+        $rules = [];
+        foreach (file(self::ROOT . '/.gitattributes', FILE_IGNORE_NEW_LINES) as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            [$pattern, $attributes] = preg_split('/\s+/', $line, 2) + [1 => ''];
+            if (str_contains($attributes, 'export-ignore')) {
+                $rules[] = $pattern;
+            }
+        }
+        // Vacuity guard: the file's export-ignore rules were read.
+        $this->assertContains('/docs', $rules);
+        $this->assertContains('/js/esm/build/*.js.map', $rules, 'the source maps ship');
+
+        $build = glob(self::ROOT . '/js/esm/build/*');
+        // Vacuity guard: the build was listed, and the maps the rule leaves out exist.
+        $this->assertGreaterThan(40, count($build));
+        $this->assertGreaterThan(40, count(glob(self::ROOT . '/js/esm/build/*.js.map')));
+        $this->assertSame([], glob(self::ROOT . '/js/esm/build/*.dev.js'), "5.2's build writes no .dev.js");
+        $kept = 0;
+        foreach ($build as $path) {
+            $relative = '/js/esm/build/' . basename($path);
+            $development = str_ends_with($relative, '.dev.js') || str_ends_with($relative, '.js.map');
+            $ignored = false;
+            foreach ($rules as $pattern) {
+                // A pattern with no slash matches a name at any depth; one with a slash, the path from the root,
+                // a directory taking everything under it (gitattributes(5), gitignore(5)).
+                $matches = str_contains($pattern, '/')
+                    ? fnmatch('/' . ltrim($pattern, '/'), $relative, FNM_PATHNAME)
+                        || str_starts_with($relative, '/' . trim($pattern, '/') . '/')
+                    : fnmatch($pattern, basename($relative));
+                $ignored = $ignored || $matches;
+            }
+            $this->assertSame($development, $ignored, $relative . ($development ? ' ships' : ' is left out of the package'));
+            $kept += $ignored ? 0 : 1;
+        }
+        // The production outputs, the bundle and its manifest stay: what the import map and this test address.
+        foreach (['bundle.js', 'bundle.manifest.json', 'Block.js'] as $name) {
+            $this->assertFileExists(self::ROOT . '/js/esm/build/' . $name);
+        }
+        $this->assertGreaterThan(40, $kept);
+        foreach (['/js/esm', '/js/esm/build', '/js', '/js/esm/bundle.json'] as $wide) {
+            $this->assertNotContains($wide, $rules, "{$wide} would leave the client out of the package");
         }
     }
 }

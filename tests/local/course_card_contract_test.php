@@ -189,10 +189,26 @@ final class course_card_contract_test extends \basic_testcase {
     /**
      * A card rule paints through tokens: a colour literal lives only in a custom property's declaration.
      *
+     * The scan covers the rules naming the card root and every rule that paints with a card token
+     * outside it: the state pills (the seal, Hidden from students) and the row's chips draw with the
+     * card's pairs without naming .compass-card, and a literal beside a card token there escapes the
+     * theme as surely as one inside the card.
+     *
      * @return void
      */
     public function test_card_rules_have_no_colour_literal(): void {
-        foreach ($this->card_rules() as [$selector, $body]) {
+        $rules = $this->card_rules();
+        $tokened = 0;
+        preg_match_all('~([^{}]+)\{([^{}]*)\}~', $this->css(), $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            if (!str_contains($match[1], self::CARD_ROOT) && str_contains($match[2], 'var(' . self::TOKEN_PREFIX)) {
+                $rules[] = [trim($match[1]), $match[2]];
+                $tokened++;
+            }
+        }
+        // Vacuity guard: the pills outside the card root were found.
+        $this->assertGreaterThan(0, $tokened, 'No rule outside the card root paints with a card token.');
+        foreach ($rules as [$selector, $body]) {
             $plain = (string) preg_replace('~--[a-zA-Z0-9_-]+\s*:[^;]*;?~', '', $body);
             $this->assertDoesNotMatchRegularExpression('~#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\(~', $plain, $selector);
         }

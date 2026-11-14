@@ -227,6 +227,37 @@ final class get_card_details_test extends advanced_testcase {
     }
 
     /**
+     * A hidden course is answered to its teacher and dropped for its student, and costs the teacher no read.
+     *
+     * Both users hold the same enrolment; the teacher's role is in the course only, the case the
+     * system-context read dropped (ADR-021 decision 1.7). The budget is the one of
+     * test_budget_is_one_read_when_nothing_must_be_computed(): a course without completion costs the
+     * enrolment check alone, hidden or not, once core and the course layer are warm.
+     *
+     * @return void
+     */
+    public function test_a_hidden_course_is_answered_to_its_teacher_alone_at_no_extra_read(): void {
+        $this->resetAfterTest();
+        set_config('show_theme_badges', 0, 'block_compass');
+        $gen = $this->getDataGenerator();
+        $hidden = $gen->create_course(['visible' => 0, 'enablecompletion' => 0]);
+        $student = $gen->create_user();
+        $teacher = $gen->create_user();
+        $gen->enrol_user($student->id, $hidden->id, 'student');
+        $gen->enrol_user($teacher->id, $hidden->id, 'editingteacher');
+
+        $this->setUser($student);
+        $this->assertSame([], $this->call([(int) $hidden->id])['details']);
+
+        $this->setUser($teacher);
+        $this->assertSame([(int) $hidden->id], array_column($this->call([(int) $hidden->id])['details'], 'id'));
+        $meter = budget::start();
+        $details = cards::details((int) $teacher->id, [(int) $hidden->id]);
+        $this->assertSame([(int) $hidden->id], array_column($details, 'id'));
+        $this->assertSame(1, $meter->reads(), 'a hidden course costs the enrolment check only');
+    }
+
+    /**
      * The teacher flag survives the allowlist and is omitted for a learner.
      *
      * @return void

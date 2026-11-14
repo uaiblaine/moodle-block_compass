@@ -38,6 +38,9 @@
  * The row is the course card contract's list surface (moodle-dev/docs/course-card/CONTRACT.md, section 1):
  * once complete, the bar goes and the state pill is the green seal (D4). Boost Union's settings (CardFlags)
  * take the thumbnail away (a 4 px inline-start edge instead, green once complete) and the progress slot.
+ * Slot 2 follows the name inside the link as the cards draw it, the course's kind and then New, both the light
+ * chip (ADR-021 decision 2.6); a course hidden from students says so beside the state pill wherever it sits
+ * among visible ones (decision 1.8).
  *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
@@ -50,10 +53,10 @@ import {isComplete} from './Card';
 import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
-import StatePill from './StatePill';
+import StatePill, {InvisiblePill} from './StatePill';
 import {isEnrolled, relativeTime} from './filter';
 import {fill} from './str';
-import type {BlockConfig, InventoryRow, RowDetail} from './types';
+import type {BlockConfig, InventoryRow, RowDetail, RowKind} from './types';
 
 type RowProps = {
     row: InventoryRow,
@@ -63,6 +66,8 @@ type RowProps = {
     detail: RowDetail | undefined,
     waiting: boolean,
     observe: (id: number, element: Element) => () => void,
+    kinds: RowKind[],
+    markhidden: boolean,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
@@ -73,14 +78,16 @@ type RowProps = {
  * The row.
  *
  * @param {object} props The row, the block config, the instant "ago" is measured from,
- *     the page language, what is known about the row, how to register it and the archive
- *     and star actions; see RowProps.
+ *     the page language, what is known about the row, how to register it, the kinds its kd
+ *     indexes, whether a hidden row says so here, and the archive and star actions; see RowProps.
  * @returns {object} The rendered row.
  */
 // A component's render branches all count toward its complexity; splitting it into smaller components is
 // a refactor of its own, so the count is acknowledged here.
 // eslint-disable-next-line complexity
-const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy}: RowProps) => {
+const Row = ({
+    row, config, now, lang, detail, waiting, observe, kinds, markhidden, archived, onArchive, onToggleFavourite, busy,
+}: RowProps) => {
     const {labels} = config;
     const opened = row.opened || 0;
     const enrolled = isEnrolled(row);
@@ -118,6 +125,9 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
     } else if (enrolled) {
         meta = opened > 0 ? fill(labels.lastopened, relativeTime(opened, now, lang)) : labels.neveropened;
     }
+    // The course's kind (ADR-021 decision 2): none without a listener, none for the default kind, none for an
+    // index the held list does not have.
+    const kind: RowKind | undefined = row.kd === undefined ? undefined : kinds[row.kd];
 
     return (
         <div
@@ -130,9 +140,13 @@ const Row = ({row, config, now, lang, detail, waiting, observe, archived, onArch
             {!nothumb && <span className="compass-row-thumb" aria-hidden="true">{thumb}</span>}
             <a href={url} className="compass-row-link flex-grow-1 text-reset text-decoration-none">
                 <span className="compass-row-name compass-clamp" title={row.name}>{row.name}</span>
-                {row.new && <span className="badge bg-primary text-white">{labels.badge_new}</span>}
+                {/* Slot 2 of the course card contract, as the cards draw it: the kind first, then New, each the
+                    light chip with the card's border (styles.css), inside the link as the name's qualifiers. */}
+                {kind !== undefined && <span className="compass-card-kind">{kind.name}</span>}
+                {row.new && <span className="compass-card-kind">{labels.badge_new}</span>}
             </a>
             <StatePill row={row} labels={labels} complete={complete} />
+            {markhidden && row.invis && <InvisiblePill label={labels.hiddenfromstudents} />}
             <Crests badges={detail?.badges} label={labels.crests} inline />
             {meta !== null && <span className="compass-row-meta compass-clamp small text-muted" title={meta}>{meta}</span>}
             {/* The progress slot, held from the first render when comp says a bar may come: a
