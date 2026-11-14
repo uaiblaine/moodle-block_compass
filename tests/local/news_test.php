@@ -560,4 +560,74 @@ final class news_test extends \advanced_testcase {
         $this->assertGreaterThan(0, $reads, 'An entry without kinds is a miss.');
         $this->assertSame([0 => 1], $rebuilt['kinds']);
     }
+
+    /**
+     * Condition 4's statement, level by level: an enrolment row of any status, a role at the course, at
+     * its category or a parent category; never a role at the system, a module, a block or a user context.
+     * Each row of the viewer yields its course once, so a course held by an enrolment with its role
+     * comes twice.
+     *
+     * The role half is two statements split by the role's context level; this pins their answer,
+     * repetitions included, against the cases one join used to answer.
+     *
+     * @return void
+     */
+    public function test_history_and_roles_reach_the_courses_they_did(): void {
+        $gen = $this->getDataGenerator();
+        $parent = $gen->create_category();
+        $child = $gen->create_category(['parent' => $parent->id]);
+        $other = $gen->create_category();
+        $enrolled = $gen->create_course(['category' => $other->id]);
+        $rowonly = $gen->create_course(['category' => $other->id]);
+        $suspended = $gen->create_course(['category' => $other->id]);
+        $roleonly = $gen->create_course(['category' => $other->id]);
+        $inparent = $gen->create_course(['category' => $parent->id]);
+        $inchild = $gen->create_course(['category' => $child->id]);
+        $withmodule = $gen->create_course(['category' => $other->id]);
+        $withblock = $gen->create_course(['category' => $other->id]);
+        $untouched = $gen->create_course(['category' => $other->id]);
+        $module = $gen->create_module('assign', ['course' => $withmodule->id]);
+        $block = $gen->create_block('online_users', [
+            'parentcontextid' => \core\context\course::instance($withblock->id)->id,
+        ]);
+
+        $user = $gen->create_user();
+        $neighbour = $gen->create_user();
+        $gen->enrol_user($user->id, $enrolled->id, 'student', 'manual');
+        $gen->enrol_user($user->id, $rowonly->id, 'student', 'manual');
+        role_unassign_all(['userid' => $user->id, 'contextid' => \core\context\course::instance($rowonly->id)->id]);
+        $gen->enrol_user($user->id, $suspended->id, 'student', 'manual', 0, 0, ENROL_USER_SUSPENDED);
+        $this->assign_role((int) $user->id, 'editingteacher', \core\context\course::instance($roleonly->id));
+        $this->assign_role((int) $user->id, 'manager', \core\context\coursecat::instance($parent->id));
+        $this->assign_role((int) $user->id, 'manager', \core\context\system::instance());
+        $this->assign_role((int) $user->id, 'student', \core\context\module::instance((int) $module->cmid));
+        $this->assign_role((int) $user->id, 'student', \core\context\block::instance((int) $block->id));
+        $this->assign_role((int) $user->id, 'student', \core\context\user::instance((int) $neighbour->id));
+
+        $candidates = array_map('intval', [
+            $enrolled->id,
+            $rowonly->id,
+            $suspended->id,
+            $roleonly->id,
+            $inparent->id,
+            $inchild->id,
+            $withmodule->id,
+            $withblock->id,
+            $untouched->id,
+        ]);
+        $held = (new \ReflectionMethod(news::class, 'history_and_roles'))->invoke(null, (int) $user->id, $candidates);
+        sort($held);
+        $expected = array_map('intval', [
+            $enrolled->id,
+            $enrolled->id,
+            $rowonly->id,
+            $suspended->id,
+            $suspended->id,
+            $roleonly->id,
+            $inparent->id,
+            $inchild->id,
+        ]);
+        sort($expected);
+        $this->assertSame($expected, $held);
+    }
 }

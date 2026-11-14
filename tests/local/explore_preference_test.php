@@ -201,4 +201,39 @@ final class explore_preference_test extends advanced_testcase {
         $this->assertTrue($state['panel']);
         $this->assertSame([], $state['cf']);
     }
+
+    /**
+     * The same JSON object grown to exactly a length by a member no reader knows.
+     *
+     * @param string $json A JSON object.
+     * @param int $bytes The length wanted, at least the object's own plus 10.
+     * @return string
+     */
+    private static function padded(string $json, int $bytes): string {
+        $rest = substr($json, 1);
+
+        return '{"pad":"' . str_repeat('x', $bytes - strlen($rest) - 10) . '",' . $rest;
+    }
+
+    /**
+     * A stored value longer than MAX_BYTES reads as the defaults, whatever it holds.
+     *
+     * A row written before the preference had a cleancallback can be any length, and the shell
+     * reads it on every page. Control: the same state padded to exactly the cap is read whole, so
+     * the length is the only difference.
+     *
+     * @return void
+     */
+    public function test_a_stored_value_over_the_cap_reads_as_the_defaults(): void {
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $json = json_encode(['sort' => 'name', 'scope' => 'new', 'star' => true, 'panel' => true]);
+
+        set_user_preference(explore_preference::NAME, self::padded($json, explore_preference::MAX_BYTES), $user);
+        $this->assertSame('name', explore_preference::read()['sort']);
+
+        set_user_preference(explore_preference::NAME, self::padded($json, explore_preference::MAX_BYTES + 1), $user);
+        $this->assertSame(explore_preference::defaults(), explore_preference::read());
+    }
 }

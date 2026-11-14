@@ -274,10 +274,14 @@ final class get_card_details_test extends advanced_testcase {
     /**
      * Progress is 0 with the activity outstanding and 100 once it is complete.
      *
+     * The completion observer drops the cached progress after the commit, so the reset runs
+     * without the test case's rollback transaction, which would hold the event until the end.
+     *
      * @return void
      */
     public function test_progress_is_zero_then_one_hundred_once_the_activity_is_completed(): void {
         $this->resetAfterTest();
+        $this->preventResetByRollback();
         [$user, $course, $cm] = $this->fixture();
         $courseid = (int) $course->id;
         $this->setUser($user);
@@ -660,5 +664,39 @@ final class get_card_details_test extends advanced_testcase {
         $this->assertSame($costs[0], $costs[1], 'the fallback image cost more for three courses than for one');
         $theme = $DB->get_dbfamily() === 'postgres' ? 3 : 1;
         $this->assertSame($theme + 1, $costs[0], 'the theme, then the fallback\'s file area once');
+    }
+
+    /**
+     * A listener's crest text with a bare "<", markup or a trailing "< " reaches the client as text and the answer validates.
+     *
+     * The service returns the text as PARAM_TEXT, whose validation refuses the whole answer for a value
+     * PARAM_TEXT would change; theme_badges cleans each text with PARAM_TEXT and nothing after it, so
+     * what it ships is a value PARAM_TEXT gives back unchanged. Through call_external_function(), which
+     * validates the return as a request does.
+     *
+     * @return void
+     */
+    public function test_crest_text_with_a_bare_angle_bracket_or_markup_does_not_fail_the_answer(): void {
+        $this->resetAfterTest();
+        require_once(__DIR__ . '/../fixtures/course_badges_listener.php');
+        \block_compass\fixtures\course_badges_listener::reset();
+        \core\di::set(
+            \core\hook\manager::class,
+            \core\hook\manager::phpunit_get_instance(['block_compass_fixture' => __DIR__ . '/../fixtures/course_badges_hooks.php'])
+        );
+        set_config('show_theme_badges', 1, 'block_compass');
+        [$user, $course] = $this->fixture(0);
+        $courseid = (int) $course->id;
+        $url = 'https://www.example.com/moodle/pluginfile.php/1/theme_x/badge/a.png';
+        \block_compass\fixtures\course_badges_listener::$answers = [$courseid => [
+            ['url' => $url, 'alt' => 'A < B'],
+            ['url' => $url, 'alt' => '<b>x</b>'],
+            ['url' => $url, 'alt' => 'Events < '],
+        ]];
+        $this->setUser($user);
+
+        $data = $this->call([$courseid]);
+
+        $this->assertSame(['A < B', 'x', 'Events < '], array_column($data['details'][0]['badges'], 'alt'));
     }
 }
