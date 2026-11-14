@@ -53,9 +53,9 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {Fragment, useCallback, useEffect, useRef, useState} from 'react';
-import CalendarStrip from './CalendarStrip';
-import OpenCourses, {useNews} from './OpenCourses';
+import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import CalendarStrip, {calendarNarrow} from './CalendarStrip';
+import OpenCourses, {newsNarrow, useNews} from './OpenCourses';
 import type {NewsMode} from './OpenCourses';
 import Strip from './Strip';
 import type {StripGhost, StripOverflow} from './Strip';
@@ -96,6 +96,35 @@ type NewsPlace = 'top' | 'under' | 'below' | 'empty';
 
 /** The card details service refuses more ids than this in one call (cards::DETAILS_BATCH). */
 const DETAILS_BATCH = 24;
+
+/**
+ * What the block's measured width decides, and nothing finer: tier 1's column count (columns.ts), the
+ * open-courses line's narrow form (OpenCourses.tsx) and the calendar strip's (CalendarStrip.tsx). The block
+ * keeps these in state rather than the width, so a resize renders the block only when one of them moves.
+ */
+type Brackets = {columns: number, newsnarrow: boolean, calnarrow: boolean};
+
+/**
+ * The brackets a width falls in.
+ *
+ * @param {number} width The block's content width, in CSS pixels; 0 before it has been measured.
+ * @returns {object} The brackets; see Brackets.
+ */
+const bracketsOf = (width: number): Brackets => ({
+    columns: cardColumns(width),
+    newsnarrow: newsNarrow(width),
+    calnarrow: calendarNarrow(width),
+});
+
+/**
+ * Whether two readings fall in the same brackets, so the state may keep the one it holds.
+ *
+ * @param {object} a One reading.
+ * @param {object} b The other.
+ * @returns {boolean} Whether every bracket is the same.
+ */
+const sameBrackets = (a: Brackets, b: Brackets): boolean =>
+    a.columns === b.columns && a.newsnarrow === b.newsnarrow && a.calnarrow === b.calnarrow;
 
 /**
  * Apply a change to every strip that holds a course.
@@ -190,11 +219,13 @@ const Block = (config: BlockConfig) => {
     const [announcement, setAnnouncement] = useState({text: '', at: 0});
     // Which load is current. A retry supersedes whatever the previous one still owes.
     const seq = useRef(0);
-    // The width the block has, measured, for the strips' column count (columns.ts): the block
-    // may sit in a drawer or a narrow column, so it is the block that is measured, never the
-    // viewport - tier 3's category index does the same.
+    // The block's measured width, for the strips' column count (columns.ts) and the narrow forms of the line
+    // and the strip: the block may sit in a drawer or a narrow column, so it is the block that is measured,
+    // never the viewport - tier 3's category index does the same. State holds only the brackets (see
+    // Brackets); the width itself is a ref the calendar strip reads for its row before the row is measured.
     const root = useRef<HTMLDivElement>(null);
-    const [width, setWidth] = useState(0);
+    const [brackets, setBrackets] = useState<Brackets>(() => bracketsOf(0));
+    const blockwidth = useRef(0);
     // The calendar strip's turn: 0 until tier 1's first request settles, then one more per Try again.
     const [calendarturn, setCalendarturn] = useState(0);
     // The strip's first read and the news in one request (ADR-017 amendment 1), started once, when tier 1 first
@@ -396,7 +427,12 @@ const Block = (config: BlockConfig) => {
         if (!element || typeof ResizeObserver === 'undefined') {
             return undefined;
         }
-        const observer = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width));
+        const observer = new ResizeObserver((entries) => {
+            const width = entries[0].contentRect.width;
+            blockwidth.current = width;
+            const next = bracketsOf(width);
+            setBrackets((current) => (sameBrackets(current, next) ? current : next));
+        });
         observer.observe(element);
 
         return () => observer.disconnect();
@@ -486,42 +522,46 @@ const Block = (config: BlockConfig) => {
         setReveal((current) => current + 1);
     }, []);
 
-    /**
-     * The link a strip's heading carries when the server counted more than it sent.
-     *
-     * @param {string} kind Which strip: new, favourites or scheduled.
-     * @param {number} count How many did not fit.
-     * @param {string} text Key of the link text string, taking the count.
-     * @param {string} label Key of the link's accessible-name string, taking the count.
-     * @returns {object} The link description, or null when everything fitted.
-     */
-    const stripoverflow = (kind: GhostKind, count: number, text: string, label: string): StripOverflow | null => {
-        if (count <= 0) {
-            return null;
-        }
-
-        return {count, kind, text: fillCount(labels, text, count), label: fillCount(labels, label, count)};
-    };
-
     const shown = data ? data.continue.length + data.new.length + data.favourites.length + data.scheduled.length : 0;
-    const overflows: Record<string, StripOverflow | null> = data
-        ? {
-            'continue': null,
-            'new': stripoverflow('new', data.counts.newmore, 'strip_more_new', 'strip_more_new_label'),
-            favourites: stripoverflow(
-                'favourites',
-                data.counts.favouritesmore,
-                'strip_more_favourites',
-                'strip_more_favourites_label'
-            ),
-            scheduled: stripoverflow(
-                'scheduled',
-                data.counts.scheduledmore,
-                'strip_more_scheduled',
-                'strip_more_scheduled_label'
-            ),
-        }
-        : {};
+    // The strips' overflow links and the ghost, kept between renders: Strip and Card are memoised, so a card
+    // pointed at renders the calendar strip that lights its days and nothing of tier 1 (ADR-014 decision 9).
+    const overflows = useMemo((): Record<string, StripOverflow | null> => {
+        /**
+         * The link a strip's heading carries when the server counted more than it sent.
+         *
+         * @param {string} kind Which strip: new, favourites or scheduled.
+         * @param {number} count How many did not fit.
+         * @param {string} text Key of the link text string, taking the count.
+         * @param {string} label Key of the link's accessible-name string, taking the count.
+         * @returns {object} The link description, or null when everything fitted.
+         */
+        const stripoverflow = (kind: GhostKind, count: number, text: string, label: string): StripOverflow | null => {
+            if (count <= 0) {
+                return null;
+            }
+
+            return {count, kind, text: fillCount(labels, text, count), label: fillCount(labels, label, count)};
+        };
+
+        return data
+            ? {
+                'continue': null,
+                'new': stripoverflow('new', data.counts.newmore, 'strip_more_new', 'strip_more_new_label'),
+                favourites: stripoverflow(
+                    'favourites',
+                    data.counts.favouritesmore,
+                    'strip_more_favourites',
+                    'strip_more_favourites_label'
+                ),
+                scheduled: stripoverflow(
+                    'scheduled',
+                    data.counts.scheduledmore,
+                    'strip_more_scheduled',
+                    'strip_more_scheduled_label'
+                ),
+            }
+            : {};
+    }, [data, labels]);
     /*
      * One ghost card, the last item of the last active strip that has cards, standing for tier 2.
      * It hides once tier 3 is open, because then it has nothing left to open. The Starts-soon strip
@@ -529,14 +569,17 @@ const Block = (config: BlockConfig) => {
      * yet and are not among the courses the ghost counts. Favourites, below it, hosts it as before.
      */
     const activestrips = config.strips.filter((strip) => strip.name !== 'scheduled');
-    const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
-    const ghost: StripGhost | null = data && data.counts.more > 0 && !exploring
-        ? {count: data.counts.more, text: ghosttext, cta: labels.ghost_explore}
-        : null;
+    const ghost = useMemo((): StripGhost | null => {
+        const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
+
+        return data && data.counts.more > 0 && !exploring
+            ? {count: data.counts.more, text: ghosttext, cta: labels.ghost_explore}
+            : null;
+    }, [data, exploring, labels]);
     const laststrip = data
         ? [...activestrips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null
         : null;
-    const columns = cardColumns(width);
+    const {columns} = brackets;
     const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
 
     /*
@@ -567,7 +610,7 @@ const Block = (config: BlockConfig) => {
      * @returns {object|null} The line, or nothing.
      */
     const newsAt = (place: NewsPlace) => (config.news && newsplace === place ? (
-        <OpenCourses config={config} news={config.news} state={news} mode={newsmode} width={width} />
+        <OpenCourses config={config} news={config.news} state={news} mode={newsmode} narrow={brackets.newsnarrow} />
     ) : null);
 
     /**
@@ -605,7 +648,8 @@ const Block = (config: BlockConfig) => {
                     config={config}
                     calendar={config.calendar}
                     turn={calendarturn}
-                    width={width}
+                    narrow={brackets.calnarrow}
+                    blockwidth={blockwidth}
                     pointedCourse={pointed}
                     onOpenCourses={setDayCourses}
                     batched={first?.strip ?? null}

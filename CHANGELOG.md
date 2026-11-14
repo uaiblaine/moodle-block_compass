@@ -15,6 +15,26 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Fixed
 
+- **Pointing at a card or resizing the block renders only what it changes** (client audit, 2026-11-13). The block
+  keeps in state the brackets its parts branch on (tier 1's column count and the narrow forms of the open-courses
+  line and of the calendar strip), not its measured width, so a resize renders it only when one of them moves; the
+  strip follows its own row through the observer on its head. The strips, their cards, the open-courses line and
+  tier 3 are memoised with props kept between renders, so a card pointed at renders the calendar strip that lights
+  its days and nothing else, and a new open day renders only the cards whose outline moves.
+- **Icons keep their element across renders.** Every icon drawn from the server's markup (the card star, the archive
+  box, a group's chevron, the calendar strip's glyphs, chevrons and arrows, Up next's and the open-courses line's
+  icons) goes through `markup()`, one object per string, so React 19 no longer writes its HTML again on each render
+  (a rewrite between a press and its release lost the click). A static rule now fails on any site that builds its
+  own object.
+- **Right-to-left polish.** Tier 3's category index draws its rule and its padding on the inline end, and the
+  calendar's day card aligns its text to the start, so both follow a right-to-left language; nothing moves in a
+  left-to-right one.
+- **Read retries no longer return in step** (ADR-010 decision 12, amended 2026-11-13). Every failed read is still
+  asked again twice, after any failure, with the same *Reconnecting…* line; each wait is now 2 s give or take up to
+  500 ms, drawn per wait, so reads that failed together no longer come back together in two waves. A Behat site
+  waits exactly 2 s.
+- **A calendar day item no longer requires `formattedtime`.** The client never read it (the time is written from
+  `timestart`), and its type no longer declares it.
 - **A completed course is never new.** A course completed without a visit (manual completion, prior learning) no
   longer lands in *New enrolments* or its count, as *Continue* already left it out; a card of *All courses* whose
   progress arrives complete drops its *New* chip. *All courses* applies the rule too: its *New* filter and count leave

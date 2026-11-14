@@ -2574,9 +2574,13 @@ final class accessibility_rules_test extends basic_testcase {
 
         $source = $this->reactsources()['js/esm/src/OpenCourses.tsx'];
         $this->assertStringContainsString('export const NEWS_NARROW_PX = 640;', $source);
-        $this->assertStringContainsString('const narrow = width > 0 && width < NEWS_NARROW_PX;', $source);
+        $this->assertStringContainsString(
+            'export const newsNarrow = (width: number): boolean => width > 0 && width < NEWS_NARROW_PX;',
+            $source
+        );
         $block = $this->reactsources()['js/esm/src/Block.tsx'];
-        $this->assertStringContainsString('width={width}', $block, 'the block\'s measured width');
+        $this->assertStringContainsString('newsnarrow: newsNarrow(width),', $block, 'the block\'s measured width');
+        $this->assertStringContainsString('narrow={brackets.newsnarrow}', $block);
         $this->assertStringContainsString('sectionTag(config.headinglevel)', $source);
         $sections = $this->tags($source, 'section');
         $this->assertCount(3, $sections, 'vacuity: the full line, the compact sentence and the tiles');

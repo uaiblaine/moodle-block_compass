@@ -39,7 +39,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {RefObject} from 'react';
 import FilterLine from './FilterLine';
 import type {Candidate, LineChip, LineCourse, LineFilter} from './FilterLine';
@@ -1780,4 +1780,4 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     );
 };
 
-export default Explore;
+export default memo(Explore);

@@ -542,8 +542,8 @@ export type DayAction = {
 /**
  * One item of a day, as block_compass_get_day returns it (day::ALLOWLIST).
  *
- * formattedtime is core's rendered humantimeperiod, and the client does not inject it: the
- * time is formatted from timestart instead (CalendarCard.tsx says why).
+ * The time is formatted from timestart (CalendarCard.tsx says why), so the type declares no
+ * formattedtime: the client never reads core's rendered humantimeperiod, with or without it.
  */
 export type DayItem = {
     id: number,
@@ -556,7 +556,6 @@ export type DayItem = {
     timestart: number,
     // Seconds; 0 for an instant such as a deadline (ADR-016 decision 4).
     timeduration: number,
-    formattedtime: string,
     viewurl: string,
     action: DayAction | null,
     kind: CalendarKind,

@@ -27,6 +27,10 @@
  * last so that it closes their card grid; the Starts-soon strip, whose courses it does not count,
  * never carries it.
  *
+ * The strip and its cards are memoised: every prop the block hands them is kept between its renders, so
+ * pointing at a card renders the calendar strip that lights its days and no card (ADR-014 decision 9), and
+ * a change of the open day's courses renders only the cards whose outline it moves.
+ *
  * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
  * The grid's column count is the block's (columns.ts), so the theme card's three tracks become two
  * and then one as the block narrows, and the ghost keeps a track of its own.
@@ -36,7 +40,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useId} from 'react';
+import {memo, useId} from 'react';
 import Card from './Card';
 import Ghost from './Ghost';
 import type {GhostKind} from './Ghost';
@@ -134,4 +138,4 @@ const Strip = ({
     );
 };
 
-export default Strip;
+export default memo(Strip);

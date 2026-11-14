@@ -707,8 +707,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
    offset is the half-rem alone. */
 .block_compass .compass-index {
     flex: 0 0 11rem;
-    border-right: 1px solid var(--block_compass-line);
-    padding-right: 0.75rem;
+    border-inline-end: 1px solid var(--block_compass-line);
+    padding-inline-end: 0.75rem;
     position: sticky;
     top: calc(var(--navbar-height, 0px) + 0.5rem);
 }
@@ -3216,7 +3216,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     color: var(--block_compass-cal-text);
     font-size: 0.875rem;
     font-weight: 400;
-    text-align: left;
+    text-align: start;
     animation: block_compass-cal-in 170ms ease-out;
 }
 
