@@ -89,12 +89,33 @@ final class course_kinds {
         if ($value <= 0 || isset($this->kinds[$value]) || !preg_match('/^[a-z]{1,20}$/', $key)) {
             return;
         }
-        $one = trim(clean_param($one, PARAM_TEXT));
-        $many = trim(clean_param($many, PARAM_TEXT));
+        $one = self::plain($one);
+        $many = self::plain($many);
         if ($one === '' || $many === '') {
             return;
         }
         $this->kinds[$value] = ['key' => $key, 'one' => $one, 'many' => $many];
+    }
+
+    /**
+     * A noun as plain text, without surrounding whitespace, that PARAM_TEXT gives back unchanged.
+     *
+     * Trimming after cleaning can expose a "<" the cleaning kept: "Events < " cleans to itself (a "<"
+     * before a space opens no tag) and trims to "Events <", which PARAM_TEXT cuts to "Events", so the
+     * open-courses service's return validation would refuse the whole answer, for every viewer. Cleaning
+     * and trimming until nothing changes ends on a value both leave alone; a pass that changes anything
+     * makes it shorter, so the loop ends.
+     *
+     * @param string $noun The listener's noun.
+     * @return string
+     */
+    private static function plain(string $noun): string {
+        do {
+            $before = $noun;
+            $noun = trim(clean_param($noun, PARAM_TEXT));
+        } while ($noun !== $before);
+
+        return $noun;
     }
 
     /**

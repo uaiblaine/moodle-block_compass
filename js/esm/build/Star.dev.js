@@ -16,6 +16,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useState } from "react";
+import { markup } from "./markup";
 const Star = /* @__PURE__ */ __name(({ courseid, fullname, favourite, config, onToggle }) => {
   const [busy, setBusy] = useState(false);
   const { labels, icons } = config;
@@ -39,9 +40,9 @@ const Star = /* @__PURE__ */ __name(({ courseid, fullname, favourite, config, on
       "aria-pressed": favourite,
       "aria-label": favourite ? labels.removefromfavourites : labels.addtofavourites,
       onClick: click,
-      children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", dangerouslySetInnerHTML: { __html: favourite ? icons.staron : icons.staroff } }, void 0, false, {
+      children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", dangerouslySetInnerHTML: markup(favourite ? icons.staron : icons.staroff) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Star.tsx",
-        lineNumber: 86,
+        lineNumber: 87,
         columnNumber: 13
       })
     },
@@ -49,7 +50,7 @@ const Star = /* @__PURE__ */ __name(({ courseid, fullname, favourite, config, on
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/Star.tsx",
-      lineNumber: 75,
+      lineNumber: 76,
       columnNumber: 9
     }
   );

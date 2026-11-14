@@ -317,7 +317,7 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   archived groups `-1`/`-2`, the filter line remembered through `explore_preference` (`{sort,
   scope, star, cf, panel}`, an old `chip` migrated on read; shape validated server-side,
   membership client-side), resilience in `repository.ts` (bounded retry:
-  every failed read twice, 2 s apart), then `RetryNotice` (Try again, Reload page): **no
+  every failed read twice, 2 s ± 500 ms apart, no jitter under Behat), then `RetryNotice` (Try again, Reload page): **no
   permanent reload control**, a way back appears only once a load has failed, and every failed
   read offers one; tier 1's Try again re-asks tier 1, then whatever of the strip failed. Busy
   controls `aria-disabled`, never `disabled`. "No completion configured" is addressed to the teacher by capability. The

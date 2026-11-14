@@ -44,15 +44,36 @@ type UserRepository = {
 /**
  * How many times a failed read is asked again before the failure reaches the component.
  *
- * The owner's policy (2026-10-09): a first load failed once on a slow network or environment, so
- * every read gets two more tries, two seconds apart, before "could not be loaded" appears. Any
- * failure counts, a dropped connection and a server exception alike. There is no test seam: the
- * client has no JS runner, and a PHPUnit rule over this file pins both constants.
+ * The owner's policy (ADR-010 decision 12, as amended): a first load failed once on a slow network
+ * or environment, so every read gets two more tries, about two seconds apart, before "could not be
+ * loaded" appears. Any failure counts, a dropped connection and a server exception alike. There is
+ * no test seam: the client has no JS runner, and a PHPUnit rule over this file pins the constants.
  */
 const RETRY_ATTEMPTS = 2;
 
-/** The wait before each retry, in milliseconds. */
+/** The wait before each retry, in milliseconds, before its jitter. */
 const RETRY_DELAY_MS = 2000;
+
+/**
+ * Each wait moves by a random offset of up to this much either way, drawn per wait: the reads of a
+ * page, and of every page that failed with them, would otherwise come back together in two waves,
+ * on the very server whose trouble made them fail.
+ */
+const RETRY_JITTER_MS = 500;
+
+/**
+ * The wait before one retry: the delay and its jitter, or the bare delay on a Behat site, so a
+ * scenario's timing stays the same on every run.
+ *
+ * @returns {number} Milliseconds.
+ */
+const retryDelay = (): number => {
+    if (document.body.classList.contains('behat-site')) {
+        return RETRY_DELAY_MS;
+    }
+
+    return RETRY_DELAY_MS + Math.round((Math.random() * 2 - 1) * RETRY_JITTER_MS);
+};
 
 /**
  * Called before each retry with the retry's number (1 or 2) and the number of retries, and with
@@ -115,7 +136,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
 const call = <T>(methodname: string, args: Record<string, unknown>): Promise<T> => fetchOne<T>({methodname, args});
 
 /**
- * Call one READ web service, retrying any failure twice, two seconds apart, before giving up.
+ * Call one READ web service, retrying any failure twice, about two seconds apart, before giving up.
  *
  * Reads only: the ten services below answer questions, so asking again changes nothing. Writes
  * are never retried - the star goes through call(), the view, the toolbar and the archive through
@@ -164,7 +185,7 @@ const read = async<T>(methodname: string, args: Record<string, unknown>, first: 
             if (retrylistener) {
                 retrylistener(attempt + 1, RETRY_ATTEMPTS);
             }
-            await sleep(RETRY_DELAY_MS);
+            await sleep(retryDelay());
         }
     }
 };

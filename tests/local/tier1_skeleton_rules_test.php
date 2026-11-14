@@ -232,7 +232,8 @@ final class tier1_skeleton_rules_test extends advanced_testcase {
             'tier 1\'s place is not held by the shell\'s skeleton while its request travels'
         );
         // The cards keep the measured count (ADR-018 decision 7).
-        $this->assertStringContainsString('const columns = cardColumns(width);', $block);
+        $this->assertStringContainsString('columns: cardColumns(width),', $block);
+        $this->assertStringContainsString('const {columns} = brackets;', $block);
     }
 
     /**

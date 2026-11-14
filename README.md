@@ -214,7 +214,8 @@ suggestions are the server's search hits. Nothing is configured per learner.
 With `enable_page` on, `/blocks/compass/index.php` shows the block's content alone, on the
 theme's page without block regions. While it is on, "Compass" is offered under *Site
 administration > Appearance > Navigation > Start page for users* and in each user's home page
-preference. Off, the page redirects to the Dashboard. Guests are sent to the front page.
+preference. Off, or while the block type is hidden under *Manage blocks*, the page redirects to the Dashboard.
+Guests are sent to the front page.
 
 ![Compass on a phone: the strip with three past days and a peek of the next, and a day card as a bottom sheet](docs/screenshots/mobile.png)
 

@@ -47,6 +47,11 @@ use core\event\user_deleted;
  * The open catalogue (ADR-017 decision 4) is one key for the site: the nine events that change
  * which courses it holds delete that key, and never a per-user entry (ADR-001's rule).
  *
+ * Every observer runs after the commit ('internal' => false in db/events.php): run inside a
+ * transaction, a delete would come before the rows were visible to other requests, and one of them
+ * could store the pre-commit state again in a layer that has no TTL. None needs the transaction:
+ * each reads only ids from the event, and user_deleted the cached inventory entry, not the user row.
+ *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -123,12 +128,18 @@ final class observer {
      * context path of every descendant, so the subtree's entries go with it — a
      * bounded set of per-key deletes from the observer, not a purge.
      *
+     * The courses of the subtree go too: hiding or showing a category rewrites their visible
+     * column, and a move their context path, with no course_updated for any of them
+     * ({@see course_meta::delete_in_category()}).
+     *
      * @param course_category_updated $event The event; objectid is the category id.
      * @return void
      */
     public static function course_category_updated(course_category_updated $event): void {
         category_meta::delete((int) $event->objectid);
         category_meta::delete_descendants((int) $event->objectid);
+        // Hiding a category hides its courses without an event of their own.
+        course_meta::delete_in_category((int) $event->objectid);
         // A move rewrites the category paths the catalogue filtered its rows on.
         catalogue_cache::delete();
     }

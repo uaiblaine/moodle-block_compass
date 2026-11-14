@@ -100,7 +100,9 @@ import { writeCalendarPreference } from "./calendarpref";
 import { getDay, getStrip, getStripCounts } from "./repository";
 import { hold } from "./pending";
 import { fill, fillCount, fillObject } from "./str";
+import { markup } from "./markup";
 const NARROW_PX = 640;
+const calendarNarrow = /* @__PURE__ */ __name((width) => width > 0 && width < NARROW_PX, "calendarNarrow");
 const NO_COURSES = [];
 const OPEN_DELAY_MS = 120;
 const MOVE_DELAY_MS = 40;
@@ -143,61 +145,61 @@ const skeleton = /* @__PURE__ */ __name((calendar, row, rowwidth, narrow) => {
   return /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-waiting", children: [
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: calendar.strings.cal_loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 289,
+      lineNumber: 304,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-daysbox", "aria-hidden": "true", style: rowStyle(row), children: [
       /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-days compass-cal-days-waiting", children: Array.from({ length: count }, (unused, at) => /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-col", children: [
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-disc" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 294,
+          lineNumber: 309,
           columnNumber: 29
         }),
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dots" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 295,
+          lineNumber: 310,
           columnNumber: 29
         }),
         /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-wd" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 296,
+          lineNumber: 311,
           columnNumber: 29
         })
       ] }, at, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 293,
+        lineNumber: 308,
         columnNumber: 25
       })) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 291,
+        lineNumber: 306,
         columnNumber: 17
       }),
       !narrow && /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-map", children: /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-mapline" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 301,
+        lineNumber: 316,
         columnNumber: 62
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 301,
+        lineNumber: 316,
         columnNumber: 29
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 290,
+      lineNumber: 305,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-foot", children: /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-note small", children: calendar.strings.cal_waiting }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 304,
+      lineNumber: 319,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 303,
+      lineNumber: 318,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-    lineNumber: 288,
+    lineNumber: 303,
     columnNumber: 9
   });
 }, "skeleton");
@@ -267,7 +269,8 @@ const CalendarStrip = /* @__PURE__ */ __name(({
   config,
   calendar,
   turn,
-  width,
+  narrow,
+  blockwidth,
   pointedCourse,
   onOpenCourses,
   onWeight,
@@ -353,8 +356,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
     }
   }, [waiting]);
   useEffect(() => () => release.current?.(), []);
-  const narrow = width > 0 && width < NARROW_PX;
-  const rowwidth = rowview.rowwidth > 0 ? rowview.rowwidth : width;
+  const rowwidth = rowview.rowwidth > 0 ? rowview.rowwidth : blockwidth.current;
   const row = fit(rowwidth, narrow, calendar.style);
   const stepdays = stepOf(row.whole);
   const linecounts = useMemo(
@@ -967,7 +969,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 1521,
+      lineNumber: 1535,
       columnNumber: 9
     }
   );
@@ -995,9 +997,9 @@ const CalendarStrip = /* @__PURE__ */ __name(({
           "aria-pressed": drawn === which,
           onClick: () => chooseView(which),
           children: [
-            /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-glyph", "aria-hidden": "true", dangerouslySetInnerHTML: { __html: glyph } }, void 0, false, {
+            /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-glyph", "aria-hidden": "true", dangerouslySetInnerHTML: markup(glyph) }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-              lineNumber: 1573,
+              lineNumber: 1587,
               columnNumber: 29
             }),
             name
@@ -1007,12 +1009,12 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         true,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 1566,
+          lineNumber: 1580,
           columnNumber: 25
         }
       )) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1564,
+        lineNumber: 1578,
         columnNumber: 17
       });
     }
@@ -1038,19 +1040,19 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                 {
                   className: "compass-cal-glyph icon-no-margin",
                   "aria-hidden": "true",
-                  dangerouslySetInnerHTML: { __html: glyph }
+                  dangerouslySetInnerHTML: markup(glyph)
                 },
                 void 0,
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 1600,
+                  lineNumber: 1614,
                   columnNumber: 25
                 }
               ),
               /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-tip", "aria-hidden": "true", children: name }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                lineNumber: 1605,
+                lineNumber: 1619,
                 columnNumber: 25
               })
             ]
@@ -1059,7 +1061,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 1592,
+            lineNumber: 1606,
             columnNumber: 21
           }
         ))
@@ -1068,7 +1070,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1582,
+        lineNumber: 1596,
         columnNumber: 13
       }
     );
@@ -1088,12 +1090,12 @@ const CalendarStrip = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1626,
+        lineNumber: 1640,
         columnNumber: 25
       }
     )) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 1623,
+      lineNumber: 1637,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("a", { className: "compass-cal-link", href: calendar.url, "aria-label": strings.cal_open, title: strings.cal_open, children: /* @__PURE__ */ jsxDEV(
@@ -1101,23 +1103,23 @@ const CalendarStrip = /* @__PURE__ */ __name(({
       {
         className: "compass-cal-glyph icon-no-margin",
         "aria-hidden": "true",
-        dangerouslySetInnerHTML: { __html: calendar.icons.calendar }
+        dangerouslySetInnerHTML: markup(calendar.icons.calendar)
       },
       void 0,
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1640,
+        lineNumber: 1654,
         columnNumber: 17
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 1639,
+      lineNumber: 1653,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-    lineNumber: 1620,
+    lineNumber: 1634,
     columnNumber: 9
   }), "controls");
   const frame = /* @__PURE__ */ __name((middle, withfilter, body, after, handlers = {}) => /* @__PURE__ */ jsxDEV("section", { className: rootclass, "aria-label": strings.cal_region, "aria-busy": waiting || void 0, ...handlers, children: [
@@ -1142,30 +1144,30 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                     "span",
                     {
                       className: "expanded-icon icon-no-margin",
-                      dangerouslySetInnerHTML: { __html: config.icons.expanded }
+                      dangerouslySetInnerHTML: markup(config.icons.expanded)
                     },
                     void 0,
                     false,
                     {
                       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                      lineNumber: 1690,
+                      lineNumber: 1704,
                       columnNumber: 29
                     }
                   ),
                   /* @__PURE__ */ jsxDEV("span", { className: "collapsed-icon icon-no-margin", children: [
-                    /* @__PURE__ */ jsxDEV("span", { className: "dir-rtl-hide", dangerouslySetInnerHTML: { __html: config.icons.collapsed } }, void 0, false, {
+                    /* @__PURE__ */ jsxDEV("span", { className: "dir-rtl-hide", dangerouslySetInnerHTML: markup(config.icons.collapsed) }, void 0, false, {
                       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                      lineNumber: 1695,
+                      lineNumber: 1709,
                       columnNumber: 33
                     }),
-                    /* @__PURE__ */ jsxDEV("span", { className: "dir-ltr-hide", dangerouslySetInnerHTML: { __html: config.icons.collapsedrtl } }, void 0, false, {
+                    /* @__PURE__ */ jsxDEV("span", { className: "dir-ltr-hide", dangerouslySetInnerHTML: markup(config.icons.collapsedrtl) }, void 0, false, {
                       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                      lineNumber: 1696,
+                      lineNumber: 1710,
                       columnNumber: 33
                     })
                   ] }, void 0, true, {
                     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                    lineNumber: 1694,
+                    lineNumber: 1708,
                     columnNumber: 29
                   })
                 ]
@@ -1174,7 +1176,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
               true,
               {
                 fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                lineNumber: 1684,
+                lineNumber: 1698,
                 columnNumber: 25
               }
             ),
@@ -1185,12 +1187,12 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         true,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 1673,
+          lineNumber: 1687,
           columnNumber: 21
         }
       ) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1672,
+        lineNumber: 1686,
         columnNumber: 17
       }),
       !open && viewSwitch(!narrow),
@@ -1198,24 +1200,24 @@ const CalendarStrip = /* @__PURE__ */ __name(({
       controls(withfilter)
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 1671,
+      lineNumber: 1685,
       columnNumber: 13
     }),
     after,
     /* @__PURE__ */ jsxDEV("div", { id: bodyid, className: "compass-cal-body", hidden: !open, children: body }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 1707,
+      lineNumber: 1721,
       columnNumber: 13
     }),
     upnext,
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", "aria-live": "polite", children: summary }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 1711,
+      lineNumber: 1725,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-    lineNumber: 1670,
+    lineNumber: 1684,
     columnNumber: 9
   }), "frame");
   if (!open) {
@@ -1238,7 +1240,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 1719,
+          lineNumber: 1733,
           columnNumber: 33
         }
       ),
@@ -1259,12 +1261,12 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 1733,
+          lineNumber: 1747,
           columnNumber: 17
         }
       ) : /* @__PURE__ */ jsxDEV(LineNotes, { calendar, counts: linecounts, view: drawn }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1742,
+        lineNumber: 1756,
         columnNumber: 17
       })
     );
@@ -1273,7 +1275,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
     return frame(
       /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-sk compass-cal-sk-month", "aria-hidden": "true" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 1747,
+        lineNumber: 1761,
         columnNumber: 13
       }),
       false,
@@ -1292,7 +1294,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 1750,
+          lineNumber: 1764,
           columnNumber: 17
         }
       ) : skeleton(calendar, row, rowwidth, narrow),
@@ -1563,7 +1565,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2173,
+        lineNumber: 2187,
         columnNumber: 13
       }
     ));
@@ -1573,30 +1575,30 @@ const CalendarStrip = /* @__PURE__ */ __name(({
     payload.weekend > 0 && /* @__PURE__ */ jsxDEV("li", { children: [
       /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-swatch compass-cal-swatch-weekend" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2193,
+        lineNumber: 2207,
         columnNumber: 21
       }),
       strings.cal_legend_weekend
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 2193,
+      lineNumber: 2207,
       columnNumber: 17
     }),
     holidayshown && /* @__PURE__ */ jsxDEV("li", { children: [
       /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-swatch compass-cal-swatch-holiday" }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2196,
+        lineNumber: 2210,
         columnNumber: 21
       }),
       strings.cal_legend_holiday
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 2196,
+      lineNumber: 2210,
       columnNumber: 17
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-    lineNumber: 2191,
+    lineNumber: 2205,
     columnNumber: 9
   });
   const needleindex = needle === "" ? -1 : days.indexOf(needle);
@@ -1604,7 +1606,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
   const nav = /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-nav", children: [
     /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-month", children: monthlabel }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 2208,
+      lineNumber: 2222,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV(
@@ -1620,13 +1622,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2211,
+        lineNumber: 2225,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-    lineNumber: 2206,
+    lineNumber: 2220,
     columnNumber: 9
   });
   const openindex = openday === null ? -1 : days.indexOf(openday);
@@ -1682,7 +1684,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
               return /* @__PURE__ */ jsxDEV("div", { role: "listitem", className: columnClass(istoday, labelmark, lighting), children: [
                 date === needle && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-needle", "aria-hidden": "true", title: needletitle }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2282,
+                  lineNumber: 2296,
                   columnNumber: 41
                 }),
                 calendar.style === "pulse" && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-barbox", "aria-hidden": "true", children: /* @__PURE__ */ jsxDEV(
@@ -1695,12 +1697,12 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                   false,
                   {
                     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                    lineNumber: 2288,
+                    lineNumber: 2302,
                     columnNumber: 45
                   }
                 ) }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2285,
+                  lineNumber: 2299,
                   columnNumber: 41
                 }),
                 /* @__PURE__ */ jsxDEV(
@@ -1741,18 +1743,18 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                         false,
                         {
                           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                          lineNumber: 2322,
+                          lineNumber: 2336,
                           columnNumber: 49
                         }
                       ),
                       /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-num", children: ymd.day }, void 0, false, {
                         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                        lineNumber: 2331,
+                        lineNumber: 2345,
                         columnNumber: 45
                       })
                     ] }, void 0, true, {
                       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                      lineNumber: 2320,
+                      lineNumber: 2334,
                       columnNumber: 41
                     })
                   },
@@ -1760,34 +1762,34 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                   false,
                   {
                     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                    lineNumber: 2297,
+                    lineNumber: 2311,
                     columnNumber: 37
                   }
                 ),
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dots", "aria-hidden": "true", children: [
                   mark.kinds.map((kind) => /* @__PURE__ */ jsxDEV("span", { className: `compass-cal-dot compass-cal-dot-${kind}` }, kind, false, {
                     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                    lineNumber: 2337,
+                    lineNumber: 2351,
                     columnNumber: 45
                   })),
                   mark.more > 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-more", children: `+${mark.more}` }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                    lineNumber: 2339,
+                    lineNumber: 2353,
                     columnNumber: 59
                   })
                 ] }, void 0, true, {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2335,
+                  lineNumber: 2349,
                   columnNumber: 37
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-wd", "aria-hidden": "true", children: shortWeekday(strings, ymd) }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2341,
+                  lineNumber: 2355,
                   columnNumber: 37
                 })
               ] }, date, true, {
                 fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                lineNumber: 2280,
+                lineNumber: 2294,
                 columnNumber: 33
               });
             })
@@ -1796,18 +1798,18 @@ const CalendarStrip = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2229,
+            lineNumber: 2243,
             columnNumber: 21
           }
         ),
         scrolls && !rowview.atstart && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-fade compass-cal-fade-start", "aria-hidden": "true" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2347,
+          lineNumber: 2361,
           columnNumber: 53
         }),
         scrolls && !rowview.atend && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-fade compass-cal-fade-end", "aria-hidden": "true" }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2348,
+          lineNumber: 2362,
           columnNumber: 51
         }),
         arrows && /* @__PURE__ */ jsxDEV(
@@ -1826,13 +1828,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                 {
                   className: "compass-cal-chevron icon-no-margin dir-rtl-hide",
                   "aria-hidden": "true",
-                  dangerouslySetInnerHTML: { __html: calendar.icons.prev }
+                  dangerouslySetInnerHTML: markup(calendar.icons.prev)
                 },
                 void 0,
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2364,
+                  lineNumber: 2378,
                   columnNumber: 29
                 }
               ),
@@ -1841,13 +1843,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                 {
                   className: "compass-cal-chevron icon-no-margin dir-ltr-hide",
                   "aria-hidden": "true",
-                  dangerouslySetInnerHTML: { __html: calendar.icons.next }
+                  dangerouslySetInnerHTML: markup(calendar.icons.next)
                 },
                 void 0,
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2369,
+                  lineNumber: 2383,
                   columnNumber: 29
                 }
               )
@@ -1857,7 +1859,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2353,
+            lineNumber: 2367,
             columnNumber: 25
           }
         ),
@@ -1877,13 +1879,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                 {
                   className: "compass-cal-chevron icon-no-margin dir-rtl-hide",
                   "aria-hidden": "true",
-                  dangerouslySetInnerHTML: { __html: calendar.icons.next }
+                  dangerouslySetInnerHTML: markup(calendar.icons.next)
                 },
                 void 0,
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2386,
+                  lineNumber: 2400,
                   columnNumber: 29
                 }
               ),
@@ -1892,13 +1894,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
                 {
                   className: "compass-cal-chevron icon-no-margin dir-ltr-hide",
                   "aria-hidden": "true",
-                  dangerouslySetInnerHTML: { __html: calendar.icons.prev }
+                  dangerouslySetInnerHTML: markup(calendar.icons.prev)
                 },
                 void 0,
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                  lineNumber: 2391,
+                  lineNumber: 2405,
                   columnNumber: 29
                 }
               )
@@ -1908,13 +1910,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2377,
+            lineNumber: 2391,
             columnNumber: 25
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2228,
+        lineNumber: 2242,
         columnNumber: 17
       }),
       map && /* @__PURE__ */ jsxDEV(
@@ -1941,13 +1943,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                lineNumber: 2417,
+                lineNumber: 2431,
                 columnNumber: 33
               }
             )),
             /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-thumb", ref: thumb }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-              lineNumber: 2423,
+              lineNumber: 2437,
               columnNumber: 29
             }),
             /* @__PURE__ */ jsxDEV(
@@ -1960,7 +1962,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                lineNumber: 2424,
+                lineNumber: 2438,
                 columnNumber: 29
               }
             ),
@@ -1974,13 +1976,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-                lineNumber: 2429,
+                lineNumber: 2443,
                 columnNumber: 33
               }
             )
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2415,
+            lineNumber: 2429,
             columnNumber: 25
           })
         },
@@ -1988,7 +1990,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2403,
+          lineNumber: 2417,
           columnNumber: 21
         }
       ),
@@ -2017,13 +2019,13 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2439,
+          lineNumber: 2453,
           columnNumber: 21
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 2227,
+      lineNumber: 2241,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-foot", children: [
@@ -2031,133 +2033,133 @@ const CalendarStrip = /* @__PURE__ */ __name(({
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-grade" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2463,
+            lineNumber: 2477,
             columnNumber: 29
           }),
           strings.cal_legend_grade
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2463,
+          lineNumber: 2477,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-class" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2464,
+            lineNumber: 2478,
             columnNumber: 29
           }),
           strings.cal_legend_class
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2464,
+          lineNumber: 2478,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-event" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2465,
+            lineNumber: 2479,
             columnNumber: 29
           }),
           strings.cal_legend_event
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2465,
+          lineNumber: 2479,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-needle compass-cal-needle-key" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2466,
+            lineNumber: 2480,
             columnNumber: 29
           }),
           strings.cal_legend_needle_teaching
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2466,
+          lineNumber: 2480,
           columnNumber: 25
         }),
         daysoffkeys
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2462,
+        lineNumber: 2476,
         columnNumber: 21
       }) : /* @__PURE__ */ jsxDEV("ul", { className: "compass-cal-legend", "aria-hidden": "true", children: [
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-graded" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2471,
+            lineNumber: 2485,
             columnNumber: 29
           }),
           strings.cal_legend_graded
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2471,
+          lineNumber: 2485,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-todo" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2472,
+            lineNumber: 2486,
             columnNumber: 29
           }),
           strings.cal_legend_todo
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2472,
+          lineNumber: 2486,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-late" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2473,
+            lineNumber: 2487,
             columnNumber: 29
           }),
           strings.cal_legend_late
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2473,
+          lineNumber: 2487,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-event" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2474,
+            lineNumber: 2488,
             columnNumber: 29
           }),
           strings.cal_legend_event
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2474,
+          lineNumber: 2488,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-dot compass-cal-dot-done" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2475,
+            lineNumber: 2489,
             columnNumber: 29
           }),
           strings.cal_legend_done
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2475,
+          lineNumber: 2489,
           columnNumber: 25
         }),
         /* @__PURE__ */ jsxDEV("li", { children: [
           /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-needle compass-cal-needle-key" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2476,
+            lineNumber: 2490,
             columnNumber: 29
           }),
           strings.cal_legend_needle_learning
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2476,
+          lineNumber: 2490,
           columnNumber: 25
         }),
         daysoffkeys
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2470,
+        lineNumber: 2484,
         columnNumber: 21
       }),
       /* @__PURE__ */ jsxDEV("div", { className: "compass-cal-actions", children: /* @__PURE__ */ jsxDEV("div", { className: "form-check form-switch compass-cal-relevance", children: [
@@ -2175,42 +2177,42 @@ const CalendarStrip = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-            lineNumber: 2482,
+            lineNumber: 2496,
             columnNumber: 25
           }
         ),
         /* @__PURE__ */ jsxDEV("label", { className: "form-check-label", htmlFor: `${cardid}-relevance`, children: strings.cal_relevance }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-          lineNumber: 2490,
+          lineNumber: 2504,
           columnNumber: 25
         })
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2481,
+        lineNumber: 2495,
         columnNumber: 21
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2480,
+        lineNumber: 2494,
         columnNumber: 17
       }),
       payload.bounded && /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-note small", children: fill(strings.cal_bounded, String(calendar.bound)) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2493,
+        lineNumber: 2507,
         columnNumber: 37
       }),
       payload.truncated && /* @__PURE__ */ jsxDEV("p", { className: "compass-cal-note small", children: strings.cal_truncated }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-        lineNumber: 2494,
+        lineNumber: 2508,
         columnNumber: 39
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-      lineNumber: 2460,
+      lineNumber: 2474,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/CalendarStrip.tsx",
-    lineNumber: 2226,
+    lineNumber: 2240,
     columnNumber: 9
   });
   const leaveStrip = /* @__PURE__ */ __name(() => {
@@ -2229,6 +2231,7 @@ const CalendarStrip = /* @__PURE__ */ __name(({
 }, "CalendarStrip");
 var CalendarStrip_default = memo(CalendarStrip);
 export {
+  calendarNarrow,
   CalendarStrip_default as default
 };
 //# sourceMappingURL=CalendarStrip.dev.js.map

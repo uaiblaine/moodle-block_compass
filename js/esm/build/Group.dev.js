@@ -17,6 +17,7 @@ import { memo, useCallback, useEffect, useRef } from "react";
 import RetryNotice from "./RetryNotice";
 import RowList from "./RowList";
 import { fillCount } from "./str";
+import { markup } from "./markup";
 const Group = /* @__PURE__ */ __name(({
   id,
   name,
@@ -74,25 +75,25 @@ const Group = /* @__PURE__ */ __name(({
                 className: open ? "compass-group-chevron icons-collapse-expand" : "compass-group-chevron icons-collapse-expand collapsed",
                 "aria-hidden": "true",
                 children: [
-                  /* @__PURE__ */ jsxDEV("span", { className: "expanded-icon icon-no-margin p-1", dangerouslySetInnerHTML: { __html: icons.expanded } }, void 0, false, {
+                  /* @__PURE__ */ jsxDEV("span", { className: "expanded-icon icon-no-margin p-1", dangerouslySetInnerHTML: markup(icons.expanded) }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-                    lineNumber: 130,
+                    lineNumber: 131,
                     columnNumber: 25
                   }),
                   /* @__PURE__ */ jsxDEV("span", { className: "collapsed-icon icon-no-margin p-1", children: [
-                    /* @__PURE__ */ jsxDEV("span", { className: "dir-rtl-hide", dangerouslySetInnerHTML: { __html: icons.collapsed } }, void 0, false, {
-                      fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-                      lineNumber: 132,
-                      columnNumber: 29
-                    }),
-                    /* @__PURE__ */ jsxDEV("span", { className: "dir-ltr-hide", dangerouslySetInnerHTML: { __html: icons.collapsedrtl } }, void 0, false, {
+                    /* @__PURE__ */ jsxDEV("span", { className: "dir-rtl-hide", dangerouslySetInnerHTML: markup(icons.collapsed) }, void 0, false, {
                       fileName: "public/blocks/compass/js/esm/src/Group.tsx",
                       lineNumber: 133,
+                      columnNumber: 29
+                    }),
+                    /* @__PURE__ */ jsxDEV("span", { className: "dir-ltr-hide", dangerouslySetInnerHTML: markup(icons.collapsedrtl) }, void 0, false, {
+                      fileName: "public/blocks/compass/js/esm/src/Group.tsx",
+                      lineNumber: 134,
                       columnNumber: 29
                     })
                   ] }, void 0, true, {
                     fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-                    lineNumber: 131,
+                    lineNumber: 132,
                     columnNumber: 25
                   })
                 ]
@@ -101,24 +102,24 @@ const Group = /* @__PURE__ */ __name(({
               true,
               {
                 fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-                lineNumber: 124,
+                lineNumber: 125,
                 columnNumber: 21
               }
             ),
             name
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 121,
+            lineNumber: 122,
             columnNumber: 17
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "compass-group-count small text-muted", children: fillCount(labels, "coursesingroup", count) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 138,
+            lineNumber: 139,
             columnNumber: 17
           })
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-          lineNumber: 120,
+          lineNumber: 121,
           columnNumber: 13
         }),
         toolbar,
@@ -134,12 +135,12 @@ const Group = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 149,
+            lineNumber: 150,
             columnNumber: 21
           }
         ) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-          lineNumber: 148,
+          lineNumber: 149,
           columnNumber: 17
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "compass-rows-shell", ref: list, "aria-busy": loading || void 0, children: /* @__PURE__ */ jsxDEV(
@@ -162,12 +163,12 @@ const Group = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 162,
+            lineNumber: 163,
             columnNumber: 17
           }
         ) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-          lineNumber: 161,
+          lineNumber: 162,
           columnNumber: 13
         }),
         (hasmore || loading) && !failed && /* @__PURE__ */ jsxDEV(
@@ -184,7 +185,7 @@ const Group = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-            lineNumber: 181,
+            lineNumber: 182,
             columnNumber: 17
           }
         )
@@ -194,7 +195,7 @@ const Group = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/blocks/compass/js/esm/src/Group.tsx",
-      lineNumber: 114,
+      lineNumber: 115,
       columnNumber: 9
     }
   );

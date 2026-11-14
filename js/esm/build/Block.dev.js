@@ -40,9 +40,9 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import CalendarStrip from "./CalendarStrip";
-import OpenCourses, { useNews } from "./OpenCourses";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import CalendarStrip, { calendarNarrow } from "./CalendarStrip";
+import OpenCourses, { newsNarrow, useNews } from "./OpenCourses";
 import Strip from "./Strip";
 import Ghost from "./Ghost";
 import Explore from "./Explore";
@@ -62,6 +62,12 @@ const CHIP_OF_KIND = {
   scheduled: "scheduled"
 };
 const DETAILS_BATCH = 24;
+const bracketsOf = /* @__PURE__ */ __name((width) => ({
+  columns: cardColumns(width),
+  newsnarrow: newsNarrow(width),
+  calnarrow: calendarNarrow(width)
+}), "bracketsOf");
+const sameBrackets = /* @__PURE__ */ __name((a, b) => a.columns === b.columns && a.newsnarrow === b.newsnarrow && a.calnarrow === b.calnarrow, "sameBrackets");
 const withCard = /* @__PURE__ */ __name((data, courseid, change) => {
   const strip = /* @__PURE__ */ __name((cards) => cards.map((card) => card.id === courseid ? change(card) : card), "strip");
   return {
@@ -90,7 +96,8 @@ const Block = /* @__PURE__ */ __name((config) => {
   const [announcement, setAnnouncement] = useState({ text: "", at: 0 });
   const seq = useRef(0);
   const root = useRef(null);
-  const [width, setWidth] = useState(0);
+  const [brackets, setBrackets] = useState(() => bracketsOf(0));
+  const blockwidth = useRef(0);
   const [calendarturn, setCalendarturn] = useState(0);
   const [first, setFirst] = useState(null);
   const settled = useRef(false);
@@ -200,7 +207,12 @@ const Block = /* @__PURE__ */ __name((config) => {
     if (!element || typeof ResizeObserver === "undefined") {
       return void 0;
     }
-    const observer = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width));
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width;
+      blockwidth.current = width;
+      const next = bracketsOf(width);
+      setBrackets((current) => sameBrackets(current, next) ? current : next);
+    });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
@@ -234,34 +246,38 @@ const Block = /* @__PURE__ */ __name((config) => {
     setExploring(true);
     setReveal((current) => current + 1);
   }, []);
-  const stripoverflow = /* @__PURE__ */ __name((kind, count, text, label) => {
-    if (count <= 0) {
-      return null;
-    }
-    return { count, kind, text: fillCount(labels, text, count), label: fillCount(labels, label, count) };
-  }, "stripoverflow");
   const shown = data ? data.continue.length + data.new.length + data.favourites.length + data.scheduled.length : 0;
-  const overflows = data ? {
-    "continue": null,
-    "new": stripoverflow("new", data.counts.newmore, "strip_more_new", "strip_more_new_label"),
-    favourites: stripoverflow(
-      "favourites",
-      data.counts.favouritesmore,
-      "strip_more_favourites",
-      "strip_more_favourites_label"
-    ),
-    scheduled: stripoverflow(
-      "scheduled",
-      data.counts.scheduledmore,
-      "strip_more_scheduled",
-      "strip_more_scheduled_label"
-    )
-  } : {};
+  const overflows = useMemo(() => {
+    const stripoverflow = /* @__PURE__ */ __name((kind, count, text, label) => {
+      if (count <= 0) {
+        return null;
+      }
+      return { count, kind, text: fillCount(labels, text, count), label: fillCount(labels, label, count) };
+    }, "stripoverflow");
+    return data ? {
+      "continue": null,
+      "new": stripoverflow("new", data.counts.newmore, "strip_more_new", "strip_more_new_label"),
+      favourites: stripoverflow(
+        "favourites",
+        data.counts.favouritesmore,
+        "strip_more_favourites",
+        "strip_more_favourites_label"
+      ),
+      scheduled: stripoverflow(
+        "scheduled",
+        data.counts.scheduledmore,
+        "strip_more_scheduled",
+        "strip_more_scheduled_label"
+      )
+    } : {};
+  }, [data, labels]);
   const activestrips = config.strips.filter((strip) => strip.name !== "scheduled");
-  const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
-  const ghost = data && data.counts.more > 0 && !exploring ? { count: data.counts.more, text: ghosttext, cta: labels.ghost_explore } : null;
+  const ghost = useMemo(() => {
+    const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
+    return data && data.counts.more > 0 && !exploring ? { count: data.counts.more, text: ghosttext, cta: labels.ghost_explore } : null;
+  }, [data, exploring, labels]);
   const laststrip = data ? [...activestrips].reverse().find((strip) => data[strip.name].length > 0)?.name ?? null : null;
-  const columns = cardColumns(width);
+  const { columns } = brackets;
   const pendingcount = data && config.pendingenabled ? data.counts.pending : 0;
   let newsplace = null;
   let newsmode = "full";
@@ -275,9 +291,9 @@ const Block = /* @__PURE__ */ __name((config) => {
     newsmode = weight.upnext || weight.busy ? "compact" : "full";
   }
   const firststrip = data ? config.strips.find((strip) => data[strip.name].length > 0)?.name ?? null : null;
-  const newsAt = /* @__PURE__ */ __name((place) => config.news && newsplace === place ? /* @__PURE__ */ jsxDEV(OpenCourses, { config, news: config.news, state: news, mode: newsmode, width }, void 0, false, {
+  const newsAt = /* @__PURE__ */ __name((place) => config.news && newsplace === place ? /* @__PURE__ */ jsxDEV(OpenCourses, { config, news: config.news, state: news, mode: newsmode, narrow: brackets.newsnarrow }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 570,
+    lineNumber: 613,
     columnNumber: 9
   }) : null, "newsAt");
   const notice = /* @__PURE__ */ __name((kind, text, label, view) => /* @__PURE__ */ jsxDEV("p", { className: "compass-strip-note small text-muted", "data-region": `${kind}-notice`, children: [
@@ -296,13 +312,13 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 588,
+        lineNumber: 631,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 585,
+    lineNumber: 628,
     columnNumber: 9
   }), "notice");
   return /* @__PURE__ */ jsxDEV("div", { ref: root, className: "compass-body", tabIndex: -1, children: [
@@ -312,7 +328,8 @@ const Block = /* @__PURE__ */ __name((config) => {
         config,
         calendar: config.calendar,
         turn: calendarturn,
-        width,
+        narrow: brackets.calnarrow,
+        blockwidth,
         pointedCourse: pointed,
         onOpenCourses: setDayCourses,
         batched: first?.strip ?? null,
@@ -323,7 +340,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 604,
+        lineNumber: 647,
         columnNumber: 17
       }
     ),
@@ -334,22 +351,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       attempts: String(reconnecting.attempts)
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 619,
+      lineNumber: 663,
       columnNumber: 17
     }),
     !data && error === null && reconnecting === null && /* @__PURE__ */ jsxDEV("div", { className: "compass-status visually-hidden", role: "status", "aria-live": "polite", children: labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 629,
+      lineNumber: 673,
       columnNumber: 17
     }),
     !data && error === null && /* @__PURE__ */ jsxDEV(Tier1Skeleton, { skeleton: config.tier1.skeleton }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 633,
+      lineNumber: 677,
       columnNumber: 41
     }),
     error !== null && /* @__PURE__ */ jsxDEV(RetryNotice, { message: error, retrying: false, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 635,
+      lineNumber: 679,
       columnNumber: 17
     }),
     data && config.strips.map((strip) => /* @__PURE__ */ jsxDEV(Fragment, { children: [
@@ -372,7 +389,7 @@ const Block = /* @__PURE__ */ __name((config) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-          lineNumber: 639,
+          lineNumber: 683,
           columnNumber: 21
         }
       ),
@@ -385,22 +402,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       strip.name === firststrip && newsAt("below")
     ] }, strip.name, true, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 638,
+      lineNumber: 682,
       columnNumber: 17
     })),
     data && firststrip === null && newsAt("below"),
     ghost && laststrip === null && /* @__PURE__ */ jsxDEV("div", { className: `compass-ghost-wrap compass-cards-${columns}`, children: /* @__PURE__ */ jsxDEV(Ghost, { count: ghost.count, text: ghost.text, cta: ghost.cta, kind: "tier2", onExplore: explore }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 668,
+      lineNumber: 712,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 667,
+      lineNumber: 711,
       columnNumber: 17
     }),
     data && shown === 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-empty text-muted", children: data.counts.total === 0 ? labels.nocourses : labels.emptyattention }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 672,
+      lineNumber: 716,
       columnNumber: 17
     }),
     newsAt("empty"),
@@ -420,22 +437,22 @@ const Block = /* @__PURE__ */ __name((config) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-        lineNumber: 679,
+        lineNumber: 723,
         columnNumber: 21
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 678,
+      lineNumber: 722,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "alert", "aria-live": "assertive", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-      lineNumber: 693,
+      lineNumber: 737,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Block.tsx",
-    lineNumber: 602,
+    lineNumber: 645,
     columnNumber: 9
   });
 }, "Block");
