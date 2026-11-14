@@ -26,7 +26,9 @@
 namespace block_compass\local;
 
 use advanced_testcase;
+use block_compass\fixtures\course_kinds_listener;
 use core\context\system as context_system;
+use core\hook\manager;
 use core_cache\cache;
 use core_filters\filter_manager;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -453,40 +455,366 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
-     * A course with visible = 0 needs moodle/course:viewhiddencourses at the system context.
+     * A role holding moodle/course:viewhiddencourses, given to a user at the system context.
      *
-     * The capability goes to a role rather than to an administrator, so the case is about the
-     * capability and not about being an admin, and both users hold identical enrolments.
+     * The capability goes to a role rather than to an administrator, so a case is about the
+     * capability and not about being an admin.
      *
-     * @return void
+     * @param int $userid The user.
+     * @return int The role id.
      */
-    public function test_an_invisible_course_needs_the_viewhiddencourses_capability(): void {
-        $tree = $this->tree();
-        $visible = $this->course_in((int) $tree['alpha']->id, 'Visible course');
-        $invisible = $this->course_in((int) $tree['alpha']->id, 'Invisible course', ['visible' => 0]);
-        $viewer = (int) $this->getDataGenerator()->create_user()->id;
-        foreach ([$this->userid, $viewer] as $userid) {
-            foreach ([$visible, $invisible] as $course) {
-                $this->plugingen->enrol_at($userid, (int) $course->id, self::NOW - 100 * DAYSECS);
-            }
-        }
+    private function hidden_course_viewer_at_system(int $userid): int {
         $syscontext = context_system::instance();
         $roleid = create_role('Compass hidden course viewer', 'compasshiddenviewer', 'Sees hidden courses');
         assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $roleid, $syscontext->id, true);
-        role_assign($roleid, $viewer, $syscontext->id);
+        role_assign($roleid, $userid, $syscontext->id);
         accesslib_clear_all_caches_for_unit_testing();
 
-        // Precondition: the two users really do differ on the capability under test.
-        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $syscontext, $this->userid));
-        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $syscontext, $viewer));
+        return $roleid;
+    }
 
-        $plain = $this->build(1);
-        $privileged = explore::build($viewer, self::NOW, 1, 30);
+    /**
+     * The fixture user teaching in the given courses: core's editing teacher role at each course context.
+     *
+     * The role holds moodle/course:viewhiddencourses by its archetype, at the course context and
+     * nowhere above it: the teacher of a course core lists in the Course overview block.
+     *
+     * @param int[] $courseids The courses.
+     * @return void
+     */
+    private function teach(array $courseids): void {
+        foreach ($courseids as $courseid) {
+            $this->getDataGenerator()->role_assign('editingteacher', $this->userid, \core\context\course::instance($courseid)->id);
+        }
+        accesslib_clear_all_caches_for_unit_testing();
+    }
 
-        $this->assertSame(1, $plain['total']);
-        $this->assertSame(['Visible course'], $this->course_names($plain['groups'][0]));
-        $this->assertSame(2, $privileged['total']);
-        $this->assertSame(['Invisible course', 'Visible course'], $this->course_names($privileged['groups'][0]));
+    /**
+     * One group of a payload by id, or null when the payload has none.
+     *
+     * @param array $payload A payload from build().
+     * @param int $groupid The group id.
+     * @return array|null
+     */
+    private function group(array $payload, int $groupid): ?array {
+        foreach ($payload['groups'] as $group) {
+            if ($group['id'] === $groupid) {
+                return $group;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A student of a hidden course never gets the Hidden group: no header, no count, no row, even asked directly.
+     *
+     * The student and the course-level teacher hold the same enrolments; the visible course is the
+     * control that the student's tier 3 is built at all, and the teacher's header the control that the
+     * fixture has a hidden course to show.
+     *
+     * @return void
+     */
+    public function test_a_student_of_a_hidden_course_never_gets_the_hidden_group(): void {
+        $tree = $this->tree();
+        $visible = (int) $this->course_in((int) $tree['alpha']->id, 'Visible course')->id;
+        $hidden = (int) $this->course_in((int) $tree['alpha']->id, 'Hidden course', ['visible' => 0])->id;
+        $teacher = (int) $this->getDataGenerator()->create_user()->id;
+        foreach ([$this->userid, $teacher] as $userid) {
+            $this->plugingen->enrol_at($userid, $visible, self::NOW - 100 * DAYSECS);
+            $this->plugingen->enrol_at($userid, $hidden, self::NOW - 100 * DAYSECS);
+        }
+        $this->getDataGenerator()->role_assign('editingteacher', $teacher, \core\context\course::instance($hidden)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $hiddencontext = \core\context\course::instance($hidden);
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $hiddencontext, $this->userid));
+
+        $payload = $this->build(1);
+
+        $this->assertSame(1, $payload['total']);
+        $this->assertSame([(int) $tree['alpha']->id], array_column($payload['groups'], 'id'), 'no Hidden header');
+        $this->assertSame(['Visible course'], $this->course_names($payload['groups'][0]));
+        $this->assertSame([], $this->rows(dormancy::GROUP_INVISIBLE)['rows'], 'asked directly, the group is empty');
+        $this->assertSame([], $this->search('hidden course')['rows']);
+        // The control: the teacher of the same course gets the header.
+        $this->assertSame(1, $this->group(explore::build($teacher, self::NOW, 1, 30), dormancy::GROUP_INVISIBLE)['count']);
+    }
+
+    /**
+     * A teacher holding the capability only in the course gets the Hidden group, with its exact count and its rows.
+     *
+     * The precondition proves the capability is not held at the system context, which is the case
+     * the system-context read missed (ADR-021). The hidden courses are in no category group, not in
+     * the total, not in the search, and do not count towards inventory_max; their rows page as any
+     * group's, take the chips, and carry invis.
+     *
+     * @return void
+     */
+    public function test_a_course_level_teacher_gets_the_hidden_group_with_its_count_and_rows(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $visible = (int) $this->course_in($alpha, 'Visible course')->id;
+        $bravo = (int) $this->course_in((int) $tree['zeta']->id, 'Bravo hidden course', ['visible' => 0])->id;
+        $alfa = (int) $this->course_in($alpha, 'Alfa hidden course', ['visible' => 0])->id;
+        foreach ([$visible, $bravo, $alfa] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 100 * DAYSECS);
+        }
+        $this->plugingen->access_at($this->userid, $visible, self::NOW - DAYSECS);
+        $this->plugingen->access_at($this->userid, $bravo, self::NOW - DAYSECS);
+        $this->plugingen->access_at($this->userid, $alfa, self::NOW - DAYSECS);
+        $this->teach([$bravo, $alfa]);
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', context_system::instance(), $this->userid));
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', \core\context\course::instance($alfa), $this->userid));
+
+        $payload = $this->build(1);
+
+        $this->assertSame(1, $payload['total'], 'the headline counts the visible courses');
+        $this->assertSame(
+            ['Alpha faculty', get_string('invisible', 'block_compass')],
+            $this->group_names($payload),
+            'the categories, then Hidden; no Zeta group for the hidden course alone'
+        );
+        $this->assertSame(['Visible course'], $this->course_names($payload['groups'][0]));
+        $hiddengroup = $payload['groups'][1];
+        $this->assertSame(dormancy::GROUP_INVISIBLE, $hiddengroup['id']);
+        $this->assertSame(2, $hiddengroup['count']);
+        $this->assertSame([], $hiddengroup['courses'], 'hidden rows never travel in the first payload');
+        $this->assertArrayNotHasKey('invis', $payload['groups'][0]['courses'][0], 'a visible row carries no invis');
+
+        $page = $this->rows(dormancy::GROUP_INVISIBLE);
+        $this->assertSame(['Alfa hidden course', 'Bravo hidden course'], $this->row_names($page));
+        $this->assertSame([true, true], array_column($page['rows'], 'invis'));
+        $this->assertSame([], $this->rows((int) $tree['zeta']->id)['rows'], 'never in a category page');
+        $this->assertSame([$visible], $this->row_ids($this->rows($alpha)));
+        $this->assertSame(['Visible course'], $this->row_names($this->search('course')), 'the search is blind to Hidden');
+
+        // The group pages and takes the chips, as Archived does.
+        $first = $this->rows(dormancy::GROUP_INVISIBLE, 0, 'all', 'name', 1);
+        $this->assertSame(['Alfa hidden course'], $this->row_names($first));
+        $this->assertTrue($first['hasmore']);
+        $this->plugingen->favourite($this->userid, $bravo);
+        $this->assertSame(['Bravo hidden course'], $this->row_names($this->rows(dormancy::GROUP_INVISIBLE, 0, 'favourites')));
+
+        // Two hidden courses and one visible: full at a maximum of one, so they do not count.
+        $this->assertSame('full', explore::build($this->userid, self::NOW, 1, 30, 1)['mode']);
+    }
+
+    /**
+     * A holder of the capability at the system context finds hidden courses only in the Hidden group.
+     *
+     * The rule is one for every viewer (ADR-021, answer 1): the category groups, Dormant and the
+     * total hold visible courses only. The dormant hidden course is the case for both precedences at
+     * once: hidden wins over dormant. The visible dormant course is the control that Dormant is built.
+     *
+     * @return void
+     */
+    public function test_a_system_holder_finds_hidden_courses_only_in_the_hidden_group(): void {
+        $tree = $this->tree();
+        $alpha = (int) $tree['alpha']->id;
+        $threshold = dormancy::threshold(self::NOW, 12);
+        $visible = (int) $this->course_in($alpha, 'Visible course')->id;
+        $hidden = (int) $this->course_in($alpha, 'Hidden course', ['visible' => 0])->id;
+        $quiet = (int) $this->course_in($alpha, 'Quiet visible course')->id;
+        $quiethidden = (int) $this->course_in($alpha, 'Quiet hidden course', ['visible' => 0])->id;
+        $this->plugingen->enrol_at($this->userid, $visible, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $hidden, self::NOW - 100 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $quiet, $threshold - 10 * DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $quiethidden, $threshold - 10 * DAYSECS);
+        $this->plugingen->access_at($this->userid, $visible, self::NOW - DAYSECS);
+        $this->plugingen->access_at($this->userid, $hidden, self::NOW - DAYSECS);
+        $this->hidden_course_viewer_at_system($this->userid);
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', context_system::instance(), $this->userid));
+
+        $payload = $this->build(1);
+
+        $this->assertSame(2, $payload['total']);
+        $this->assertSame(
+            [$alpha, dormancy::GROUP_DORMANT, dormancy::GROUP_INVISIBLE],
+            array_column($payload['groups'], 'id')
+        );
+        $this->assertSame(['Visible course'], $this->course_names($payload['groups'][0]));
+        $this->assertSame(['Quiet visible course'], $this->course_names($payload['groups'][1]));
+        $this->assertSame(2, $payload['groups'][2]['count']);
+        $this->assertSame([$visible], $this->row_ids($this->rows($alpha)));
+        $this->assertSame([$quiet], $this->row_ids($this->rows(dormancy::GROUP_DORMANT)), 'hidden wins over dormant');
+        $page = $this->rows(dormancy::GROUP_INVISIBLE);
+        $this->assertSame([$hidden, $quiethidden], $this->row_ids($page));
+        $this->assertSame([false, true], array_column($page['rows'], 'dorm'), 'dorm still says the course went quiet');
+    }
+
+    /**
+     * A prohibit at a hidden course's context keeps it from a holder at the system context.
+     *
+     * Asked per course, the rule counts what core counts (ADR-021, decision 1.2); a read at the
+     * system context could not see the prohibit. The other hidden course is the control.
+     *
+     * @return void
+     */
+    public function test_a_prohibit_at_the_course_keeps_a_hidden_course_from_a_system_holder(): void {
+        $tree = $this->tree();
+        $kept = (int) $this->course_in((int) $tree['alpha']->id, 'Kept hidden course', ['visible' => 0])->id;
+        $barred = (int) $this->course_in((int) $tree['alpha']->id, 'Barred hidden course', ['visible' => 0])->id;
+        foreach ([$kept, $barred] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 100 * DAYSECS);
+        }
+        $roleid = $this->hidden_course_viewer_at_system($this->userid);
+        $barredcontext = \core\context\course::instance($barred);
+        assign_capability('moodle/course:viewhiddencourses', CAP_PROHIBIT, $roleid, $barredcontext->id, true);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $barredcontext, $this->userid));
+
+        $payload = $this->build(1);
+
+        $this->assertSame([dormancy::GROUP_INVISIBLE], array_column($payload['groups'], 'id'));
+        $this->assertSame(1, $payload['groups'][0]['count']);
+        $this->assertSame([$kept], $this->row_ids($this->rows(dormancy::GROUP_INVISIBLE)));
+    }
+
+    /**
+     * An archived hidden course is in Archived, carrying invis, and not in Hidden; unarchived, it is in Hidden.
+     *
+     * Archived wins (ADR-021, decision 1.3), and a course-level teacher's archived hidden course,
+     * dropped with the rest before, now comes back in the archive. The other hidden course keeps the
+     * Hidden header there as the control.
+     *
+     * @return void
+     */
+    public function test_archived_wins_over_hidden_and_unarchiving_returns_the_course_to_hidden(): void {
+        $tree = $this->tree();
+        $archived = (int) $this->course_in((int) $tree['alpha']->id, 'Archived hidden course', ['visible' => 0])->id;
+        $other = (int) $this->course_in((int) $tree['alpha']->id, 'Other hidden course', ['visible' => 0])->id;
+        foreach ([$archived, $other] as $courseid) {
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 100 * DAYSECS);
+        }
+        $this->teach([$archived, $other]);
+        $this->plugingen->hide($this->userid, $archived);
+
+        $payload = $this->build(1);
+
+        $this->assertSame([dormancy::GROUP_INVISIBLE, dormancy::GROUP_ARCHIVED], array_column($payload['groups'], 'id'));
+        $this->assertSame([1, 1], array_column($payload['groups'], 'count'));
+        $this->assertSame([$other], $this->row_ids($this->rows(dormancy::GROUP_INVISIBLE)));
+        $archivepage = $this->rows(dormancy::GROUP_ARCHIVED);
+        $this->assertSame([$archived], $this->row_ids($archivepage));
+        $this->assertTrue($archivepage['rows'][0]['invis'], 'the archive says the course is hidden');
+
+        unset_user_preference(hidden_courses::PREFIX . $archived, $this->userid);
+
+        $back = $this->build(1);
+        $this->assertSame([dormancy::GROUP_INVISIBLE], array_column($back['groups'], 'id'));
+        $this->assertSame([$archived, $other], $this->row_ids($this->rows(dormancy::GROUP_INVISIBLE)));
+    }
+
+    /**
+     * Use a hook manager that knows the course_kinds fixture listener, reset, or one with no listener at all.
+     *
+     * @param bool $listening Whether the fixture is registered.
+     * @return void
+     */
+    private function use_kinds_listener(bool $listening): void {
+        require_once(__DIR__ . '/../fixtures/course_kinds_listener.php');
+        course_kinds_listener::reset();
+        $files = $listening ? ['block_compass_kinds' => __DIR__ . '/../fixtures/course_kinds_hooks.php'] : [];
+        \core\di::set(manager::class, manager::phpunit_get_instance($files));
+    }
+
+    /**
+     * Four courses in one category, one per value of a classifier select, the fixture listener naming it.
+     *
+     * The listener gives value 1 the default kind, 2 an event and 3 a trail; the fourth course has no
+     * value at all. Every course is enrolled long ago and opened yesterday, so none is dormant.
+     *
+     * @return array The category id, then kind ('course', 'event', 'trail', 'none') => course id.
+     */
+    private function kinds_fixture(): array {
+        $this->use_kinds_listener(true);
+        $category = (int) $this->getDataGenerator()->create_category(['name' => 'Alpha faculty'])->id;
+        $model = $this->plugingen->course_field('select', 'model', ['options' => "Course\nEvent\nTrail", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [
+            [1, 'course', 'curso', 'cursos'],
+            [2, 'event', 'evento', 'eventos'],
+            [3, 'trail', 'trilha', 'trilhas'],
+        ];
+        $courses = [];
+        foreach (['course' => 1, 'event' => 2, 'trail' => 3, 'none' => 0] as $kind => $value) {
+            $courseid = (int) $this->course_in($category, ucfirst($kind) . ' kind course')->id;
+            if ($value > 0) {
+                $this->plugingen->field_value($model, $courseid, $value);
+            }
+            $this->plugingen->enrol_at($this->userid, $courseid, self::NOW - 100 * DAYSECS);
+            $this->plugingen->access_at($this->userid, $courseid, self::NOW - DAYSECS);
+            $courses[$kind] = $courseid;
+        }
+
+        return [$category, $courses];
+    }
+
+    /**
+     * Rows carry the index of their kind in the payload's kinds, from one dispatch per response.
+     *
+     * The default kind and a course with no value carry nothing; the kinds list names the listener's
+     * nouns with a capital, never the default kind. The list travels in paged mode too, where no row
+     * does, because the pages and searches after it index it.
+     *
+     * @return void
+     */
+    public function test_rows_carry_their_kind_from_one_dispatch_per_response(): void {
+        [$category, $courses] = $this->kinds_fixture();
+        $expected = [$courses['event'] => 0, $courses['trail'] => 1];
+
+        $payload = $this->build(1);
+        $this->assertSame(1, course_kinds_listener::$calls, 'one dispatch for the payload');
+        $this->assertSame([['key' => 'event', 'name' => 'Evento'], ['key' => 'trail', 'name' => 'Trilha']], $payload['kinds']);
+        $rows = $this->rows_by_id($payload);
+        $this->assertSame($expected, array_column($rows, 'kd', 'id'));
+        $this->assertArrayNotHasKey('kd', $rows[$courses['course']], 'the default kind is never drawn');
+        $this->assertArrayNotHasKey('kd', $rows[$courses['none']], 'no value is the default kind');
+
+        course_kinds_listener::$calls = 0;
+        $page = $this->rows($category);
+        $this->assertSame(1, course_kinds_listener::$calls, 'one dispatch for a page');
+        $this->assertCount(4, $page['rows']);
+        $this->assertSame($expected, array_column($page['rows'], 'kd', 'id'));
+
+        course_kinds_listener::$calls = 0;
+        $hits = $this->search('kind course');
+        $this->assertSame(1, course_kinds_listener::$calls, 'one dispatch for a search');
+        $this->assertCount(4, $hits['rows']);
+        $this->assertSame($expected, array_column($hits['rows'], 'kd', 'id'));
+
+        course_kinds_listener::$calls = 0;
+        $paged = explore::build($this->userid, self::NOW, 1, 30, 1);
+        $this->assertSame('paged', $paged['mode']);
+        $this->assertSame($payload['kinds'], $paged['kinds'], 'the pages after it index the same list');
+        $this->assertSame(1, course_kinds_listener::$calls);
+    }
+
+    /**
+     * No listener, or a listener whose only kind is the default, puts no kinds and no kd anywhere.
+     *
+     * The control is the same fixture with an event kind, which draws.
+     *
+     * @return void
+     */
+    public function test_without_a_kind_to_draw_no_row_carries_one(): void {
+        [$category, $courses] = $this->kinds_fixture();
+        $this->assertArrayHasKey('kinds', $this->build(1), 'the control');
+
+        course_kinds_listener::$kinds = [[1, 'course', 'curso', 'cursos']];
+        $defaultonly = $this->build(1);
+        $this->assertArrayNotHasKey('kinds', $defaultonly);
+        $this->assertSame([], array_column($this->rows_by_id($defaultonly), 'kd'));
+
+        $this->use_kinds_listener(false);
+        $none = $this->build(1);
+        $this->assertArrayNotHasKey('kinds', $none);
+        $this->assertCount(4, $this->rows_by_id($none));
+        $this->assertSame([], array_column($this->rows_by_id($none), 'kd'));
+        $this->assertSame([], array_column($this->rows($category)['rows'], 'kd'));
+        $this->assertSame([], array_column($this->search('kind course')['rows'], 'kd'));
+        $this->assertSame(0, course_kinds_listener::$calls, 'no listener was asked');
+        $this->assertArrayHasKey($courses['event'], $this->rows_by_id($none));
     }
 
     /**
@@ -611,12 +939,8 @@ final class explore_test extends advanced_testcase {
         foreach ([$kept, $doomed] as $course) {
             $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
         }
-        $syscontext = context_system::instance();
-        $roleid = create_role('Compass hidden course viewer', 'compasshiddenviewer', 'Sees hidden courses');
-        assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $roleid, $syscontext->id, true);
-        role_assign($roleid, $this->userid, $syscontext->id);
-        accesslib_clear_all_caches_for_unit_testing();
-        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $syscontext, $this->userid));
+        $this->hidden_course_viewer_at_system($this->userid);
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', context_system::instance(), $this->userid));
         $this->assertSame(2, $this->build(1)['total']);
 
         set_config('enablecourseasyncdeletion', 1, 'moodlecourse');
@@ -625,6 +949,9 @@ final class explore_test extends advanced_testcase {
         $after = $this->build(1);
         $this->assertSame(1, $after['total']);
         $this->assertSame(['Kept course'], $this->course_names($after['groups'][0]));
+        // Core hid the course when it marked it: the Hidden group does not take it either.
+        $this->assertSame([(int) $tree['alpha']->id], array_column($after['groups'], 'id'));
+        $this->assertSame([], $this->rows(dormancy::GROUP_INVISIBLE)['rows']);
     }
 
     /**

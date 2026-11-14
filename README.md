@@ -33,8 +33,10 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
 - **Tier 3, exploration.** *All courses*, grouped by category, with a side index and one filter
   line: a scope, a search that suggests as you type, a favourites star, filters, a sort and a
   list or cards view. Rows fetch their progress and image only once they are on screen. Courses
-  gone quiet gather in a *Dormant* group, and archived ones in an *Archived* group shared with
-  the Course overview block.
+  gone quiet gather in a *Dormant* group, courses hidden from students in a *Hidden* group shown
+  only to those who may see them (a course's own teacher, as in the Course overview block), and
+  archived ones in an *Archived* group shared with the Course overview block. Where a theme or
+  plugin tells kinds of course apart (an event, a trail), each card and row says its kind.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
@@ -90,7 +92,9 @@ the cards always paint first.
 - **Studying and Teaching.** A user who learns in some courses and teaches in others gets a
   switch between the two views; which courses are learning ones follows the site's graded roles
   (`gradebookroles`). The teaching view counts the submissions waiting to be graded, in the same
-  group core's grading page shows that teacher first, beside the class's deadlines. An
+  group core's grading page shows that teacher first, beside the class's deadlines; a teacher
+  in no group of an activity in separate groups, without access to all groups, is shown no
+  grading work for it, since core's grading page lets them grade none of it. An
   *Everything* / *To do* / *Events* filter narrows either view. Both choices are remembered per
   user. Closed, the teaching line counts grading work only with `block_feedback_tracker` (below),
   as a *To grade* cell before the periods; without it, it counts the class's deadlines and
@@ -198,7 +202,14 @@ and previews nothing, and a control that would only widen the list previews noth
 An enrolment that starts later is a row with an *Access from {date}* pill; an application through
 *Enrolment on application* (`enrol_apply`) is a row with an *Application under review* or *On the
 waiting list* pill. Every row and card carries the star and an archive control; *Dormant* has an
-**Archive all** control. The line is remembered per user (scope, star, filters, sort and whether
+**Archive all** control. A course hidden from students (`visible = 0`) is listed only to a viewer
+holding `moodle/course:viewhiddencourses` in that course, as core lists it, and then only in the
+*Hidden* group, never in its category: the group shows its count with the others and loads its
+rows when opened, like *Archived*; a search opens neither, the server's search of a long list
+covers neither, and the A to Z and Recent sorts list neither. An archived hidden course
+stays in *Archived*, marked *Hidden from students*; inside *Hidden* no row is marked, the heading
+says it. When a `course_kinds` listener names the course's kind, the cards and the list rows draw
+it before *New*, both as light chips ("Event", "New"); the default kind, *course*, is never drawn. The line is remembered per user (scope, star, filters, sort and whether
 the panel is open, which starts closed), the search text excepted. In the full list, no filter,
 suggestion or preview asks the server anything.
 
@@ -214,7 +225,8 @@ suggestions are the server's search hits. Nothing is configured per learner.
 With `enable_page` on, `/blocks/compass/index.php` shows the block's content alone, on the
 theme's page without block regions. While it is on, "Compass" is offered under *Site
 administration > Appearance > Navigation > Start page for users* and in each user's home page
-preference. Off, or while the block type is hidden under *Manage blocks*, the page redirects to the Dashboard.
+preference, unless the block type is hidden under *Manage blocks*. Off, or while the block type is hidden, the
+page redirects to the Dashboard.
 Guests are sent to the front page.
 
 ![Compass on a phone: the strip with three past days and a peek of the next, and a day card as a bottom sheet](docs/screenshots/mobile.png)
@@ -360,6 +372,15 @@ store as the default application store. The block works without it, but every we
 rebuilds each user's caches in its own file store, and performance on a large site degrades
 severely. The settings page repeats this notice.
 
+The user's `calendarstrip`, `news` and `details` entries that role, enrolment, group, cohort and
+completion events drop are deleted in batches, one delete per cache for up to 200 users, so an
+enrolment sync or a cohort of 10,000 users does not send a delete per event to the store. A batch
+is sent when it holds 200 entries, at the end of the request, at the next event once its oldest
+delete has waited 5 seconds, and before the same request reads or writes one of those entries. Another web
+node may therefore serve such an entry until the request that changed the user's access ends (in
+a cron process, until its next event 5 seconds on, or its end); the entries' own TTLs still bound
+it. Deleting an account drops its entries at once.
+
 **Course crests**
 
 Compass names no theme. To draw a course's institutional crests it dispatches its own hook,
@@ -420,6 +441,10 @@ Capabilities
 - `block/compass:myaddinstance`: add the block to one's own Dashboard (and, for administrators,
   to the default Dashboard). Default: authenticated user. The block lives on the Dashboard only,
   so there is no `addinstance` capability.
+
+The block also reads one core capability, `moodle/course:viewhiddencourses`: in *All courses* and
+for the cards' details, per hidden course at that course's context, as core's own course lists do;
+in the first strips and their counts, once, at the system context.
 
 
 Web services
@@ -503,9 +528,9 @@ Data stored
 | `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next and whether the user hid the open-for-enrolment line, each for that sign-in: the hidden states keep the session's login time (`$USER->currentlogin`) and lapse at the next sign-in. | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_tier1` | User preference | The shape the first strips last settled to on the Dashboard and on the block's own page, so the next page holds their place before they load: which strips showed, how many cards each (at most 24) and whether any showed progress, whether the more-courses card and the applications notice showed. No course, name or date. Written by the browser only when the shape changes. | Until changed | Uninstalling the plugin; deleting the account |
 | `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star, whether the course is completed and, for an application awaiting approval, its enrolment method's id) and the stamp that tells whether they are still current; no course data. | 24 hours | Its TTL; deleting the account; purging caches |
-| `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; deleting the account; purging caches |
-| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work, the course ids behind each day, the sets of courses and groups a day reuses, the days opened, the first day, the timezone and the sign-in it was built for. | 30 minutes | Its TTL; deleting the account; purging caches |
-| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link, with the category and course names already formatted in the user's language) and the sign-in, language and catalogue digest it was built from. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; the user's completion of an activity or the course (batched, see *Cache stores*); deleting the account; purging caches |
+| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work, the course ids behind each day, the sets of courses and groups a day reuses, the days opened, the first day, the timezone and the sign-in it was built for. | 30 minutes | Its TTL; a change of the user's role, enrolment, group or cohort (batched, see *Cache stores*); deleting the account; purging caches |
+| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link, with the category and course names already formatted in the user's language) and the sign-in, language and catalogue digest it was built from. | 30 minutes | Its TTL; a change of the user's role, enrolment, group or cohort (batched, see *Cache stores*); deleting the account; purging caches |
 | `catalogue` | MUC cache, shared | The courses that are visible and listed, start inside the band and offer an enrolment route open now: course, category and start date, up to 500. No personal data. | Rebuilt after a course, enrolment method or discoverability change, and at most every 10 minutes | Core's events; purging caches |
 | `coursemeta`, `categorymeta`, `coursefields`, `filterfields` | MUC caches, shared | Course and category names, dates and custom field values: no personal data. | Until the course, category or field changes | Core's events; purging caches |
 | `prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep` | Plugin configuration | Where the pre-warming task stopped (a user id), the activity window it walks and when it last finished a sweep. Site state. | Until the next run | Uninstalling the plugin |
@@ -574,6 +599,12 @@ strips settled to a shape other than the one stored (a strip gaining or losing c
 24.5 ms, and the block's reads 26 to 65 ms warm; that is a development-stack number, so measure on
 your own hardware. The cache stores that keep the reads cheap are under *Cache stores* above.
 
+The client is one ES module, `js/esm/build/bundle.js` (about 199 KB, 63 KB compressed), announced in
+the page with seven `modulepreload` hints beside core's own and served through core's import map with
+the site's JavaScript revision, so a browser keeps it until the next upgrade or cache purge. The
+release package carries no `.dev.js` files and no source maps: with developer debugging on, core
+serves the production files instead.
+
 The block's web services declare `readonlysession`, which core honours only when config.php sets
 `$CFG->enable_read_only_sessions = true;`. It is not an admin setting. Without it, one viewer's
 requests wait for each other on the session lock, and on a Dashboard the block's reads also wait
@@ -593,8 +624,11 @@ Troubleshooting
   shared in-memory store, not the default file store.
 - **All courses opens with every group closed.** The learner has more than `inventory_max`
   courses: that is paged mode.
-- **A course vanished from All courses.** Look in the *Dormant* and *Archived* groups at the
-  end of the list; a course removed from view in the Course overview block is under *Archived*.
+- **A course vanished from All courses.** Look in the *Dormant*, *Hidden* and *Archived* groups
+  at the end of the list; a course removed from view in the Course overview block is under
+  *Archived*, and a course hidden from students is under *Hidden* for its teachers and absent for
+  its students. The first strips keep leaving hidden courses out for anyone without the
+  capability at the system context.
 - **No calendar strip.** Check `calendar_enabled` and `calendar_where`; the strip shows only
   where it is configured, and only after the first tier has loaded.
 
@@ -614,6 +648,7 @@ Development
   including the bundle and its manifest). On Moodle 5.3 the build also writes a `.dev.js` twin
   of each module and `js/esm/src/swizzle.json`, which declares every component closed to theme
   overrides: the page loads the bundle, so an override of a single module would never apply.
+  The twins and the source maps stay in git and out of the release package (`.gitattributes`).
 - Design decisions: [`docs/adr/`](docs/adr/README.md). Measurements: [`docs/perf/`](docs/perf/).
   Changes: [`CHANGELOG.md`](CHANGELOG.md).
 

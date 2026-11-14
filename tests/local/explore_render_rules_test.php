@@ -27,8 +27,9 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  * item 2). The rules here: the per-row components and the group are memoised; every prop Explore and the group
  * hand them is kept between renders (no arrow, no literal array or object written in the tag), and so is the
  * details store's object; full mode filters from deferred copies of the applied term and of the box, so the
- * keystroke commits first; the facet count builds its per-query and per-selection values once, not per row. No
- * JavaScript runner holds this, so the sources are read.
+ * keystroke commits first; the facet count builds its per-query and per-selection values once, not per row. The
+ * Hidden group (ADR-021 decision 1) takes the archive's path in every place the archive has one, and its rows draw no
+ * pill of their own. No JavaScript runner holds this, so the sources are read.
  *
  * @package    block_compass
  * @category   test
@@ -186,6 +187,13 @@ final class explore_render_rules_test extends advanced_testcase {
         $this->assertSame('showMore', $group['onShowMore']);
         $this->assertSame('retryGroup', $group['onRetry']);
         $this->assertSame('group.id === GROUP_DORMANT ? archiveallbar : undefined', $group['toolbar']);
+        // The kinds (ADR-021 decision 2.3): one array for the mount, kept from the first payload; NO_KINDS before it.
+        $this->assertSame('rowkinds', $group['kinds']);
+        $this->assertSame('rowkinds', $this->props($this->tags($explore, 'RowList')[0])['kinds']);
+        $this->assertStringContainsString('const NO_KINDS: RowKind[] = [];', $explore);
+        $this->assertStringContainsString('const rowkinds = kinds ?? NO_KINDS;', $explore);
+        $this->assertStringContainsString('setKinds((current) => current ?? payload.kinds ?? NO_KINDS);', $explore);
+        $this->assertSame(1, substr_count($explore, 'setKinds('), 'the kinds are set from more than the first payload');
         $this->assertStringContainsString('const archiveallbar = useMemo(', $explore);
         $this->assertStringContainsString('const slices = useMemo(', $explore);
         $this->assertStringContainsString('const flat = paged ? (keptHits ?? NO_ROWS) : flatrows;', $explore);
@@ -216,7 +224,7 @@ final class explore_render_rules_test extends advanced_testcase {
             $explore
         );
         $this->assertStringContainsString('const facets = useMemo(() => countFacets(term), [countFacets, term]);', $explore);
-        $this->assertStringContainsString("const isopen = (!paged && term !== '' && group.id !== GROUP_ARCHIVED)", $explore);
+        $this->assertStringContainsString("const isopen = (!paged && term !== '' && !ondemand(group.id))", $explore);
 
         $start = strpos($explore, 'const linecourses = useMemo(');
         $this->assertNotFalse($start, 'the suggestions are not computed where they were');
@@ -258,6 +266,114 @@ final class explore_render_rules_test extends advanced_testcase {
             '/\{\.\.\.selection\}|Object\.entries\(|\bmatches\(|wordsOf\(|passesSelection\(/',
             $inside,
             'the facet count builds a value per row that it could build once'
+        );
+    }
+
+    /**
+     * The client's reserved group ids are the server's: dormancy's three constants, which get_inventory_rows accepts.
+     *
+     * Vacuity guard: the three constants are read out of types.ts.
+     *
+     * Changes that must make it fail: GROUP_INVISIBLE (or either sibling) given another number on one side.
+     *
+     * @return void
+     */
+    public function test_the_reserved_group_ids_match_the_server(): void {
+        preg_match_all('/^export const GROUP_(\w+) = (-?\d+);$/m', $this->source('types.ts'), $matches, PREG_SET_ORDER);
+        $client = [];
+        foreach ($matches as [, $name, $value]) {
+            $client[$name] = (int) $value;
+        }
+        $this->assertSame(
+            [
+                'DORMANT' => dormancy::GROUP_DORMANT,
+                'ARCHIVED' => dormancy::GROUP_ARCHIVED,
+                'INVISIBLE' => dormancy::GROUP_INVISIBLE,
+            ],
+            $client,
+            'types.ts and dormancy.php disagree about the groups that are not categories'
+        );
+        $this->assertSame(array_values($client), \block_compass\external\get_inventory_rows::RESERVED_GROUPS);
+    }
+
+    /**
+     * The Hidden group is fetched, filtered, counted and kept closed as the archive is (ADR-021 decision 1.4): one
+     * predicate names both, and every place that read the archived id alone reads it.
+     *
+     * Changes that must make it fail: the invisible id left out of ondemand(); the group paged only in paged mode;
+     * its pages not fetched to the end in full mode; its rows missing from the name map, from "N courses shown" or
+     * from its own slice; a search opening it.
+     *
+     * @return void
+     */
+    public function test_the_hidden_group_takes_the_archives_path(): void {
+        $explore = $this->source('Explore.tsx');
+        $this->assertStringContainsString(
+            'const ondemand = (id: number): boolean => id === GROUP_ARCHIVED || id === GROUP_INVISIBLE;',
+            $explore
+        );
+        $this->assertStringContainsString(
+            'const pagedgroup = useCallback((id: number): boolean => paged || ondemand(id), [paged]);',
+            $explore
+        );
+        $this->assertStringContainsString('if (!page.loaded || (!paged && ondemand(group.id) && page.hasmore)) {', $explore);
+        $this->assertStringContainsString('const invisiblerows = pages[GROUP_INVISIBLE]?.rows;', $explore);
+        $this->assertStringContainsString('invisiblerows?.forEach((row) => map.set(row.id, normalise(row.name)));', $explore);
+        $this->assertStringContainsString('}, [data, archivedrows, invisiblerows]);', $explore);
+        $this->assertStringContainsString(
+            'const invisiblevisible = useMemo(() => passedOf(invisiblepage), [passedOf, invisiblepage]);',
+            $explore
+        );
+        $this->assertStringContainsString(
+            'const archivedvisible = useMemo(() => passedOf(archivedpage), [passedOf, archivedpage]);',
+            $explore
+        );
+        $this->assertMatchesRegularExpression(
+            '/\+ archivedvisible\.length\s+\+ invisiblevisible\.length,\s+\[visible, archivedvisible, invisiblevisible\]/',
+            $explore,
+            'the Hidden group\'s matching rows are not in "N courses shown"'
+        );
+        $this->assertStringContainsString(
+            'const fetched = group.id === GROUP_INVISIBLE ? invisiblevisible : archivedvisible;',
+            $explore
+        );
+        $this->assertStringContainsString("const isopen = (!paged && term !== '' && !ondemand(group.id))", $explore);
+        // No other place may read the archived id alone where the archive is meant: what is left is the archive's own
+        // control (unarchive) and its slice's choice.
+        $this->assertSame(1, substr_count($explore, 'group.id === GROUP_ARCHIVED'), 'a place reads the archived id alone');
+        $this->assertStringContainsString('archived={group.id === GROUP_ARCHIVED}', $explore);
+    }
+
+    /**
+     * A hidden row draws "Hidden from students" where it sits among visible ones and never inside the Hidden group
+     * (ADR-021 answer 4): Explore tells each group, the props reach both views, and both views draw the pill only
+     * when told and when the row is hidden.
+     *
+     * Vacuity guard: the pill is the plugin's own state pill, in core's words.
+     *
+     * Changes that must make it fail: the group's prop always true; the prop dropped on the way; a view drawing the
+     * pill on invis alone; the pill drawn with another class or label.
+     *
+     * @return void
+     */
+    public function test_the_hidden_pill_is_not_drawn_inside_the_hidden_group(): void {
+        $explore = $this->source('Explore.tsx');
+        $this->assertSame('group.id !== GROUP_INVISIBLE', $this->props($this->tags($explore, 'Group')[0])['markhidden']);
+        $this->assertSame('markhidden', $this->props($this->tags($this->source('Group.tsx'), 'RowList')[0])['markhidden']);
+        $list = $this->source('RowList.tsx');
+        foreach (['Row', 'RowCard'] as $component) {
+            $this->assertSame('markhidden', $this->props($this->tags($list, $component)[0])['markhidden'], $component);
+            $this->assertStringContainsString(
+                '{markhidden && row.invis && <InvisiblePill label={labels.hiddenfromstudents} />}',
+                $this->source($component . '.tsx'),
+                "{$component} draws the pill without asking where it is"
+            );
+            $this->assertSame(1, substr_count($this->source($component . '.tsx'), '<InvisiblePill'), $component);
+        }
+        $this->assertStringContainsString(
+            "<span className=\"compass-state compass-state-invisible\">\n"
+                . '        <i className="fa fa-eye-slash" aria-hidden="true"></i>',
+            $this->source('StatePill.tsx')
         );
     }
 }

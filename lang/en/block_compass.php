@@ -340,6 +340,7 @@ $string['hide_page_title'] = 'Hide the page title';
 $string['hide_page_title_desc'] = 'Show the Compass page without the theme\'s page heading, so the content starts closer to the navigation bar. The title stays in the page as a visually hidden level-one heading for assistive technology. Only the page is affected; the block on the Dashboard follows "Hide the block title".';
 $string['inventory_max'] = 'Maximum courses listed in full';
 $string['inventory_max_desc'] = 'Above this many courses the full course list loads its group headers first and the rows of each group as it is opened, with a server-side search over all the courses. Up to it the whole list is sent at once and filtered in the browser. Default 250.';
+$string['invisible'] = 'Hidden';
 $string['javascriptrequired'] = 'JavaScript is required to display your courses.';
 $string['lastaccessago'] = 'Last access {$a} ago';
 $string['lastaccessjustnow'] = 'Accessed just now';

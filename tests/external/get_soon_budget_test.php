@@ -194,18 +194,18 @@ final class get_soon_budget_test extends advanced_testcase {
     }
 
     /**
-     * After a course visit, Up next costs what the warm call costs plus the inventory's refill: the strip's
-     * entry is not rebuilt.
+     * After a course visit, Up next costs what the warm call costs: neither the strip's entry nor the inventory is rewritten.
      *
-     * A visit moves the inventory stamp's last access (core writes user_lastaccess as the course page loads),
-     * so the inventory refills itself (its stale hit is one read more than a valid one); the strip's entry,
-     * whose set is not bounded, is kept (strip::stamp_compared()). Before the performance audit's item 5 the
-     * entry was rebuilt whole here, the strip's counts pass and its statements. The control: the entry the
-     * call leaves is the one built before the visit.
+     * A visit moves the inventory stamp's last access (core writes user_lastaccess as the course page loads).
+     * The strip's entry, whose set is not bounded, is kept (strip::stamp_compared()); before the performance
+     * audit's item 5 it was rebuilt whole here, the strip's counts pass and its statements. The revalidation
+     * reads the stamp statement alone (ADR-002, amendment of 2026-11-13), so the stale inventory entry is not
+     * refilled here either, which cost one read until then: a later reader of the rows refills it. Controls: the
+     * entry the call leaves is the one built before the visit, and the inventory's cached stamp is the old one.
      *
      * @return void
      */
-    public function test_a_course_visit_adds_only_the_inventory_refill(): void {
+    public function test_a_course_visit_costs_what_the_warm_call_costs(): void {
         global $DB, $USER;
 
         $now = time();
@@ -227,7 +227,11 @@ final class get_soon_budget_test extends advanced_testcase {
         $visitreads = $meter->reads();
 
         $this->assertSame($before['stamp'], calendar_cache::get((int) $USER->id)['stamp'], 'The entry must not be rebuilt.');
-        $this->assertSame($warmreads + 1, $visitreads, 'A visit adds the inventory refill and nothing else.');
+        $cached = \core_cache\cache::make('block_compass', 'inventory')->get((int) $USER->id);
+        $this->assertSame($before['stamp'], $cached['stamp'], 'Control: the inventory entry was not refilled.');
+        $current = \block_compass\local\inventory::stamp((int) $USER->id);
+        $this->assertNotSame($cached['stamp'], $current, 'Control: the visit moved it.');
+        $this->assertSame($warmreads, $visitreads, 'A visit adds no read.');
         $this->assertCount(3, $answer['items']);
     }
 

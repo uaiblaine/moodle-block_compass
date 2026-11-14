@@ -27,7 +27,8 @@ allowlist (`import_map::get_preload_specifiers()`), each resolved through the th
 (`@moodle/lms/theme-<theme>/...`), never `loader . specifier`. `js/esm/build` must be exactly what
 `mdl grunt m503 blocks/compass` writes (`X.js`, `X.dev.js`, `X.dev.js.map` per source, no production
 `.js.map`, plus the bundle); `js/esm/src/swizzle.json` declares every component `prohibited` because the
-page mounts the bundle. `coursemeta` carries `deletioninprogress`: the `before_course_deleted` hook drops
+page mounts the bundle. The release package leaves every `X.dev.js` and `.js.map` out (`.gitattributes`, ADR-011
+amendment 8; `bundle_test` reads the rules); a second bundle for tier 3 was built, measured and not kept. `coursemeta` carries `deletioninprogress`: the `before_course_deleted` hook drops
 the entry (now and at shutdown; never a write that claims the deletion) and every reader excludes a course being deleted, for everyone. The surface token is
 `--bs-card-bg` falling back to `--bs-body-bg` (5.3 Boost's page is grey).
 
@@ -269,7 +270,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   drops the per-user layers (`observer::user_deleted()` reads the cached entry first); every
   cache test purges first.
 - **SQL in `classes/local/`**: named placeholders used once; index comment and bound on every
-  statement; visibility in SQL with `viewhiddencourses` evaluated once per request; `SITEID`
+  statement; visibility in SQL with `viewhiddencourses` evaluated once per request in tier 1, per hidden
+  course at its course context in tier 3 and the details (`course_meta::visible_to()`, ADR-021); `SITEID`
   excluded explicitly; `get_records_sql()` keys on the first selected column; search in PHP.
 - **`SITEID` is a string** (`$SITE->id` as the database returned it, `lib/setup.php`): compare it
   with an int as `(int) SITEID`, or the strict comparison is false (it dropped every site event).
@@ -313,8 +315,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   output. Tier 3: two modes in one component, sequence numbers not cancellation, debounce 150
   full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed
   on a counter, index hidden below 640 px of the section, focus moved deliberately after
-  "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant and
-  archived groups `-1`/`-2`, the filter line remembered through `explore_preference` (`{sort,
+  "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant,
+  archived and invisible (Hidden) groups `-1`/`-2`/`-3`, the last two fetched on open in both modes
+  (`ondemand()`), the filter line remembered through `explore_preference` (`{sort,
   scope, star, cf, panel}`, an old `chip` migrated on read; shape validated server-side,
   membership client-side), resilience in `repository.ts` (bounded retry:
   every failed read twice, 2 s ± 500 ms apart, no jitter under Behat), then `RetryNotice` (Try again, Reload page): **no

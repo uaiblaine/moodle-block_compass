@@ -535,9 +535,13 @@ final class strip {
      * and group events of a course or group the user has left (core's api::get_events() does not check
      * enrolment). So, only when a day is about to be built, the sets are compared with recorded facts:
      * the inventory stamp the entry was built under against the current one (enrolments and completions,
-     * one read on a valid inventory hit, {@see inventory::get()}), and the entry's group set against
+     * one read: the stamp statement itself, {@see inventory::stamp()}), and the entry's group set against
      * groups() over the entry's own courses (one read). Either difference rebuilds the entry whole, the
-     * path a miss takes.
+     * path a miss takes, and the rebuild's {@see inventory::get()} refills a stale inventory entry.
+     * The current stamp is the statement's answer, the value a valid inventory hit carries and a fill
+     * derives from its rows, so the per-user inventory entry (one row per enrolment) is neither loaded nor
+     * rewritten here: a cached copy of the stamp could only be trusted after the same statement anyway
+     * (ADR-002 amendment, 2026-11-13).
      * The stamp's last access is compared only for a bounded set ({@see self::stamp_compared()}): it moves
      * on every course visit, and an unbounded set does not depend on it.
      *
@@ -554,7 +558,7 @@ final class strip {
      * @return array The entry to build the day from.
      */
     public static function revalidated(int $userid, array $entry, int $now, int $signin, \DateTimeZone $tz): array {
-        $stamp = inventory::get($userid)['stamp'];
+        $stamp = inventory::stamp($userid);
         $groups = self::groups($userid, array_map('intval', array_keys($entry['sets']['courses'])));
         $bounded = !empty($entry['payload']['bounded']);
         $kept = $entry['stamp'] ?? null;
@@ -1712,8 +1716,12 @@ final class strip {
      * - no group mode (the course's forced mode wins, as groups_get_activity_groupmode() decides):
      *   null, every participant;
      * - moodle/site:accessallgroups at the module context: null (core's 'aag' mode starts at 0, all);
-     * - SEPARATEGROUPS: the first of the grader's own groups, else null (core's 0 when the grader
-     *   has none: they count everyone);
+     * - SEPARATEGROUPS: the first of the grader's own groups, else the assignment is LEFT OUT of the
+     *   map, so no grading source counts it and the strip shows no grading work for it. Core's
+     *   default would be 0 and its counter would count everyone (the Dashboard's timeline does), but
+     *   its grading page refuses that grader: assign::can_view_grades() (mod/assign/locallib.php)
+     *   is false in SEPARATEGROUPS without accessallgroups and without an allowed group. The strip
+     *   follows what the grader can grade, not that count (ADR-014 amendment, 2026-11-13);
      * - VISIBLEGROUPS: the first of the grader's own groups, else the first group of the course,
      *   else null.
      * "Groups" are those groups_get_all_groups() lists with $participationonly: participation groups
@@ -1726,9 +1734,14 @@ final class strip {
      * Reads: none when no assignment needs groups (no group mode, or accessallgroups); otherwise one,
      * {@see course_groups()}, for every course that does.
      *
+     * The map is the one selection point of grading work: the build and the day's teaching items
+     * (collect()), the completion of a counted-only entry (deferred_grading()) and both sources,
+     * {@see grading} and {@see tracker_grading}, see only what it holds.
+     *
      * @param array $candidates The gradingdue candidates of collect(), each with its row and module context.
      * @param int $userid The current user.
-     * @return array Assignment instance id => group id, or null for every participant.
+     * @return array Assignment instance id => group id, or null for every participant; an assignment
+     *     the grader can grade for no group is absent.
      */
     private static function grading_groups(array $candidates, int $userid): array {
         $groups = [];
@@ -1756,11 +1769,18 @@ final class strip {
             array_map(fn(\stdClass $row): int => (int) $row->groupingid, $asked)
         );
         foreach ($asked as $instance => $row) {
-            $groups[$instance] = self::active_group(
+            $group = self::active_group(
                 (int) $row->groupmode,
                 (int) $row->groupingid,
                 $courses[(int) $row->courseid] ?? ['groups' => [], 'viewhidden' => false]
             );
+            // A false here must reach no source: block_feedback_tracker files a student without a group
+            // under group 0, so a false cast to a group id would count those students.
+            if ($group === false) {
+                unset($groups[$instance]);
+                continue;
+            }
+            $groups[$instance] = $group;
         }
 
         return $groups;
@@ -1772,9 +1792,10 @@ final class strip {
      * @param int $mode SEPARATEGROUPS or VISIBLEGROUPS.
      * @param int $groupingid The activity's grouping, 0 for none.
      * @param array $course From course_groups(): groups (ordered) and viewhidden.
-     * @return int|null The group id, or null for every participant.
+     * @return int|false|null The group id; null for every participant; false for none (SEPARATEGROUPS
+     *     with no group of the grader's own, where core's grading page refuses the grader).
      */
-    private static function active_group(int $mode, int $groupingid, array $course): ?int {
+    private static function active_group(int $mode, int $groupingid, array $course): int|false|null {
         $first = null;
         foreach ($course['groups'] as $groupid => $group) {
             if ($groupingid !== 0 && !isset($group['groupings'][$groupingid])) {
@@ -1791,7 +1812,7 @@ final class strip {
             $first ??= (int) $groupid;
         }
 
-        return $mode === VISIBLEGROUPS ? $first : null;
+        return $mode === VISIBLEGROUPS ? $first : false;
     }
 
     /**

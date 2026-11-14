@@ -15,7 +15,8 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The kinds of offering the open-courses line tells apart, from whichever theme or plugin answers the course_kinds hook.
+ * The kinds of offering the open-courses line and tier 3's rows tell apart, from whichever theme or plugin answers
+ * the course_kinds hook.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -26,9 +27,11 @@ namespace block_compass\local;
 
 use block_compass\hook\course_kinds as course_kinds_hook;
 use core\hook\manager;
+use core_text;
 
 /**
- * The one door to the course kinds (ADR-019 decisions 4 and 5): the block's own hook, dispatched where asked.
+ * The one door to the course kinds (ADR-019 decisions 4 and 5, ADR-021 decision 2): the block's own hook,
+ * dispatched where asked, once per caller.
  *
  * Compass names no theme and no field: it dispatches {@see course_kinds_hook} and keeps the field a
  * listener names only while filter_fields::eligible() lists it as a select, so a field made
@@ -68,16 +71,86 @@ final class course_kinds {
      * @return int The field id, 0 when off.
      */
     public static function field_id(?callable $source = null): int {
+        return self::answer($source)['fieldid'];
+    }
+
+    /**
+     * The classifier field's id and the kinds, from a single dispatch.
+     *
+     * The one accessor a caller that needs both uses: field_id() and ask() each dispatch the hook, so
+     * calling the two would ask every listener twice per response (ADR-021 decision 2.2). The field is
+     * kept on field_id()'s conditions; when they fail the kinds are dropped with it, since a kind
+     * describes a value of a field the block may not read.
+     *
+     * @param callable|null $source Stands in for the hook in tests; see ask().
+     * @return array ['fieldid' => int, 0 when off, 'kinds' => stored value => ['key', 'one', 'many'],
+     *     empty when off].
+     */
+    public static function answer(?callable $source = null): array {
+        $off = ['fieldid' => 0, 'kinds' => []];
         $answer = self::ask($source);
         if ($answer['field'] === null || !$answer['kinds']) {
-            return 0;
+            return $off;
         }
         $field = filter_fields::eligible()[$answer['field']] ?? null;
         if ($field === null || ($field['type'] ?? '') !== 'select') {
-            return 0;
+            return $off;
         }
 
-        return (int) $field['id'];
+        return ['fieldid' => (int) $field['id'], 'kinds' => $answer['kinds']];
+    }
+
+    /**
+     * The kinds a tier 3 row may draw as a pill, from one dispatch: every kind but DEFAULT, in the
+     * listener's order, one entry per key.
+     *
+     * The default kind is never drawn (ADR-021 decision 2.5): in a list of one's courses a course is
+     * the normal case, and a site whose only kind is DEFAULT draws nothing. Values that share a key
+     * share an entry, and the entry is named by the first value given that key, as counts() folds
+     * them. The name is the listener's noun for one with its first letter upper-cased (label()): the
+     * hook's nouns are made for sentences, and the pill starts one.
+     *
+     * @param callable|null $source Stands in for the hook in tests; see ask().
+     * @return array 'fieldid' (0 when no kind can be drawn, and then nothing else is set), 'kinds'
+     *     (list of ['key' => string, 'name' => string], the payload's kinds) and 'index' (stored value
+     *     => position in 'kinds', for the values whose kind is drawn).
+     */
+    public static function pills(?callable $source = null): array {
+        $answer = self::answer($source);
+        $kinds = [];
+        $positions = [];
+        $index = [];
+        foreach ($answer['kinds'] as $value => $kind) {
+            $key = (string) $kind['key'];
+            if ($key === self::DEFAULT) {
+                continue;
+            }
+            if (!isset($positions[$key])) {
+                $positions[$key] = count($kinds);
+                $kinds[] = ['key' => $key, 'name' => self::label((string) $kind['one'])];
+            }
+            $index[(int) $value] = $positions[$key];
+        }
+        if (empty($kinds)) {
+            return ['fieldid' => 0, 'kinds' => [], 'index' => []];
+        }
+
+        return ['fieldid' => $answer['fieldid'], 'kinds' => $kinds, 'index' => $index];
+    }
+
+    /**
+     * A listener's noun in sentence case: its first character upper-cased, the rest as given.
+     *
+     * The noun is already plain text that PARAM_TEXT gives back unchanged
+     * ({@see \block_compass\hook\course_kinds::add_kind()}); upper-casing one letter adds no markup, so
+     * the label is as safe in a PARAM_TEXT return. Multibyte-aware through core_text: "évènement"
+     * becomes "Évènement".
+     *
+     * @param string $noun The listener's noun for one.
+     * @return string
+     */
+    public static function label(string $noun): string {
+        return core_text::strtoupper(core_text::substr($noun, 0, 1)) . core_text::substr($noun, 1);
     }
 
     /**

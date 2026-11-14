@@ -16,9 +16,10 @@
 /**
  * Tier 3: the inventory, grouped by category, filtered and reordered in place.
  *
- * Two modes, decided by the server. In full mode one request brings every row but the
- * archive's (see pagedgroup()) and the toolbar only re-renders what is already held - no
- * request is made for a filter the browser can answer. In paged mode the groups arrive with
+ * Two modes, decided by the server. In full mode one request brings every row but those of
+ * the archived and the invisible groups (see pagedgroup()) and the toolbar only re-renders
+ * what is already held - no request is made for a filter the browser can answer. In paged
+ * mode the groups arrive with
  * counts only: a group fetches its rows on first open and page by page, the chip, the field
  * selection and the sort are parameters of those fetches, and the search box asks the
  * server, because the rows are not here to search.
@@ -61,10 +62,10 @@ import {
     setViewPreference,
 } from './repository';
 import {useRowDetails} from './rowdetails';
-import {GROUP_ARCHIVED, GROUP_DORMANT} from './types';
+import {GROUP_ARCHIVED, GROUP_DORMANT, GROUP_INVISIBLE} from './types';
 import type {
-    BlockConfig, ExploreState, FilterField, FilterParam, Inventory, InventoryRow, KeptToolbar, Reconnecting, SearchRow,
-    StarChange,
+    BlockConfig, ExploreState, FilterField, FilterParam, Inventory, InventoryRow, KeptToolbar, Reconnecting, RowKind,
+    SearchRow, StarChange,
 } from './types';
 
 /**
@@ -216,6 +217,19 @@ type Slice = {
 /** A group the payload names and the slices do not: drawn nowhere. */
 const NO_SLICE: Slice = {rows: NO_ROWS, count: 0, show: false};
 
+/** The one empty kind list: a payload with no kinds, kept as one array so the memoised rows see the same prop. */
+const NO_KINDS: RowKind[] = [];
+
+/**
+ * Whether a group's rows arrive only when it opens, in both modes: the archived group (ADR-007) and the
+ * invisible one, on screen Hidden (ADR-021 decision 1.4), which copies the archive in every respect. Neither
+ * holds rows in the first payload, neither is searched, and neither is part of the population the chips count.
+ *
+ * @param {number} id The group.
+ * @returns {boolean} Whether it is one of the two.
+ */
+const ondemand = (id: number): boolean => id === GROUP_ARCHIVED || id === GROUP_INVISIBLE;
+
 /**
  * Tier 3.
  *
@@ -245,6 +259,10 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }).current;
 
     const [data, setData] = useState<Inventory | null>(null);
+    // The kinds a row's kd indexes (ADR-021 decision 2.3): the list of the first payload this mount received,
+    // kept for the mount's life, because a page of get_inventory_rows or a search hit indexes the get_inventory
+    // answer the client holds and a reload's answer is the same list in the same language. Null until then.
+    const [kinds, setKinds] = useState<RowKind[] | null>(null);
     const [failed, setFailed] = useState<Failure | null>(null);
     const [searchfailed, setSearchfailed] = useState(false);
     const [query, setQuery] = useState('');
@@ -349,6 +367,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             }
             now.current = Math.floor(Date.now() / 1000);
             setData(payload);
+            setKinds((current) => current ?? payload.kinds ?? NO_KINDS);
             setFailed(null);
             // A remembered field that is no longer configured, or a value the field no longer
             // has, is dropped here: the shell could only check the shape.
@@ -365,7 +384,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 // a group's stays its unfiltered total until its rows arrive.
                 announce(labels.pagednote || '');
             } else if (payload.groups.length && payload.groups[0].id >= 0) {
-                // The first category opens; the two groups that are not categories are closed
+                // The first category opens; the three groups that are not categories are closed
                 // by default even when one of them is all there is.
                 setOpen({[payload.groups[0].id]: true});
             }
@@ -493,18 +512,19 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     /**
      * Whether a group fetches its rows rather than holding them.
      *
-     * Every group does in paged mode. The archived group does in both modes: its rows never
-     * travel in the first payload, so that archiving cannot grow the first paint or push a
-     * tidy-up over inventory_max.
+     * Every group does in paged mode. The archived and the invisible groups do in both modes
+     * (ondemand()): their rows never travel in the first payload, so that archiving cannot grow
+     * the first paint or push a tidy-up over inventory_max, and hidden courses never pad it.
      *
      * @param {number} id The group.
      * @returns {boolean} Whether loadPage() is how this group gets its rows.
      */
-    const pagedgroup = useCallback((id: number): boolean => paged || id === GROUP_ARCHIVED, [paged]);
+    const pagedgroup = useCallback((id: number): boolean => paged || ondemand(id), [paged]);
 
     // An open group that pages and has no rows needs a page, whether it was just opened or
     // just reset. One effect covers every such group, so no call site can be forgotten. In
-    // full mode the archive is fetched page after page until it is all here - full mode holds
+    // full mode the archive, and the invisible group with it, is fetched page after page until
+    // it is all here - full mode holds
     // what it filters, and a filter over half an archive would say "0 courses" of a course
     // that exists; paged mode fetches one page and offers "Show more".
     useEffect(() => {
@@ -519,7 +539,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             if (!open[group.id] || page.loading || page.failed || (paged && keepsnothing)) {
                 return;
             }
-            if (!page.loaded || (!paged && group.id === GROUP_ARCHIVED && page.hasmore)) {
+            if (!page.loaded || (!paged && ondemand(group.id) && page.hasmore)) {
                 loadPage(group.id);
             }
         });
@@ -582,17 +602,19 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         labels.loaderror, labels.filterupdated]);
 
     // Full mode: matching is over the normalised name, so normalise each once rather
-    // than on every keystroke. The archive's rows, held once fetched, are in the map too,
-    // keyed on their own array so a page's loading flag does not rebuild it: a row the map
-    // does not know would match nothing, whatever its name.
+    // than on every keystroke. The rows of the archive and of the invisible group, held once
+    // fetched, are in the map too, keyed on their own arrays so a page's loading flag does not
+    // rebuild it: a row the map does not know would match nothing, whatever its name.
     const archivedrows = pages[GROUP_ARCHIVED]?.rows;
+    const invisiblerows = pages[GROUP_INVISIBLE]?.rows;
     const normalised = useMemo(() => {
         const map = new Map<number, string>();
         data?.groups.forEach((group) => group.courses.forEach((row) => map.set(row.id, normalise(row.name))));
         archivedrows?.forEach((row) => map.set(row.id, normalise(row.name)));
+        invisiblerows?.forEach((row) => map.set(row.id, normalise(row.name)));
 
         return map;
-    }, [data, archivedrows]);
+    }, [data, archivedrows, invisiblerows]);
 
     /**
      * The facts a row is judged by, under the get_inventory row keys.
@@ -710,24 +732,34 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     const facets = useMemo(() => countFacets(term), [countFacets, term]);
     const untyped = useMemo(() => countFacets(''), [countFacets]);
 
-    // The archive's rows that pass the same filter, once they are here; none in paged mode,
-    // where the rows are not held, and none while a page is still due.
-    const archivedvisible = useMemo(() => {
-        const page = pages[GROUP_ARCHIVED];
+    /**
+     * The held rows of a group that arrives on open (ondemand()) that pass the same filter, once they are all here;
+     * none in paged mode, where the rows are not held, and none while a page is still due.
+     *
+     * @param {object|undefined} page The group's page state.
+     * @returns {object[]} Its rows the filter keeps.
+     */
+    const passedOf = useCallback((page: PageState | undefined): InventoryRow[] => {
         if (paged || !page || !page.loaded || page.hasmore) {
-            return [];
+            return NO_ROWS;
         }
 
         return page.rows.filter(passesRow);
-    }, [paged, pages, passesRow]);
+    }, [paged, passesRow]);
+    // Each keyed on its own page, so a page of one group does not filter the other again.
+    const archivedpage = pages[GROUP_ARCHIVED];
+    const invisiblepage = pages[GROUP_INVISIBLE];
+    const archivedvisible = useMemo(() => passedOf(archivedpage), [passedOf, archivedpage]);
+    const invisiblevisible = useMemo(() => passedOf(invisiblepage), [passedOf, invisiblepage]);
 
-    // What the filter keeps, the archive's matching rows included once they are here: what the
-    // live region announces and what decides "No course matches." - the chips' own numbers
-    // count the listed courses only, because the archive is not part of the population they
-    // are over.
+    // What the filter keeps, the matching rows of the archive and of the invisible group included
+    // once they are here: what the live region announces and what decides "No course matches." -
+    // the chips' own numbers count the listed courses only, because neither group is part of the
+    // population they are over.
     const shown = useMemo(
-        () => Array.from(visible.values()).reduce((total, rows) => total + rows.length, 0) + archivedvisible.length,
-        [visible, archivedvisible]
+        () => Array.from(visible.values()).reduce((total, rows) => total + rows.length, 0) + archivedvisible.length
+            + invisiblevisible.length,
+        [visible, archivedvisible, invisiblevisible]
     );
 
     // Full mode: the count the live region announces follows every filter change.
@@ -1476,17 +1508,18 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             }
             const page = pages[group.id] || EMPTY_PAGE;
             if (!paged) {
-                // The archived group in full mode: fetched page after page on first open until it is
-                // all here, then held and filtered like every other group's rows, so a chip, a
-                // selection or a query narrows it and clearing them brings the rows back. Until the
-                // rows are all here the count is the server's total - there is nothing complete to
-                // narrow yet - and the group stays, closed, whatever the filter: it is not part of
-                // the population the filter is over, and hiding it would make the archive
-                // unreachable for as long as a query is typed.
+                // The archived or the invisible group in full mode: fetched page after page on first
+                // open until it is all here, then held and filtered like every other group's rows, so a
+                // chip, a selection or a query narrows it and clearing them brings the rows back. Until
+                // the rows are all here the count is the server's total - there is nothing complete to
+                // narrow yet - and the group stays, closed, whatever the filter: it is not part of the
+                // population the filter is over, and hiding it would make the group unreachable for as
+                // long as a query is typed.
                 const complete = page.loaded && !page.hasmore;
+                const fetched = group.id === GROUP_INVISIBLE ? invisiblevisible : archivedvisible;
                 map.set(group.id, {
-                    rows: archivedvisible,
-                    count: complete ? archivedvisible.length : group.count,
+                    rows: fetched,
+                    count: complete ? fetched.length : group.count,
                     show: true,
                 });
 
@@ -1502,7 +1535,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         });
 
         return map;
-    }, [data, pagedgroup, visible, pages, paged, archivedvisible, keepsnothing, scope, star]);
+    }, [data, pagedgroup, visible, pages, paged, archivedvisible, invisiblevisible, keepsnothing, scope, star]);
 
     /**
      * A group opened or closed by its own summary.
@@ -1603,6 +1636,9 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         columns = 2;
     }
     const flat = paged ? (keptHits ?? NO_ROWS) : flatrows;
+    // Inside the invisible group a hidden row draws no pill (the heading says it, ADR-021 answer 4); elsewhere,
+    // in the archive above all, it does (markhidden). The kinds are one array until the first payload lands.
+    const rowkinds = kinds ?? NO_KINDS;
     const noresults = paged ? keepsnothing || (keptHits !== null && keptHits.length === 0) : shown === 0;
 
     // The panel title's level comes from heading.ts. The h5 class keeps the size, and
@@ -1672,7 +1708,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                         <ul className="list-unstyled small mb-0">
                             {data.groups.map((group) => {
                                 const slice = slices.get(group.id) ?? NO_SLICE;
-                                // The index is a map of the categories; the two groups that are
+                                // The index is a map of the categories; the three groups that are
                                 // not categories sit at the end and are found by scrolling.
                                 if (!slice.show || group.id < 0) {
                                     return null;
@@ -1707,8 +1743,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                             }
                             const page = pages[group.id] || EMPTY_PAGE;
                             // A search opens what it found; otherwise the group's own state rules.
-                            // The archived group is not searched, so a search leaves it closed.
-                            const isopen = (!paged && term !== '' && group.id !== GROUP_ARCHIVED)
+                            // The archived and invisible groups are not searched, so a search leaves them closed.
+                            const isopen = (!paged && term !== '' && !ondemand(group.id))
                                 || !!open[group.id];
 
                             // Every prop below is a primitive or an object kept between renders, never
@@ -1735,6 +1771,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                                     onRetry={retryGroup}
                                     focusfrom={focusmore?.id === group.id ? focusmore.from : null}
                                     anchor={`${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
+                                    kinds={rowkinds}
+                                    markhidden={group.id !== GROUP_INVISIBLE}
                                     archived={group.id === GROUP_ARCHIVED}
                                     onArchive={archive}
                                     onToggleFavourite={toggleFavourite}
@@ -1764,6 +1802,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                             now={now.current}
                             lang={lang}
                             details={details}
+                            kinds={rowkinds}
+                            markhidden
                             archived={false}
                             onArchive={archive}
                             onToggleFavourite={toggleFavourite}

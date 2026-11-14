@@ -274,6 +274,21 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-card-done-ink);
 }
 
+/* A course hidden from students, said where it sits among visible ones (ADR-021 decision 1.8): the card's quiet
+   pair, the plugin slot's ground and the card's ink, no colour of its own. That ground is the card's own surface
+   under some themes, so the card's outline draws the pill's edge, as it draws a coverless card's chip. */
+.block_compass .compass-state-invisible {
+    border: var(--block_compass-card-border-width) solid var(--block_compass-card-border);
+    background: var(--block_compass-card-extra-bg);
+    color: var(--block_compass-card-ink);
+}
+
+/* In a list row the pills sit on the row's centre line, as its other items do: the start alignment above is the
+   card's, whose body is a column. */
+.block_compass .compass-row .compass-state {
+    align-self: center;
+}
+
 /* A course name is at most two lines, ellipsis and all - Boost's own .clamp-2 pattern
    (theme/boost/scss/moodle/core.scss) - and the whole name rides in the element's title
    attribute. Visual only: the text stays whole in the DOM. */
@@ -557,7 +572,8 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     padding-inline-end: 128px;
 }
 
-.block_compass .compass-card-nocover .compass-card-top .compass-card-kind {
+.block_compass .compass-card-nocover .compass-card-top .compass-card-kind,
+.block_compass .compass-row .compass-card-kind {
     position: static;
     border: var(--block_compass-card-border-width) solid var(--block_compass-card-border);
 }
@@ -574,9 +590,10 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     filter: none;
 }
 
-/* The kind chip in a card's top-left corner - New on a new enrolment, and nothing else: an application or a later
-   start says so in its state pill - light on any cover (contract section 2, slot 2), and the star in the
-   top-right. */
+/* The kind chip in a card's top-left corner - the course's kind when a theme names one, New on a new enrolment, and
+   nothing else: an application or a later start says so in its state pill - light on any cover (contract section
+   2, slot 2), and the star in the top-right. A list row draws the same chips after the name, outlined as on a card
+   without its cover (above). */
 .block_compass .compass-card-kind {
     position: absolute;
     top: 10px;
@@ -591,6 +608,29 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     font-size: 0.75rem;
     font-weight: 600;
     line-height: 1.4;
+}
+
+/* Slot 2 holding the kind and New (ADR-021 decision 2.4): one row of chips in the chip's corner, the kind first,
+   that wraps before it reaches the star's corner; each chip keeps its own look. Without a cover the row sits in
+   the card's top row, where the chips are outlined (above). */
+.block_compass .compass-card-kinds {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: calc(100% - 60px);
+}
+
+.block_compass .compass-card-kinds .compass-card-kind {
+    position: static;
+}
+
+.block_compass .compass-card-nocover .compass-card-top .compass-card-kinds {
+    position: static;
+    max-width: none;
 }
 
 .block_compass .compass-card-title,

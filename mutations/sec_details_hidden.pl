@@ -1,1 +1,1 @@
-s/                if \(!\$seehidden\) \{\n                    unset\(\$meta\[\$courseid\]\);/                if (false) {\n                    unset(\$meta[\$courseid]);/;
+s/if \(!course_meta::visible_to\(\$entry, \$userid\)\) \{/if (false) {/;
