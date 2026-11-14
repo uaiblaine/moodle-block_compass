@@ -51,11 +51,16 @@ final class catalogue_test extends \advanced_testcase {
     /**
      * A fresh site in the site timezone, with the band's defaults.
      *
+     * The catalogue's observers run after the commit, and several cases count on them between
+     * steps, so the reset runs without the test case's rollback transaction, which would hold
+     * every event until the end.
+     *
      * @return void
      */
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
+        $this->preventResetByRollback();
         set_config('timezone', self::SITE_TZ);
         set_config('forcetimezone', 99);
         $this->purge_open_caches();

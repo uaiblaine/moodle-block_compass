@@ -67,6 +67,17 @@ final class tier1_preference {
     public const MAX_CARDS = 24;
 
     /**
+     * The longest value this reader reads, in bytes; a longer one is refused on write and ignored on read.
+     *
+     * Both surfaces with all four strips at MAX_CARDS, written with JSON.stringify, no whitespace
+     * (tier1shape.ts): 284 bytes. The cap is the smallest power of two at least twice that, the
+     * rule of the three readers ({@see explore_preference::MAX_BYTES}).
+     *
+     * @var int
+     */
+    public const MAX_BYTES = 1024;
+
+    /**
      * The current viewer's shape for one surface, validated, or null when there is none to trust.
      *
      * A preference read is allowed in the shell ({@see \block_compass\output\block::view()}): it
@@ -108,12 +119,8 @@ final class tier1_preference {
      */
     public static function validate(?string $json, bool $favouritesenabled, bool $pendingenabled): array {
         $shapes = array_fill_keys(self::SURFACES, null);
-        if ($json === null || $json === '') {
-            return $shapes;
-        }
-        $decoded = json_decode($json, true);
-        // Another version is another format: neither surface is read, so the client writes this one's.
-        if (!is_array($decoded) || ($decoded['v'] ?? null) !== self::VERSION) {
+        $decoded = self::decode($json);
+        if ($decoded === null) {
             return $shapes;
         }
         foreach (self::SURFACES as $surface) {
@@ -121,6 +128,42 @@ final class tier1_preference {
         }
 
         return $shapes;
+    }
+
+    /**
+     * The stored or posted JSON decoded, or null when this reader reads nothing of it.
+     *
+     * The one door validate() and clean() go through, as {@see explore_preference::decode()} is
+     * for the toolbar's; the length is checked before json_decode().
+     *
+     * @param string|null $json The JSON, or null when nothing is stored.
+     * @return array|null The decoded object, or null: empty, longer than MAX_BYTES, not a JSON
+     *     object, or of another version.
+     */
+    public static function decode(?string $json): ?array {
+        if ($json === null || $json === '' || strlen($json) > self::MAX_BYTES) {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+        // Another version is another format: neither surface is read, so the client writes this one's.
+        if (!is_array($decoded) || ($decoded['v'] ?? null) !== self::VERSION) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * The preference's cleancallback (lib.php): a value this reader reads, unchanged, or null.
+     *
+     * The route's rule is {@see explore_preference::clean()}'s: a valid value comes back byte for
+     * byte, anything else as the declared default, null.
+     *
+     * @param mixed $value The value after core's PARAM_RAW cleaning.
+     * @return string|null
+     */
+    public static function clean(mixed $value): ?string {
+        return is_string($value) && self::decode($value) !== null ? $value : null;
     }
 
     /**

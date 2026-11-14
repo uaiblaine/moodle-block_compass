@@ -511,4 +511,31 @@ final class get_news_test extends advanced_testcase {
         $this->assertSame('P&D 2 < 3', $event['many']);
         $this->assertSame('A&B crest 1 < 2', $data['groups'][0]['crestalt']);
     }
+
+    /**
+     * A listener's noun ending in " < " does not fail the answer: the hook trims it to a value PARAM_TEXT keeps.
+     *
+     * PARAM_TEXT keeps "Evento < " (a "<" before a space opens no tag), and a trim after the clean exposed
+     * "Evento <", which the return validation refuses, for every viewer of the line. Control: the
+     * nouns reach the answer, so the listener was heard.
+     *
+     * @return void
+     */
+    public function test_a_noun_ending_in_a_bare_angle_bracket_does_not_fail_the_answer(): void {
+        $this->use_listeners(true);
+        $plugin = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $model = $plugin->course_field('select', 'model', ['options' => "Course\nEvent", 'visibility' => 2]);
+        course_kinds_listener::$field = 'model';
+        course_kinds_listener::$kinds = [[2, 'event', 'Evento < ', 'Eventos < < ']];
+        $category = $this->category_with(1);
+        $plugin->field_value($model, (int) $this->getDataGenerator()->create_course(['category' => $category->id])->id, 2);
+        $course = $this->open_course(time() + DAYSECS + 5, (int) $category->id);
+        $plugin->field_value($model, (int) $course->id, 2);
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $event = array_column($this->call()['kinds'], null, 'key')['event'];
+
+        $this->assertSame('Evento', $event['one']);
+        $this->assertSame('Eventos', $event['many']);
+    }
 }

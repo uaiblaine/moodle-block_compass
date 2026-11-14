@@ -1,1 +1,1 @@
-s/SELECT MAX\(cc2\.timecompleted\)/SELECT MIN(cc2.timecompleted)/;
+s/SELECT MAX\(cc2\.timecompleted \+ 0\)/SELECT MIN(cc2.timecompleted + 0)/;

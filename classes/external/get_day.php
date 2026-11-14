@@ -129,7 +129,6 @@ class get_day extends external_api {
             'iconurl' => new external_value(PARAM_URL, 'Icon URL, empty when none'),
             'timestart' => new external_value(PARAM_INT, 'Start, Unix time'),
             'timeduration' => new external_value(PARAM_INT, 'Duration in seconds, 0 for an instant such as a deadline'),
-            'formattedtime' => new external_value(PARAM_RAW, 'The time as core\'s humantimeperiod renders it (trusted HTML)'),
             'viewurl' => new external_value(PARAM_URL, 'The event in core\'s day view'),
             'action' => new external_single_structure([
                 'name' => new external_value(PARAM_TEXT, 'Action label'),

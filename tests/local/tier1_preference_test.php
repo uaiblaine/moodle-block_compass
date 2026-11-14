@@ -218,4 +218,37 @@ final class tier1_preference_test extends advanced_testcase {
         $this->assertStringContainsString('export const MAX_CARDS = ' . tier1_preference::MAX_CARDS . ';', $client);
         $this->assertStringContainsString('const VERSION = ' . tier1_preference::VERSION . ';', $client);
     }
+
+    /**
+     * The same JSON object grown to exactly a length by a member no reader knows.
+     *
+     * @param string $json A JSON object.
+     * @param int $bytes The length wanted, at least the object's own plus 10.
+     * @return string
+     */
+    private static function padded(string $json, int $bytes): string {
+        $rest = substr($json, 1);
+
+        return '{"pad":"' . str_repeat('x', $bytes - strlen($rest) - 10) . '",' . $rest;
+    }
+
+    /**
+     * A stored value longer than MAX_BYTES reads as no shape on either surface.
+     *
+     * Control: the same value padded to exactly the cap is read whole.
+     *
+     * @return void
+     */
+    public function test_a_stored_value_over_the_cap_reads_as_no_shape(): void {
+        $json = self::stored(['dashboard' => self::member(), 'page' => self::member()]);
+
+        $atcap = tier1_preference::validate(self::padded($json, tier1_preference::MAX_BYTES), true, true);
+        $this->assertSame(self::member(), $atcap['dashboard']);
+        $this->assertSame(self::member(), $atcap['page']);
+
+        $this->assertSame(
+            ['dashboard' => null, 'page' => null],
+            tier1_preference::validate(self::padded($json, tier1_preference::MAX_BYTES + 1), true, true)
+        );
+    }
 }
