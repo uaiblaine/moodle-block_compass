@@ -93,7 +93,7 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-news-tipcrest',
     ];
 
-    /** @var string[] The course card's fills (the course card contract): the card, its slot, chip, stars and seal. */
+    /** @var string[] The course card's fills (the course card contract): the card, its slot, chip, stars, seal and hidden pill. */
     private const CARD_FILLS = [
         '.block_compass .compass-card',
         '.block_compass .compass-card .compass-card-extra',
@@ -101,6 +101,7 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-card .compass-star',
         '.block_compass .compass-card-nocover .compass-star',
         '.block_compass .compass-state-done',
+        '.block_compass .compass-state-invisible',
     ];
 
     /** @var string The scope of a dimmed column of the open row. */
@@ -773,6 +774,9 @@ final class contrast_rules_test extends basic_testcase {
             ['a coverless card\'s star', '.block_compass .compass-card-nocover .compass-star',
                 '.block_compass .compass-card-nocover .compass-star', ['root']],
             ['the completed seal', '.block_compass .compass-state-done', '.block_compass .compass-state-done', ['root']],
+            // A course hidden from students (ADR-021 decision 1.8): the plugin slot's quiet ground and the card's ink.
+            ['the hidden-from-students pill', '.block_compass .compass-state-invisible',
+                '.block_compass .compass-state-invisible', ['root']],
         ]);
         // Marks, 3:1 against the surface they sit on: the dots, the late diamond, the ring.
         $marks = [

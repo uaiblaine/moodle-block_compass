@@ -167,6 +167,9 @@ final class block_compass_test extends advanced_testcase {
         $this->assertFalse($props['pendingenabled']);
         $this->assertSame(get_string('chip_pending', 'block_compass'), $props['labels']['chip_pending']);
         $this->assertSame(get_string('chip_scheduled', 'block_compass'), $props['labels']['chip_scheduled']);
+        // The Hidden group's heading, the plugin's own word, and its row pill, core's (ADR-021).
+        $this->assertSame(get_string('invisible', 'block_compass'), $props['labels']['invisible']);
+        $this->assertSame(get_string('hiddenfromstudents'), $props['labels']['hiddenfromstudents']);
 
         // Every label the client reads is one the shell exports: an ES module has no core/str, so
         // a key missing from the list renders as nothing at all, with no error anywhere.

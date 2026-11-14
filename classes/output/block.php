@@ -195,7 +195,7 @@ class block implements renderable, templatable {
             'viewas', 'view_cards', 'view_list', 'viewerror',
             'archive', 'archiveall', 'archiveallconfirm', 'archiveallconfirm_one', 'archived',
             'archiveerror', 'archivenone', 'archiving',
-            'coursearchived', 'courseunarchived', 'dormant', 'unarchive', 'unarchiveerror',
+            'coursearchived', 'courseunarchived', 'dormant', 'invisible', 'unarchive', 'unarchiveerror',
             'reloading', 'reconnecting', 'connectionlost', 'reloadpage',
         ];
         $labels = [];
@@ -206,6 +206,9 @@ class block implements renderable, templatable {
         $labels['loading'] = get_string('loading');
         $labels['confirm'] = get_string('confirm');
         $labels['cancel'] = get_string('cancel');
+        // The state pill of a hidden row among visible ones (ADR-021 decision 1.8): core's own words,
+        // the ones core's course card draws, so Compass and core say the same thing about one course.
+        $labels['hiddenfromstudents'] = get_string('hiddenfromstudents');
 
         $pendingenabled = config::pending_enabled();
         $favouritesenabled = config::favourites_enabled();

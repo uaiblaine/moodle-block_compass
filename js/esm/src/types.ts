@@ -589,14 +589,27 @@ export type DayAnswer = {
 };
 
 /**
- * The two group ids that are not categories; dormancy::GROUP_DORMANT and GROUP_ARCHIVED in PHP.
+ * The three group ids that are not categories; dormancy::GROUP_DORMANT, GROUP_ARCHIVED and
+ * GROUP_INVISIBLE in PHP, which get_inventory_rows::RESERVED_GROUPS accepts and nothing below.
  *
  * Negative on purpose: every other group id in the payload is a category id. The dormant
- * group is a re-grouping of rows the browser already holds; the archived group is a header
- * whose rows never travel in the first payload and arrive on first open, in both modes.
+ * group is a re-grouping of rows the browser already holds; the archived and the invisible
+ * (on screen, Hidden: the courses hidden from students that the viewer may see, ADR-021) groups
+ * are headers whose rows never travel in the first payload and arrive on first open, in both
+ * modes. In code "hidden" means archived (hidden_courses.php), so the third one says invisible.
  */
 export const GROUP_DORMANT = -1;
 export const GROUP_ARCHIVED = -2;
+export const GROUP_INVISIBLE = -3;
+
+/**
+ * One kind a tier 3 row can name (ADR-021 decision 2): the theme's key and its noun in sentence case.
+ * get_inventory ships the list, the default kind never in it; a row's kd is an index into it.
+ */
+export type RowKind = {
+    key: string,
+    name: string,
+};
 
 /**
  * One tier 3 row, as get_inventory and its two paging services return it.
@@ -607,8 +620,11 @@ export const GROUP_ARCHIVED = -2;
  * present, and true, only when get_card_details will answer hascompletion true for the course,
  * so a row keeps the room for its progress before the answer lands; cf is present only when the
  * row holds a custom-field value, as a flat list read in pairs — the field's index in the
- * payload's fields array, then the value key. All five are omitted rather than sent false or
- * empty, because omission costs nothing on the wire.
+ * payload's fields array, then the value key; invis is present, and true, only on a course hidden
+ * from students, which travels only in pages of the archived and the invisible groups; kd is
+ * present only on a course of a kind other than the default, as its index in the kinds array of the
+ * get_inventory answer the client holds, whichever service sent the row. All seven are omitted
+ * rather than sent false or empty, because omission costs nothing on the wire.
  */
 export type InventoryRow = {
     id: number,
@@ -622,6 +638,8 @@ export type InventoryRow = {
     sched?: string,
     comp?: boolean,
     cf?: number[],
+    invis?: boolean,
+    kd?: number,
 };
 
 /** One chip of a custom-field group: the stored value key and its label. */
@@ -646,7 +664,7 @@ export type FilterParam = {
 /** A search hit is a row that also says which group it belongs to. */
 export type SearchRow = InventoryRow & {groupid: number};
 
-/** One group of tier 3. `courses` is empty in paged mode, and for the archived group in both modes. */
+/** One group of tier 3. `courses` is empty in paged mode, and for the archived and invisible groups in both modes. */
 export type InventoryGroup = {
     id: number,
     name: string,
@@ -654,12 +672,13 @@ export type InventoryGroup = {
     courses: InventoryRow[],
 };
 
-/** The whole tier 3 payload. */
+/** The whole tier 3 payload; kinds only while a course_kinds listener names a kind other than the default. */
 export type Inventory = {
     total: number,
     mode: 'full' | 'paged',
     fields: FilterField[],
     groups: InventoryGroup[],
+    kinds?: RowKind[],
 };
 
 /** One page of one group, in paged mode. */

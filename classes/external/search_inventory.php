@@ -113,7 +113,8 @@ class search_inventory extends external_api {
         $rowfields = get_inventory_rows::row_fields();
         $rowfields['groupid'] = new external_value(
             PARAM_INT,
-            'Category id of the group the course rolls up to, or the reserved dormant group id'
+            'Category id of the group the course rolls up to, or the reserved dormant group id; never the hidden '
+                . 'or archived group, whose courses the search does not cover'
         );
 
         return new external_single_structure([

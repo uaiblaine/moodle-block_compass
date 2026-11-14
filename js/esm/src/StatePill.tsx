@@ -21,7 +21,7 @@
  * colour families and icons: Access from a date for an enrolment that starts later, Application
  * under review for one awaiting a decision, On the waiting list for one a manager deferred. A row
  * the learner can enter draws none, because every course Compass lists is the learner's own and
- * Enrolled would be said on every card.
+ * Enrolled would be said on every card. Beside it, InvisiblePill says a tier 3 course is hidden from students.
  *
  * The colours are the plugin's own tokens (styles.css), each pair stating its text colour, and
  * every situation is a whole literal class: the sentence carries the meaning, the icon repeats it
@@ -89,5 +89,25 @@ const StatePill = ({row, labels, complete = false}: StatePillProps) => {
 
     return null;
 };
+
+/**
+ * The pill of a course hidden from students (ADR-021 decision 1.8), drawn beside the state pill, in the same
+ * slot: core's own words (hiddenfromstudents) after a decorative eye, on the card's quiet pair, no new colour.
+ *
+ * Drawn only where a hidden row sits among visible ones, which is the archived group: inside the invisible
+ * group the heading already says it, and a state that is the normal one for its list is not said on every card
+ * (the course card contract, section 3). The caller decides that (markhidden, from Explore's Group tag); this
+ * draws the pill.
+ *
+ * @param {object} props The sentence, core's hiddenfromstudents.
+ * @param {string} props.label The sentence.
+ * @returns {object} The rendered pill.
+ */
+export const InvisiblePill = ({label}: {label: string}) => (
+    <span className="compass-state compass-state-invisible">
+        <i className="fa fa-eye-slash" aria-hidden="true"></i>
+        <span>{label}</span>
+    </span>
+);
 
 export default StatePill;

@@ -29,7 +29,7 @@ import {memo} from 'react';
 import Row from './Row';
 import RowCard from './RowCard';
 import type {RowDetails} from './rowdetails';
-import type {BlockConfig, InventoryRow} from './types';
+import type {BlockConfig, InventoryRow, RowKind} from './types';
 
 type RowListProps = {
     rows: InventoryRow[],
@@ -40,6 +40,8 @@ type RowListProps = {
     now: number,
     lang: string,
     details: RowDetails,
+    kinds: RowKind[],
+    markhidden: boolean,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
@@ -51,11 +53,13 @@ type RowListProps = {
  *
  * @param {object} props The rows, the view, the column count, how to name a row's category,
  *     the block config, the instant "ago" is measured from, the page language, the details
- *     store and the archive and star actions; see RowListProps.
+ *     store, the kinds a row's kd indexes, whether a hidden row says so here, and the archive and
+ *     star actions; see RowListProps.
  * @returns {object} The rendered list.
  */
 const RowList = ({
-    rows, view, columns, categoryof, config, now, lang, details, archived, onArchive, onToggleFavourite, busy,
+    rows, view, columns, categoryof, config, now, lang, details, kinds, markhidden, archived, onArchive, onToggleFavourite,
+    busy,
 }: RowListProps) => {
     const {records, waiting, observe} = details;
 
@@ -73,6 +77,8 @@ const RowList = ({
                             detail={records[row.id]}
                             waiting={!!waiting[row.id]}
                             observe={observe}
+                            kinds={kinds}
+                            markhidden={markhidden}
                             archived={archived}
                             onArchive={onArchive}
                             onToggleFavourite={onToggleFavourite}
@@ -96,6 +102,8 @@ const RowList = ({
                         detail={records[row.id]}
                         waiting={!!waiting[row.id]}
                         observe={observe}
+                        kinds={kinds}
+                        markhidden={markhidden}
                         archived={archived}
                         onArchive={onArchive}
                         onToggleFavourite={onToggleFavourite}

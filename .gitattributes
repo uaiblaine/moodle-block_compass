@@ -22,3 +22,12 @@
 /mutations             export-ignore
 /phpcs.xml             export-ignore
 /.mdlshield            export-ignore
+# The development build: the source map of every per-file output and of the bundle. Only developer
+# tools ask for one (the ESM route serves a .js.map on request; the import map, the preload hints
+# and the bundle name .js files), so the package runs the same without them; they stay tracked
+# because `mdl ci` compares js/esm with a fresh build. Moodle 5.2's build writes no X.dev.js twin
+# (5.3's does); its rule is kept so the rules match the 5.3 branch and covers nothing here.
+# bundle_test pins it: the maps' line, no .dev.js in the build, every file the import map can
+# address kept.
+/js/esm/build/*.dev.js  export-ignore
+/js/esm/build/*.js.map  export-ignore

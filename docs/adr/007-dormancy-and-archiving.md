@@ -453,3 +453,17 @@ archived row beside that line would be a contradiction — but not in the chips'
 which count the listed population the chips are over. Scenario 4 now searches with the archive open and clears the search, which is
 the executable form of this amendment; the fourth Behat scenario was again the only test that
 could have seen it, and this time it had not, because it never searched.
+
+**2026-11-13, by [ADR-021](021-hidden-courses-group-and-kind-pill.md): three groups that are not
+categories, and a precedence of three.** Decision 2 gains a third group, **Hidden (N)**, reserved id
+`-3` (`dormancy::GROUP_INVISIBLE`; "invisible" in code, because *hidden* means archived here), drawn
+after *Dormant* and before *Archived*. It holds the listed courses with `visible = 0` for which
+`moodle/course:viewhiddencourses` holds at the course's own context, and it fills exactly as
+*Archived* does: a header and an exact count in the first payload in both modes, its rows only
+through `get_inventory_rows` for `-3`, not counted towards `inventory_max` or the headline count, and
+the third amendment's rules for the archive in full mode apply to it. The category groups and
+*Dormant* then hold visible courses only, for every viewer. Decision 2's consequence "a course both
+dormant and archived is archived" becomes **Archived, then Hidden, then Dormant, then the category**;
+an archived hidden course is in *Archived*, its row carrying `invis`, and unarchived it goes to
+*Hidden*. `get_inventory_rows::RESERVED_GROUPS` is `[-1, -2, -3]`; `-4` and below are refused.
+

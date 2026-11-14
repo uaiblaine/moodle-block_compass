@@ -89,6 +89,9 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **The release package leaves the development build out**: the `.dev.js` twin of every module and every source map
+  (`.gitattributes`, ADR-011 amendment 8). A site in developer debugging mode serves the production file instead, as
+  core does whenever the twin is missing.
 - **Access and completion changes drop the user's cache entries in batches** (ADR-001, amendment of 2026-11-13).
   A role, enrolment, group or cohort change dropped that user's calendar strip and open-courses entries, and a
   completion their progress entry, one delete per event: two store commands each on Redis, so a sync of 10,000
@@ -128,6 +131,23 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   strip's courses to them, and the groups kept are the same on every call.
 - **The calendar strip warms the course layer for the courses it keeps.** Above `inventory_max` the courses cut
   from the set are no longer written to `coursemeta`; nothing on the strip's paths reads them.
+- **Hidden courses follow core's rule in *All courses* and the cards' details** (ADR-021). A course hidden from
+  students (`visible = 0`) is listed when `moodle/course:viewhiddencourses` holds at that course's context, asked
+  per hidden course as `enrol_get_my_courses()` asks it, at no read: a teacher whose role is in the course now sees
+  it, as in the Course overview block, and a prohibit at a category or the course now counts. It is listed only in
+  the new *Hidden* group, never in a category group or *Dormant*, for every viewer: a holder of the capability at
+  the system context sees those courses leave their categories, and *All courses (N)* stops counting them. An
+  archived hidden course is in *Archived* (Archived, then Hidden, then Dormant). The first strips keep their one
+  system-context read.
+- **`block_compass_get_inventory`, `block_compass_get_inventory_rows` and `block_compass_search_inventory`
+  return more, all optional:** `get_inventory`'s top-level `kinds`, and the rows' `invis` and `kd`; a site with no
+  hidden course to show and no `course_kinds` listener sends exactly the same bytes. `get_inventory_rows` accepts
+  `-3`, the *Hidden* group.
+- **The Portuguese *New* chip reads "Novidade"** (`badge_new`), gender-neutral beside a kind noun; the strings that
+  name a set of courses keep "Novos" and "Novas".
+- **The list view of *All courses* draws *New* as the course card's light chip**, outlined as on a card without its
+  cover, no longer a primary Bootstrap badge, so the list and the cards agree (ADR-021 decision 2.6); a list row's
+  state pills sit on the row's centre line. The cards and tier 1 are unchanged.
 
 ### Added
 
@@ -137,6 +157,26 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   view can be turned off (a 4 px coloured edge instead), and a course with no image shows the theme's generated
   image, asked with the progress of the cards on screen. Under any other theme nothing changes.
 - One string, `progressvalue` (the percentage beside the bar).
+- **A *Hidden* group in *All courses*** (ADR-021): the hidden courses the viewer may see, collapsed, after
+  *Dormant* and before *Archived*, its exact count in the first answer and its rows loaded when it is opened,
+  through `block_compass_get_inventory_rows` with the reserved id `-3`. A hidden row carries `invis`, from which
+  *Archived* draws core's *Hidden from students*. One string, `invisible` (the group's heading); the shell also
+  ships core's `hiddenfromstudents`.
+- **The course's kind on the rows of *All courses*** (ADR-021 decision 2): with a `course_kinds` listener, a row
+  carries `kd`, the index of its kind in `get_inventory`'s new `kinds` list (the listener's noun, capitalised), read
+  from the `coursefields` layer in one hook dispatch per response; the default kind is never sent. With no listener
+  nothing changes. Warm, no read is added; cold, the `coursefields` fill and, with no filter field configured, the
+  `filterfields` fill.
+- **The client of the *Hidden* group** (ADR-021 decision 1.4): the group takes the archive's path everywhere: fetched
+  page after page on first open in full mode and then filtered in the browser by the scope, the star, the field
+  chips and the search, drawn closed under any filter, never opened by a search, its matching rows counted in
+  "N courses shown" and not in the chips' numbers, left out of the side index and of the A to Z and Recent lists,
+  its rows starred and archived like any other (archiving moves the course to *Archived*, bringing it back returns it
+  to *Hidden*, through the reload the archive already makes). *Hidden from students* is drawn on a hidden row in
+  *Archived* and never inside *Hidden*, on the card's quiet pair with its outline.
+- **The kind chip on Explore's cards and rows** (ADR-021 decision 2.4): the course's kind before *New* in slot 2, on
+  the cards' cover and after the name on the list; the kinds of the first `get_inventory` answer are kept for the
+  section's life and index every page and search hit; a row whose `kd` names no held kind draws nothing.
 
 ## v5.3-r4 (2026100528) - 2026-11-05
 

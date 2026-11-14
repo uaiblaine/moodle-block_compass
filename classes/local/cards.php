@@ -318,8 +318,9 @@ final class cards {
      * progress - gets its image and its crests only; every other id is silently dropped, because
      * an unvalidated course id is an enumeration oracle. Dropped too, as tier 3 drops them: an
      * application while enable_pending is off, and a hidden course for a viewer without
-     * viewhiddencourses. Whether completion is tracked comes from
-     * the course layer (no record read); a cached answer costs nothing more; only the courses
+     * viewhiddencourses at its course context (course_meta::visible_to()). Whether completion is
+     * tracked comes from the course layer (no record read); a cached answer costs nothing more;
+     * only the courses
      * whose progress must be computed cost one read for their records plus core's completion
      * computation (which loads course_modinfo — the reason this never runs on the first paint).
      *
@@ -397,17 +398,13 @@ final class cards {
 
         // The course layer answers "is completion tracked here" without a course record; only
         // the courses whose progress is not cached need their record for core's computation.
-        // Tier 3's visibility rule (explore::resolve()): a hidden course only for the holder of
-        // viewhiddencourses at the system context, asked only when the batch holds one. Ids the client
-        // sends are not trusted to be rows tier 3 drew.
+        // Tier 3's visibility rule (explore::resolve()): a hidden course only when viewhiddencourses
+        // holds at that course's context, asked per hidden course at no read. Ids the client sends
+        // are not trusted to be rows tier 3 drew.
         $meta = course_meta::get_many($allowed);
-        $seehidden = null;
         foreach ($meta as $courseid => $entry) {
-            if (!$entry['visible']) {
-                $seehidden ??= has_capability('moodle/course:viewhiddencourses', \core\context\system::instance(), $userid);
-                if (!$seehidden) {
-                    unset($meta[$courseid]);
-                }
+            if (!course_meta::visible_to($entry, $userid)) {
+                unset($meta[$courseid]);
             }
         }
         $tracked = [];

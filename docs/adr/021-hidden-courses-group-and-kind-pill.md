@@ -431,3 +431,188 @@ only.
 - The kinds: `classes/local/course_kinds.php:53-80,93-104`; `classes/hook/course_kinds.php` (`add_kind()`);
   `classes/local/course_fields.php:30-35,72-74`; `explore.php:621-627,879-892`. Slot 2 today: `RowCard.tsx:133`,
   `Card.tsx:122`, `Row.tsx:133`; `styles.css:551-563,580-594`.
+
+## Implementation notes (server)
+
+Stages H1 and K1, server half, on `feat/hidden-group-and-kind-pill` from `b0c3371`, version `2026100534`. The
+client half (H2, K2) builds on the contract below; nothing under `js/` or `styles.css` changed here.
+
+**Where the rule lives.** `course_meta::visible_to($entry, $userid)`: true for a visible course; for a hidden one,
+`has_capability('moodle/course:viewhiddencourses', course_meta::context_of($entry), $userid)`. `explore::resolve()`
+drops a course core is deleting first (5.3 only; see the 5.2 port below), then every course `visible_to()` refuses; the listed hidden courses that pass
+form `invisiblemeta`, and `meta` (the category groups, *Dormant*, the total, the threshold, the search) keeps the
+visible ones only. `cards::details()` applies the same method per hidden entry of the batch. Archived wins by
+construction: the listed population never holds an archived course (`inventory::courses()` and its siblings skip
+the archived set), so `invisiblemeta` is taken from the listed population only. The kinds: `course_kinds::answer()`
+(the field id and the kinds of one dispatch; `field_id()` now reads it) and `course_kinds::pills()` (the drawable
+kinds, the default left out, one entry per key, the noun capitalised by `course_kinds::label()` through
+`core_text`). `build()` calls `pills()` once whenever anything is listed, in both modes; `rows()` and `search()`
+once, and only when they ship rows.
+
+### Payload contract
+
+Every new key is optional and omitted, never sent false or empty, when it does not apply.
+
+| Service | Key | Type | Absent when | Example |
+|---|---|---|---|---|
+| `get_inventory` | `kinds` (top level) | list of `{key: PARAM_ALPHA, name: PARAM_TEXT}` | no listener, the field not an eligible select, or the listener's only kind is `course` | `"kinds": [{"key": "event", "name": "Evento"}, {"key": "trail", "name": "Trilha"}]` |
+| `get_inventory` | a group with `id: -3` | the usual group: `{id, name, count, courses: []}` | the viewer may see no listed hidden course | `{"id": -3, "name": "Hidden", "count": 3, "courses": []}`, after `-1` and before `-2` |
+| `get_inventory` | `total` | int, meaning narrowed | (always present) | counts the listed visible courses only; *Hidden* and *Archived* not counted |
+| `get_inventory`, `get_inventory_rows`, `search_inventory` (every row) | `kd` | int, an index into `get_inventory`'s `kinds` | no kind is drawn, or the course is of the default kind (no value, value 0, a value no kind describes, or a value whose kind is `course`) | `{"id": 12, "name": "Simpósio", ..., "kd": 0}` |
+| `get_inventory_rows` (rows of `-3` and `-2`) | `invis` | bool, always `true` when present | the course is visible; in practice present only on rows of `-3` (every one) and on hidden rows of `-2`; never in `get_inventory`'s first payload or in `search_inventory` | `{"id": 7, "name": "Draft course", ..., "invis": true}` |
+| `get_inventory_rows` | `groupid` parameter | `-3` accepted beside `-1` and `-2`; `-4` and below refused (`invalidparameter`) | | `{"groupid": -3, "after": 0, "chip": "all", "sort": "name", "filters": []}` |
+| `search_inventory` | rows' `groupid` | never `-3` or `-2`: the search's population is the listed visible courses | | |
+| `get_card_details` | (no new key) | a hidden course is answered when `visible_to()` allows it | | |
+| Shell props (`classes/output/block.php`) | `labels.invisible` | string, the group's heading (`invisible`: "Hidden" / "Ocultos") | (always) | `"invisible": "Hidden"` |
+| Shell props | `labels.hiddenfromstudents` | string, core's `hiddenfromstudents` | (always) | `"hiddenfromstudents": "Hidden from students"` |
+
+The reserved id is not shipped in the props: it is a constant on both sides, `dormancy::GROUP_INVISIBLE = -3` and
+the client's `GROUP_INVISIBLE` beside `types.ts`'s `GROUP_DORMANT` and `GROUP_ARCHIVED`. A row of `get_inventory_rows`
+or `search_inventory` indexes the `kinds` of the `get_inventory` answer the client holds; each response dispatches
+the hook itself and the list is the same within one language. `badge_new` in `lang/pt_br` is now "Novidade".
+
+### Measured
+
+From the PHPUnit budget tests of this change (protocol of `get_inventory_test.php`: warm core with a first call,
+`simulate_new_request()`, measure the second call; every figure includes the web-service layer's context read):
+
+| Measure | Result |
+|---|---|
+| `get_inventory`, valid hit, a course-level teacher of 3 hidden courses against a learner of the same 3 visible ones | equal, at most 4 (`test_the_hidden_header_of_a_course_level_teacher_costs_no_read`) |
+| `get_inventory_rows` for `-3` against `-2`, same fixture, valid hit | equal, at most 4 (`test_opening_the_hidden_group_costs_what_opening_the_archived_group_costs`) |
+| `get_card_details` with a teacher's hidden course, course layer warm | 1 (`test_a_hidden_course_is_answered_to_its_teacher_alone_at_no_extra_read`) |
+| `get_inventory`, valid hit, with a `course_kinds` listener against none, no filter field configured | equal (`test_kinds_add_no_read_warm_and_the_two_fills_cold`) |
+| **H0:** the same, `coursefields` and `filterfields` purged (and core's course handler memo reset, as a new request starts without it), no filter field configured | **+7 reads on PostgreSQL, +3 on MariaDB** over the warm request: the `filterfields` fill is core's handler, two recordsets (`api::get_categories_with_fields()` for the course area and for the shared area; 3 reads each on PostgreSQL, 1 on MariaDB), 6 / 2, plus the `coursefields` fill, 1. Asserted exactly per family by `test_kinds_add_no_read_warm_and_the_two_fills_cold`; each shared custom-field category adds one query. With a filter field configured the `filterfields` fill is already paid by the filters, and the kinds add the same 0 warm / 1 cold as the fields' own values. |
+
+`get_inventory` with every plugin cache cold, a listener and no filter field is therefore at most 13 + 1 on
+PostgreSQL and 9 + 1 on MariaDB, against 6 + 1 without a listener: the first request after a purge or a
+custom-field event, once per site, since both layers are shared. No budget is raised: the existing budget tests configure no listener, and the cold figure is stated here
+and pinned by its own test. Not measured here: the CPU cost of `has_capability()` with 200 hidden courses (the Cost
+section's last paragraph); no docblock states a figure for it.
+
+**Where the record and the code disagreed.**
+- Facts 6 and 1.9: the `course_category_updated` observer already drops the `coursemeta` entries of the whole
+  subtree on `b0c3371` (`course_meta::delete_in_category()`, by category path), so a course hidden with its category
+  is re-read as hidden; the "fix in flight" the record waits for is in place for that part. The stale context path of
+  a moved course is the other worktree's to confirm.
+- 1.10 and H4 ask for `CLAUDE.md`'s SQL rule and its client line on the reserved groups to change; that file was
+  left to the maintainer.
+- 1.8 ships `invis` on every hidden row of `-3` as well as `-2` (the record's "only on a course with `visible = 0`");
+  the client draws the pill only outside *Hidden* (answer 4), so the flag inside the group is redundant but free.
+
+
+## Implementation notes (client)
+
+Stages H2 and K2, on `feat/hidden-group-and-kind-pill-full` beside the server half, against the payload contract
+above; no server file changed.
+
+**The Hidden group.** `GROUP_INVISIBLE = -3` beside `GROUP_DORMANT` and `GROUP_ARCHIVED` in `types.ts`; one module
+predicate in `Explore.tsx`, `ondemand(id)`, true for `-2` and `-3`, replaces every test of the archived id alone
+that meant "the rows arrive on open": `pagedgroup()`, the fetch-on-open effect (page after page in full mode until
+`hasmore` is false), the search's `isopen`. The archive's held-rows filter became `passedOf(page)`, memoised per
+group on its own page state (`archivedvisible`, `invisiblevisible`), so a page of one group does not filter the
+other again; both count in `shown` ("N courses shown", "No course matches.") and in the name map, neither in the
+chips' facets; `slices` hands each its own rows, the server's count until every page is here, drawn closed under
+any filter. The side index already skipped negative ids; the anchor is `…-group-3r`. Archive and unarchive go
+through `reloadBoth()` as before, which drops every page, so an open *Hidden* or *Archived* asks its first page
+again: archiving a hidden course costs what archiving any course with *Archived* open costs, and the server's order
+puts the course where it belongs. The star patches the held pages through `withRow()`, as for *Archived*. The flat
+sorts and the paged search are unchanged (neither group is in them).
+
+**The pill.** `InvisiblePill` in `StatePill.tsx`, `compass-state compass-state-invisible`, `fa-eye-slash`
+(decorative) and `labels.hiddenfromstudents`, drawn by `Row` and `RowCard` after the state pill when
+`markhidden && row.invis`. `markhidden` is a primitive prop, `group.id !== GROUP_INVISIBLE` on Explore's Group tag
+and `true` on the flat list (which never holds a hidden row), passed down through `Group` and `RowList`. Painted
+with `--block_compass-card-extra-bg` and `--block_compass-card-ink`, plus the card's outline token: under
+theme_dimensions the plugin slot's ground is the card's own surface (both `#f8f9fa`), and the pill read as bare
+text without it. A list row's state pills now sit on the row's centre line (`.compass-row .compass-state`), where
+the card's start alignment had put them at the row's top edge.
+
+**The kind.** `Inventory.kinds` and `InventoryRow.kd` (with `invis`) in `types.ts`. Explore keeps the list of the
+first payload it receives in state (`setKinds((current) => current ?? payload.kinds ?? NO_KINDS)`) and hands every
+group and the flat list one array, `rowkinds`, `NO_KINDS` before the first answer and without a listener.
+`RowCard` draws slot 2 as before when there is no kind (the same single `compass-card-kind` element for *New*), and
+`compass-card-kinds`, a wrapping row of the kind's chip then *New*'s, when `kinds[row.kd]` exists; `Row` draws the
+kind's chip then *New*'s inside the link, after the name. A `kd` with no entry draws nothing. Tier 1's `Card.tsx` is
+untouched (answer 11).
+
+**The list view's New.** Decision 2.6 left `Row.tsx`'s *New* as `badge bg-primary text-white`; the client half drew
+it as the contract's chip instead (the same `compass-card-kind`, outlined as on a coverless card), so both views
+agree and the kind and *New* sit side by side in one look. That was the plugin's last Bootstrap badge:
+`bootstrap_compat_test`'s badge rule keeps its controls and now guards that it read the React sources rather than
+that a badge exists. This changes the list view for a site with no listener too; the cards do not change.
+
+**Facts met on the live site.** theme_dimensions' listener names two kinds, `course` and `event`
+(`landingfields::MODEL_COURSE`, `MODEL_EVENT`); its model field's third option, *Trail*, is no kind, so a trail
+course draws nothing, as a value no kind describes should. The theme's sheet is served one request late after a
+`styles.css` edit and a purge (the first capture of the chips' row had the two chips stacked on each other).
+
+**Measured.** Bundle `js/esm/build/bundle.js`: 197,308 bytes raw, 61,964 gzip -9 before; 198,863 and 62,517 after
+(+1,555 / +553). The hover measurement (a MutationObserver on `.block_compass`, four pointer moves between two tier 1
+cards, tier 3 closed and then open with every group, Hidden and Archived included, open and held): 6 mutations each
+time, every one a `compass-cal-period-dim` class on the calendar's periods, nothing in tier 1 or tier 3.
+
+**Tests and gates.** `explore_render_rules_test` (the reserved ids equal `dormancy`'s and `RESERVED_GROUPS`; Hidden
+takes the archive's path in every place; the pill is not drawn inside Hidden; the kinds are one array kept from the
+first payload), `course_card_rules_test` (kind before *New* on both views; nothing drawn without a kind, tier 1
+untouched), `contrast_rules_test` (the pill's pair among the card's fills and computed light and dark),
+`bootstrap_compat_test` (the badge rule's guard). Sixteen gates under "Phase 16, client" in `mutations/gates.conf`,
+each proved by hand (applied with `perl -0777 -p`, its named tests red, the file restored byte-identical).
+**Behat:** no scenario added; the existing ones touch no changed DOM (the archive scenario's group summary and row
+are as they were). The scenario that would exercise *Hidden*, if one is added once the scenario count is reconciled:
+in `block_compass.feature`, a teacher with a course-level role in a hidden course opens *All courses*, sees
+"Hidden" with "1 course" (the xpath of the archive scenario), opens it and sees the course; archives it and finds it
+under *Archived* with "Hidden from students"; axe scoped to the block with both groups open.
+
+**Documents.** `CLAUDE.md`'s SQL rule now names the per-course evaluation of tier 3 and the details, and its client
+line the three reserved groups and `ondemand()` (the two edits the server notes left to the maintainer, made as
+restatements of this record); `README.md`'s groups paragraph says the flat sorts list neither group, that no row is
+marked inside *Hidden*, and that the kind comes before *New*; `CHANGELOG.md` has the client's entries.
+
+
+## Implementation notes (the 5.2 port)
+
+Stage P, on `feat/hidden-group-and-kind-pill-502` from `MOODLE_502_STABLE` `e9bbdc4`, version `2026042030`: #143's
+change (merge `1e1de89` on `main`) applied as one patch, the build regenerated with core 5.2's task
+(`mdl grunt m502b blocks/compass`: per-file `X.js` and `X.js.map`, and the bundle with its map and manifest).
+
+**The one difference: no course being deleted.** Moodle 5.2 deletes a course synchronously and its `coursemeta` entry
+carries no `deletioninprogress`, so this branch has no `course_meta::is_being_deleted()` and no
+`forget_until_marked()`. `course_meta::visible_to()` is the 5.3 method word for word, its docblock without the
+sentence that leaves a course being deleted to the caller; `explore::resolve()` and `cards::details()` decide by
+`visible_to()` alone, with the same comments less the deletion clause. The 5.3 tests that exercise the deletion
+(`explore_test`'s two "queued for deletion" cases, one of which #143 had rewritten to use the Hidden group, and
+`cards_test::test_details_drops_a_course_being_deleted`) do not exist on this branch and were not ported; no ported
+test refers to the deletion. Every other server file, test file and lang file of the change is identical to `main`'s.
+
+**The client** applied unchanged: on 5.2 the services go through AMD `core/ajax` behind `amd.ts`, and the change
+touches `repository.ts` only in a docblock (`getInventoryRows()` now names the invisible group); `Explore.tsx`'s
+`ondemand()`, the Hidden group, `InvisiblePill`, the kinds on `Row` and `RowCard` and `types.ts` reach the
+transport only through the existing `getInventoryRows()`. Bundle `js/esm/build/bundle.js`: 196,981 bytes raw, 61,804
+gzip -9 before; 198,536 and 62,375 after (+1,555 / +571).
+
+**The package.** 5.2's build writes no `.dev.js`, so on this branch the trim is the 44 source maps (43 per-file maps
+and `bundle.js.map`). `.gitattributes` carries both rules of the 5.3 branch, so the two branches' rules agree; the
+`.dev.js` one covers nothing here. Core 5.2's ESM route (`esm_controller`, `import_map::get_path_for_script()`)
+serves a `.js.map` only when asked and has no `.dev.js` path at all; the import map, the head's hints and the bundle
+name `.js` files, so only developer tools follow a `sourceMappingURL`. `bundle_test::test_the_package_leaves_the_development_build_out`
+asserts the maps' rule, that the maps exist (more than 40) and that the build holds no `.dev.js`; the gate
+`package_maps_shipped` is kept, `package_devjs_shipped` is not carried (dropping a rule that matches no file ships
+nothing more, and no test could tell). The zip: 1,808,119 bytes and 318 files without the rules, 1,285,543 and
+274 with them (ADR-011 amendment 8, section 4).
+
+**Measured on 5.2** (m502b, Moodle 5.2.5, the same budget tests, which pass unchanged): a course-level teacher's
+hidden header and opening *Hidden* cost what the learner's list and opening *Archived* cost; the hidden course's
+details 1; with a listener and no filter field, `get_inventory`'s valid hit reads 4 with or without the listener, and
+with `coursefields` and `filterfields` cold 11 on PostgreSQL: **+7 on PostgreSQL, +3 on MariaDB**, the same as 5.3,
+asserted exactly per family by `test_kinds_add_no_read_warm_and_the_two_fills_cold` (core 5.2's custom-field handler
+reads the two category lists as 5.3's does).
+
+**Looked at on m502b** (Boost Union, Moodle 5.2.5; demo data `CHDEMO` from `moodle-dev/data/compass-hidden-demo-502/`):
+the Hidden group closed and open in both views, the pill in *Archived* in both views, a system-level holder (*Hidden*
+holding all three hidden courses, none in the category), a student (no *Hidden*, no hidden course), Portuguese
+("Ocultos", "Novidade"). No plugin on m502b answers `course_kinds` (theme_dimensions is mounted on the 5.3 stacks
+only), so the kind captures show the no-listener state: no `kinds`, no `kd`, *New* alone. The hover measurement
+(four pointer moves between two tier 1 cards, tier 3 closed, then open with every group open): 1 mutation each
+time, the `compass-cal-period-dim` class on one calendar period, nothing in tier 1 or tier 3.
+

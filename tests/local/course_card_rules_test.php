@@ -265,4 +265,64 @@ final class course_card_rules_test extends \basic_testcase {
         $this->assertStringContainsString('const isnew = row.new && !complete;', $rowcard, 'tier 3 calls a completed card new');
         $this->assertStringContainsString("(isnew ? ' compass-card-new' : '')", $rowcard, 'tier 3 draws no new edge');
     }
+
+    /**
+     * Slot 2 holds the course's kind before New on both views of tier 3 (ADR-021 decision 2.4, answer 8), each the
+     * light chip of the contract; the list view's New is that chip too, no longer a Bootstrap badge.
+     *
+     * Changes that must make it fail: New drawn before the kind on the cards or on the list; the list view's chips
+     * drawn as a badge again; the cards' two chips outside their row.
+     *
+     * @return void
+     */
+    public function test_slot_two_draws_the_kind_before_new(): void {
+        $card = $this->source('RowCard.tsx');
+        $this->assertMatchesRegularExpression(
+            '#<span className="compass-card-kinds">\s*<span className="compass-card-kind">\{named\.name\}</span>\s*'
+                . '\{isnew && <span className="compass-card-kind">\{labels\.badge_new\}</span>\}\s*</span>#',
+            $card,
+            'the cards do not draw the kind, then New, in one row'
+        );
+        $row = $this->source('Row.tsx');
+        $kind = strpos($row, '{kind !== undefined && <span className="compass-card-kind">{kind.name}</span>}');
+        $new = strpos($row, '{row.new && <span className="compass-card-kind">{labels.badge_new}</span>}');
+        $this->assertNotFalse($kind, 'the list view draws no kind chip');
+        $this->assertNotFalse($new, 'the list view does not draw New as the chip');
+        $this->assertLessThan($new, $kind, 'the list view draws New before the kind');
+        $this->assertStringNotContainsString('badge bg-primary', $row);
+    }
+
+    /**
+     * With no kind to draw - no listener, so no kinds; the default kind, so no kd; an index the held list lacks - every
+     * card and row is as it was before kinds: New alone, the same element. Tier 1's card does not read kinds (answer 11).
+     *
+     * Changes that must make it fail: the cards' row of chips drawn for New alone; a row's kind read with a fallback
+     * that names a kind; tier 1's card given the kind.
+     *
+     * @return void
+     */
+    public function test_nothing_is_drawn_without_a_kind(): void {
+        $card = $this->source('RowCard.tsx');
+        $this->assertStringContainsString(
+            'let kind = isnew ? <span className="compass-card-kind">{labels.badge_new}</span> : null;',
+            $card
+        );
+        $this->assertStringContainsString(
+            'const named: RowKind | undefined = row.kd === undefined ? undefined : kinds[row.kd];',
+            $card
+        );
+        $this->assertMatchesRegularExpression(
+            '/if \(named !== undefined\) \{\s*kind = \(\s*<span className="compass-card-kinds">/',
+            $card
+        );
+        $this->assertSame(1, substr_count($card, 'compass-card-kinds'), 'the chips\' row is drawn in more than one place');
+        $this->assertStringContainsString(
+            'const kind: RowKind | undefined = row.kd === undefined ? undefined : kinds[row.kd];',
+            $this->source('Row.tsx')
+        );
+        $tier1 = $this->source('Card.tsx');
+        $this->assertStringContainsString('compass-card-kind', $tier1, 'vacuity: tier 1\'s card draws its New chip');
+        $this->assertStringNotContainsString('kinds', $tier1);
+        $this->assertStringNotContainsString('.kd', $tier1);
+    }
 }
