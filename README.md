@@ -239,7 +239,7 @@ client is React, which core builds and serves from 5.2 on.
 - Recommended: a shared in-memory cache store, Redis by preference (see *Cache stores*).
 - Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
   `block_feedback_tracker` for the academic calendar of the strip; a theme or plugin that answers
-  the block's `course_badges` hook for the institutional crests on cards (*Course crests*, under
+  the block's `course_badges` or `category_badges` hook for the institutional crests (*Course crests*, under
   *Settings*).
 
 
@@ -293,7 +293,7 @@ Settings
 | `default_view` | list | The view of *All courses* for a user who never chose (list or cards). |
 | `hide_block_title` | off | Render the block without its title; the headings move one level up. |
 | `show_category` | on | The category line above the course name on cards. |
-| `show_theme_badges` | on | Institutional crests on cards; offered only while a theme or plugin answers the `course_badges` hook. |
+| `show_theme_badges` | on | Institutional crests on cards; offered only while a theme or plugin answers the `course_badges` or `category_badges` hook. |
 | `enable_page` | off | The Compass page and its offer as a start page. |
 | `hide_page_title` | off | Hide the Compass page's heading from sight, keeping it for screen readers. |
 | `filter_fields` | none | Course custom fields offered in the *Filters* panel of *All courses*: *Dropdown menu* and *Checkbox* fields visible to everyone, at most 3. None, and the line has no Filters. |
@@ -444,11 +444,46 @@ user preferences.
 **Hooks.** Compass listens to three of core's hooks (`db/hooks.php`): the top of the body, where it
 adds preload hints for its modules on the pages that show it; the default home page, where it offers
 its own page; and a course about to be deleted, where it drops that course from its shared cache. It
-also dispatches two hooks of its own for other plugins and themes to answer:
-`\block_compass\hook\course_badges` (crests on cards, see *Course crests*) and
-`\block_compass\hook\category_link` (where a category in the open-for-enrolment line leads). Neither
-sends personal data: they receive course or category ids and return crests (an image address and
-its alternative text) or URLs, and a listener answers only for courses the current user may see.
+also dispatches four hooks of its own, under `classes/hook/`, for other plugins and themes to answer.
+A site where nothing listens pays nothing, and a listener that throws costs the response only that
+answer (the exception is reported to developers): no crests, core's own links, every course counted
+as a course.
+
+- `\block_compass\hook\course_badges` (crests on cards, see *Course crests*). Dispatched once per
+  response that draws cards, with the ids of the courses about to be drawn; the listener answers
+  with `add_badges($courseid, $badges)`, a list of `['url' => ..., 'alt' => ...]` per course. Compass
+  keeps at most three a course, drops a crest whose address is not on this site and cleans the
+  alternative text to `PARAM_TEXT`. Never dispatched while *Show the theme's institutional badges on cards* is off.
+- `\block_compass\hook\category_badges` (the crest of each group of the open-for-enrolment line).
+  Dispatched once per response of that line with the ids of the categories it names, never while
+  *Show the theme's institutional badges on cards* is off. The listener answers with `add_badges($categoryid, $badges)` in the
+  same shape; Compass keeps the first crest of a category whose address is on this site and cleans
+  the alternative text to `PARAM_TEXT`. A listener of either crest hook makes the setting appear.
+- `\block_compass\hook\category_link` (where a category in the open-for-enrolment line leads).
+  Dispatched once per response with the categories of the groups shown (0 for the root, "See every
+  course open for enrolment"), the first and last day of the line's band (`Y-m-d`, site timezone)
+  and the viewer's id; the listener answers with `set_url($categoryid, $url)` for the ids it can
+  serve. Compass keeps an address only when it is on this site (`PARAM_LOCALURL` under the site
+  address); anything else, and every id left unanswered, links to core's category page.
+- `\block_compass\hook\course_kinds` (which custom field tells courses from other offerings, such
+  as events). Dispatched when the open catalogue is built (for the field alone) and once per
+  response of the open-for-enrolment line (for the nouns in the current language); it receives
+  nothing. The listener names one course custom field of the select type by its shortname with
+  `set_field()` (a plain shortname, `PARAM_ALPHANUMEXT`) and describes the stored values it gives a
+  kind to with `add_kind($value, $key, $one, $many)`: the select's 1-based option index, a key of 1
+  to 20 lowercase letters, and the noun for one and for many, cleaned to `PARAM_TEXT` and never empty.
+  Values sharing a key count together; a value given no kind, and a course with no value, count as
+  `course`. The first listener to name a field wins, and so does the first kind given to a value.
+  Compass uses the field only while it is visible to everyone; made teachers-only, retyped or deleted,
+  it turns the kinds off.
+
+None of the four sends personal data except the viewer's id that `category_link` receives: they
+receive course or category ids and return crests (an image address and its alternative text), URLs
+or field and kind names, and a listener answers only for courses and categories the current user may
+see. Listeners are called on every `get_news` response and every batch of card details, outside any
+cache, so they must answer from cached or already-loaded data in one batch, never with a query per
+id, and must not reflect user-entered text into the addresses they return: Compass checks that an
+address is on this site, not what it contains.
 
 
 Data stored
@@ -479,6 +514,14 @@ progress and calendar events are read, never copied, except into the caches abov
 Compass sends nothing to any external service, sets no cookie, uses neither `localStorage`,
 `sessionStorage` nor IndexedDB, and ships no tracking or analytics code: everything it keeps is in the
 places listed above.
+
+**Events the block observes** (`db/events.php`). To keep the caches above in step, Compass observes
+core's events for courses (created, updated, deleted), course categories (updated, deleted), enrolment
+instances and user enrolments, course custom fields, role assignments, group and cohort membership,
+module and course completion, and account deletion, plus two events of `local_unlistedcourses`
+(a course's or a category's state changed). Each observer only deletes the block's own cache entries,
+by key (`classes/observer.php`): it writes to no core table and logs nothing. When an account is
+deleted it drops that user's entries, as *A data deletion* below says.
 
 **A data export** (*Site administration > Users > Privacy and policies*) carries the four
 preferences: the view as its label, the filter line, the strip and the first strips' shape as the
