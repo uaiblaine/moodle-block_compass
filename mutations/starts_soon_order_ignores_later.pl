@@ -1,1 +1,1 @@
-s/THEN 0 ELSE 1 END, ue\.timestart ASC/THEN 0 ELSE 0 END, ue.timestart ASC/;
+s/WHEN ue\.timestart > :slater THEN 0 WHEN c\.visible = 1 THEN 1 ELSE 2 END/WHEN ue.timestart > :slater THEN 1 WHEN c.visible = 1 THEN 1 ELSE 2 END/;

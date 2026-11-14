@@ -68,10 +68,10 @@ import {notify} from './notify';
 import {cardColumns} from './columns';
 import {fill, fillCount, fillObject} from './str';
 import {seedCalendarPreference} from './calendarpref';
-import {rememberShape, settledShape} from './tier1shape';
+import {ghostDrawn, rememberShape, settledShape} from './tier1shape';
 import {getAttention, getCardDetails, getStripWithNews, isTransportFailure, onRetry, setFavourite} from './repository';
 import type {StripWithNews} from './repository';
-import type {Attention, BlockConfig, CourseCard, KeptToolbar, Reconnecting, StarChange, StripWeight} from './types';
+import type {Attention, BlockConfig, Counts, CourseCard, KeptToolbar, Reconnecting, StarChange, StripWeight} from './types';
 
 /**
  * The chip tier 3 opens on, per kind of control that opened it.
@@ -87,6 +87,20 @@ const CHIP_OF_KIND: Record<GhostKind, string | null> = {
     pending: 'pending',
     scheduled: 'scheduled',
 };
+
+/**
+ * The ghost's line naming tier 3's special groups that hold something, in their order there: Hidden, then Archived.
+ *
+ * Only the non-zero parts, each with its own singular string (ADR-022); empty when both groups are empty.
+ *
+ * @param {object} labels The translated labels.
+ * @param {object} counts Tier 1's counts.
+ * @returns {string} The line, or the empty string.
+ */
+const specialLine = (labels: Record<string, string>, counts: Counts): string => [
+    counts.invisible > 0 ? fillCount(labels, 'ghost_invisible', counts.invisible) : '',
+    counts.archived > 0 ? fillCount(labels, 'ghost_archived', counts.archived) : '',
+].filter((part) => part !== '').join(' · ');
 
 /**
  * Where the open-courses line is drawn (ADR-017 decision 7): at the top of the content, under the calendar,
@@ -567,13 +581,15 @@ const Block = (config: BlockConfig) => {
      * It hides once tier 3 is open, because then it has nothing left to open. The Starts-soon strip
      * sits under New enrolments but never hosts it, wherever it is: its courses cannot be entered
      * yet and are not among the courses the ghost counts. Favourites, below it, hosts it as before.
+     * It is also drawn, with no count, while only a special group holds something (ghostDrawn()):
+     * otherwise a reader whose courses all fit the strips, or are all hidden, could never reach tier 3.
      */
     const activestrips = config.strips.filter((strip) => strip.name !== 'scheduled');
     const ghost = useMemo((): StripGhost | null => {
         const ghosttext = data && data.counts.more === 1 && labels.ghost_more_one ? labels.ghost_more_one : labels.ghost_more;
 
-        return data && data.counts.more > 0 && !exploring
-            ? {count: data.counts.more, text: ghosttext, cta: labels.ghost_explore}
+        return data && ghostDrawn(data.counts) && !exploring
+            ? {count: data.counts.more, text: ghosttext, cta: labels.ghost_explore, line: specialLine(labels, data.counts)}
             : null;
     }, [data, exploring, labels]);
     const laststrip = data
@@ -709,12 +725,19 @@ const Block = (config: BlockConfig) => {
                 stands alone, after every strip as before. */}
             {ghost && laststrip === null && (
                 <div className={`compass-ghost-wrap compass-cards-${columns}`}>
-                    <Ghost count={ghost.count} text={ghost.text} cta={ghost.cta} kind="tier2" onExplore={explore} />
+                    <Ghost
+                        count={ghost.count}
+                        text={ghost.text}
+                        cta={ghost.cta}
+                        line={ghost.line}
+                        kind="tier2"
+                        onExplore={explore}
+                    />
                 </div>
             )}
             {data && shown === 0 && (
                 <p className="compass-empty text-muted">
-                    {data.counts.total === 0 ? labels.nocourses : labels.emptyattention}
+                    {data.counts.total === 0 && !ghostDrawn(data.counts) ? labels.nocourses : labels.emptyattention}
                 </p>
             )}
             {newsAt('empty')}

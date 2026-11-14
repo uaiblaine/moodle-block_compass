@@ -160,7 +160,9 @@ its SQL. What that leaves visible:
   tier 1 (fact 5), a teacher whose visible courses all fit the strips gets no ghost, and one whose every course
   is hidden reads "no courses": **neither can open Explore, so neither reaches *Hidden*.** The archive has had
   the same gap since Phase 5 (archived courses are left out of `counts.total` too). **Follow-up, in a record of
-  its own: "A way into tier 3 when the ghost is zero".** One shape it may weigh, costing no read: the counting
+  its own: "A way into tier 3 when the ghost is zero"** — [ADR-022](022-a-way-into-tier-3-when-the-ghost-is-zero.md),
+  accepted 2026-11-14 (variant B: the ghost names the special groups and is drawn for them alone, the hidden count
+  asked per course). One shape it may weigh, costing no read: the counting
   statement adds one `SUM` of the active enrolments in hidden courses, and the client draws a bare *Explore all*
   when the ghost is zero and that sum is not; against it, a student of a hidden course would get the same door
   to a tier 3 that adds nothing, and the statement's visibility filter would move into a `CASE` (answer 6).

@@ -1062,6 +1062,23 @@ final class attention_test extends advanced_testcase {
         // two later starts the archived one is dropped in PHP.
         $this->assertSame(['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 0, 'scheduled' => 1], $tier['counts']);
         $this->assertSame([$listedlater], $this->ids($tier['scheduled']));
+        // The Archived header's count on the same path (ADR-022): the chunk's own visible archived
+        // course, and nothing of the archived later start, which tier 3's archive never lists.
+        $this->assertSame(['invisible' => 0, 'archived' => 1], $tier['special']);
+
+        // A hidden archived course the user teaches joins it through the situations statement,
+        // whose active branch the archived set never filters.
+        $taught = (int) $this->course('Archived hidden taught course', ['visible' => 0])->id;
+        $this->plugingen->enrol_at($this->userid, $taught, self::NOW - 200 * DAYSECS);
+        $teacher = (int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        role_assign($teacher, $this->userid, \core\context\course::instance($taught)->id);
+        accesslib_clear_all_caches_for_unit_testing();
+        $this->plugingen->hide($this->userid, $taught);
+
+        $tier = $this->build(5);
+
+        $this->assertSame(['invisible' => 0, 'archived' => 2], $tier['special']);
+        $this->assertSame(1, $tier['counts']['total'], 'the chunked subtraction still leaves the control alone');
     }
 
     /**

@@ -728,6 +728,18 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-brand-text);
 }
 
+/* The ghost drawn for the special groups alone (ADR-022): its call to action takes the count's place and weight,
+   in the count's line height so the card keeps the height a counted ghost has; the line under it keeps the
+   text's muted ink, and its numbers keep their width as the counts change. */
+.block_compass .compass-ghost-alone {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.block_compass .compass-ghost-line {
+    font-variant-numeric: tabular-nums;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .block_compass .compass-ghost {
         transition: none;
