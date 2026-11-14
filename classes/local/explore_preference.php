@@ -60,6 +60,20 @@ final class explore_preference {
     public const CHIPS = ['all', 'new', 'favourites', 'pending', 'scheduled'];
 
     /**
+     * The longest value this reader reads, in bytes; a longer one is refused on write and ignored on read.
+     *
+     * The client writes {sort, scope, star, cf, panel} with JSON.stringify, no whitespace: 74 bytes
+     * with the longest sort and scope and an empty cf. Each cf entry is "<shortname>":<value>, at
+     * most 114 bytes (customfield_field.shortname is char(100), PARAM_ALPHANUMEXT needs no escape,
+     * a value key of 10 digits, a comma), and the client keeps only the configured fields, at most
+     * config::FILTER_FIELDS_MAX (3): 74 + 3 * 114 = 416. The cap is the smallest power of two at
+     * least twice that, the rule of the three readers, so a member added later fits.
+     *
+     * @var int
+     */
+    public const MAX_BYTES = 1024;
+
+    /**
      * The state the toolbar starts in for a viewer who never changed it.
      *
      * The filter panel starts closed (ADR-015 decision 5): its field groups are a popover over the
@@ -94,11 +108,8 @@ final class explore_preference {
      */
     public static function validate(?string $json, bool $pendingenabled): array {
         $state = self::defaults();
-        if ($json === null || $json === '') {
-            return $state;
-        }
-        $decoded = json_decode($json, true);
-        if (!is_array($decoded)) {
+        $decoded = self::decode($json);
+        if ($decoded === null) {
             return $state;
         }
         if (isset($decoded['sort']) && in_array($decoded['sort'], self::SORTS, true)) {
@@ -139,5 +150,40 @@ final class explore_preference {
         }
 
         return $state;
+    }
+
+    /**
+     * The stored or posted JSON decoded, or null when this reader reads nothing of it.
+     *
+     * The one door both directions go through: validate() reads what it returns, and clean()
+     * admits a write only when it returns an array, so the write rule cannot drift from the read
+     * rule. The length is checked before json_decode(), so a value stored before the cap existed
+     * costs no decode.
+     *
+     * @param string|null $json The JSON, or null when nothing is stored.
+     * @return array|null The decoded object, or null: empty, longer than MAX_BYTES, or not a JSON object or array.
+     */
+    public static function decode(?string $json): ?array {
+        if ($json === null || $json === '' || strlen($json) > self::MAX_BYTES) {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * The preference's cleancallback (lib.php): a value this reader reads, unchanged, or null.
+     *
+     * Core's preference route refuses a write whose cleaned value differs from the posted one
+     * (core_user\route\api\preferences::set_single_preference()), so a valid value must come back
+     * byte for byte and anything else comes back as null, the declared default: refused there,
+     * and stored as no preference by core_user_set_user_preferences, which saves what cleaning gives.
+     *
+     * @param mixed $value The value after core's PARAM_RAW cleaning.
+     * @return string|null
+     */
+    public static function clean(mixed $value): ?string {
+        return is_string($value) && self::decode($value) !== null ? $value : null;
     }
 }

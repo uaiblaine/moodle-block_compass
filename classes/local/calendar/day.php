@@ -35,7 +35,6 @@ use core_calendar\external\events_related_objects_cache;
 use core_calendar\local\api;
 use core_calendar\local\event\entities\action_event_interface;
 use core_calendar\local\event\entities\event_interface;
-use core_calendar\output\humantimeperiod;
 use core_course\output\activity_icon;
 
 /**
@@ -73,7 +72,7 @@ final class day {
      */
     public const ALLOWLIST = [
         'id', 'name', 'courseid', 'courseshortname', 'modulename', 'purpose', 'iconurl', 'timestart', 'timeduration',
-        'formattedtime', 'viewurl', 'action', 'kind', 'graded', 'gradedsoon', 'criterion', 'lateuntil', 'starred',
+        'viewurl', 'action', 'kind', 'graded', 'gradedsoon', 'criterion', 'lateuntil', 'starred',
     ];
 
     /**
@@ -515,7 +514,6 @@ final class day {
                 'timestart' => (int) $exported->timestart,
                 // The exporter's end minus start (event_exporter_base), the entity's get_end_time() underneath.
                 'timeduration' => (int) $exported->timeduration,
-                'formattedtime' => (string) $exported->formattedtime,
                 'viewurl' => (string) $exported->viewurl,
                 'action' => $action,
                 'kind' => $kind,
@@ -715,10 +713,10 @@ final class day {
     /**
      * One teaching item in the allowlist's shape.
      *
-     * The time, the view URL and the icon are built the way core's exporters build them
-     * (event_exporter_base: humantimeperiod over the start and duration, the calendar's day view
-     * anchored on the event; event_icon_exporter: the activity's monologo, or core's icon for the
-     * event's type), from the row instead of the entity, so no callback and no modinfo runs.
+     * The view URL and the icon are built the way core's exporters build them (event_exporter_base:
+     * the calendar's day view anchored on the event; event_icon_exporter: the activity's monologo, or
+     * core's icon for the event's type), from the row instead of the entity, so no callback and no
+     * modinfo runs.
      *
      * @param array $item An item from strip::collect().
      * @param \stdClass|null $event Its row from names(), null if the event vanished meanwhile.
@@ -765,11 +763,6 @@ final class day {
 
         $viewurl = new url('/calendar/view.php', ['view' => 'day', 'course' => $courseid, 'time' => (int) $row->sorttime]);
         $viewurl->set_anchor('event_' . (int) $row->id);
-        $period = humantimeperiod::create_from_timestamp(
-            starttimestamp: $timestart,
-            endtimestamp: $timestart + $duration,
-            link: new url(CALENDAR_URL . 'view.php'),
-        );
 
         return [
             'id' => (int) $row->id,
@@ -783,7 +776,6 @@ final class day {
             'iconurl' => $iconurl,
             'timestart' => $timestart,
             'timeduration' => $duration,
-            'formattedtime' => $output->render($period),
             'viewurl' => $viewurl->out(false),
             'action' => $action,
             'kind' => $item['kind'],

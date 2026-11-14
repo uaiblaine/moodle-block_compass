@@ -293,6 +293,29 @@ final class page_test extends advanced_testcase {
     }
 
     /**
+     * While the block type is hidden on Manage blocks the page redirects to the Dashboard.
+     *
+     * Every service the page's client calls refuses then, so the page would be a shell of failed
+     * reads. The page is on throughout; the control is the same viewer passing once the type is
+     * enabled again, so the redirect is the block type's doing.
+     *
+     * @return void
+     */
+    public function test_the_page_redirects_to_the_dashboard_while_the_block_is_hidden(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        set_config('enable_page', 1, 'block_compass');
+
+        \core\plugininfo\block::enable_plugin('compass', 0);
+        $this->assertFalse(\block_compass\local\session_guard::block_enabled());
+        $this->assert_redirects();
+
+        \core\plugininfo\block::enable_plugin('compass', 1);
+        page::require_access();
+        $this->assertTrue(true, 'the enabled block type lets a logged-in user through');
+    }
+
+    /**
      * The shell ships Boost Union's card settings as flags, read under the theme of the page that renders it.
      *
      * Under Boost the flags are the compass's own rule, whatever Boost Union's settings say; the tier 1 skeleton draws

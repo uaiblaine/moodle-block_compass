@@ -1149,4 +1149,24 @@ final class inventory_test extends advanced_testcase {
         $this->assertSame($expected, $warm);
         $this->assertSame(0, $warmreads, 'the cached entry was validated or refilled');
     }
+
+    /**
+     * Both statements take the latest completion over an expression, so no plan can answer it from the
+     * site-wide timecompleted index ({@see inventory::stamp()}); the value is pinned by the completion
+     * test above. Read from the source: the plan, not the answer, is what the bare column changes.
+     *
+     * @return void
+     */
+    public function test_the_latest_completion_is_read_from_the_users_own_rows(): void {
+        global $CFG;
+
+        $source = file_get_contents($CFG->dirroot . '/blocks/compass/classes/local/inventory.php');
+        $this->assertSame(1, substr_count($source, 'MAX(cc6.timecompleted + 0)'), 'The fill.');
+        $this->assertSame(1, substr_count($source, 'MAX(cc2.timecompleted + 0)'), 'The stamp statement.');
+        $this->assertSame(
+            0,
+            preg_match('/MAX\(\s*cc\d\.timecompleted\s*\)/', $source),
+            'No bare MAX(timecompleted) is left.'
+        );
+    }
 }
