@@ -84,4 +84,95 @@ final class graded_courses_test extends advanced_testcase {
         $this->assertContains((int) $asassistant->id, $graded);
         $this->assertNotContains((int) $asteacher->id, $graded);
     }
+
+    /**
+     * A graded role reaches a course from the course, its category, a parent category or the system
+     * context, and from nothing below or beside it: a module, a block or another user's context. A role
+     * the site does not grade reaches nothing from any level, until the setting grades it.
+     *
+     * The statement's two halves split the role rows by their context level (course by equality, the
+     * levels above by path); this pins the answer of both, level by level.
+     *
+     * @return void
+     */
+    public function test_every_context_level_reaches_the_courses_it_did(): void {
+        global $DB;
+
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $student = (int) $DB->get_field('role', 'id', ['shortname' => 'student']);
+        $teacher = (int) $DB->get_field('role', 'id', ['shortname' => 'teacher']);
+        set_config('gradebookroles', (string) $student);
+
+        $parent = $gen->create_category();
+        $child = $gen->create_category(['parent' => $parent->id]);
+        $taught = $gen->create_category();
+        $other = $gen->create_category();
+        $atcourse = $gen->create_course(['category' => $other->id]);
+        $inparent = $gen->create_course(['category' => $parent->id]);
+        $inchild = $gen->create_course(['category' => $child->id]);
+        $intaught = $gen->create_course(['category' => $taught->id]);
+        $teachercourse = $gen->create_course(['category' => $other->id]);
+        $withmodule = $gen->create_course(['category' => $other->id]);
+        $withblock = $gen->create_course(['category' => $other->id]);
+        $untouched = $gen->create_course(['category' => $other->id]);
+        $module = $gen->create_module('assign', ['course' => $withmodule->id]);
+        $block = $gen->create_block('online_users', [
+            'parentcontextid' => \core\context\course::instance($withblock->id)->id,
+        ]);
+
+        $user = $gen->create_user();
+        $neighbour = $gen->create_user();
+        role_assign($student, $user->id, \core\context\course::instance($atcourse->id)->id);
+        role_assign($student, $user->id, \core\context\coursecat::instance($parent->id)->id);
+        role_assign($teacher, $user->id, \core\context\coursecat::instance($taught->id)->id);
+        role_assign($teacher, $user->id, \core\context\course::instance($teachercourse->id)->id);
+        role_assign($student, $user->id, \core\context\module::instance((int) $module->cmid)->id);
+        role_assign($student, $user->id, \core\context\block::instance((int) $block->id)->id);
+        role_assign($student, $user->id, \core\context\user::instance((int) $neighbour->id)->id);
+
+        $all = array_map('intval', [
+            $atcourse->id,
+            $inparent->id,
+            $inchild->id,
+            $intaught->id,
+            $teachercourse->id,
+            $withmodule->id,
+            $withblock->id,
+            $untouched->id,
+        ]);
+        $this->assertSame(
+            $this->sorted([$atcourse->id, $inparent->id, $inchild->id]),
+            $this->sorted(strip::graded_courses((int) $user->id, $all)),
+            'The course, its category and a parent category reach; a module, a block and a user context do not.'
+        );
+
+        // The setting decides at every level: grading the non-editing teacher role brings in the course
+        // taught by a category role and the one taught by a course role.
+        set_config('gradebookroles', $student . ',' . $teacher);
+        $this->assertSame(
+            $this->sorted([$atcourse->id, $inparent->id, $inchild->id, $intaught->id, $teachercourse->id]),
+            $this->sorted(strip::graded_courses((int) $user->id, $all))
+        );
+
+        // A graded role at the system context reaches every course of the set.
+        set_config('gradebookroles', (string) $student);
+        $sitewide = $gen->create_user();
+        role_assign($student, $sitewide->id, \core\context\system::instance()->id);
+        $this->assertSame($this->sorted($all), $this->sorted(strip::graded_courses((int) $sitewide->id, $all)));
+        $this->assertSame([], strip::graded_courses((int) $neighbour->id, $all), 'The control: a user with no role.');
+    }
+
+    /**
+     * Ids as sorted integers.
+     *
+     * @param array $ids Ids, as the database or the generator returns them.
+     * @return int[]
+     */
+    private function sorted(array $ids): array {
+        $ids = array_map('intval', $ids);
+        sort($ids);
+
+        return $ids;
+    }
 }

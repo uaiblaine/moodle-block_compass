@@ -110,4 +110,50 @@ final class course_filter_test extends advanced_testcase {
 
         $this->assertSame([(int) $kept->id], array_map('intval', array_keys($courses)));
     }
+
+    /**
+     * Above inventory_max the set keeps the starred course, then the most recently opened, and only
+     * those reach coursemeta: the course cut at the bound is not written, and the kept ones are, so a
+     * reader of the set's entries pays no read.
+     *
+     * @return void
+     */
+    public function test_only_the_kept_courses_warm_coursemeta(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+        $user = $gen->create_user();
+        $starred = $gen->create_course();
+        $recent = $gen->create_course();
+        $cut = $gen->create_course();
+        foreach ([$starred, $recent, $cut] as $course) {
+            $plugin->enrol_at((int) $user->id, (int) $course->id, $now - 10 * DAYSECS);
+        }
+        $plugin->access_at((int) $user->id, (int) $cut->id, $now - 2 * DAYSECS);
+        $plugin->access_at((int) $user->id, (int) $recent->id, $now - DAYSECS);
+        $plugin->favourite((int) $user->id, (int) $starred->id);
+        set_config('inventory_max', 2, 'block_compass');
+        $coursemeta = \core_cache\cache::make('block_compass', 'coursemeta');
+        $coursemeta->purge();
+
+        $this->setUser($user);
+        [$courses, $bounded] = strip::courses((int) $user->id, $now);
+
+        $this->assertTrue($bounded, 'Precondition: the set is bounded.');
+        $this->assertSame([(int) $starred->id, (int) $recent->id], array_map('intval', array_keys($courses)));
+        $this->assertFalse($coursemeta->get((int) $cut->id), 'The course cut at the bound is not written.');
+        $meter = \block_compass\local\budget::start();
+        $entries = \block_compass\local\course_meta::get_many([(int) $starred->id, (int) $recent->id]);
+        $this->assertSame(0, $meter->reads(), 'The kept courses were written by the filter statement.');
+        $this->assertSame([(int) $starred->id, (int) $recent->id], array_keys($entries));
+
+        // The control: unbounded, the same statement writes every course of the set.
+        set_config('inventory_max', 3, 'block_compass');
+        $coursemeta->purge();
+        [$courses, $bounded] = strip::courses((int) $user->id, $now);
+        $this->assertFalse($bounded);
+        $this->assertCount(3, $courses);
+        $this->assertNotFalse($coursemeta->get((int) $cut->id));
+    }
 }

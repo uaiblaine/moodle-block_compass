@@ -264,8 +264,11 @@ final class strip {
      * core's vault, and the days off. The past runs to the instant the counted part started from,
      * the entry's build time, not to now: a deadline that passed in between is still counted as the
      * future part counted it, and never twice. The candidates carry their module context's preload
-     * columns, so their capability checks read nothing. Reads: those of grading_groups() and of the
-     * grading source when there are candidates, past(), and days_off::read().
+     * columns, its path rebuilt from the course layer's current entry, and mod/assign:grade is asked
+     * again under it, so a course moved or a capability lost since the build counts no grading work;
+     * the capability checks read nothing. Reads: the course layer's misses (none while it is warm),
+     * those of grading_groups() and of the grading source when there are candidates, past(), and
+     * days_off::read().
      *
      * @param int $userid The current user.
      * @param array $entry A fresh entry flagged past false.
@@ -336,10 +339,22 @@ final class strip {
         \DateTimeZone $tz
     ): array {
         $candidates = [];
+        $courses = course_meta::get_many(array_column($deferred, 'courseid'));
         foreach ($deferred as $fact) {
-            context_helper::preload_from_record((object) $fact['context']);
+            $course = $courses[(int) $fact['courseid']] ?? null;
+            if ($course === null) {
+                continue;
+            }
+            // A module context's path is its course's plus its own id. The course entry is kept current by
+            // the course and category events; the path stored with the candidate is the build's, and a
+            // course moved since then would have its capabilities read under the old category.
+            $ctx = $fact['context'];
+            $ctx['ctxpath'] = $course['ctx']['ctxpath'] . '/' . (int) $ctx['ctxid'];
+            $ctx['ctxdepth'] = (int) $course['ctx']['ctxdepth'] + 1;
+            context_helper::preload_from_record((object) $ctx);
             $context = \core\context\module::instance((int) $fact['cmid'], IGNORE_MISSING);
-            if (!$context) {
+            // The build asked this at its instant; the grader may have lost it since.
+            if (!$context || !has_capability('mod/assign:grade', $context, $userid)) {
                 continue;
             }
             $row = (object) [
@@ -938,8 +953,12 @@ final class strip {
      * Above the bound, starred courses first, then the most recently opened. The filter statement
      * also carries the course and context columns coursemeta keeps, so it warms that shared layer
      * for the day's export at no extra read, and the category path, so the category source costs
-     * no read of its own. Reads: those of inventory::get() (one on a valid hit), the preference
-     * load behind hidden_courses::ids() when the request has not loaded them yet, and this one.
+     * no read of its own. Only the kept courses are written: every later reader of coursemeta on
+     * the strip's paths reads the courses of the set (day::export_teaching_items() and the rest
+     * through the items of future(), which asks for the set's courses only), and a course cut at the
+     * bound would cost a write per request for an entry nothing here reads. Reads: those of
+     * inventory::get() (one on a valid hit), the preference load behind hidden_courses::ids() when
+     * the request has not loaded them yet, and this one.
      *
      * @param int $userid The user.
      * @param int $now Unix time to treat as now.
@@ -952,6 +971,7 @@ final class strip {
 
         $courses = inventory::courses($inventory ?? inventory::get($userid), $now, hidden_courses::ids($userid));
         $paths = [];
+        $rows = [];
         if ($courses) {
             // Hidden courses and courses the user has completed do not count (the maintainer,
             // 2026-10-13). Unlike tier 1 there is no moodle/course:viewhiddencourses exception:
@@ -978,7 +998,6 @@ final class strip {
                     )",
                 $params
             );
-            course_meta::set_from_rows($rows);
             foreach ($rows as $row) {
                 $paths[(int) $row->id] = (string) $row->catpath;
             }
@@ -993,6 +1012,9 @@ final class strip {
             });
             $courses = array_slice($courses, 0, config::inventory_max(), true);
             $bounded = true;
+        }
+        if ($courses) {
+            course_meta::set_from_rows(array_intersect_key($rows, $courses));
         }
         $categoryids = [];
         foreach (array_keys($courses) as $courseid) {
@@ -1013,6 +1035,14 @@ final class strip {
      * course context or a parent context: the rule the gradebook uses for its graded users
      * ({@see \graded_users_iterator::init()}, grade/lib.php). Every other course of the set is a
      * teaching course (teacher, non-editing teacher, observer, or any role the site does not grade).
+     *
+     * Two halves, one statement. A role held at a course context joins that context by equality, which
+     * the planner can hash or probe. Only a role held above the course, at a category or the system
+     * context (the only levels a course context descends from), is matched by path; there are few of
+     * them, so the path predicate, which nothing can hash, runs against the course set a few times
+     * instead of once per course-level role. A role at a module, block or user context is in neither
+     * half: no course context is, or descends from, such a context. {@see \block_compass\local\news}
+     * splits its role half the same way.
      * Index: role_assignments (userid, contextid, roleid); context primary key and
      * (contextlevel, instanceid). Bound: the user's role assignments against the course set. One read.
      *
@@ -1026,20 +1056,39 @@ final class strip {
         if (!$courseids || empty($CFG->gradebookroles)) {
             return [];
         }
-        [$rolesql, $params] = $DB->get_in_or_equal(explode(',', $CFG->gradebookroles), SQL_PARAMS_NAMED, 'gbr');
+        $roles = explode(',', $CFG->gradebookroles);
+        [$rolesql, $params] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED, 'gbr');
         [$coursesql, $courseparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'gbc');
-        $params += $courseparams + ['gbuser' => $userid, 'gblevel' => CONTEXT_COURSE];
+        [$parentrolesql, $parentroleparams] = $DB->get_in_or_equal($roles, SQL_PARAMS_NAMED, 'gbpr');
+        [$parentcoursesql, $parentcourseparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'gbpc');
+        $params += $courseparams + $parentroleparams + $parentcourseparams + [
+            'gbuser' => $userid,
+            'gblevel' => CONTEXT_COURSE,
+            'gbpuser' => $userid,
+            'gbpsystem' => CONTEXT_SYSTEM,
+            'gbpcategory' => CONTEXT_COURSECAT,
+            'gbplevel' => CONTEXT_COURSE,
+        ];
         // A plain LIKE, not sql_like(): its pattern is a column expression, which sql_like() flags as
         // possible injection, and a context path holds only digits and slashes, so nothing needs escaping.
         $inherited = 'cctx.path LIKE ' . $DB->sql_concat('rctx.path', "'/%'");
-        $sql = "SELECT DISTINCT cctx.instanceid
+        $sql = "SELECT cctx.instanceid
+                  FROM {role_assignments} ra
+                  JOIN {context} cctx ON cctx.id = ra.contextid
+                                     AND cctx.contextlevel = :gblevel
+                                     AND cctx.instanceid $coursesql
+                 WHERE ra.userid = :gbuser
+                   AND ra.roleid $rolesql
+                 UNION
+                SELECT cctx.instanceid
                   FROM {role_assignments} ra
                   JOIN {context} rctx ON rctx.id = ra.contextid
-                  JOIN {context} cctx ON cctx.contextlevel = :gblevel
-                                     AND cctx.instanceid $coursesql
-                                     AND (cctx.id = rctx.id OR $inherited)
-                 WHERE ra.userid = :gbuser
-                   AND ra.roleid $rolesql";
+                                     AND rctx.contextlevel IN (:gbpsystem, :gbpcategory)
+                  JOIN {context} cctx ON cctx.contextlevel = :gbplevel
+                                     AND cctx.instanceid $parentcoursesql
+                                     AND $inherited
+                 WHERE ra.userid = :gbpuser
+                   AND ra.roleid $parentrolesql";
 
         return array_map('intval', $DB->get_fieldset_sql($sql, $params));
     }
@@ -1053,36 +1102,45 @@ final class strip {
      * a user without moodle/course:viewhiddengroups. The participation flag is kept for the
      * grading filter: core's active group is chosen among participation groups only
      * (groups_get_activity_group() asks groups_get_all_groups() with $participationonly).
+     *
+     * The course set is filtered in the statement, before the bound: a member of more groups than the
+     * bound in courses outside the set must not lose the groups of the set to them. The set is the
+     * strip's, already cut at inventory_max (courses()), so the list stays as short as the counted
+     * statement's. The order makes the kept groups the same on every database and every call, which
+     * revalidated() relies on when it compares the groups with the entry's.
      * Index: groups_members unique (userid, groupid); groups primary key. Bound: GROUPS_LIMIT.
      *
      * @param int $userid The user.
      * @param int[] $courseids The course set.
+     * @param int $limit The most groups read, GROUPS_LIMIT; a test passes a small one instead of creating 5001 groups.
      * @return array Group id => ['courseid' => int, 'participation' => bool].
      */
-    public static function groups(int $userid, array $courseids): array {
+    public static function groups(int $userid, array $courseids, int $limit = self::GROUPS_LIMIT): array {
         global $DB;
 
         if (!$courseids) {
             return [];
         }
+        [$insql, $params] = $DB->get_in_or_equal(array_values(array_unique($courseids)), SQL_PARAMS_NAMED, 'sgc');
+        $params += ['userid' => $userid, 'hidden' => GROUPS_VISIBILITY_NONE];
         $records = $DB->get_records_sql(
             "SELECT gm.groupid, g.courseid, g.participation
                FROM {groups_members} gm
                JOIN {groups} g ON g.id = gm.groupid
-              WHERE gm.userid = :userid AND g.visibility <> :hidden",
-            ['userid' => $userid, 'hidden' => GROUPS_VISIBILITY_NONE],
+              WHERE gm.userid = :userid
+                AND g.visibility <> :hidden
+                AND g.courseid {$insql}
+           ORDER BY gm.groupid",
+            $params,
             0,
-            self::GROUPS_LIMIT
+            $limit
         );
-        $incourse = array_flip($courseids);
         $groups = [];
         foreach ($records as $record) {
-            if (isset($incourse[(int) $record->courseid])) {
-                $groups[(int) $record->groupid] = [
-                    'courseid' => (int) $record->courseid,
-                    'participation' => (int) $record->participation === 1,
-                ];
-            }
+            $groups[(int) $record->groupid] = [
+                'courseid' => (int) $record->courseid,
+                'participation' => (int) $record->participation === 1,
+            ];
         }
 
         return $groups;

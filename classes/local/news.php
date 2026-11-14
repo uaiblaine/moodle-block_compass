@@ -243,6 +243,11 @@ final class news {
      * A role at the system context is not on the path in this sense: a manager by system role keeps
      * the line for the courses they hold nothing in.
      *
+     * The role half is split as strip::graded_courses() splits it: a role at the course joins its context
+     * by equality, and only a role at a category is matched by path, so the predicate nothing can hash
+     * runs for the viewer's few category roles instead of for every course role. The halves are disjoint
+     * by the role's context level, so each role row yields the same courses, as often, as one join did.
+     *
      * @param int $userid The viewer.
      * @param int[] $courseids The candidates, at most NEWS_PROBE.
      * @return int[] Course ids, possibly repeated.
@@ -252,11 +257,13 @@ final class news {
 
         [$enrolsql, $params] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'nue');
         [$rolesql, $roleparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'nra');
-        $params += $roleparams + [
+        [$catsql, $catparams] = $DB->get_in_or_equal($courseids, SQL_PARAMS_NAMED, 'nrc');
+        $params += $roleparams + $catparams + [
             'ueuser' => $userid,
             'rauser' => $userid,
-            'rcatlevel' => CONTEXT_COURSECAT,
             'rcourselevel' => CONTEXT_COURSE,
+            'rcuser' => $userid,
+            'rcatlevel' => CONTEXT_COURSECAT,
             'courselevel' => CONTEXT_COURSE,
         ];
         // A plain LIKE, as strip::graded_courses(): the pattern is a column expression, and a context
@@ -273,12 +280,19 @@ final class news {
              UNION ALL
                 SELECT cctx.instanceid
                   FROM {role_assignments} ra
-                  JOIN {context} rctx ON rctx.id = ra.contextid
-                                     AND rctx.contextlevel IN (:rcatlevel, :rcourselevel)
-                  JOIN {context} cctx ON cctx.contextlevel = :courselevel
+                  JOIN {context} cctx ON cctx.id = ra.contextid
+                                     AND cctx.contextlevel = :rcourselevel
                                      AND cctx.instanceid {$rolesql}
-                                     AND (cctx.id = rctx.id OR {$inherited})
-                 WHERE ra.userid = :rauser";
+                 WHERE ra.userid = :rauser
+             UNION ALL
+                SELECT cctx.instanceid
+                  FROM {role_assignments} ra
+                  JOIN {context} rctx ON rctx.id = ra.contextid
+                                     AND rctx.contextlevel = :rcatlevel
+                  JOIN {context} cctx ON cctx.contextlevel = :courselevel
+                                     AND cctx.instanceid {$catsql}
+                                     AND {$inherited}
+                 WHERE ra.userid = :rcuser";
 
         return array_map('intval', $DB->get_fieldset_sql($sql, $params));
     }

@@ -92,14 +92,17 @@ class page extends block {
     }
 
     /**
-     * The page's three gates, after require_login(): no "log in as" session confined to one course, no
-     * guest, and no page while it is off.
+     * The page's four gates, after require_login(): no "log in as" session confined to one course, no
+     * guest, no page while it is off, and none while the block type is hidden on Manage blocks.
      *
      * A guest is sent to the front page, as my/index.php does for a guest when allowguestmymoodle
      * is off (my/index.php:76-78), unless that would loop ({@see self::guest_home_is_this_page()}), in
      * which case the guest is refused the way the block refuses one. A page that is switched off
      * redirects to the Dashboard: a start page stored before the setting changed must land
-     * somewhere, and the Dashboard is where the block already is.
+     * somewhere, and the Dashboard is where the block already is. A hidden block type redirects there
+     * too: every service the page calls refuses while it is hidden
+     * ({@see \block_compass\local\session_guard::require_service()}), so the page would be a shell
+     * whose every read fails.
      *
      * The first gate refuses as require_login() refuses a course outside a confined session
      * ({@see \block_compass\local\session_guard}): require_login(null) logs in to the site course, which
@@ -117,6 +120,9 @@ class page extends block {
             redirect(new \core\url('/'));
         }
         if (!\block_compass\local\config::page_enabled()) {
+            redirect(new \core\url('/my/'));
+        }
+        if (!\block_compass\local\session_guard::block_enabled()) {
             redirect(new \core\url('/my/'));
         }
     }

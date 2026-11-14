@@ -1,1 +1,1 @@
-s/AND rctx\.contextlevel IN \(:rcatlevel, :rcourselevel\)/AND (rctx.contextlevel IN (:rcatlevel, :rcourselevel) OR 1 = 1)/;
+s/AND rctx\.contextlevel = :rcatlevel/AND (rctx.contextlevel = :rcatlevel OR 1 = 1)/;

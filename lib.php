@@ -44,6 +44,11 @@
  * session ({@see \block_compass\local\session_guard::may_remember_shape()}): the client writes it on its
  * own, so an impersonator merely looking would otherwise change the real user's preferences.
  *
+ * The three JSON preferences carry a cleancallback, their reader's clean(): core stores a value of
+ * any length and loads the user's whole bundle on every request, so a value longer than the reader's
+ * MAX_BYTES, or one it does not decode, cleans to null and the route refuses it. A value the reader
+ * reads comes back unchanged, which is what the route needs to accept it.
+ *
  * @return array The definitions, keyed by preference name.
  */
 function block_compass_user_preferences(): array {
@@ -59,18 +64,21 @@ function block_compass_user_preferences(): array {
             'null' => NULL_ALLOWED,
             'default' => null,
             'type' => PARAM_RAW,
+            'cleancallback' => [\block_compass\local\explore_preference::class, 'clean'],
             'permissioncallback' => [\core_user::class, 'is_current_user'],
         ],
         \block_compass\local\calendar_preference::NAME => [
             'null' => NULL_ALLOWED,
             'default' => null,
             'type' => PARAM_RAW,
+            'cleancallback' => [\block_compass\local\calendar_preference::class, 'clean'],
             'permissioncallback' => [\core_user::class, 'is_current_user'],
         ],
         \block_compass\local\tier1_preference::NAME => [
             'null' => NULL_ALLOWED,
             'default' => null,
             'type' => PARAM_RAW,
+            'cleancallback' => [\block_compass\local\tier1_preference::class, 'clean'],
             'permissioncallback' => [\block_compass\local\session_guard::class, 'may_remember_shape'],
         ],
     ];

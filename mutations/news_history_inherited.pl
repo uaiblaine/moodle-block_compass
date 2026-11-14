@@ -1,1 +1,1 @@
-s/AND \(cctx\.id = rctx\.id OR \{\$inherited\}\)/AND (cctx.id = rctx.id)/;
+s/AND \{\$inherited\}/AND 1 = 0/;
