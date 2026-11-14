@@ -508,7 +508,7 @@ disabled and its glyph rotates, unless the learner asked for less motion. It is 
 reach: the title bar beside it is core's (fact 18), and a control inside a heading would be wrong
 anyway.
 
-**A bounded retry, for reads only.** *(Amended 2026-10-09: the retry covers any failure and waits 2 s both times, with no jitter; the sentences below that say transport failures only, 1 s and 3 s, and jitter are the original decision.)* `repository.ts` gains one wrapper
+**A bounded retry, for reads only.** *(Amended 2026-10-09: the retry covers any failure and waits 2 s both times, with no jitter; the sentences below that say transport failures only, 1 s and 3 s, and jitter are the original decision. Amended 2026-11-13: each wait carries up to 500 ms of jitter either way, off under Behat; see the amendment at the end.)* `repository.ts` gains one wrapper
 around the five read calls — `getAttention`, `getInventory`, `getInventoryRows`, `searchInventory`,
 `getCardDetails` — that classifies a rejection the way `block_feedback_tracker` does (fact 17): a
 rejection carrying an `errorcode` is the server's answer and is never retried; a rejection without
@@ -780,3 +780,21 @@ None changes a decision; each is where the record was less precise than the code
    `aria-disabled` while busy rather than `disabled` (a disabled element drops focus to the body),
    and the shared notice puts focus on a sensible target when its own button leaves the page —
    the same rule "Show more" learned in R3 and the archive control in Phase 5.
+
+## Amendment (2026-11-13): jitter on the read retries
+
+The owner's decision of 2026-11-13 supersedes one clause of decision 12's amendment of 2026-10-09, "with no
+jitter", and nothing else of it.
+
+- **What changes.** Each wait before a retry is 2000 ms plus a random offset in [-500, +500] ms, drawn for that
+  wait alone (`repository.ts`, `retryDelay()`, with `RETRY_JITTER_MS`).
+- **Why.** With a fixed wait, the reads that failed together came back together: every read of a page, and of every
+  page that failed in the same moment, was asked again in two synchronised waves, at t + 2 s and t + 4 s, on the
+  server whose trouble had made them fail. The offset spreads each wave over a second.
+- **What stays.** Every failed read is retried, a dropped connection and a server exception alike (the wrapper still
+  does not consult `isTransportFailure()`, which only picks the message), twice (`RETRY_ATTEMPTS`), and the
+  "Reconnecting…" line and its settle are unchanged. Writes are never retried.
+- **Off under Behat.** On a page whose body carries `behat-site`, the check `Explore.tsx` already makes for its scroll,
+  the wait is exactly 2000 ms, so a scenario's timing is the same on every run.
+- **Held by** `client_policy_test::test_reads_retry_twice_two_seconds_apart_and_writes_never` and the gates
+  `read_retry_jitter` and `read_retry_jitter_behat` in `mutations/gates.conf`.

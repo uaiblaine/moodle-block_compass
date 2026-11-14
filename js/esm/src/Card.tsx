@@ -42,6 +42,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import {memo} from 'react';
 import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
@@ -196,4 +197,4 @@ const Card = ({card, config, onToggleFavourite, lit, onPoint}: CardProps) => {
     );
 };
 
-export default Card;
+export default memo(Card);
