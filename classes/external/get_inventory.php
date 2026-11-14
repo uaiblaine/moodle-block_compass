@@ -41,14 +41,17 @@ use core_external\external_value;
  * rows; above it the response is 'paged', every group carries an empty courses
  * list — the key stays, execute_returns() requires it — and the client fetches
  * rows through get_inventory_rows and searches through search_inventory. The
- * archived group is a header alone in both modes; its rows always come through
- * get_inventory_rows. Rows carry short keys — id, name, opened, new, fav, dorm,
- * and pend, wait, sched and cf only when they apply — because each repeats once per course
+ * Hidden and Archived groups are headers alone in both modes; their rows always
+ * come through get_inventory_rows. Rows carry short keys — id, name, opened, new,
+ * fav, dorm, and pend, wait, sched, comp, cf and kd only when they apply — because each repeats once per course
  * in a payload the client holds whole: the worst case, 250 rows each carrying
  * three field values, must stay under 40 000 bytes
  * ({@see \block_compass\local\config::FILTER_FIELDS_MAX}).
  * The top-level fields array names the custom-field chip groups, so they exist
- * in both modes before any group opens. Read-only, current user
+ * in both modes before any group opens; the top-level kinds array, while a
+ * course_kinds listener gives a kind other than the default, names what every
+ * row's kd points at, in this response and in the pages and searches after it.
+ * Read-only, current user
  * only; three database reads per request in either mode with the user's
  * inventory cold and the shared layers warm (fill, preferences, filters), three
  * on a valid hit (the stamp instead of the fill), one more per cold shared
@@ -105,7 +108,8 @@ class get_inventory extends external_api {
             'mode' => new external_value(PARAM_ALPHA, 'full, or paged above inventory_max (groups then carry no courses)'),
             'total' => new external_value(
                 PARAM_INT,
-                'Listed courses: active, visible, not hidden, plus applications awaiting approval'
+                'Listed courses: active, scheduled or awaiting approval, visible and not archived; the Hidden and '
+                    . 'Archived groups not counted'
             ),
             'fields' => new external_multiple_structure(new external_single_structure([
                 'key' => new external_value(PARAM_ALPHANUMEXT, 'Shortname of the course custom field'),
@@ -115,8 +119,17 @@ class get_inventory extends external_api {
                     'label' => new external_value(PARAM_TEXT, 'Option label, formatted, unescaped'),
                 ]), 'The chips of the group, in display order'),
             ]), 'The custom-field chip groups the administrator configured, in order'),
+            'kinds' => new external_multiple_structure(
+                new external_single_structure([
+                    'key' => new external_value(PARAM_ALPHA, 'The kind, such as event'),
+                    'name' => new external_value(PARAM_TEXT, 'The kind\'s noun for one, current language, capitalised'),
+                ]),
+                'The kinds a row\'s kd refers to, in the listener\'s order, the default kind never among them; present '
+                    . 'only while a kind can be drawn',
+                VALUE_OPTIONAL
+            ),
             'groups' => new external_multiple_structure(new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'Category id of the group'),
+                'id' => new external_value(PARAM_INT, 'Category id of the group, or a reserved negative id'),
                 'name' => new external_value(PARAM_TEXT, 'Category name, formatted, unescaped'),
                 'count' => new external_value(PARAM_INT, 'Courses in the group'),
                 'courses' => new external_multiple_structure(

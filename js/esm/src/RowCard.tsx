@@ -31,14 +31,16 @@
  *
  * A card the learner cannot enter yet - an enrolment application awaiting a decision or on the
  * waiting list, or an enrolment that starts later - links to the course's enrolment page, says
- * which situation it is in with the state pill under its title (the corner badge is New's alone),
+ * which situation it is in with the state pill under its title (the corner holds the kind and New alone),
  * and has no star, no archive control and no progress. It registers for details like any other
  * card, and the batch answers it with its image and crests only.
  *
  * The card is the fleet's course card (moodle-dev/docs/course-card/CONTRACT.md), Card.tsx's anatomy: a
- * 150 px cover with the theme's crests in its bottom-right corner, New as the light kind chip, the
- * category, the title, the plugin slot (when the course was last opened, after a clock), the state pill
- * (the green seal once complete) and the progress row; the stretched title link is the card's one target.
+ * 150 px cover with the theme's crests in its bottom-right corner, slot 2's light chips (the course's kind
+ * when a theme names one, then New; ADR-021 decision 2.4), the category, the title, the plugin slot (when
+ * the course was last opened, after a clock), the state pill (the green seal once complete; beside it,
+ * Hidden from students where a hidden course sits among visible ones) and the progress row; the stretched
+ * title link is the card's one target.
  * An inventory card has no main action (D5): its foot holds the archive control alone, at the far right.
  * Boost Union's settings (CardFlags) take the cover away as Card.tsx's does, and the progress row.
  *
@@ -53,11 +55,11 @@ import {isComplete} from './Card';
 import Crests from './Crests';
 import Progress from './Progress';
 import Star from './Star';
-import StatePill from './StatePill';
+import StatePill, {InvisiblePill} from './StatePill';
 import {titleTag} from './heading';
 import {isEnrolled, relativeTime} from './filter';
 import {fill} from './str';
-import type {BlockConfig, InventoryRow, RowDetail} from './types';
+import type {BlockConfig, InventoryRow, RowDetail, RowKind} from './types';
 
 type RowCardProps = {
     row: InventoryRow,
@@ -68,6 +70,8 @@ type RowCardProps = {
     detail: RowDetail | undefined,
     waiting: boolean,
     observe: (id: number, element: Element) => () => void,
+    kinds: RowKind[],
+    markhidden: boolean,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
@@ -78,15 +82,17 @@ type RowCardProps = {
  * The card.
  *
  * @param {object} props The row, its category, the block config, the instant "ago" is
- *     measured from, the page language, what is known about the row, how to register it
- *     and the archive and star actions; see RowCardProps.
+ *     measured from, the page language, what is known about the row, how to register it, the
+ *     kinds its kd indexes, whether a hidden row says so here, and the archive and star actions;
+ *     see RowCardProps.
  * @returns {object} The rendered card.
  */
 // A component's render branches all count toward its complexity; splitting it into smaller components is
 // a refactor of its own, so the count is acknowledged here.
 // eslint-disable-next-line complexity
 const RowCard = ({
-    row, category, config, now, lang, detail, waiting, observe, archived, onArchive, onToggleFavourite, busy,
+    row, category, config, now, lang, detail, waiting, observe, kinds, markhidden, archived, onArchive,
+    onToggleFavourite, busy,
 }: RowCardProps) => {
     const {labels} = config;
     const Title = titleTag(config.headinglevel);
@@ -130,7 +136,19 @@ const RowCard = ({
     }
     // A course answered complete is never new, whatever its enrolment date and last access say.
     const isnew = row.new && !complete;
-    const kind = isnew ? <span className="compass-card-kind">{labels.badge_new}</span> : null;
+    let kind = isnew ? <span className="compass-card-kind">{labels.badge_new}</span> : null;
+    // Slot 2 with the course's kind (ADR-021 decision 2): the kind first, then New, one row of chips that wraps.
+    // Without a kind to draw - no listener, the default kind, an index the held list does not have - the slot is
+    // New's alone, the same element as before kinds existed.
+    const named: RowKind | undefined = row.kd === undefined ? undefined : kinds[row.kd];
+    if (named !== undefined) {
+        kind = (
+            <span className="compass-card-kinds">
+                <span className="compass-card-kind">{named.name}</span>
+                {isnew && <span className="compass-card-kind">{labels.badge_new}</span>}
+            </span>
+        );
+    }
 
     return (
         <div
@@ -170,6 +188,7 @@ const RowCard = ({
                     </p>
                 )}
                 <StatePill row={row} labels={labels} complete={complete} />
+                {markhidden && row.invis && <InvisiblePill label={labels.hiddenfromstudents} />}
                 {/* Read after the title, as the theme card reads them, and drawn on the cover. */}
                 <Crests badges={detail?.badges} label={labels.crests} />
                 <div className="compass-rowcard-foot mt-auto d-flex align-items-center justify-content-between gap-2">

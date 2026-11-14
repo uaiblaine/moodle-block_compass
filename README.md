@@ -33,8 +33,10 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
 - **Tier 3, exploration.** *All courses*, grouped by category, with a side index and one filter
   line: a scope, a search that suggests as you type, a favourites star, filters, a sort and a
   list or cards view. Rows fetch their progress and image only once they are on screen. Courses
-  gone quiet gather in a *Dormant* group, and archived ones in an *Archived* group shared with
-  the Course overview block.
+  gone quiet gather in a *Dormant* group, courses hidden from students in a *Hidden* group shown
+  only to those who may see them (a course's own teacher, as in the Course overview block), and
+  archived ones in an *Archived* group shared with the Course overview block. Where a theme or
+  plugin tells kinds of course apart (an event, a trail), each card and row says its kind.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
@@ -200,7 +202,14 @@ and previews nothing, and a control that would only widen the list previews noth
 An enrolment that starts later is a row with an *Access from {date}* pill; an application through
 *Enrolment on application* (`enrol_apply`) is a row with an *Application under review* or *On the
 waiting list* pill. Every row and card carries the star and an archive control; *Dormant* has an
-**Archive all** control. The line is remembered per user (scope, star, filters, sort and whether
+**Archive all** control. A course hidden from students (`visible = 0`) is listed only to a viewer
+holding `moodle/course:viewhiddencourses` in that course, as core lists it, and then only in the
+*Hidden* group, never in its category: the group shows its count with the others and loads its
+rows when opened, like *Archived*; a search opens neither, the server's search of a long list
+covers neither, and the A to Z and Recent sorts list neither. An archived hidden course
+stays in *Archived*, marked *Hidden from students*; inside *Hidden* no row is marked, the heading
+says it. When a `course_kinds` listener names the course's kind, the cards and the list rows draw
+it before *New*, both as light chips ("Event", "New"); the default kind, *course*, is never drawn. The line is remembered per user (scope, star, filters, sort and whether
 the panel is open, which starts closed), the search text excepted. In the full list, no filter,
 suggestion or preview asks the server anything.
 
@@ -433,6 +442,10 @@ Capabilities
   to the default Dashboard). Default: authenticated user. The block lives on the Dashboard only,
   so there is no `addinstance` capability.
 
+The block also reads one core capability, `moodle/course:viewhiddencourses`: in *All courses* and
+for the cards' details, per hidden course at that course's context, as core's own course lists do;
+in the first strips and their counts, once, at the system context.
+
 
 Web services
 ------------
@@ -586,6 +599,12 @@ strips settled to a shape other than the one stored (a strip gaining or losing c
 24.5 ms, and the block's reads 26 to 65 ms warm; that is a development-stack number, so measure on
 your own hardware. The cache stores that keep the reads cheap are under *Cache stores* above.
 
+The client is one ES module, `js/esm/build/bundle.js` (about 199 KB, 63 KB compressed), announced in
+the page with seven `modulepreload` hints beside core's own and served through core's import map with
+the site's JavaScript revision, so a browser keeps it until the next upgrade or cache purge. The
+release package carries no `.dev.js` files and no source maps: with developer debugging on, core
+serves the production files instead.
+
 The block's web services declare `readonlysession`, which core honours only when config.php sets
 `$CFG->enable_read_only_sessions = true;`. It is not an admin setting. Without it, one viewer's
 requests wait for each other on the session lock, and on a Dashboard the block's reads also wait
@@ -605,8 +624,11 @@ Troubleshooting
   shared in-memory store, not the default file store.
 - **All courses opens with every group closed.** The learner has more than `inventory_max`
   courses: that is paged mode.
-- **A course vanished from All courses.** Look in the *Dormant* and *Archived* groups at the
-  end of the list; a course removed from view in the Course overview block is under *Archived*.
+- **A course vanished from All courses.** Look in the *Dormant*, *Hidden* and *Archived* groups
+  at the end of the list; a course removed from view in the Course overview block is under
+  *Archived*, and a course hidden from students is under *Hidden* for its teachers and absent for
+  its students. The first strips keep leaving hidden courses out for anyone without the
+  capability at the system context.
 - **No calendar strip.** Check `calendar_enabled` and `calendar_where`; the strip shows only
   where it is configured, and only after the first tier has loaded.
 
@@ -626,6 +648,7 @@ Development
   including the bundle and its manifest). On Moodle 5.3 the build also writes a `.dev.js` twin
   of each module and `js/esm/src/swizzle.json`, which declares every component closed to theme
   overrides: the page loads the bundle, so an override of a single module would never apply.
+  The twins and the source maps stay in git and out of the release package (`.gitattributes`).
 - Design decisions: [`docs/adr/`](docs/adr/README.md). Measurements: [`docs/perf/`](docs/perf/).
   Changes: [`CHANGELOG.md`](CHANGELOG.md).
 

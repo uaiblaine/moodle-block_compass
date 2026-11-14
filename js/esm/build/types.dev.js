@@ -11,8 +11,10 @@
  */
 const GROUP_DORMANT = -1;
 const GROUP_ARCHIVED = -2;
+const GROUP_INVISIBLE = -3;
 export {
   GROUP_ARCHIVED,
-  GROUP_DORMANT
+  GROUP_DORMANT,
+  GROUP_INVISIBLE
 };
 //# sourceMappingURL=types.dev.js.map

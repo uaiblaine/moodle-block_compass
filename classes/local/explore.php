@@ -26,7 +26,6 @@ namespace block_compass\local;
 
 use Collator;
 use core\context;
-use core\context\system as context_system;
 use core_collator;
 use core_text;
 use local_unlistedcourses\access;
@@ -42,15 +41,16 @@ use local_unlistedcourses\access;
  * the way the browser matches in full mode. Names are formatted only for the rows a response
  * ships, after one bulk filter preload of their contexts.
  *
- * There are two populations: the listed courses, grouped by category with the dormant ones
- * gathered into a group of their own, which also hold the enrolments that start later (rows
+ * There are three populations: the listed visible courses, grouped by category with the dormant
+ * ones gathered into a group of their own, which also hold the enrolments that start later (rows
  * carrying sched) and, when that feature is on, the learner's enrolment applications awaiting
- * approval or on the waiting list (rows carrying pend, and wait for the waiting list); and the
- * archived courses, which travel as a header alone and page on first open. Which situation a
- * course is in is the provider's answer per row, through relationship. Every row may carry the
- * values of the course custom fields configured as filters, read from the coursefields layer. No
- * SQL of its own: the inventory entry and the shared layers are the only sources, so the
- * inventory stamp is the single validity check in both modes.
+ * approval or on the waiting list (rows carrying pend, and wait for the waiting list); the listed
+ * hidden courses (visible = 0) the viewer may see, in the Hidden group; and the archived courses.
+ * The last two travel as a header alone and page on first open (ADR-007, ADR-021). Which situation
+ * a course is in is the provider's answer per row, through relationship. Every row may carry the
+ * values of the course custom fields configured as filters and the course's kind, both read from
+ * the coursefields layer. No SQL of its own: the inventory entry and the shared layers are the only
+ * sources, so the inventory stamp is the single validity check in both modes.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -72,10 +72,17 @@ final class explore {
     /**
      * The get_inventory payload for one user: full mode, or headers only above the threshold.
      *
-     * The mode is a function of the rows full mode would ship — the response's total, after
-     * the hidden set and the visibility filter: one more than inventory_max and the groups
-     * travel as headers with courses => [] (the key stays: get_inventory::execute_returns()
-     * requires it), and the client fetches rows through rows() as groups are opened.
+     * The mode is a function of the rows full mode would ship — the response's total, the listed
+     * visible courses, after the archived set and the visibility rule: one more than inventory_max
+     * and the groups travel as headers with courses => [] (the key stays:
+     * get_inventory::execute_returns() requires it), and the client fetches rows through rows() as
+     * groups are opened. The Hidden and Archived groups are headers in both modes and count towards
+     * neither the total nor the threshold, so hiding or archiving courses never tips a viewer into
+     * paged mode.
+     *
+     * The course_kinds hook is dispatched once, in both modes, whenever anything is listed: the
+     * rows of paged mode and of the two collapsed groups arrive later through rows() and search(),
+     * and their kd indexes this response's kinds.
      *
      * @param int $userid The viewer.
      * @param int $now Unix time to treat as now.
@@ -86,7 +93,8 @@ final class explore {
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @param array|null $filterfields Shortnames of the custom fields offered as filters; null for the setting.
      * @return array mode (full or paged), total, fields, groups (id, name, count, courses: id, name,
-     *     opened, new, fav, dorm, and pend, wait, sched and cf when they apply).
+     *     opened, new, fav, dorm, and pend, wait, sched, comp, cf and kd when they apply), and kinds
+     *     (list of key and name) only while a kind other than the default can be drawn.
      */
     public static function build(
         int $userid,
@@ -106,19 +114,21 @@ final class explore {
         $fieldspayload = filter_fields::payload($fields);
 
         $resolved = self::resolve($userid, $now, $groupdepth, $pending);
-        if (empty($resolved['meta']) && empty($resolved['archivedmeta'])) {
+        if (empty($resolved['meta']) && empty($resolved['invisiblemeta']) && empty($resolved['archivedmeta'])) {
             return ['mode' => 'full', 'total' => 0, 'fields' => $fieldspayload, 'groups' => []];
         }
         [
             'courses' => $courses,
             'meta' => $meta,
+            'invisiblemeta' => $invisiblemeta,
             'archivedmeta' => $archivedmeta,
             'categories' => $categories,
             'groupof' => $groupof,
         ] = $resolved;
-        // The archived rows never travel here, so they do not count towards the threshold
-        // either: the mode is about what the browser holds.
+        // The hidden and archived rows never travel here, so they do not count towards the
+        // threshold either: the mode is about what the browser holds.
         $paged = count($meta) > $inventorymax;
+        $kinds = course_kinds::pills();
 
         $contexts = [];
         $values = [];
@@ -140,9 +150,9 @@ final class explore {
                 $contexts[$courseid] = course_meta::context_of($entrymeta);
             }
             filters::preload(array_values($contexts));
-            // The field values of every shipped row, from the sibling layer: one read when cold,
-            // none when warm, nothing at all when no field is configured.
-            $values = self::values(array_keys($meta), $fields);
+            // The field values and the kind of every shipped row, from the sibling layer: one read
+            // when cold, none when warm, nothing at all when no field is configured and no kind drawn.
+            $values = self::values(array_keys($meta), $fields, $kinds['fieldid']);
         }
 
         // A dormant course leaves its category for the dormant group, so a long-untouched course
@@ -161,7 +171,8 @@ final class explore {
                         $now,
                         $newwindow,
                         $threshold,
-                        self::cf($values[$courseid] ?? [], $fields)
+                        self::cf($values[$courseid] ?? [], $fields),
+                        self::kd($values[$courseid] ?? [], $kinds)
                     );
                 }
                 $dormant['count']++;
@@ -187,7 +198,8 @@ final class explore {
                     $now,
                     $newwindow,
                     $threshold,
-                    self::cf($values[$courseid] ?? [], $fields)
+                    self::cf($values[$courseid] ?? [], $fields),
+                    self::kd($values[$courseid] ?? [], $kinds)
                 );
             }
             $groups[$groupid]['count']++;
@@ -208,12 +220,19 @@ final class explore {
         core_collator::asort_array_of_arrays_by_key($groups, 'name', core_collator::SORT_NATURAL);
         $groups = array_values($groups);
 
-        // The two groups that are not categories come after the categories, in this order,
-        // and only when they hold something: an empty "Dormant (0)" is noise. The archived
-        // group is a header alone in both modes — its rows arrive through rows() on first
-        // open — so archiving never grows the first paint.
+        // The three groups that are not categories come after the categories, in this order,
+        // and only when they hold something: an empty "Dormant (0)" is noise. The Hidden and
+        // Archived groups are headers alone in both modes — their rows arrive through rows() on
+        // first open — so neither hiding nor archiving grows the first paint, and a hidden row
+        // never reaches a learner's first payload. The Hidden count is exact, decided per course
+        // in resolve() at no read, so a viewer who may see none of them gets no header at all.
         if ($dormant['count'] > 0) {
             $groups[] = $dormant;
+        }
+        if (!empty($invisiblemeta)) {
+            $invisible = self::special_group(dormancy::GROUP_INVISIBLE);
+            $invisible['count'] = count($invisiblemeta);
+            $groups[] = $invisible;
         }
         if (!empty($archivedmeta)) {
             $archived = self::special_group(dormancy::GROUP_ARCHIVED);
@@ -221,27 +240,34 @@ final class explore {
             $groups[] = $archived;
         }
 
-        return [
+        $payload = [
             'mode' => $paged ? 'paged' : 'full',
             'total' => count($meta),
             'fields' => $fieldspayload,
             'groups' => $groups,
         ];
+        // Present only while a kind can be drawn, so a site with no listener sends today's bytes.
+        if (!empty($kinds['kinds'])) {
+            $payload['kinds'] = $kinds['kinds'];
+        }
+
+        return $payload;
     }
 
     /**
-     * The header of one of the two groups that are not categories, empty.
+     * The header of one of the three groups that are not categories, empty.
      *
-     * @param int $groupid dormancy::GROUP_DORMANT or dormancy::GROUP_ARCHIVED.
+     * @param int $groupid dormancy::GROUP_DORMANT, GROUP_INVISIBLE or GROUP_ARCHIVED.
      * @return array id, name, count (0), courses (none).
      */
     private static function special_group(int $groupid): array {
-        return [
-            'id' => $groupid,
-            'name' => get_string($groupid === dormancy::GROUP_ARCHIVED ? 'archived' : 'dormant', 'block_compass'),
-            'count' => 0,
-            'courses' => [],
-        ];
+        $name = match ($groupid) {
+            dormancy::GROUP_ARCHIVED => get_string('archived', 'block_compass'),
+            dormancy::GROUP_INVISIBLE => get_string('invisible', 'block_compass'),
+            default => get_string('dormant', 'block_compass'),
+        };
+
+        return ['id' => $groupid, 'name' => $name, 'count' => 0, 'courses' => []];
     }
 
     /**
@@ -260,14 +286,17 @@ final class explore {
      * filters are validated against the allowlist before any work.
      *
      * Reads: resolve()'s plus one filter preload when the page is not empty, plus one
-     * coursefields fill when a field is configured and the layer is cold — 3 with the shared
-     * layers warm (stamp, preferences, filters).
+     * coursefields fill when a field is configured or a kind is drawn and the layer is cold — 3
+     * with the shared layers warm (stamp, preferences, filters). The course_kinds hook is
+     * dispatched once, and only for a page that ships rows.
      *
      * @param int $userid The viewer.
      * @param int $now Unix time to treat as now.
-     * @param int $groupid The group: a category id at the group depth, or one of dormancy's two
-     *     reserved ids — GROUP_DORMANT for the dormant courses of every category, GROUP_ARCHIVED for
-     *     the courses the user archived, which no category group holds.
+     * @param int $groupid The group: a category id at the group depth, or one of dormancy's three
+     *     reserved ids — GROUP_DORMANT for the dormant visible courses of every category,
+     *     GROUP_INVISIBLE for the hidden courses the viewer may see, GROUP_ARCHIVED for the courses
+     *     the user archived; no category group holds the courses of the last two. Any other
+     *     negative id yields an empty page.
      * @param int $after Id of the last row the client holds; 0 for the first page.
      * @param string $chip 'all', 'new' (never opened, enrolled inside the new window), 'favourites'
      *     (the core star, on a course the user can enter), 'pending' (an application awaiting
@@ -281,8 +310,8 @@ final class explore {
      * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @param array|null $filterfields Shortnames of the custom fields offered as filters; null for the setting.
-     * @return array groupid, rows (id, name, opened, new, fav, dorm, pend, wait, sched, cf), hasmore, after (id of the last row,
-     *     0 when none).
+     * @return array groupid, rows (id, name, opened, new, fav, dorm, pend, wait, sched, comp, cf, invis, kd), hasmore,
+     *     after (id of the last row, 0 when none).
      * @throws \core\exception\invalid_parameter_exception On a filter outside the allowlist.
      */
     public static function rows(
@@ -311,15 +340,21 @@ final class explore {
         [
             'courses' => $courses,
             'meta' => $meta,
+            'invisiblemeta' => $invisiblemeta,
             'archived' => $archived,
             'archivedmeta' => $archivedmeta,
             'groupof' => $groupof,
         ] = self::resolve($userid, $now, $groupdepth, $pending);
 
-        // The archived group pages over the other population; everything else over the listed one.
+        // The archived group pages over its own population and the hidden group over the listed
+        // hidden courses resolve() let through; every other group over the listed visible ones, so
+        // a hidden course is never in a category page or the dormant page, for any viewer.
         if ($groupid === dormancy::GROUP_ARCHIVED) {
             $population = $archived;
             $populationmeta = $archivedmeta;
+        } else if ($groupid === dormancy::GROUP_INVISIBLE) {
+            $population = $courses;
+            $populationmeta = $invisiblemeta;
         } else {
             $population = $courses;
             $populationmeta = $meta;
@@ -330,7 +365,8 @@ final class explore {
 
         // The group's courses that pass the chip and the selection, with the two keys the order
         // needs. A dormant course belongs to the dormant group and to no category group, so the
-        // two branches are complements: what one skips the other keeps.
+        // two branches are complements: what one skips the other keeps. The hidden and archived
+        // groups take their whole population, dormant or not.
         $candidates = [];
         foreach ($populationmeta as $courseid => $entrymeta) {
             $course = $population[$courseid];
@@ -338,7 +374,7 @@ final class explore {
                 if (!self::is_dormant($course, $threshold)) {
                     continue;
                 }
-            } else if ($groupid !== dormancy::GROUP_ARCHIVED) {
+            } else if ($groupid !== dormancy::GROUP_ARCHIVED && $groupid !== dormancy::GROUP_INVISIBLE) {
                 if (self::is_dormant($course, $threshold)) {
                     continue;
                 }
@@ -373,14 +409,17 @@ final class explore {
         if (empty($ids)) {
             return $empty;
         }
+        $kinds = course_kinds::pills();
         if (empty($selection)) {
             // No filter narrowed the page, so only the shipped rows need their values.
-            $values = self::values($ids, $fields);
+            $values = self::values($ids, $fields, $kinds['fieldid']);
         }
 
         return [
             'groupid' => $groupid,
-            'rows' => array_values(self::ship($ids, $population, $populationmeta, $now, $newwindow, $threshold, $values, $fields)),
+            'rows' => array_values(
+                self::ship($ids, $population, $populationmeta, $now, $newwindow, $threshold, $values, $fields, $kinds)
+            ),
             'hasmore' => $start + count($ids) < count($ordered),
             'after' => (int) end($ids),
         ];
@@ -393,8 +432,10 @@ final class explore {
      * stripped of diacritics, the query split on whitespace, a course matching when every word
      * is a substring of its normalised name — order-independent, over the course name only,
      * never the shortname (full mode matches the rendered name, normalised by filter.ts). The
-     * population is resolve()'s — the user's active, scheduled and pending, visible courses minus
-     * the archived ones — so the cost follows the user's enrolments, not {course}. Matches are
+     * population is resolve()'s listed one — the user's active, scheduled and pending, visible
+     * courses minus the archived ones; never the hidden courses, which full mode does not hold in
+     * the browser either (ADR-021, answer 5) — so the cost follows the user's enrolments, not
+     * {course}. Matches are
      * ordered by raw name and capped at $limit, 'truncated' saying when the cap cut; only the
      * shipped names are formatted, after one filter preload. A query shorter than
      * SEARCH_MIN_LENGTH once normalised is answered without work, before anything that could
@@ -402,7 +443,8 @@ final class explore {
      * hold these rows, so it cannot apply the filter itself.
      *
      * Reads: resolve()'s plus one filter preload when something matched — 3 with the shared
-     * layers warm (stamp, preferences, filters); none for a query too short.
+     * layers warm (stamp, preferences, filters); none for a query too short. The course_kinds hook
+     * is dispatched once, and only when something matched.
      *
      * @param int $userid The viewer.
      * @param int $now Unix time to treat as now.
@@ -414,7 +456,7 @@ final class explore {
      * @param int|null $dormantmonths Months of silence before a course is dormant; null for the setting.
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @param array|null $filterfields Shortnames of the custom fields offered as filters; null for the setting.
-     * @return array rows (id, name, opened, new, fav, dorm, pend, wait, sched, cf, groupid), truncated.
+     * @return array rows (id, name, opened, new, fav, dorm, pend, wait, sched, comp, cf, kd, groupid), truncated.
      * @throws \core\exception\invalid_parameter_exception On a filter outside the allowlist.
      */
     public static function search(
@@ -466,13 +508,14 @@ final class explore {
         $ordered = self::order($candidates, 'name');
         $truncated = count($ordered) > $limit;
         $ids = array_column(array_slice($ordered, 0, $limit), 'id');
-        $values = self::values($ids, $fields);
+        $kinds = course_kinds::pills();
+        $values = self::values($ids, $fields, $kinds['fieldid']);
 
         // A hit names the group that holds it, and a dormant course is held by the dormant
-        // group, not by its category: that is the group the client opens for it. The archived
-        // courses are not in this population at all — a search is over the courses a learner
-        // is working with, and the archived group is the one way to the rest.
-        $rows = self::ship($ids, $courses, $meta, $now, $newwindow, $threshold, $values, $fields);
+        // group, not by its category: that is the group the client opens for it. The hidden and
+        // archived courses are not in this population at all — a search is over the courses a
+        // learner is working with, and those two groups are the one way to the rest.
+        $rows = self::ship($ids, $courses, $meta, $now, $newwindow, $threshold, $values, $fields, $kinds);
         foreach ($rows as $courseid => $row) {
             $categoryid = $meta[$courseid]['category'];
             $rows[$courseid]['groupid'] = $row['dorm']
@@ -494,19 +537,26 @@ final class explore {
      * waiting list (inventory::scheduled(), inventory::pending()) — and the archived ones on their
      * own through the active test (inventory::courses(), both modes); the course layer
      * gives names, visibility and category for every population in one read — a single
-     * get_many() over the union. moodle/course:viewhiddencourses is evaluated once, at the
-     * system context, never per row: a teacher's own hidden course therefore does not appear
-     * here, although it does in the Course overview block. The category layer gives the courses'
-     * categories and then the ancestors that form the groups — each list one read when cold,
-     * none when warm. An id the layer cannot resolve (a category deleted under a course) is
-     * absent from 'categories' and 'groupof': such a course groups under its own category id,
+     * get_many() over the union. A course core is deleting is dropped for everyone. A hidden
+     * course (visible = 0) is kept only when moodle/course:viewhiddencourses holds at its own
+     * course context (course_meta::visible_to()), asked per hidden course as core asks it in
+     * enrol_get_my_courses(), so a teacher's own hidden course appears here as it does in the
+     * Course overview block (ADR-021, superseding ADR-000 decision 12 for tier 3). The listed
+     * hidden courses form their own population, the Hidden group; the listed population proper
+     * then holds visible courses only, for every viewer, the holder at the system context
+     * included. An archived hidden course stays in the archived population: Archived wins over
+     * Hidden, because the listed population never holds an archived course. The category layer
+     * gives the visible courses' categories and then the ancestors that form the groups — each
+     * list one read when cold, none when warm. An id the layer cannot resolve (a category deleted
+     * under a course) is absent from 'categories' and 'groupof': such a course groups under its own category id,
      * named "Uncategorised", rather than aborting the page. Nothing is formatted and no filter is
      * preloaded here: each caller preloads exactly the contexts of the names it ships.
      * build(), rows() and search() all route through here, so the three cannot drift apart.
      *
      * Reads: 1 for the inventory (stamp or fill; more on a stale hit or an empty fill, see
      * inventory::get()), 1 for the preference bundle, 1 per cold shared-layer list (coursemeta;
-     * categorymeta twice on a nested site).
+     * categorymeta twice on a nested site). The capability costs no read for the current user once
+     * core is warm: the session's access data and the role definitions' cache answer it.
      *
      * @param int $userid The viewer.
      * @param int $now Unix time to treat as now.
@@ -514,14 +564,17 @@ final class explore {
      * @param bool|null $pending Whether applications awaiting approval are listed; null for the setting.
      * @return array 'courses' (course id => inventory row plus 'situation', one of the
      *     access::RELATIONSHIP_* values relationship::SHOWN lists, the listed population), 'meta'
-     *     (course id => course_meta entry of a listed course, visibility applied), 'archived' and
-     *     'archivedmeta' (the same pair for the courses the user archived), 'categories' (category
-     *     id => category_meta entry, group ancestors included, for the listed courses only — the
-     *     archived group does not group by category), 'groupof' (category id => group category
-     *     id). Every list empty when there is nothing to show in either population.
+     *     (course id => course_meta entry of a listed visible course), 'invisiblemeta' (the same for
+     *     a listed hidden course the viewer may see; its row is in 'courses'), 'archived' and
+     *     'archivedmeta' (the same pair for the courses the user archived, visible or hidden),
+     *     'categories' (category id => category_meta entry, group ancestors included, for the
+     *     listed visible courses only — the hidden and archived groups do not group by category),
+     *     'groupof' (category id => group category id). Every list empty when there is nothing to
+     *     show in any population.
      */
     private static function resolve(int $userid, int $now, int $groupdepth, ?bool $pending): array {
-        $empty = ['courses' => [], 'meta' => [], 'archived' => [], 'archivedmeta' => [], 'categories' => [], 'groupof' => []];
+        $empty = ['courses' => [], 'meta' => [], 'invisiblemeta' => [], 'archived' => [], 'archivedmeta' => [],
+            'categories' => [], 'groupof' => []];
 
         $entry = inventory::get($userid);
         $hidden = hidden_courses::ids($userid);
@@ -558,26 +611,34 @@ final class explore {
         // get_many() over the union, so the archived group costs no read of its own; misses are
         // filled in one statement whichever list they come from.
         $allmeta = course_meta::get_many(array_merge(array_keys($courses), array_keys($archived)));
-        $seehidden = has_capability('moodle/course:viewhiddencourses', context_system::instance(), $userid);
+        $invisible = [];
         foreach ($allmeta as $courseid => $entrymeta) {
-            if (!$seehidden && !$entrymeta['visible']) {
-                unset($allmeta[$courseid]);
-            }
-            // A course core is deleting is left out for every viewer, the capability's holder too.
+            // A course core is deleting is left out for every viewer, before any capability is asked.
             if (course_meta::is_being_deleted($entrymeta)) {
                 unset($allmeta[$courseid]);
+                continue;
+            }
+            if (!course_meta::visible_to($entrymeta, $userid)) {
+                unset($allmeta[$courseid]);
+                continue;
+            }
+            if (!$entrymeta['visible']) {
+                $invisible[$courseid] = true;
             }
         }
-        $meta = array_intersect_key($allmeta, $courses);
+        $listed = array_intersect_key($allmeta, $courses);
+        $meta = array_diff_key($listed, $invisible);
+        $invisiblemeta = array_intersect_key($listed, $invisible);
         $archivedmeta = array_intersect_key($allmeta, $archived);
-        if (empty($meta) && empty($archivedmeta)) {
+        if (empty($meta) && empty($invisiblemeta) && empty($archivedmeta)) {
             return $empty;
         }
         if (empty($meta)) {
-            // Nothing listed to group, but the archive is still worth a header: it is how the
-            // learner gets a course back.
-            return ['courses' => $courses, 'meta' => [], 'archived' => $archived, 'archivedmeta' => $archivedmeta,
-                'categories' => [], 'groupof' => []];
+            // Nothing visible to group, but the hidden and archived groups are still worth their
+            // headers: the archive is how the learner gets a course back, and a teacher whose every
+            // course is hidden still has them.
+            return ['courses' => $courses, 'meta' => [], 'invisiblemeta' => $invisiblemeta, 'archived' => $archived,
+                'archivedmeta' => $archivedmeta, 'categories' => [], 'groupof' => []];
         }
 
         // The category layer: the listed courses' categories, then the ancestors that form the groups.
@@ -597,6 +658,7 @@ final class explore {
         return [
             'courses' => $courses,
             'meta' => $meta,
+            'invisiblemeta' => $invisiblemeta,
             'archived' => $archived,
             'archivedmeta' => $archivedmeta,
             'categories' => $categories,
@@ -607,19 +669,22 @@ final class explore {
     /**
      * The custom-field values of the given courses, from the coursefields layer.
      *
-     * Nothing is read when no field is configured. Otherwise the layer is asked for every eligible
-     * field, not only the configured ones: its entries are keyed by course alone, so an entry
-     * filled for the configured subset would go on answering after the administrator adds a field
-     * to filter_fields, a change no event reports, with that field's values missing. The callers
-     * read the configured fields out of the wider entry. The eligible set is the filterfields
-     * entry configured() has just read, so asking for it costs no read.
+     * Nothing is read when no field is configured and no kind is drawn. Otherwise the layer is
+     * asked for every eligible field, not only the configured ones: its entries are keyed by course
+     * alone, so an entry filled for the configured subset would go on answering after the
+     * administrator adds a field to filter_fields, a change no event reports, with that field's
+     * values missing. The callers read the configured fields, and the kind field, out of the wider
+     * entry; the kind field is eligible by construction (course_kinds::answer()), so it is in it.
+     * The eligible set is the filterfields entry configured() or course_kinds::answer() has just
+     * read, so asking for it costs no read.
      *
      * @param int[] $courseids The courses.
      * @param array $fields Entries from filter_fields::configured().
+     * @param int $kindfield The classifier field from course_kinds::pills(); 0 when no kind is drawn.
      * @return array Course id => [field id => stored value], every course present.
      */
-    private static function values(array $courseids, array $fields): array {
-        if (empty($fields) || empty($courseids)) {
+    private static function values(array $courseids, array $fields, int $kindfield = 0): array {
+        if ((empty($fields) && $kindfield === 0) || empty($courseids)) {
             return [];
         }
 
@@ -637,6 +702,7 @@ final class explore {
      * @param int $threshold The instant from dormancy::threshold().
      * @param array $values Course id => [field id => value], from values().
      * @param array $fields Entries from filter_fields::configured().
+     * @param array $kinds From course_kinds::pills().
      * @return array Rows keyed by course id, in the order of $courseids.
      */
     private static function ship(
@@ -647,7 +713,8 @@ final class explore {
         int $newwindow,
         int $threshold,
         array $values,
-        array $fields
+        array $fields,
+        array $kinds
     ): array {
         $contexts = [];
         foreach ($courseids as $courseid) {
@@ -665,7 +732,8 @@ final class explore {
                 $now,
                 $newwindow,
                 $threshold,
-                self::cf($values[$courseid] ?? [], $fields)
+                self::cf($values[$courseid] ?? [], $fields),
+                self::kd($values[$courseid] ?? [], $kinds)
             );
         }
 
@@ -892,10 +960,31 @@ final class explore {
     }
 
     /**
+     * A row's kd: the position of the course's kind in the response's kinds, or null for none.
+     *
+     * Null when no kind is drawn, and for a course of the default kind: no value, value 0, a value
+     * no kind describes or one whose kind is DEFAULT (course_kinds::pills() indexes only the drawn
+     * ones), as the catalogue reads a missing value as 0 (ADR-019 Q3). The value is the stored one,
+     * never the select's configured default: a kind describes what the course was given.
+     *
+     * @param array $values Field id => stored value for this course.
+     * @param array $kinds From course_kinds::pills().
+     * @return int|null
+     */
+    private static function kd(array $values, array $kinds): ?int {
+        if ($kinds['fieldid'] === 0) {
+            return null;
+        }
+
+        return $kinds['index'][$values[$kinds['fieldid']] ?? 0] ?? null;
+    }
+
+    /**
      * One tier 3 row, the shape {@see \block_compass\external\get_inventory_rows::row_fields()} pins:
      * id, name, opened, new, fav, dorm, then pend only on an application (with wait when it is on
      * the waiting list), sched only on an enrolment that starts later, comp only when the course's
-     * details will carry completion, and cf only when the row holds a field value.
+     * details will carry completion, cf only when the row holds a field value, invis only on a hidden
+     * course (visible = 0) and kd only on a course whose kind is drawn.
      *
      * dorm is the answer and not the inputs: the browser holds opened but not the enrolment
      * date, and the threshold is a site setting it does not have. sched is the start date
@@ -903,9 +992,11 @@ final class explore {
      * the browser's clock and timezone are not the user's. comp is cards::tracks_completion(),
      * the rule get_card_details answers hascompletion with: the row keeps the room for the
      * progress it will get from the moment it renders, so the answer landing moves nothing.
-     * pend, wait, sched, comp and cf are omitted rather than sent false or empty, because a
-     * VALUE_OPTIONAL return key the array leaves out never enters the response, so a row
-     * without them costs nothing for them.
+     * invis is the flag the client draws "Hidden from students" from where a hidden row sits among
+     * visible ones (the Archived group); hidden rows travel only in pages of the Hidden and Archived
+     * groups, so the first payload never carries it. pend, wait, sched, comp, cf, invis and kd are
+     * omitted rather than sent false or empty, because a VALUE_OPTIONAL return key the array leaves
+     * out never enters the response, so a row without them costs nothing for them.
      *
      * @param array $course A resolve() course row.
      * @param array $entrymeta The course's course_meta entry.
@@ -914,6 +1005,7 @@ final class explore {
      * @param int $newwindow Seconds during which a never-opened enrolment is new.
      * @param int $threshold The instant from dormancy::threshold().
      * @param int[] $cf The row's field values, from cf(); empty for none.
+     * @param int|null $kd The row's kind, from kd(); null for none.
      * @return array
      */
     private static function row(
@@ -923,7 +1015,8 @@ final class explore {
         int $now,
         int $newwindow,
         int $threshold,
-        array $cf
+        array $cf,
+        ?int $kd
     ): array {
         $row = [
             'id' => $course['courseid'],
@@ -947,6 +1040,12 @@ final class explore {
         }
         if (!empty($cf)) {
             $row['cf'] = $cf;
+        }
+        if (!$entrymeta['visible']) {
+            $row['invis'] = true;
+        }
+        if ($kd !== null) {
+            $row['kd'] = $kd;
         }
 
         return $row;

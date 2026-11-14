@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Which courses have gone quiet, and the two groups that are not categories.
+ * Which courses have gone quiet, and the three groups that are not categories.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -40,8 +40,8 @@ final class dormancy {
     /**
      * @var int The group id of the collapsed dormant group.
      *
-     * Negative on purpose: every other group id in the payload is a category id, and these two
-     * are not categories. get_inventory_rows accepts these two negatives explicitly and refuses
+     * Negative on purpose: every other group id in the payload is a category id, and these three
+     * are not categories. get_inventory_rows accepts these three negatives explicitly and refuses
      * any other, rather than letting a negative id fall through to a category lookup that would
      * answer nothing.
      */
@@ -49,6 +49,14 @@ final class dormancy {
 
     /** @var int The group id of the collapsed archived group; see GROUP_DORMANT. */
     public const GROUP_ARCHIVED = -2;
+
+    /**
+     * @var int The group id of the collapsed group of hidden courses (visible = 0); see GROUP_DORMANT.
+     *
+     * Named "invisible" and not "hidden" because hidden already means archived in this plugin: the
+     * Course overview block's block_myoverview_hidden_course_* preferences ({@see hidden_courses}).
+     */
+    public const GROUP_INVISIBLE = -3;
 
     /**
      * The instant a course must not have been touched since, to count as dormant.

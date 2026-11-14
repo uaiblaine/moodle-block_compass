@@ -22,3 +22,10 @@
 /mutations             export-ignore
 /phpcs.xml             export-ignore
 /.mdlshield            export-ignore
+# The development build: core's X.dev.js twin of every per-file output and every source map. A site
+# serves them only with developer debugging (the ESM route asks for X.dev.js when the revision is -1)
+# and falls back to X.js when the twin is absent (import_map::resolve_candidate_path()), so the
+# package runs the same without them; they stay tracked because `mdl ci` compares js/esm with a fresh
+# build. bundle_test pins both halves: these lines, and every file the import map can address kept.
+/js/esm/build/*.dev.js  export-ignore
+/js/esm/build/*.js.map  export-ignore

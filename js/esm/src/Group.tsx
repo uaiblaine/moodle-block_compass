@@ -32,7 +32,7 @@ import RetryNotice from './RetryNotice';
 import RowList from './RowList';
 import {fillCount} from './str';
 import type {RowDetails} from './rowdetails';
-import type {BlockConfig, InventoryRow} from './types';
+import type {BlockConfig, InventoryRow, RowKind} from './types';
 import {markup} from './markup';
 
 type GroupProps = {
@@ -56,6 +56,8 @@ type GroupProps = {
     focusfrom: number | null,
     anchor: string,
     toolbar?: ReactNode,
+    kinds: RowKind[],
+    markhidden: boolean,
     archived: boolean,
     onArchive: (courseid: number, name: string, archived: boolean) => void,
     onToggleFavourite: (courseid: number, favourite: boolean, fullname: string) => Promise<void>,
@@ -66,13 +68,15 @@ type GroupProps = {
  * The group.
  *
  * @param {object} props The group's identity and rows, its open and paging state, the
- *     block config, the view, the column count, the details store, the archive and star
- *     actions and the callbacks; see GroupProps.
+ *     block config, the view, the column count, the details store, the kinds a row's kd
+ *     indexes, whether a hidden row says so here, the archive and star actions and the
+ *     callbacks; see GroupProps.
  * @returns {object} The rendered disclosure.
  */
 const Group = ({
     id, name, count, rows, open, loading, failed, hasmore, config, now, lang, view, columns, details,
-    onToggle, onShowMore, onRetry, focusfrom, anchor, toolbar, archived, onArchive, onToggleFavourite, busy,
+    onToggle, onShowMore, onRetry, focusfrom, anchor, toolbar, kinds, markhidden, archived, onArchive, onToggleFavourite,
+    busy,
 }: GroupProps) => {
     const {labels, icons} = config;
     const more = useRef<HTMLButtonElement>(null);
@@ -169,6 +173,8 @@ const Group = ({
                     now={now}
                     lang={lang}
                     details={details}
+                    kinds={kinds}
+                    markhidden={markhidden}
                     archived={archived}
                     onArchive={onArchive}
                     onToggleFavourite={onToggleFavourite}

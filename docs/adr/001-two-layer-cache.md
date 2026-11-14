@@ -240,6 +240,10 @@ is on this endpoint — it is `ajax => true`, reachable only from JavaScript tha
 full Dashboard render in the same session already loaded, and `$USER->access`
 persists in the session. The budget test does not unset `$USER->access` to
 simulate a state the endpoint cannot reach.
+*(Amended 2026-11-13 by [ADR-021](021-hidden-courses-group-and-kind-pill.md): the system-context
+read is tier 1's alone. Tier 3 and `get_card_details` ask the capability per hidden course at the
+course context, `course_meta::visible_to()`, from the same session access data, at no read once core
+is warm.)*
 
 ## Consequences
 

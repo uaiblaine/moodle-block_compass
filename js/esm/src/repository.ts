@@ -231,12 +231,12 @@ export const getInventory = (): Promise<Inventory> =>
     read<Inventory>('block_compass_get_inventory', {});
 
 /**
- * One page of one group of tier 3: any group in paged mode, the archived group in both modes.
+ * One page of one group of tier 3: any group in paged mode, the archived and invisible groups in both modes.
  *
  * The chip, the sort and the custom-field filters are parameters because in paged mode the
  * browser does not hold the group's rows to filter or reorder them itself.
  *
- * @param {number} groupid The group: a category id, or GROUP_DORMANT or GROUP_ARCHIVED.
+ * @param {number} groupid The group: a category id, or GROUP_DORMANT, GROUP_ARCHIVED or GROUP_INVISIBLE.
  * @param {number} after Id of the last row the client holds; 0 for the first page.
  * @param {string} chip all, new, favourites or pending.
  * @param {string} sort name or recent.
