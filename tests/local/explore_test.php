@@ -490,6 +490,44 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
+     * A course in a category hidden after the entry was cached leaves tier 3, and comes back.
+     *
+     * Core hides the courses of a hidden category with no course_updated, so the cached visible
+     * flag is only as good as the course_category_updated observer. The warm build before the
+     * hide is the force: without it the course row would be read fresh and the test would pass
+     * with the observer removed. The observer runs after the commit, so the reset runs without the
+     * test case's rollback transaction, which would hold the event until the end.
+     *
+     * @return void
+     */
+    public function test_a_course_in_a_category_hidden_later_leaves_tier_three(): void {
+        global $DB;
+
+        $this->preventResetByRollback();
+        $tree = $this->tree();
+        $kept = $this->course_in((int) $tree['alpha']->id, 'Kept course');
+        $hidden = $this->course_in((int) $tree['betadept']->id, 'Hidden later');
+        foreach ([$kept, $hidden] as $course) {
+            $this->plugingen->enrol_at($this->userid, (int) $course->id, self::NOW - 100 * DAYSECS);
+        }
+        $this->assertSame(2, $this->build(1)['total']);
+        $this->assertSame(1, cache::make('block_compass', 'coursemeta')->get((int) $hidden->id)['visible']);
+
+        // The grandparent: the course sits two levels below the category that is hidden.
+        \core_course_category::get((int) $tree['zeta']->id, MUST_EXIST, true)->hide();
+
+        $this->assertSame('0', (string) $DB->get_field('course', 'visible', ['id' => $hidden->id]));
+        $after = $this->build(1);
+        $this->assertSame(1, $after['total']);
+        $this->assertSame(['Kept course'], $this->course_names($after['groups'][0]));
+        $this->assertSame([], $this->search('Hidden later')['rows']);
+
+        \core_course_category::get((int) $tree['zeta']->id, MUST_EXIST, true)->show();
+
+        $this->assertSame(2, $this->build(1)['total']);
+    }
+
+    /**
      * A deleted course disappears with nothing invalidating anything: the stamp saw the unenrolment.
      *
      * Deleting a course deletes its enrolments, which moves the stamp's count, so the entry is

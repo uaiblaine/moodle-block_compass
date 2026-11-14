@@ -184,4 +184,40 @@ final class course_meta {
     public static function delete(int $courseid): void {
         self::cache()->delete($courseid);
     }
+
+    /**
+     * Drop every course of a category and of its descendants, on course_category_updated.
+     *
+     * Core hides and shows a category by writing course.visible for the whole subtree without a
+     * course_updated event (core_course_category::hide_raw() and show_raw(), also reached by a
+     * move under a hidden parent), and a move rewrites the context path of every course beneath;
+     * both are columns an entry carries, and the definition has no TTL. The event does not say
+     * what changed ({@see category_meta::delete_descendants()}), so every update drops the set.
+     *
+     * A descendant's path holds "/<id>/", whether the paths are the old ones or the rebuilt ones.
+     *
+     * Index: course.category for the join; none on course_categories.path, so the category
+     * table is scanned, from an observer and never on a request that renders.
+     *
+     * @param int $categoryid The updated category.
+     * @return void
+     */
+    public static function delete_in_category(int $categoryid): void {
+        global $DB;
+
+        $ids = $DB->get_fieldset_sql(
+            "SELECT c.id
+               FROM {course} c
+               JOIN {course_categories} cc ON cc.id = c.category
+              WHERE cc.id = :categoryid
+                    OR " . $DB->sql_like('cc.path', ':pattern'),
+            [
+                'categoryid' => $categoryid,
+                'pattern' => '%/' . $DB->sql_like_escape((string) $categoryid) . '/%',
+            ]
+        );
+        if (!empty($ids)) {
+            self::cache()->delete_many(array_map('intval', $ids));
+        }
+    }
 }

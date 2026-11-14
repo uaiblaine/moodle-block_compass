@@ -26,8 +26,12 @@
 namespace block_compass;
 
 use advanced_testcase;
+use block_compass\local\calendar_preference;
+use block_compass\local\explore_preference;
+use block_compass\local\tier1_preference;
 use core_user;
 use PHPUnit\Framework\Attributes\CoversFunction;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * The four preferences the plugin writes, what core does with their definitions, and the icon map.
@@ -209,5 +213,122 @@ final class lib_test extends advanced_testcase {
 
         $this->assertTrue(core_user::can_edit_preference('block_compass_tier1', $me));
         $this->assertFalse(core_user::can_edit_preference('block_compass_tier1', $other));
+    }
+
+    /**
+     * The largest value each JSON preference's client writes, and the reader that holds its cap.
+     *
+     * The toolbar's: three configured fields (config::FILTER_FIELDS_MAX) with 100-character
+     * shortnames and 10-digit value keys; the calendar's: every member with 10-digit sign-ins;
+     * tier 1's: both surfaces with every strip at MAX_CARDS. Each is the derivation in its
+     * reader's MAX_BYTES docblock.
+     *
+     * @return array name => [preference name, the largest value, the reader's class].
+     */
+    public static function largest_values(): array {
+        $cf = [];
+        foreach (['a', 'b', 'c'] as $prefix) {
+            $cf[str_pad($prefix, 100, 'x')] = 2147483647;
+        }
+        $explore = ['sort' => 'category', 'scope' => 'scheduled', 'star' => false, 'cf' => $cf, 'panel' => false];
+        $calendar = [
+            'view' => 'learning',
+            'filter' => 'events',
+            'relevance' => false,
+            'open' => false,
+            'soon' => ['rank' => 3, 'signin' => 9999999999],
+            'news' => ['signin' => 9999999999],
+        ];
+        $strips = [];
+        foreach (tier1_preference::STRIPS as $strip) {
+            $strips[] = [$strip, tier1_preference::MAX_CARDS, false];
+        }
+        $surface = ['strips' => $strips, 'ghost' => false, 'pending' => false];
+        $tier1 = ['v' => tier1_preference::VERSION, 'dashboard' => $surface, 'page' => $surface];
+
+        return [
+            'explore' => [explore_preference::NAME, json_encode($explore), explore_preference::class],
+            'calendar' => [calendar_preference::NAME, json_encode($calendar), calendar_preference::class],
+            'tier1' => [tier1_preference::NAME, json_encode($tier1), tier1_preference::class],
+        ];
+    }
+
+    /**
+     * The same JSON object grown to exactly a length by a member no reader knows.
+     *
+     * @param string $json A JSON object.
+     * @param int $bytes The length wanted, at least the object's own plus 10.
+     * @return string
+     */
+    private static function padded(string $json, int $bytes): string {
+        $rest = substr($json, 1);
+
+        return '{"pad":"' . str_repeat('x', $bytes - strlen($rest) - 10) . '",' . $rest;
+    }
+
+    /**
+     * A value the reader reads passes cleaning byte for byte, up to the cap, and nothing longer does.
+     *
+     * The route refuses a value cleaning changes, so "passes" means identical. The largest value
+     * the client writes is the control that the cap leaves room for every legitimate payload, and
+     * the reader reading it is the control that it is one; padded to the cap it still passes, one
+     * byte more and it cleans to null, the declared default.
+     *
+     * @param string $name The preference.
+     * @param string $largest The largest value its client writes.
+     * @param string $reader The reader's class.
+     * @return void
+     */
+    #[DataProvider('largest_values')]
+    public function test_a_json_preference_passes_cleaning_up_to_its_cap_and_no_further(
+        string $name,
+        string $largest,
+        string $reader
+    ): void {
+        $this->resetAfterTest();
+
+        $this->assertLessThan($reader::MAX_BYTES, strlen($largest));
+        $this->assertNotNull($reader::decode($largest));
+        $this->assertSame($largest, core_user::clean_preference($largest, $name));
+
+        $atcap = self::padded($largest, $reader::MAX_BYTES);
+        $this->assertSame($reader::MAX_BYTES, strlen($atcap));
+        $this->assertSame($atcap, core_user::clean_preference($atcap, $name));
+
+        $over = self::padded($largest, $reader::MAX_BYTES + 1);
+        $this->assertNull(core_user::clean_preference($over, $name));
+    }
+
+    /**
+     * A value the reader cannot decode cleans to null, and so does a non-string; null stays null.
+     *
+     * @param string $name The preference.
+     * @param string $largest The largest value its client writes, the control.
+     * @return void
+     */
+    #[DataProvider('largest_values')]
+    public function test_a_json_preference_its_reader_cannot_decode_cleans_to_null(string $name, string $largest): void {
+        $this->resetAfterTest();
+
+        $this->assertSame($largest, core_user::clean_preference($largest, $name));
+        foreach (['', 'not json', '"a string"', '3', substr($largest, 0, -1)] as $malformed) {
+            $this->assertNull(core_user::clean_preference($malformed, $name), $malformed);
+        }
+        $this->assertNull(core_user::clean_preference(null, $name));
+    }
+
+    /**
+     * Tier 1's cleaning refuses another version, as its reader reads none of it.
+     *
+     * @return void
+     */
+    public function test_a_tier1_value_of_another_version_cleans_to_null(): void {
+        $this->resetAfterTest();
+        $member = '"dashboard":{"strips":[["continue",3,true]],"ghost":true,"pending":false}';
+        $current = '{"v":1,' . $member . '}';
+
+        $this->assertSame($current, core_user::clean_preference($current, tier1_preference::NAME));
+        $this->assertNull(core_user::clean_preference('{"v":2,' . $member . '}', tier1_preference::NAME));
+        $this->assertNull(core_user::clean_preference('{' . $member . '}', tier1_preference::NAME));
     }
 }
