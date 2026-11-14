@@ -17,6 +17,13 @@ import { fetchMany, fetchOne } from "@moodle/lms/core/ajax";
 import { amd } from "./amd";
 const RETRY_ATTEMPTS = 2;
 const RETRY_DELAY_MS = 2e3;
+const RETRY_JITTER_MS = 500;
+const retryDelay = /* @__PURE__ */ __name(() => {
+  if (document.body.classList.contains("behat-site")) {
+    return RETRY_DELAY_MS;
+  }
+  return RETRY_DELAY_MS + Math.round((Math.random() * 2 - 1) * RETRY_JITTER_MS);
+}, "retryDelay");
 let retrylistener = null;
 let retrying = 0;
 const onRetry = /* @__PURE__ */ __name((listener) => {
@@ -60,7 +67,7 @@ const read = /* @__PURE__ */ __name(async (methodname, args, first = null) => {
       if (retrylistener) {
         retrylistener(attempt + 1, RETRY_ATTEMPTS);
       }
-      await sleep(RETRY_DELAY_MS);
+      await sleep(retryDelay());
     }
   }
 }, "read");

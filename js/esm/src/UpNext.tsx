@@ -53,6 +53,7 @@ import {hold} from './pending';
 import {getSoon} from './repository';
 import {fill, fillCount, fillObject} from './str';
 import type {BlockConfig, CalendarConfig, CalendarView, DayItem, GateLists, SoonAnswer} from './types';
+import {markup} from './markup';
 
 /** A page hidden at least this long asks again through the gate when it is shown (decision 5). */
 const AWAY_MS = 15 * 60 * 1000;
@@ -744,7 +745,7 @@ const UpNext = ({
                                 <span
                                     className="compass-soon-glyph icon-no-margin"
                                     aria-hidden="true"
-                                    dangerouslySetInnerHTML={{__html: config.icons.close}}
+                                    dangerouslySetInnerHTML={markup(config.icons.close)}
                                 />
                                 <span className="compass-cal-tip" aria-hidden="true">{strings.cal_soon_hide}</span>
                             </button>

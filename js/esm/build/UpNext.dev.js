@@ -48,6 +48,7 @@ import { titleTag } from "./heading";
 import { hold } from "./pending";
 import { getSoon } from "./repository";
 import { fill, fillCount, fillObject } from "./str";
+import { markup } from "./markup";
 const AWAY_MS = 15 * 60 * 1e3;
 const ROWS = 2;
 const ANSWER_LIMIT = 10;
@@ -411,11 +412,11 @@ const UpNext = /* @__PURE__ */ __name(({
   if (failed) {
     return /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-fail", children: /* @__PURE__ */ jsxDEV(RetryNotice, { message: strings.cal_soon_error, retrying, config, onRetry: retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 713,
+      lineNumber: 714,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 712,
+      lineNumber: 713,
       columnNumber: 13
     });
   }
@@ -427,12 +428,12 @@ const UpNext = /* @__PURE__ */ __name(({
       /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-head", children: [
         /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-soon-title h6 mb-0", children: strings.cal_soon_title }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-          lineNumber: 727,
+          lineNumber: 728,
           columnNumber: 29
         }),
         /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-sub", children: fill(strings.cal_soon_horizon, String(calendar.soon.hours)) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-          lineNumber: 728,
+          lineNumber: 729,
           columnNumber: 29
         }),
         /* @__PURE__ */ jsxDEV(
@@ -454,19 +455,19 @@ const UpNext = /* @__PURE__ */ __name(({
                 {
                   className: "compass-soon-glyph icon-no-margin",
                   "aria-hidden": "true",
-                  dangerouslySetInnerHTML: { __html: config.icons.close }
+                  dangerouslySetInnerHTML: markup(config.icons.close)
                 },
                 void 0,
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 744,
+                  lineNumber: 745,
                   columnNumber: 33
                 }
               ),
               /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-tip", "aria-hidden": "true", children: strings.cal_soon_hide }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                lineNumber: 749,
+                lineNumber: 750,
                 columnNumber: 33
               })
             ]
@@ -475,13 +476,13 @@ const UpNext = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-            lineNumber: 732,
+            lineNumber: 733,
             columnNumber: 29
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-        lineNumber: 726,
+        lineNumber: 727,
         columnNumber: 25
       }),
       /* @__PURE__ */ jsxDEV("ul", { className: "compass-soon-list", children: rows.map((row) => {
@@ -499,24 +500,24 @@ const UpNext = /* @__PURE__ */ __name(({
               /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-when", children: [
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-time", children: clockOf(strings, item.timestart, now, timezone) }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 767,
+                  lineNumber: 768,
                   columnNumber: 45
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: countdownClass(row.level), children: [
                   row.level === LEVEL_NOW && /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-dot", "aria-hidden": "true" }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                    lineNumber: 772,
+                    lineNumber: 773,
                     columnNumber: 53
                   }),
                   countdownOf(strings, row, now, timezone)
                 ] }, void 0, true, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 770,
+                  lineNumber: 771,
                   columnNumber: 45
                 })
               ] }, void 0, true, {
                 fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                lineNumber: 766,
+                lineNumber: 767,
                 columnNumber: 41
               }),
               /* @__PURE__ */ jsxDEV(
@@ -526,7 +527,7 @@ const UpNext = /* @__PURE__ */ __name(({
                   "data-purpose": item.purpose,
                   children: item.iconurl && /* @__PURE__ */ jsxDEV("img", { className: "activityicon", src: item.iconurl, alt: "" }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                    lineNumber: 781,
+                    lineNumber: 782,
                     columnNumber: 62
                   })
                 },
@@ -534,31 +535,31 @@ const UpNext = /* @__PURE__ */ __name(({
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 777,
+                  lineNumber: 778,
                   columnNumber: 41
                 }
               ),
               /* @__PURE__ */ jsxDEV("div", { className: "compass-soon-what", children: [
                 /* @__PURE__ */ jsxDEV("a", { className: "compass-soon-name", href: item.viewurl, title: item.name, children: item.name }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 784,
+                  lineNumber: 785,
                   columnNumber: 45
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-soon-meta", children: [
                   item.courseshortname && /* @__PURE__ */ jsxDEV("span", { className: "compass-cal-course", title: item.courseshortname, children: item.courseshortname }, void 0, false, {
                     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                    lineNumber: 787,
+                    lineNumber: 788,
                     columnNumber: 53
                   }),
                   kindPillOf(item, strings, istoday, timezone)
                 ] }, void 0, true, {
                   fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                  lineNumber: 785,
+                  lineNumber: 786,
                   columnNumber: 45
                 })
               ] }, void 0, true, {
                 fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-                lineNumber: 783,
+                lineNumber: 784,
                 columnNumber: 41
               }),
               actionOf(item, strings, row.level === LEVEL_NOW)
@@ -568,13 +569,13 @@ const UpNext = /* @__PURE__ */ __name(({
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-            lineNumber: 758,
+            lineNumber: 759,
             columnNumber: 37
           }
         );
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-        lineNumber: 752,
+        lineNumber: 753,
         columnNumber: 25
       }),
       later > 0 && /* @__PURE__ */ jsxDEV("p", { className: "compass-soon-more", children: [
@@ -592,26 +593,26 @@ const UpNext = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-            lineNumber: 803,
+            lineNumber: 804,
             columnNumber: 33
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-        lineNumber: 800,
+        lineNumber: 801,
         columnNumber: 29
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 725,
+      lineNumber: 726,
       columnNumber: 21
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 724,
+      lineNumber: 725,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 723,
+      lineNumber: 724,
       columnNumber: 13
     }),
     hidden && /* @__PURE__ */ jsxDEV("p", { className: "compass-soon-quiet", children: [
@@ -633,18 +634,18 @@ const UpNext = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-          lineNumber: 819,
+          lineNumber: 820,
           columnNumber: 21
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-      lineNumber: 816,
+      lineNumber: 817,
       columnNumber: 17
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/UpNext.tsx",
-    lineNumber: 722,
+    lineNumber: 723,
     columnNumber: 9
   });
 }, "UpNext");

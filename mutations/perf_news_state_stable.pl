@@ -1,0 +1,1 @@
+s/return useMemo\(\n\s+\(\): NewsState => \(\{answer, failed, retrying, hidden, retry, hide\}\),\n\s+\[answer, failed, retrying, hidden, retry, hide\]\n\s+\);/return {answer, failed, retrying, hidden, retry, hide};/;
