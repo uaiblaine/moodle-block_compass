@@ -72,8 +72,11 @@ final class cache_definitions_test extends advanced_testcase {
      * An entry older than the TTL is a miss and the next read refills it from the row.
      *
      * Core's clock for a TTL is cache::now(), fixed at the first call of the request; the test moves it
-     * and drops the static copy, which core never checks against the TTL. Control: before the TTL the same
-     * read is a hit at zero database reads.
+     * and drops the static copy, which core never checks against the TTL. The clock moves from the real
+     * time, by twice the TTL: the file store of the test site compares the file's modification time, which
+     * is real, and core's clock may have been fixed by a test that ran minutes earlier, so one second past
+     * the TTL on core's clock is still a hit for an entry written a second after that clock was fixed.
+     * Control: before the TTL the same read is a hit at zero database reads.
      *
      * @return void
      */
@@ -92,7 +95,7 @@ final class cache_definitions_test extends advanced_testcase {
 
         $property = new \ReflectionProperty(cache::class, 'now');
         $original = $property->getValue();
-        $property->setValue(null, cache::now(true) + 601);
+        $property->setValue(null, microtime(true) + 1200);
         try {
             $this->forget_static_copies();
             $meter = budget::start();
