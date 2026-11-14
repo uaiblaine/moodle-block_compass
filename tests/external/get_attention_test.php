@@ -468,7 +468,7 @@ final class get_attention_test extends advanced_testcase {
      * fresh request pays; measure the second call. Accounting: the four strip and count
      * statements, the situations read (ADR-013), the preference load, the filter preload —
      * seven. coursemeta is
-     * written from the strip rows (set_from_rows()) and costs nothing; categorymeta is warm
+     * neither read nor written: the cards are built from the strip rows; categorymeta is warm
      * from the first call, the steady state of a busy site. The bound is asserted with the
      * number in the message, and the controls prove the call did the work.
      * The web service pays one read more than the domain method: validate_context() needs the
@@ -509,8 +509,8 @@ final class get_attention_test extends advanced_testcase {
      *
      * Same protocol, every definition purged — the first request after an install, an upgrade
      * or a cache purge. The one extra read is the categorymeta fill for the cards' categories,
-     * which the previous test keeps warm; coursemeta still costs nothing because the strip rows
-     * carry its columns.
+     * which the previous test keeps warm; coursemeta costs nothing because the cards are built from the strip
+     * rows and stored nowhere.
      *
      * @return void
      */

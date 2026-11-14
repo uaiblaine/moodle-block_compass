@@ -123,6 +123,33 @@ final class course_meta {
     }
 
     /**
+     * The given course ids that have no entry right now, in one cache read.
+     *
+     * For a writer that holds rows it read itself and wants to store only what was absent BEFORE its
+     * statement: an entry present at that point was written by a reader that missed, or deleted and
+     * refilled by the observers, so it is at least as fresh as anything the writer is about to read.
+     * Ask it before the statement, never after: an observer's delete makes the entry absent exactly
+     * when the stale store would happen.
+     *
+     * @param int[] $courseids Course ids.
+     * @return int[] The ids with no entry, as a list.
+     */
+    public static function absent(array $courseids): array {
+        $courseids = array_values(array_unique(array_map('intval', $courseids)));
+        if (empty($courseids)) {
+            return [];
+        }
+        $absent = [];
+        foreach (self::cache()->get_many($courseids) as $id => $entry) {
+            if ($entry === false) {
+                $absent[] = (int) $id;
+            }
+        }
+
+        return $absent;
+    }
+
+    /**
      * Store entries built from rows that carry select_sql()'s columns, and return them.
      *
      * Rows are not modified. Extra columns on a row are ignored.

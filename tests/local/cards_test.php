@@ -26,6 +26,7 @@
 namespace block_compass\local;
 
 use advanced_testcase;
+use core_cache\cache;
 use core_filters\filter_manager;
 use PHPUnit\Framework\Attributes\CoversClass;
 use stdClass;
@@ -1165,5 +1166,43 @@ final class cards_test extends advanced_testcase {
         $renderer->answer = 'data:image/svg+xml;base64,PHN2Zy8+';
         (cards::generated_images($settings, $renderer))([11, 12, 13]);
         $this->assertSame(3, $renderer->calls, 'control: the pattern is asked per course');
+    }
+
+    /**
+     * Tier 1 builds its cards from the rows and stores nothing in coursemeta.
+     *
+     * The rows were read before the call, and a category hide can commit while it runs: a store here
+     * could put the old visible back after the observer's delete (ADR-001, amendment of 2026-11-14).
+     * Control: the cards carry the rows' names, and get_many() on the same ids does fill the layer,
+     * with one read for the whole set.
+     *
+     * @return void
+     */
+    public function test_tier_one_stores_nothing_in_coursemeta(): void {
+        $first = $this->course('Alpha course');
+        $second = $this->course('Beta course');
+        $this->plugingen->enrol_at($this->userid, (int) $first->id, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, (int) $second->id, self::NOW - DAYSECS);
+        $coursemeta = cache::make('block_compass', 'coursemeta');
+        $coursemeta->purge();
+
+        $cards = $this->build_cards();
+
+        $names = [];
+        foreach ($cards as $strip) {
+            foreach ($strip as $card) {
+                $names[] = $card['fullname'] ?? null;
+            }
+        }
+        $this->assertContains('Alpha course', $names, 'Control: the cards were built from the rows.');
+        $this->assertContains('Beta course', $names);
+        $this->assertFalse($coursemeta->get((int) $first->id));
+        $this->assertFalse($coursemeta->get((int) $second->id));
+
+        $meter = budget::start();
+        $entries = course_meta::get_many([(int) $first->id, (int) $second->id]);
+        $this->assertSame(1, $meter->reads(), 'Control: a reader that misses fills the layer in one read.');
+        $this->assertCount(2, $entries);
+        $this->assertNotFalse($coursemeta->get((int) $first->id));
     }
 }

@@ -190,9 +190,8 @@ final class course_meta_test extends advanced_testcase {
     /**
      * set_from_rows() fills the cache from a query the caller already ran.
      *
-     * This is what keeps the first paint inside six reads: the three strip queries of attention
-     * select the course and context columns themselves, so the entries are written from those
-     * rows and coursemeta never needs a fill query of its own.
+     * get_many() fills a miss through it, and so does the calendar strip for the entries absent before
+     * its statement. Tier 1 builds its entries from the same columns but stores none of them.
      *
      * @return void
      */
