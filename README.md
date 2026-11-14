@@ -90,7 +90,9 @@ the cards always paint first.
 - **Studying and Teaching.** A user who learns in some courses and teaches in others gets a
   switch between the two views; which courses are learning ones follows the site's graded roles
   (`gradebookroles`). The teaching view counts the submissions waiting to be graded, in the same
-  group core's grading page shows that teacher first, beside the class's deadlines. An
+  group core's grading page shows that teacher first, beside the class's deadlines; a teacher
+  in no group of an activity in separate groups, without access to all groups, is shown no
+  grading work for it, since core's grading page lets them grade none of it. An
   *Everything* / *To do* / *Events* filter narrows either view. Both choices are remembered per
   user. Closed, the teaching line counts grading work only with `block_feedback_tracker` (below),
   as a *To grade* cell before the periods; without it, it counts the class's deadlines and
@@ -209,7 +211,8 @@ suggestions are the server's search hits. Nothing is configured per learner.
 With `enable_page` on, `/blocks/compass/index.php` shows the block's content alone, on the
 theme's page without block regions. While it is on, "Compass" is offered under *Site
 administration > Appearance > Navigation > Start page for users* and in each user's home page
-preference. Off, or while the block type is hidden under *Manage blocks*, the page redirects to the Dashboard.
+preference, unless the block type is hidden under *Manage blocks*. Off, or while the block type is hidden, the
+page redirects to the Dashboard.
 Guests are sent to the front page.
 
 ![Compass on a phone: the strip with three past days and a peek of the next, and a day card as a bottom sheet](docs/screenshots/mobile.png)
@@ -355,6 +358,15 @@ store as the default application store. The block works without it, but every we
 rebuilds each user's caches in its own file store, and performance on a large site degrades
 severely. The settings page repeats this notice.
 
+The user's `calendarstrip`, `news` and `details` entries that role, enrolment, group, cohort and
+completion events drop are deleted in batches, one delete per cache for up to 200 users, so an
+enrolment sync or a cohort of 10,000 users does not send a delete per event to the store. A batch
+is sent when it holds 200 entries, at the end of the request, at the next event once its oldest
+delete has waited 5 seconds, and before the same request reads or writes one of those entries. Another web
+node may therefore serve such an entry until the request that changed the user's access ends (in
+a cron process, until its next event 5 seconds on, or its end); the entries' own TTLs still bound
+it. Deleting an account drops its entries at once.
+
 **Course crests**
 
 Compass names no theme. To draw a course's institutional crests it dispatches its own hook,
@@ -498,9 +510,9 @@ Data stored
 | `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next and whether the user hid the open-for-enrolment line, each for that sign-in: the hidden states keep the session's login time (`$USER->currentlogin`) and lapse at the next sign-in. | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_tier1` | User preference | The shape the first strips last settled to on the Dashboard and on the block's own page, so the next page holds their place before they load: which strips showed, how many cards each (at most 24) and whether any showed progress, whether the more-courses card and the applications notice showed. No course, name or date. Written by the browser only when the shape changes. | Until changed | Uninstalling the plugin; deleting the account |
 | `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star, whether the course is completed and, for an application awaiting approval, its enrolment method's id) and the stamp that tells whether they are still current; no course data. | 24 hours | Its TTL; deleting the account; purging caches |
-| `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; deleting the account; purging caches |
-| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work, the course ids behind each day, the sets of courses and groups a day reuses, the days opened, the first day, the timezone and the sign-in it was built for. | 30 minutes | Its TTL; deleting the account; purging caches |
-| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link, with the category and course names already formatted in the user's language) and the sign-in, language and catalogue digest it was built from. | 30 minutes | Its TTL; deleting the account; purging caches |
+| `details` | MUC cache, per user and course | The user's progress percentage in a course, or that completion is not tracked for them. | 1 hour | Its TTL; the user's completion of an activity or the course (batched, see *Cache stores*); deleting the account; purging caches |
+| `calendarstrip` | MUC cache, per user | The strip's counts per day of the user's calendar events, completion and grading work, the course ids behind each day, the sets of courses and groups a day reuses, the days opened, the first day, the timezone and the sign-in it was built for. | 30 minutes | Its TTL; a change of the user's role, enrolment, group or cohort (batched, see *Cache stores*); deleting the account; purging caches |
+| `news` | MUC cache, per user | The open-for-enrolment line's answer for the user: up to 20 groups (category, count, link, with the category and course names already formatted in the user's language) and the sign-in, language and catalogue digest it was built from. | 30 minutes | Its TTL; a change of the user's role, enrolment, group or cohort (batched, see *Cache stores*); deleting the account; purging caches |
 | `catalogue` | MUC cache, shared | The courses that are visible and listed, start inside the band and offer an enrolment route open now: course, category and start date, up to 500. No personal data. | Rebuilt after a course, enrolment method or discoverability change, and at most every 10 minutes | Core's events; purging caches |
 | `coursemeta`, `categorymeta`, `coursefields`, `filterfields` | MUC caches, shared | Course and category names, dates and custom field values: no personal data. | Until the course, category or field changes | Core's events; purging caches |
 | `prewarm_cursor`, `prewarm_since`, `prewarm_lastsweep` | Plugin configuration | Where the pre-warming task stopped (a user id), the activity window it walks and when it last finished a sweep. Site state. | Until the next run | Uninstalling the plugin |
