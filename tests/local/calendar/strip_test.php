@@ -105,6 +105,34 @@ final class strip_test extends advanced_testcase {
     }
 
     /**
+     * Revalidation reads the stamp statement and never the per-user inventory entry.
+     *
+     * The inventory entry is replaced by one no reader can use: a stamp that matches nothing and no rows.
+     * Through inventory::get() it would be refilled (the stamp differs) and overwritten; through the stamp
+     * statement it is never read, so it is still there after the revalidation. The control: nothing
+     * changed since the build, so the entry handed back is the cached one, and the stamp the statement
+     * answers is the one the strip entry was built under, which a fill would also derive.
+     *
+     * @return void
+     */
+    public function test_revalidation_never_loads_the_inventory_entry(): void {
+        [$userid, , $tz] = $this->revalidation_fixture();
+        $now = time();
+        $entry = strip::entry($userid, $now, 1700000000, $tz);
+        $this->assertSame($entry['stamp'], inventory::stamp($userid), 'Control: nothing changed since the build.');
+        $unusable = ['stamp' => ['enrolments' => -1], 'rows' => []];
+        cache::make('block_compass', 'inventory')->set($userid, $unusable);
+        $this->new_request();
+
+        $meter = budget::start();
+        $kept = strip::revalidated($userid, $entry, $now, 1700000000, $tz);
+
+        $this->assertSame($entry, $kept, 'Nothing changed: the cached entry is served.');
+        $this->assertSame(2, $meter->reads(), 'the stamp statement and the groups');
+        $this->assertSame($unusable, cache::make('block_compass', 'inventory')->get($userid), 'the inventory entry was refilled');
+    }
+
+    /**
      * A course visit rebuilds a bounded entry: above inventory_max the set keeps the most recently opened.
      *
      * The same visit with inventory_max at 1, so the set holds one of the two courses; the course

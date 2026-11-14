@@ -839,6 +839,9 @@ final class observer_test extends advanced_testcase {
         delete_user($doomed);
 
         $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
+        // Read raw: the reader would send the batch the account's enrolment and role events queued.
+        $raw = cache::make('block_compass', 'calendarstrip');
+        $this->assertFalse($raw->get($doomedid), 'the account\'s strip waited for a batch');
         $this->assertFalse(calendar_cache::get($doomedid), 'the deleted account kept its calendar strip');
         $this->assertNotFalse(calendar_cache::get($bystanderid));
     }
@@ -1018,6 +1021,7 @@ final class observer_test extends advanced_testcase {
         delete_user($doomed);
 
         $this->assertSame(1, (int) $DB->get_field('user', 'deleted', ['id' => $doomedid]));
+        $this->assertFalse(cache::make('block_compass', 'news')->get($doomedid), 'the account\'s entry waited for a batch');
         $this->assertFalse(news_cache::get($doomedid), 'the deleted account kept its open-courses entry');
         $this->assertNotFalse(news_cache::get($bystanderid));
     }
@@ -1048,6 +1052,11 @@ final class observer_test extends advanced_testcase {
      * A reopened day is served from the strip entry without asking again, and the line's candidates
      * were filtered by the user's roles and cohorts: either would keep showing what the lost membership
      * allowed until its TTL. The other user's entries are the control.
+     *
+     * The deletes are batched ({@see \block_compass\local\pending_deletes}): the entries are read
+     * through their readers, as the strip and the line read them, which send this process's batch first.
+     * The raw definition still holding the user's entry right after the event is the precondition that
+     * the delete was batched, not sent per event.
      *
      * @return void
      */
@@ -1088,8 +1097,11 @@ final class observer_test extends advanced_testcase {
 
             $lose();
 
-            $this->assertFalse($strip->get((int) $user->id), $what . ': the strip entry survived');
-            $this->assertFalse($news->get((int) $user->id), $what . ': the news entry survived');
+            $this->assertSame(['marker' => $what], $strip->get((int) $user->id), $what . ': the delete was not batched');
+            $this->assertFalse(calendar_cache::get((int) $user->id), $what . ': the strip entry survived');
+            $this->assertFalse(news_cache::get((int) $user->id), $what . ': the news entry survived');
+            $this->assertFalse($strip->get((int) $user->id), $what . ': the batch was not sent');
+            $this->assertFalse($news->get((int) $user->id));
             $this->assertSame(['marker' => $what], $strip->get((int) $other->id), $what . ': another user lost theirs');
             $this->assertSame(['marker' => $what], $news->get((int) $other->id));
         }

@@ -17,6 +17,7 @@
 namespace block_compass;
 
 use block_compass\local\config;
+use block_compass\local\session_guard;
 use core\hook\output\before_standard_top_of_body_html_generation;
 use core\lang_string;
 use core\route\controller\esm_controller;
@@ -123,20 +124,24 @@ class hook_callbacks {
     }
 
     /**
-     * Offer the block's own page as a start page, while the page is enabled.
+     * Offer the block's own page as a start page, while the page and the block type are enabled.
      *
      * The option's key is the page's local path, which core validates as a local URL on every
-     * read (lib/moodlelib.php:10098-10115); its label is the block's name. Core dispatches this
-     * hook wherever it builds the home page choices - the setting, the preferences form, the
-     * site registration form - and wherever it builds the preference registry, which includes
-     * every preference write its router validates; the callback costs one config read.
+     * read (lib/moodlelib.php, get_default_home_page_url()); its label is the block's name. While
+     * the block type is hidden on Manage blocks the page redirects to the Dashboard
+     * ({@see \block_compass\output\page::require_access()}), so the option would lead nowhere.
+     * Core dispatches this hook wherever it builds the home page choices - the setting, the
+     * preferences form, the site registration form - and wherever it builds the preference
+     * registry, which includes every preference write its router validates; the callback costs
+     * one config read and the plugin manager's enabled list, which comes from its application
+     * cache on a warm site ({@see session_guard::block_enabled()}), not from the database.
      *
      * @param extend_default_homepage $hook The hook.
      * @return void
      */
     public static function extend_default_homepage(extend_default_homepage $hook): void {
         try {
-            if (during_initial_install() || !config::page_enabled()) {
+            if (during_initial_install() || !config::page_enabled() || !session_guard::block_enabled()) {
                 return;
             }
             $hook->add_option(new url('/blocks/compass/index.php'), new lang_string('pluginname', 'block_compass'));

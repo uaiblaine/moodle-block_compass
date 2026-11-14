@@ -81,10 +81,14 @@ final class calendar_cache {
     /**
      * The user's entry as cached, whether fresh or not.
      *
+     * A delete this process's own events asked for is sent first ({@see pending_deletes::before_access()}),
+     * so an entry dropped earlier in the request is never read back.
+     *
      * @param int $userid The user.
      * @return array|false The entry, or false on a miss.
      */
     public static function get(int $userid) {
+        pending_deletes::instance()->before_access($userid);
         $entry = self::cache()->get($userid);
 
         return is_array($entry) ? $entry : false;
@@ -200,11 +204,15 @@ final class calendar_cache {
     /**
      * Store an entry, replacing whatever the user had.
      *
+     * A delete this process's own events asked for is sent first, so it never drops the entry written
+     * after it ({@see pending_deletes::before_access()}).
+     *
      * @param int $userid The user.
      * @param array $entry The entry.
      * @return void
      */
     public static function set(int $userid, array $entry): void {
+        pending_deletes::instance()->before_access($userid);
         self::cache()->set($userid, $entry);
     }
 
@@ -234,6 +242,7 @@ final class calendar_cache {
      */
     public static function set_day(int $userid, array $entry, string $key, array $day): array {
         $entry['days'][$key] = $day;
+        pending_deletes::instance()->before_access($userid);
         self::cache()->set($userid, $entry);
 
         return $entry;
@@ -247,5 +256,15 @@ final class calendar_cache {
      */
     public static function delete(int $userid): void {
         self::cache()->delete($userid);
+    }
+
+    /**
+     * Drop several users' entries in one delete_many, for {@see pending_deletes}.
+     *
+     * @param int[] $userids The users.
+     * @return void
+     */
+    public static function delete_many(array $userids): void {
+        self::cache()->delete_many(array_values(array_map('intval', $userids)));
     }
 }

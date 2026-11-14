@@ -534,3 +534,56 @@ None of the four layers above stores localised text (raw names, ids and numbers;
 happens at read time), so none is keyed by language. A cache that does store it, as the
 `calendarstrip` entry does (ADR-014 decision 8), must record `current_language()` and treat
 another language as a miss.
+
+## Amendment (2026-11-13): the access and completion deletes go in batches
+
+The maintainer decided on 2026-11-13. Since every observer runs after the commit (`'internal' => false`),
+`observer::access_changed()` (role assigned or unassigned, user enrolment updated or deleted, group member added
+or removed, cohort member added or removed) deleted the user's `calendarstrip` and `news` entries per event, and
+`observer::completion_updated()` one `details` entry. All three definitions have a TTL, so on Redis each delete
+is two commands (the hash field and the TTL set's member): a cohort sync or a CSV enrolment of 10,000 users sent
+40,000 to 120,000 commands while it waited.
+
+**Decision.** The two observers hand their keys to `classes/local/pending_deletes.php`, which sends them as one
+`delete_many` per definition, through the wrappers (`calendar_cache::delete_many()`, `news_cache::delete_many()`,
+`details::delete_keys()`):
+- when 200 entries are pending (`BOUND`: two hundredfold fewer commands for a large sync, a batch of a few
+  kilobytes of keys, and a burst waiting well under a second; a larger bound gains little and widens the window);
+- at the end of the request, through `\core_shutdown_manager::register_function()`, registered once per
+  instance; core runs it after an uncaught exception too;
+- at the next event once the oldest pending delete has waited more than 5 seconds (`WAIT`), in any process. In
+  CLI the end of the request may be minutes away: cron runs task after task in one process and keeps it alive
+  between runs. Core 5.3 dispatches no hook and triggers no event when a scheduled or adhoc task ends (the one
+  task hook, `after_failed_task_max_delay`, fires on exhaustion only, `lib/classes/task/manager.php:1372-1375`),
+  so the time bound is the only seam there; a cron container that exits after its run flushes at its shutdown;
+- before the same process reads or writes an entry of a pending user: the wrappers' readers
+  (`calendar_cache::get()`, `news_cache::get()`, `details::get_many()`) and writers (`calendar_cache::set()` and
+  `set_day()`, `news_cache::set()`, `details::set()`) call `pending_deletes::before_access()` first, two lookups
+  in memory when nothing is pending for that user. A web request that enrols the current user and then renders
+  their strip never reads the dropped entry, a value computed after the event is never dropped by the later
+  batch, and neither holds less for a task that reads or writes entries after changing access: within the
+  process the order is the one immediate deletes had. This was chosen over keeping immediate deletes for the
+  current `$USER`, which a CLI process has not.
+A delete that throws keeps its keys pending, so the next flush (at the latest the shutdown's) sends them again.
+`user_deleted` is not batched: an account's entries go at once.
+
+**Staleness added**, for a reader in another process on any node: the dropped entry may be served until this
+process sends the batch, at most 5 seconds after its oldest delete when another event follows, else until the
+request ends or the CLI process does (a cron's keepalive, three minutes by default). The entries' own TTLs
+still bound it (30 minutes for `calendarstrip` and `news`, one hour for `details`), and a `calendarstrip` entry
+is checked against the inventory stamp and the group set whenever a new day opens (`strip::revalidated()`).
+
+**Cluster.** The pending set is node-local, per-process state, held by core's DI container (`\core\di`, so
+PHPUnit resets it between tests). That is correct here: it only delays deletes of shared entries that this
+process's own events asked for; nothing else reads it and no node decides anything from it.
+
+Pinned by `tests/local/pending_deletes_test.php` (the deletes counted at the class's `delete()` seam through a
+recorder put in the DI container: many events send one delete per definition, the bound, the wait, the shutdown
+after an exception, a failed delete kept, every reader and writer sending the batch first and a reader of
+another user sending nothing) and by `observer_test`, whose access case now reads the entries through their readers and checks
+the raw definition first (batched) and after (sent), and whose two account-deletion cases read the raw
+definition (immediate). Gates `observer_access_batched`, `observer_completion_batched`,
+`observer_user_deleted_immediate`, `pending_bound`, `pending_wait`, `pending_shutdown`, `pending_keep_on_failure`,
+`pending_reader_scope`, `pending_read_strip`, `pending_read_news`, `pending_read_details`, `pending_write_strip`,
+`pending_write_day`, `pending_write_news`, `pending_write_details`; `sec_obs_access_strip`
+and `sec_obs_access_news` re-pointed at the batch.
