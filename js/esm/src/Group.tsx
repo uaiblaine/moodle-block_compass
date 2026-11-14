@@ -33,6 +33,7 @@ import RowList from './RowList';
 import {fillCount} from './str';
 import type {RowDetails} from './rowdetails';
 import type {BlockConfig, InventoryRow} from './types';
+import {markup} from './markup';
 
 type GroupProps = {
     id: number,
@@ -127,10 +128,10 @@ const Group = ({
                             : 'compass-group-chevron icons-collapse-expand collapsed'}
                         aria-hidden="true"
                     >
-                        <span className="expanded-icon icon-no-margin p-1" dangerouslySetInnerHTML={{__html: icons.expanded}} />
+                        <span className="expanded-icon icon-no-margin p-1" dangerouslySetInnerHTML={markup(icons.expanded)} />
                         <span className="collapsed-icon icon-no-margin p-1">
-                            <span className="dir-rtl-hide" dangerouslySetInnerHTML={{__html: icons.collapsed}} />
-                            <span className="dir-ltr-hide" dangerouslySetInnerHTML={{__html: icons.collapsedrtl}} />
+                            <span className="dir-rtl-hide" dangerouslySetInnerHTML={markup(icons.collapsed)} />
+                            <span className="dir-ltr-hide" dangerouslySetInnerHTML={markup(icons.collapsedrtl)} />
                         </span>
                     </span>
                     {name}

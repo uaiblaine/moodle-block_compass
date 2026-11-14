@@ -93,9 +93,20 @@ import type {
     BlockConfig, CalendarConfig, CalendarFilter, CalendarKind, CalendarState, CalendarView, LineTarget, SoonMember, StripCounts,
     StripPayload, StripWeight,
 } from './types';
+import {markup} from './markup';
 
 /** Below this width of the block, in CSS px, a half day peeks, and a day opens as a bottom sheet. */
 const NARROW_PX = 640;
+
+/**
+ * Whether the block is narrow for the strip: measured, and under NARROW_PX. The block keeps the answer, not its
+ * width, so a resize that leaves it alone renders nothing; the strip's own ResizeObserver on its head renders
+ * it for the row's geometry and the closed line's fit.
+ *
+ * @param {number} width The block's content width, in CSS px; 0 before it has been measured.
+ * @returns {boolean} Whether the strip takes its narrow form.
+ */
+export const calendarNarrow = (width: number): boolean => width > 0 && width < NARROW_PX;
 
 /**
  * No course to outline, as one array for the life of the page: the block keeps what it is handed in state, and a
@@ -133,7 +144,11 @@ type CalendarStripProps = {
     config: BlockConfig,
     calendar: CalendarConfig,
     turn: number,
-    width: number,
+    // Whether the block is narrow (calendarNarrow()): a half day peeks, and a day opens as a bottom sheet.
+    narrow: boolean,
+    // The block's measured width, read only while the row has not been measured yet; a ref, so a resize
+    // renders the strip through its own observer, never through the block.
+    blockwidth: {current: number},
     // The course a tier 1 card is pointed at, or null: its days light, the others dim (decision 9).
     pointedCourse: number | null,
     // Told the course ids of the open day (empty when none is open), for the cards' outline.
@@ -467,7 +482,7 @@ const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): st
  * The strip.
  *
  * @param {object} props The block config, the calendar props, the turn (0 until tier 1 has
- *     settled, then bumped by tier 1's Try again), the block's measured width and the lighting; see
+ *     settled, then bumped by tier 1's Try again), the block's narrow flag and width and the lighting; see
  *     CalendarStripProps.
  * @returns {object} The rendered strip, open or closed, or nothing.
  */
@@ -475,7 +490,7 @@ const columnClass = (today: boolean, mark: DayOff['mark'], lighting: string): st
 // a refactor of its own, so the count is acknowledged here.
 // eslint-disable-next-line complexity
 const CalendarStrip = ({
-    config, calendar, turn, width, pointedCourse, onOpenCourses, onWeight, batched, stripopen,
+    config, calendar, turn, narrow, blockwidth, pointedCourse, onOpenCourses, onWeight, batched, stripopen,
 }: CalendarStripProps) => {
     const {strings} = calendar;
     // Open: the row of days; closed: the line of counts. Seeded from the props, so the first paint has
@@ -607,9 +622,8 @@ const CalendarStrip = ({
     }, [waiting]);
     useEffect(() => () => release.current?.(), []);
 
-    const narrow = width > 0 && width < NARROW_PX;
     // The row's geometry from the scroller's measured width, the block's until it has been measured.
-    const rowwidth = rowview.rowwidth > 0 ? rowview.rowwidth : width;
+    const rowwidth = rowview.rowwidth > 0 ? rowview.rowwidth : blockwidth.current;
     const row = fit(rowwidth, narrow, calendar.style);
     const stepdays = stepOf(row.whole);
     // The closed line's counts: summed from the payload once the strip has been open, else the service's.
@@ -1570,7 +1584,7 @@ const CalendarStrip = ({
                             aria-pressed={drawn === which}
                             onClick={() => chooseView(which)}
                         >
-                            <span className="compass-cal-glyph" aria-hidden="true" dangerouslySetInnerHTML={{__html: glyph}} />
+                            <span className="compass-cal-glyph" aria-hidden="true" dangerouslySetInnerHTML={markup(glyph)} />
                             {name}
                         </button>
                     ))}
@@ -1600,7 +1614,7 @@ const CalendarStrip = ({
                         <span
                             className="compass-cal-glyph icon-no-margin"
                             aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: glyph}}
+                            dangerouslySetInnerHTML={markup(glyph)}
                         />
                         <span className="compass-cal-tip" aria-hidden="true">{name}</span>
                     </button>
@@ -1640,7 +1654,7 @@ const CalendarStrip = ({
                 <span
                     className="compass-cal-glyph icon-no-margin"
                     aria-hidden="true"
-                    dangerouslySetInnerHTML={{__html: calendar.icons.calendar}}
+                    dangerouslySetInnerHTML={markup(calendar.icons.calendar)}
                 />
             </a>
         </div>
@@ -1689,11 +1703,11 @@ const CalendarStrip = ({
                         >
                             <span
                                 className="expanded-icon icon-no-margin"
-                                dangerouslySetInnerHTML={{__html: config.icons.expanded}}
+                                dangerouslySetInnerHTML={markup(config.icons.expanded)}
                             />
                             <span className="collapsed-icon icon-no-margin">
-                                <span className="dir-rtl-hide" dangerouslySetInnerHTML={{__html: config.icons.collapsed}} />
-                                <span className="dir-ltr-hide" dangerouslySetInnerHTML={{__html: config.icons.collapsedrtl}} />
+                                <span className="dir-rtl-hide" dangerouslySetInnerHTML={markup(config.icons.collapsed)} />
+                                <span className="dir-ltr-hide" dangerouslySetInnerHTML={markup(config.icons.collapsedrtl)} />
                             </span>
                         </span>
                         {strings.cal_region}
@@ -2364,12 +2378,12 @@ const CalendarStrip = ({
                             <span
                                 className="compass-cal-chevron icon-no-margin dir-rtl-hide"
                                 aria-hidden="true"
-                                dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                                dangerouslySetInnerHTML={markup(calendar.icons.prev)}
                             />
                             <span
                                 className="compass-cal-chevron icon-no-margin dir-ltr-hide"
                                 aria-hidden="true"
-                                dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                                dangerouslySetInnerHTML={markup(calendar.icons.next)}
                             />
                         </button>
                     )}
@@ -2386,12 +2400,12 @@ const CalendarStrip = ({
                             <span
                                 className="compass-cal-chevron icon-no-margin dir-rtl-hide"
                                 aria-hidden="true"
-                                dangerouslySetInnerHTML={{__html: calendar.icons.next}}
+                                dangerouslySetInnerHTML={markup(calendar.icons.next)}
                             />
                             <span
                                 className="compass-cal-chevron icon-no-margin dir-ltr-hide"
                                 aria-hidden="true"
-                                dangerouslySetInnerHTML={{__html: calendar.icons.prev}}
+                                dangerouslySetInnerHTML={markup(calendar.icons.prev)}
                             />
                         </button>
                     )}
