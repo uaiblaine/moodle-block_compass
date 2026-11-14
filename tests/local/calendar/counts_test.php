@@ -296,6 +296,66 @@ final class counts_test extends advanced_testcase {
     }
 
     /**
+     * Completing a counted-only entry counts no grading work in a course moved since the count out of reach.
+     *
+     * The grader's role is at a category; the counts pass defers two assignments under it, then one
+     * course moves to a category where the grader has no role. The entry stored the module context's
+     * path of the count, so its capability checks would still read the old category. Controls: core
+     * now refuses mod/assign:grade in the moved course, and the course left in place keeps its
+     * grading work. The context cache is reset between the two, as a new request would start.
+     *
+     * @return void
+     */
+    public function test_a_course_moved_out_of_the_graders_reach_counts_no_grading_on_completion(): void {
+        global $CFG, $DB, $USER;
+
+        require_once($CFG->dirroot . '/course/lib.php');
+        // The move's course_updated drops the course layer after the commit.
+        $this->preventResetByRollback();
+        set_config('calendar_grading', 'core', 'block_compass');
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $graded = $gen->create_category();
+        $elsewhere = $gen->create_category();
+        $grader = $gen->create_user();
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher']);
+        role_assign($roleid, $grader->id, \core\context\coursecat::instance((int) $graded->id));
+        $assigns = [];
+        foreach (['kept' => 2, 'moved' => 3] as $name => $days) {
+            $course = $gen->create_course(['category' => $graded->id]);
+            $gen->enrol_user($grader->id, $course->id, 'student');
+            $assign = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $now + $days * DAYSECS]);
+            $student = $gen->create_user();
+            $gen->enrol_user($student->id, $course->id, 'student');
+            $this->submission((int) $assign->id, (int) $student->id, $now - HOURSECS);
+            $assigns[$name] = [$course, $assign];
+        }
+        $this->setUser($grader);
+        $tz = \core_date::get_user_timezone_object();
+        $userid = (int) $USER->id;
+        $signin = (int) $USER->currentlogin;
+
+        strip::counts($userid, $now, $signin, $tz);
+        $deferred = array_column(calendar_cache::get($userid)['deferred'], 'instance');
+        sort($deferred);
+        $this->assertSame([(int) $assigns['kept'][1]->id, (int) $assigns['moved'][1]->id], $deferred);
+
+        update_course((object) ['id' => $assigns['moved'][0]->id, 'category' => $elsewhere->id]);
+        \core\context_helper::reset_caches();
+        $movedcontext = \core\context\module::instance((int) $assigns['moved'][1]->cmid);
+        $this->assertFalse(has_capability('mod/assign:grade', $movedcontext, $userid));
+        // The control loaded the current context; the completion must not find it cached.
+        \core\context_helper::reset_caches();
+
+        $days = strip::get($userid, $now, $signin, $tz)['views']['teaching']['days'];
+
+        $keptday = strip::local_day($now + 2 * DAYSECS, $tz);
+        $movedday = strip::local_day($now + 3 * DAYSECS, $tz);
+        $this->assertSame(1, $days[$keptday]['grade'] ?? 0, 'the course left in place keeps its grading work');
+        $this->assertSame(0, $days[$movedday]['grade'] ?? 0);
+    }
+
+    /**
      * A learning day of the payload, as finish() leaves it.
      *
      * @param array $counts Kind => count; the others are 0.

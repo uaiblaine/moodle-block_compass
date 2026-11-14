@@ -128,7 +128,8 @@ final class inventory {
      * is nothing to carry them, so the stamp statement runs instead.
      * Index: user_enrolments (userid) foreign key; enrol primary key;
      * user_lastaccess (userid, courseid); favourite (userid) foreign key;
-     * course_completions (userid, course) unique.
+     * course_completions (userid, course) unique. The latest completion is
+     * MAX(timecompleted + 0) for the reason given at {@see self::stamp()}.
      *
      * @param int $userid The user.
      * @return array The stored entry.
@@ -165,7 +166,7 @@ final class inventory {
                       WHERE f4.userid = :fuser4 AND f4.component = :fcomp4 AND f4.itemtype = :ftype4) AS maxfavourite,
                     (SELECT COUNT(*) FROM {course_completions} cc5
                       WHERE cc5.userid = :ccuser5 AND cc5.timecompleted IS NOT NULL) AS completions,
-                    (SELECT MAX(cc6.timecompleted) FROM {course_completions} cc6
+                    (SELECT MAX(cc6.timecompleted + 0) FROM {course_completions} cc6
                       WHERE cc6.userid = :ccuser6) AS maxcompleted
                FROM {user_enrolments} ue
                JOIN {enrol} e ON e.id = ue.enrolid
@@ -224,6 +225,12 @@ final class inventory {
      * user_lastaccess (userid, courseid); favourite (userid) foreign key;
      * course_completions (userid, course) unique.
      *
+     * The latest completion is MAX(timecompleted + 0), the same value as MAX(timecompleted) (NULL
+     * stays NULL). On the bare column the planner may answer the aggregate from the site-wide
+     * timecompleted index, walking it backwards from the newest completion of anyone until it meets
+     * one of this user's; an expression no index holds leaves it the user's own rows, which the
+     * userid indexes reach directly, whatever the statistics say. The fill keeps the same form.
+     *
      * @param int $userid The user.
      * @return array Keyed by STAMP_FIELDS; counts as int, maxima as int or null.
      */
@@ -255,7 +262,7 @@ final class inventory {
                       WHERE f2.userid = :u4 AND f2.component = :fcomponent2 AND f2.itemtype = :fitemtype2) AS maxfavourite,
                     (SELECT COUNT(*) FROM {course_completions} cc
                       WHERE cc.userid = :u5 AND cc.timecompleted IS NOT NULL) AS completions,
-                    (SELECT MAX(cc2.timecompleted) FROM {course_completions} cc2 WHERE cc2.userid = :u6) AS maxcompleted
+                    (SELECT MAX(cc2.timecompleted + 0) FROM {course_completions} cc2 WHERE cc2.userid = :u6) AS maxcompleted
                FROM {user_enrolments} ue
                JOIN {enrol} e ON e.id = ue.enrolid
               WHERE ue.userid = :u1

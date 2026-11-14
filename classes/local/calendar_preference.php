@@ -65,6 +65,18 @@ final class calendar_preference {
     public const SOON_RANKS = [1, 2, 3];
 
     /**
+     * The longest value this reader reads, in bytes; a longer one is refused on write and ignored on read.
+     *
+     * The client writes every member it holds with JSON.stringify, no whitespace (calendarpref.ts):
+     * view, filter, the two switches, soon {rank, signin} and news {signin}, each sign-in a
+     * 10-digit timestamp, 135 bytes with the longest words. The cap is the smallest power of two at
+     * least twice that, the rule of the three readers ({@see explore_preference::MAX_BYTES}).
+     *
+     * @var int
+     */
+    public const MAX_BYTES = 512;
+
+    /**
      * The state the strip starts in for a viewer who never changed it.
      *
      * @param bool|null $relevance The relevance default; null for the site's calendar_relevance setting.
@@ -110,11 +122,8 @@ final class calendar_preference {
      */
     public static function validate(?string $json, bool $relevancedefault, bool $opendefault = false): array {
         $state = self::defaults($relevancedefault, $opendefault);
-        if ($json === null || $json === '') {
-            return $state;
-        }
-        $decoded = json_decode($json, true);
-        if (!is_array($decoded)) {
+        $decoded = self::decode($json);
+        if ($decoded === null) {
             return $state;
         }
         if (isset($decoded['view']) && in_array($decoded['view'], self::VIEWS, true)) {
@@ -146,11 +155,8 @@ final class calendar_preference {
      * @return array|null rank (one of SOON_RANKS) and signin (equal to $signin), or null: not hidden.
      */
     public static function soon(?string $json, int $signin): ?array {
-        if ($json === null || $json === '') {
-            return null;
-        }
-        $decoded = json_decode($json, true);
-        $member = is_array($decoded) ? ($decoded['soon'] ?? null) : null;
+        $decoded = self::decode($json);
+        $member = $decoded === null ? null : ($decoded['soon'] ?? null);
         if (!is_array($member) || !isset($member['rank'], $member['signin'])) {
             return null;
         }
@@ -178,8 +184,8 @@ final class calendar_preference {
      * @return array|null signin (equal to $signin), or null: not hidden.
      */
     public static function news(?string $json, int $signin): ?array {
-        $decoded = ($json === null || $json === '') ? null : json_decode($json, true);
-        $news = is_array($decoded) ? ($decoded['news'] ?? null) : null;
+        $decoded = self::decode($json);
+        $news = $decoded === null ? null : ($decoded['news'] ?? null);
         $marker = is_array($news) ? ($news['signin'] ?? null) : null;
         if ($signin <= 0 || $marker !== $signin) {
             return null;
@@ -218,5 +224,37 @@ final class calendar_preference {
         $soon = self::soon(is_string($stored) ? $stored : null, (int) ($USER->currentlogin ?? 0));
 
         return $soon['rank'] ?? null;
+    }
+
+    /**
+     * The stored or posted JSON decoded, or null when this reader reads nothing of it.
+     *
+     * The one door validate(), soon(), news() and clean() go through, as
+     * {@see explore_preference::decode()} is for the toolbar's; the length is checked before
+     * json_decode().
+     *
+     * @param string|null $json The JSON, or null when nothing is stored.
+     * @return array|null The decoded object, or null: empty, longer than MAX_BYTES, or not a JSON object or array.
+     */
+    public static function decode(?string $json): ?array {
+        if ($json === null || $json === '' || strlen($json) > self::MAX_BYTES) {
+            return null;
+        }
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * The preference's cleancallback (lib.php): a value this reader reads, unchanged, or null.
+     *
+     * The route's rule is {@see explore_preference::clean()}'s: a valid value comes back byte for
+     * byte, anything else as the declared default, null.
+     *
+     * @param mixed $value The value after core's PARAM_RAW cleaning.
+     * @return string|null
+     */
+    public static function clean(mixed $value): ?string {
+        return is_string($value) && self::decode($value) !== null ? $value : null;
     }
 }

@@ -85,12 +85,17 @@ final class observer_test extends advanced_testcase {
     /**
      * Start every case cold: MUC is reset between tests, so every definition is purged.
      *
+     * The observers run after the commit, and on PostgreSQL the test case wraps each test in a
+     * transaction it rolls back for the reset: inside it every observer would wait for a commit
+     * that never comes. Resetting without the rollback lets the events reach them as on a site.
+     *
      * @return void
      */
     protected function setUp(): void {
         parent::setUp();
 
         $this->resetAfterTest();
+        $this->preventResetByRollback();
         cache::make('block_compass', 'coursemeta')->purge();
         cache::make('block_compass', 'categorymeta')->purge();
         cache::make('block_compass', 'details')->purge();
@@ -419,12 +424,12 @@ final class observer_test extends advanced_testcase {
     }
 
     /**
-     * Renaming a category drops its entry from the category layer, and nothing else.
+     * Renaming a category drops its entry from the category layer, and its courses' entries.
      *
      * core_course_category::update() writes the row and raises course_category_updated with the
-     * category as objectid. Two controls: the sibling's entry stays (a rename is one delete,
-     * never a purge), and so does the course-layer entry of a course in the renamed category,
-     * because that layer stores the category's id and not its name.
+     * category as objectid. The event does not say what changed, so the courses of the category
+     * go as they do for a hide. Two controls: the sibling's entry stays, and so does the
+     * course-layer entry of a course in the sibling (a rename is a set of deletes, never a purge).
      *
      * @return void
      */
@@ -436,8 +441,9 @@ final class observer_test extends advanced_testcase {
         $renamed = (int) $gen->create_category()->id;
         $sibling = (int) $gen->create_category()->id;
         $courseid = (int) $gen->create_course(['category' => $renamed])->id;
+        $othercourseid = (int) $gen->create_course(['category' => $sibling])->id;
         $this->seed_categories([$renamed, $sibling]);
-        course_meta::get_many([$courseid]);
+        course_meta::get_many([$courseid, $othercourseid]);
         $this->assertNotFalse($this->coursemeta()->get($courseid));
 
         core_course_category::get($renamed, MUST_EXIST, true)->update(['name' => 'A different name']);
@@ -446,7 +452,133 @@ final class observer_test extends advanced_testcase {
         $this->assertSame('A different name', $DB->get_field('course_categories', 'name', ['id' => $renamed]));
         $this->assertFalse($this->categorymeta()->get($renamed));
         $this->assertNotFalse($this->categorymeta()->get($sibling));
+        $this->assertFalse($this->coursemeta()->get($courseid));
+        $this->assertNotFalse($this->coursemeta()->get($othercourseid));
+    }
+
+    /**
+     * Hiding a category, then showing it, drops the course-layer entries of its whole subtree.
+     *
+     * core_course_category::hide() and show() write course.visible for the category and its
+     * descendants and raise one course_category_updated, with no course_updated for any course.
+     * The entries hold visible and the definition has no TTL, so this observer is the only thing
+     * that keeps a hidden course from being listed. Controls: the database really changed, and a
+     * course outside the subtree keeps its entry.
+     *
+     * @return void
+     */
+    public function test_hiding_and_showing_a_category_drops_its_subtree_from_the_course_layer(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $top = (int) $gen->create_category()->id;
+        $leaf = (int) $gen->create_category(['parent' => $top])->id;
+        $unrelated = (int) $gen->create_category()->id;
+        $direct = (int) $gen->create_course(['category' => $top])->id;
+        $nested = (int) $gen->create_course(['category' => $leaf])->id;
+        $outside = (int) $gen->create_course(['category' => $unrelated])->id;
+        course_meta::get_many([$direct, $nested, $outside]);
+        $this->assertSame(1, $this->coursemeta()->get($direct)['visible']);
+        $this->assertSame(1, $this->coursemeta()->get($nested)['visible']);
+
+        core_course_category::get($top, MUST_EXIST, true)->hide();
+
+        // Control: core hid both courses, and raised no event that names either.
+        $this->assertSame('0', (string) $DB->get_field('course', 'visible', ['id' => $direct]));
+        $this->assertSame('0', (string) $DB->get_field('course', 'visible', ['id' => $nested]));
+        $this->assertFalse($this->coursemeta()->get($direct));
+        $this->assertFalse($this->coursemeta()->get($nested));
+        $this->assertNotFalse($this->coursemeta()->get($outside));
+        $this->assertSame(0, course_meta::get_many([$direct, $nested])[$nested]['visible']);
+
+        core_course_category::get($top, MUST_EXIST, true)->show();
+
+        $this->assertSame('1', (string) $DB->get_field('course', 'visible', ['id' => $nested]));
+        $this->assertFalse($this->coursemeta()->get($direct));
+        $this->assertFalse($this->coursemeta()->get($nested));
+        $this->assertNotFalse($this->coursemeta()->get($outside));
+    }
+
+    /**
+     * Moving a category under a hidden parent drops its courses from the course layer.
+     *
+     * change_parent() hides the moved subtree's courses through hide_raw() and rewrites their
+     * context paths, again with one course_category_updated and no course_updated.
+     *
+     * @return void
+     */
+    public function test_moving_a_category_under_a_hidden_parent_drops_its_courses_from_the_course_layer(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $hidden = (int) $gen->create_category(['visible' => 0])->id;
+        $moved = (int) $gen->create_category()->id;
+        $courseid = (int) $gen->create_course(['category' => $moved])->id;
+        $outside = (int) $gen->create_course()->id;
+        course_meta::get_many([$courseid, $outside]);
+        $this->assertSame(1, $this->coursemeta()->get($courseid)['visible']);
+
+        core_course_category::get($moved, MUST_EXIST, true)->change_parent($hidden);
+
+        // Control: the move hid the course.
+        $this->assertSame('0', (string) $DB->get_field('course', 'visible', ['id' => $courseid]));
+        $this->assertFalse($this->coursemeta()->get($courseid));
+        $this->assertNotFalse($this->coursemeta()->get($outside));
+    }
+
+    /**
+     * Every observer in db/events.php waits for the commit.
+     *
+     * Core runs an entry without the key at once, inside whatever transaction the caller holds
+     * (lib/classes/event/manager.php), so the key is the whole difference; the behaviour test
+     * below exercises one entry, this one holds the rest.
+     *
+     * @return void
+     */
+    public function test_every_observer_runs_after_the_commit(): void {
+        global $CFG;
+
+        $observers = null;
+        require($CFG->dirroot . '/blocks/compass/db/events.php');
+
+        $this->assertNotEmpty($observers);
+        foreach ($observers as $observer) {
+            $this->assertArrayHasKey('internal', $observer, $observer['eventname']);
+            $this->assertFalse($observer['internal'], $observer['eventname']);
+        }
+    }
+
+    /**
+     * A category hidden inside a transaction drops its courses' entries only once it commits.
+     *
+     * Core's category and bulk web services write inside a delegated transaction; a delete run
+     * before the commit leaves another request free to store the old row again, and the course
+     * layer has no TTL. Control: inside the transaction the row already says hidden, so the
+     * entry that stays is the observer waiting, not a hide that changed nothing.
+     *
+     * @return void
+     */
+    public function test_a_category_hidden_inside_a_transaction_drops_its_courses_after_the_commit(): void {
+        global $DB;
+
+        $this->setAdminUser();
+        $gen = $this->getDataGenerator();
+        $categoryid = (int) $gen->create_category()->id;
+        $courseid = (int) $gen->create_course(['category' => $categoryid])->id;
+        course_meta::get_many([$courseid]);
+        $this->assertSame(1, $this->coursemeta()->get($courseid)['visible']);
+
+        $transaction = $DB->start_delegated_transaction();
+        core_course_category::get($categoryid, MUST_EXIST, true)->hide();
+
+        $this->assertSame('0', (string) $DB->get_field('course', 'visible', ['id' => $courseid]));
         $this->assertNotFalse($this->coursemeta()->get($courseid));
+
+        $transaction->allow_commit();
+
+        $this->assertFalse($this->coursemeta()->get($courseid));
     }
 
     /**
