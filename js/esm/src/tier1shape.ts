@@ -37,7 +37,7 @@
 
 import {hold} from './pending';
 import {setTier1Preference} from './repository';
-import type {Attention, CourseCard, Strip, Tier1Config, Tier1Shape, Tier1Strip} from './types';
+import type {Attention, Counts, CourseCard, Strip, Tier1Config, Tier1Shape, Tier1Strip} from './types';
 
 /** The stored value's version, tier1_preference::VERSION. */
 const VERSION = 1;
@@ -57,6 +57,17 @@ let held: Record<string, Tier1Shape | null> | null = null;
  * @returns {boolean} Whether it does.
  */
 const drawsCompletion = (card: CourseCard): boolean => card.hascompletion || Boolean(card.teacher);
+
+/**
+ * Whether tier 1 draws its ghost: for courses not represented above, or for a special group that holds
+ * something, the one way into tier 3 when everything else fits the strips (ADR-022).
+ *
+ * Block.tsx draws the ghost by this rule and the remembered shape records it, so the skeleton keeps its place.
+ *
+ * @param {object} counts Tier 1's counts.
+ * @returns {boolean} Whether it does.
+ */
+export const ghostDrawn = (counts: Counts): boolean => counts.more > 0 || counts.invisible > 0 || counts.archived > 0;
 
 /**
  * The shape an answer settled to, or null while any card's progress is still on its way.
@@ -86,7 +97,7 @@ export const settledShape = (
                 Math.min(MAX_CARDS, data[strip.name].length),
                 data[strip.name].some(drawsCompletion),
             ]),
-        ghost: data.counts.more > 0,
+        ghost: ghostDrawn(data.counts),
         pending: pendingenabled && data.counts.pending > 0,
     };
 };

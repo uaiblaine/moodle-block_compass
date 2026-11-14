@@ -170,8 +170,13 @@ final class get_attention_test extends advanced_testcase {
         $this->assertSame(0, $data['counts']['scheduled']);
         $this->assertSame(0, $data['counts']['scheduledmore']);
         $this->assertSame([], $data['scheduled']);
+        $this->assertSame(0, $data['counts']['invisible']);
+        $this->assertSame(0, $data['counts']['archived']);
         $this->assertSame(
-            ['total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending', 'scheduled', 'scheduledmore'],
+            [
+                'total', 'shown', 'more', 'newmore', 'favouritesmore', 'pending', 'scheduled', 'scheduledmore',
+                'invisible', 'archived',
+            ],
             array_keys($data['counts'])
         );
         $this->assertTrue($data['favouritesenabled']);
@@ -678,5 +683,262 @@ final class get_attention_test extends advanced_testcase {
         $ids = array_map(static fn(array $c): int => $c['id'], $data['continue']);
         $this->assertSame([(int) $courses['older']->id], $ids);
         $this->assertSame(4, $data['counts']['total']);
+    }
+
+    /**
+     * Give the user a course-level teacher's role in a course, as a teacher of one course holds it.
+     *
+     * The role is editingteacher, which holds moodle/course:viewhiddencourses at the course context
+     * by default and never at the system context; reload_all_capabilities() refreshes the current
+     * user's session copy of their access data, as their next sign-in would.
+     *
+     * @param int $userid The user, who must be the current user.
+     * @param int $courseid The course.
+     * @return void
+     */
+    private function teach(int $userid, int $courseid): void {
+        global $DB;
+
+        $roleid = (int) $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+        role_assign($roleid, $userid, \core\context\course::instance($courseid)->id);
+        reload_all_capabilities();
+    }
+
+    /**
+     * The hidden count is a teacher's, decided per course at the course context; a student gets none.
+     *
+     * Four hidden courses: two the user teaches (one active, one whose enrolment starts later, so
+     * both of tier 1's statements carry one) and two the user only learns in (the same pair). Only
+     * the taught pair counts, and none of the four reaches a strip, the Starts-soon strip or the
+     * ghost's total: tier 1 keeps its system-context rule (ADR-021 decision 1.6). Precondition: the
+     * capability really differs between the two pairs at their course contexts and is absent at
+     * the system context. Control: the same fixture before the teacher's roles are given counts 0,
+     * so the count is the capability's and not the courses' visibility alone.
+     *
+     * @return void
+     */
+    public function test_the_hidden_count_is_the_course_level_teachers_and_never_a_students(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        [$user] = $this->fixture();
+        $userid = (int) $user->id;
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+        $hidden = [];
+        foreach (['taught', 'taughtlater', 'learnt', 'learntlater'] as $key) {
+            $hidden[$key] = (int) $gen->create_course(['visible' => 0])->id;
+        }
+        $plugin->enrol_at($userid, $hidden['taught'], $now - 40 * DAYSECS);
+        $plugin->enrol_at($userid, $hidden['learnt'], $now - 40 * DAYSECS);
+        $this->enrol_later($userid, $hidden['taughtlater'], $now + 10 * DAYSECS);
+        $this->enrol_later($userid, $hidden['learntlater'], $now + 10 * DAYSECS);
+        $this->setUser($user);
+
+        $student = $this->call();
+
+        $this->teach($userid, $hidden['taught']);
+        $this->teach($userid, $hidden['taughtlater']);
+        $syscontext = \core\context\system::instance();
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $syscontext));
+        foreach ($hidden as $key => $courseid) {
+            $this->assertSame(
+                str_starts_with($key, 'taught'),
+                has_capability('moodle/course:viewhiddencourses', \core\context\course::instance($courseid)),
+                "the capability at {$key}'s context"
+            );
+        }
+
+        $teacher = $this->call();
+
+        $this->assertSame(0, $student['counts']['invisible'], 'a student of a hidden course gets no count from it');
+        $this->assertSame(2, $teacher['counts']['invisible'], 'the two taught hidden courses, active and starting later');
+        foreach ([$student, $teacher] as $data) {
+            $drawn = array_merge(
+                array_column($data['continue'], 'id'),
+                array_column($data['new'], 'id'),
+                array_column($data['favourites'], 'id'),
+                array_column($data['scheduled'], 'id')
+            );
+            $this->assertSame([], array_intersect($hidden, $drawn), 'no hidden course is drawn in tier 1');
+            $this->assertSame(6, $data['counts']['total']);
+            $this->assertSame(0, $data['counts']['scheduled'], 'a hidden later start is not a Starts-soon course');
+            $this->assertSame(0, $data['counts']['archived']);
+        }
+    }
+
+    /**
+     * The archived count is tier 3's Archived header: active archived courses, a hidden one only where it may be seen.
+     *
+     * Archived: a visible active course (counts), a hidden active course the user teaches (counts as
+     * archived, not as hidden: Archived wins, ADR-021 decision 1.3), a hidden active course the user
+     * only learns in (no count), and a visible course whose enrolment has ended (no count: an ended
+     * enrolment does not come back from the archive). None of them moves the ghost's total.
+     * Control: before the archive, the visible course is counted in the total and the taught hidden
+     * one in the hidden count, so the archive is what moved them.
+     *
+     * @return void
+     */
+    public function test_the_archived_count_is_the_archived_groups_and_archived_wins_over_hidden(): void {
+        $this->resetAfterTest();
+        set_config('enablecompletion', 1);
+        [$user] = $this->fixture();
+        $userid = (int) $user->id;
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+        $visible = (int) $gen->create_course()->id;
+        $taught = (int) $gen->create_course(['visible' => 0])->id;
+        $learnt = (int) $gen->create_course(['visible' => 0])->id;
+        $ended = (int) $gen->create_course()->id;
+        foreach ([$visible, $taught, $learnt] as $courseid) {
+            $plugin->enrol_at($userid, $courseid, $now - 40 * DAYSECS);
+        }
+        $plugin->enrol_at($userid, $ended, $now - 40 * DAYSECS, 'manual', ENROL_USER_ACTIVE, 0, $now - DAYSECS);
+        $this->setUser($user);
+        $this->teach($userid, $taught);
+
+        $before = $this->call();
+        foreach ([$visible, $taught, $learnt, $ended] as $courseid) {
+            $plugin->hide($userid, $courseid);
+        }
+        $after = $this->call();
+
+        $this->assertSame(7, $before['counts']['total'], 'the visible course is an active course before the archive');
+        $this->assertSame(1, $before['counts']['invisible'], 'the taught hidden course is in Hidden before the archive');
+        $this->assertSame(0, $before['counts']['archived']);
+        $this->assertSame(6, $after['counts']['total']);
+        $this->assertSame(0, $after['counts']['invisible'], 'an archived hidden course is archived, not hidden');
+        $this->assertSame(2, $after['counts']['archived'], 'the visible one and the taught hidden one');
+    }
+
+    /**
+     * Nothing left for "+N", yet a special group holds courses: the counts still reach the client.
+     *
+     * The ghost is the client's to draw from these numbers (ADR-022): more is 0 here, because the one
+     * visible course fits its strip, and the hidden and archived counts are not. Two users: a teacher
+     * whose every course is hidden (total 0, the "no courses" case of ADR-021 decision 1.6) and a
+     * learner whose one other course is archived. Control: the second user without the archive has
+     * more 0 and no special count, so a door there would come from the archive alone.
+     *
+     * @return void
+     */
+    public function test_the_special_counts_reach_the_client_when_the_ghost_counts_nothing(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $now = time();
+
+        $teacher = $gen->create_user();
+        $hiddenids = [];
+        foreach ([1, 2] as $unused) {
+            $courseid = (int) $gen->create_course(['visible' => 0])->id;
+            $plugin->enrol_at((int) $teacher->id, $courseid, $now - 40 * DAYSECS);
+            $hiddenids[] = $courseid;
+        }
+        $this->setUser($teacher);
+        foreach ($hiddenids as $courseid) {
+            $this->teach((int) $teacher->id, $courseid);
+        }
+        $alone = $this->call();
+        $this->assertSame(0, $alone['counts']['total']);
+        $this->assertSame(0, $alone['counts']['more']);
+        $this->assertSame(2, $alone['counts']['invisible']);
+        $this->assertSame(0, $alone['counts']['archived']);
+
+        $learner = $gen->create_user();
+        $kept = (int) $gen->create_course()->id;
+        $archived = (int) $gen->create_course()->id;
+        $plugin->enrol_at((int) $learner->id, $kept, $now - 2 * DAYSECS);
+        $plugin->enrol_at((int) $learner->id, $archived, $now - 40 * DAYSECS);
+        $this->setUser($learner);
+        $plugin->hide((int) $learner->id, $archived);
+        $fits = $this->call();
+        $this->assertSame([$kept], array_column($fits['new'], 'id'));
+        $this->assertSame(0, $fits['counts']['more']);
+        $this->assertSame(1, $fits['counts']['archived']);
+        $this->assertSame(0, $fits['counts']['invisible']);
+
+        // Control: without the archive the other course is the ghost's, and nothing is special.
+        unset_user_preference(\block_compass\local\hidden_courses::PREFIX . $archived, (int) $learner->id);
+        $plain = $this->call();
+        $this->assertSame(1, $plain['counts']['more']);
+        $this->assertSame(0, $plain['counts']['archived']);
+    }
+
+    /**
+     * The special counts cost no read: the same reads warm and cold, with and without hidden and archived courses.
+     *
+     * The budget tests' fixture and protocol (the seven-read test above), measured on one user twice:
+     * first as the fixture is, then with two hidden courses the user teaches, a hidden one they only
+     * learn in, one hidden later start they teach and two archived courses (one visible, one hidden
+     * and taught) added. The counts ride on the counting and situations statements and the capability
+     * is answered from the session (ADR-022), so each state's reads must be equal, not merely within
+     * the bound. Controls: the first paint is the fixture's in both, and the special counts are
+     * non-zero in the second, so the measured call did the work the claim is about.
+     *
+     * @return void
+     */
+    public function test_the_special_counts_add_no_read_warm_or_cold(): void {
+        $this->resetAfterTest();
+        // The theme's crests cost the theme's own reads; the budget is Compass's (ADR-013).
+        set_config('show_theme_badges', 0, 'block_compass');
+        set_config('enablecompletion', 1);
+        [$user] = $this->fixture();
+        $userid = (int) $user->id;
+        $gen = $this->getDataGenerator();
+        $plugin = $gen->get_plugin_generator('block_compass');
+        $this->setUser($user);
+        $now = time();
+
+        $purges = [
+            'shared layers warm' => fn() => $this->purge_user_caches(),
+            'every plugin cache cold' => fn() => $this->purge_plugin_caches(),
+        ];
+        $reads = [];
+        $answers = [];
+        foreach (['plain', 'special'] as $fixture) {
+            if ($fixture === 'special') {
+                foreach (['taught1', 'taught2', 'learnt', 'taughtlater', 'archivedvisible', 'archivedtaught'] as $key) {
+                    $courseid = (int) $gen->create_course(['visible' => $key === 'archivedvisible' ? 1 : 0])->id;
+                    if ($key === 'taughtlater') {
+                        $this->enrol_later($userid, $courseid, $now + 10 * DAYSECS);
+                    } else {
+                        $plugin->enrol_at($userid, $courseid, $now - 40 * DAYSECS);
+                    }
+                    if ($key !== 'learnt' && $key !== 'archivedvisible') {
+                        $this->teach($userid, $courseid);
+                    }
+                    if (str_starts_with($key, 'archived')) {
+                        $plugin->hide($userid, $courseid);
+                    }
+                }
+            }
+            foreach ($purges as $state => $purge) {
+                get_attention::execute();
+                $purge();
+                $plugin->simulate_new_request();
+                $meter = budget::start();
+                $answers["{$fixture} {$state}"] = get_attention::execute();
+                $reads["{$fixture} {$state}"] = $meter->reads();
+            }
+        }
+
+        foreach ($answers as $case => $data) {
+            $this->assert_first_paint_is_complete($data);
+            $special = str_starts_with($case, 'special');
+            $this->assertSame($special ? 3 : 0, $data['counts']['invisible'], "the hidden count, {$case}");
+            $this->assertSame($special ? 2 : 0, $data['counts']['archived'], "the archived count, {$case}");
+        }
+        foreach (array_keys($purges) as $state) {
+            $this->assertSame(
+                $reads["plain {$state}"],
+                $reads["special {$state}"],
+                "get_attention cost {$reads["plain {$state}"]} reads without special courses and "
+                    . "{$reads["special {$state}"]} with them, {$state}; the special counts must cost none"
+            );
+        }
+        $this->assertLessThanOrEqual(8, $reads['special shared layers warm'], 'the budget is 7 + 1');
+        $this->assertLessThanOrEqual(9, $reads['special every plugin cache cold'], 'the budget is 9 (8 + the categorymeta fill)');
     }
 }
