@@ -18,8 +18,10 @@
  * Event observers that keep the plugin's caches in step with core ({@see \block_compass\observer}).
  *
  * Every entry is 'internal' => false: core then holds the event until the outermost transaction
- * commits (lib/classes/event/manager.php), so no request can refill an entry from rows the delete
- * ran ahead of. observer_test reads this file and holds every entry to it.
+ * commits (lib/classes/event/manager.php), so a request that misses after the delete reads the new
+ * rows. A request that read its rows before the commit and stores them after the delete is not
+ * stopped by this; the writers and the 10-minute TTL of the shared course layers bound that
+ * (ADR-001, amendment of 2026-11-14). observer_test reads this file and holds every entry to it.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

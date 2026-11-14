@@ -42,7 +42,7 @@ use core_external\external_value;
  * Read-only, current user only, seven database reads per request with the shared
  * layers warm (four strip and count statements, the situations read, preferences,
  * filters), eight with every plugin cache cold (one categorymeta fill; coursemeta is
- * filled from the strip rows) — plus the one read validate_context() costs here, the
+ * neither read nor written here: the cards are built from the strip rows) — plus the one read validate_context() costs here, the
  * user context, since the context cache starts empty every request. One read fewer
  * with the favourites feature off, whose strip is then not queried. Asserted by its
  * budget tests. The situations read is the price of asking local_unlistedcourses which
