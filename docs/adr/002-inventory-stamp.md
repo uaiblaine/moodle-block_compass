@@ -158,6 +158,32 @@ completion now rebuilds the strip's entry when the next day is built, a residual
 ADR-014 had left to the entry's TTL. An entry cached before the amendment, of
 either layer, fails the comparison once and is rebuilt.
 
+### Amendment: the stamp-only reader asks the statement (2026-11-13)
+
+The maintainer decided on 2026-11-13 that a caller needing only the stamp must stop loading the whole
+per-user entry (163 KB with PHP's serialiser, 71 KB with igbinary, for 1,000 enrolments), with the stamp
+stored alone under a sibling key. The one such caller is `strip::revalidated()`, which compares the
+stamp a cached calendar strip was built under with the CURRENT one before a new day is built; it read
+`inventory::get($userid)['stamp']`, which loaded the entry, ran the stamp statement and, when stale,
+refilled and rewrote it. The current stamp is by definition the statement's answer: a cached copy, under
+any key, can be trusted only after that same statement, which then has already answered. So, at
+implementation, no sibling key is stored and `revalidated()` calls `inventory::stamp()` directly
+(`classes/local/calendar/strip.php:560`): one read, as before on a valid hit, the entry neither loaded
+nor rewritten, nothing new to keep in step on fill, delete, account deletion or uninstall. The value
+and the statement are unchanged; reads are equal or fewer on every path (a stale or missing entry costs
+one read here instead of two, and the rebuild that follows refills it through `get()`, as before). The
+sibling key remains the design if a caller ever needs the cached stamp without validating it; this
+departure from the decision's wording is the maintainer's to confirm. No other caller reads only the
+stamp: `explore`, `strip::compute()` and `strip::courses()` read the rows, `prewarm::warm()` fills.
+
+`prewarm::warm()` keeps rewriting an entry that is still valid (ADR-003): MUC renews a TTL only by a
+write, so an entry the nightly sweep skipped would expire about 24 hours after the previous night's
+write, at or before the next sweep, and the fill also catches the status writes the stamp cannot see.
+
+Pinned by `strip_test::test_revalidation_never_loads_the_inventory_entry` (an entry no reader can use is
+left in the cache and is still there after the revalidation, at two reads: the stamp and the groups) and
+the gate `cal_revalidated_stamp_only`; the existing revalidation tests hold the rebuild on a changed stamp.
+
 ### When the stamp is not run
 
 On a **miss**, the fill query's rows already contain what the stamp aggregates

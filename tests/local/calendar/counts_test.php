@@ -356,6 +356,58 @@ final class counts_test extends advanced_testcase {
     }
 
     /**
+     * Completing a counted-only entry counts no grading work for a separate-groups grader in no group.
+     *
+     * The counts pass defers the assignment for both graders (it counts no grading without the ledger);
+     * the completion is where the group is decided. Controls: core's grading page refuses the grader in
+     * no group (assign::can_view_grades() false) and admits the grader in group A, whose completed strip
+     * counts A's one submission.
+     *
+     * @return void
+     */
+    public function test_completion_counts_no_grading_for_a_separate_groups_grader_in_no_group(): void {
+        global $SESSION;
+
+        set_config('calendar_grading', 'core', 'block_compass');
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $course = $gen->create_course(['groupmode' => SEPARATEGROUPS, 'groupmodeforce' => 1]);
+        $a = $gen->create_group(['courseid' => $course->id]);
+        $b = $gen->create_group(['courseid' => $course->id]);
+        $assign = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $now + 2 * DAYSECS]);
+        foreach ([$a, $b, $b] as $group) {
+            $student = $gen->create_user();
+            $gen->enrol_user($student->id, $course->id, 'student');
+            $gen->create_group_member(['groupid' => $group->id, 'userid' => $student->id]);
+            $this->submission((int) $assign->id, (int) $student->id, $now - HOURSECS);
+        }
+        $member = $gen->create_user();
+        $loose = $gen->create_user();
+        foreach ([$member, $loose] as $teacher) {
+            $gen->enrol_user($teacher->id, $course->id, 'teacher');
+        }
+        $gen->create_group_member(['groupid' => $a->id, 'userid' => $member->id]);
+        [, $cm] = get_course_and_cm_from_cmid((int) $assign->cmid, 'assign');
+
+        foreach ([[$member, true, 1], [$loose, false, 0]] as [$teacher, $allowed, $waiting]) {
+            $this->setUser($teacher);
+            unset($SESSION->activegroup);
+            $core = new \assign(\core\context\module::instance((int) $cm->id), $cm, $course);
+            $this->assertSame($allowed, $core->can_view_grades(), 'core\'s grading page');
+            $tz = \core_date::get_user_timezone_object();
+            $userid = (int) $teacher->id;
+            $signin = 1700000000;
+            strip::counts($userid, $now, $signin, $tz);
+            $this->assertSame([(int) $assign->id], array_column(calendar_cache::get($userid)['deferred'], 'instance'));
+
+            $day = strip::get($userid, $now, $signin, $tz)['views']['teaching']['days'][strip::local_day($now + 2 * DAYSECS, $tz)]
+                ?? ['grade' => 0, 'waiting' => 0];
+            $this->assertSame($allowed ? 1 : 0, $day['grade']);
+            $this->assertSame($waiting, $day['waiting']);
+        }
+    }
+
+    /**
      * A learning day of the payload, as finish() leaves it.
      *
      * @param array $counts Kind => count; the others are 0.
