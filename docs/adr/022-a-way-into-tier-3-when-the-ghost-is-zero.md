@@ -150,6 +150,12 @@ For the maintainer's review; each is a choice the variant left open.
    twin identical to its plural, by the fleet's one-string-per-form rule.
 7. **The empty state** of decision 2; the open-courses line's place in an empty tier 1 (ADR-017 decision 7, keyed on
    `total` and the cards drawn) is unchanged.
+   The empty-state sentence ("Nothing to show here right now") is not drawn under a ghost drawn for the special
+   groups alone (`counts.more` is 0 and the line is non-empty): the line already says what is there. A ghost with "+N"
+   keeps it, and no ghost keeps "You are not enrolled in any course yet". In tier 3, "No course matches." is not drawn
+   while no query, star, scope or field selection is active and a Dormant, Hidden or Archived header holds rows: the
+   total leaves hidden and archived courses out (ADR-021), so it can be 0 under a group that has some; with a filter
+   active it is drawn.
 8. **The remembered shape records the drawn ghost**; the shell's skeleton draws its ghost placeholder as before
    (no line), so a ghost with a line may grow a little when the answer lands, inside the row the placeholder held.
 
