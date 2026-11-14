@@ -1,4 +1,4 @@
-import{useState as f}from"react";import{jsx as a}from"react/jsx-runtime";/**
+import{useState as m}from"react";import{markup as c}from"./markup";import{jsx as n}from"react/jsx-runtime";/**
  * The favourite star: the core course star, toggled without a reload.
  *
  * The write goes to core_course_set_favourite_courses, so the star agrees with the
@@ -11,4 +11,4 @@ import{useState as f}from"react";import{jsx as a}from"react/jsx-runtime";/**
  * @module     block_compass/Star
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const m=({courseid:r,fullname:i,favourite:o,config:l,onToggle:u})=>{const[e,t]=f(!1),{labels:n,icons:s}=l,c=async()=>{if(!e){t(!0);try{await u(r,!o,i)}finally{t(!1)}}};return a("button",{type:"button",className:"compass-star btn btn-link p-1","aria-disabled":e||void 0,"aria-pressed":o,"aria-label":o?n.removefromfavourites:n.addtofavourites,onClick:c,children:a("span",{className:"icon-no-margin",dangerouslySetInnerHTML:{__html:o?s.staron:s.staroff}})})};var d=m;export{d as default};
+ */const p=({courseid:s,fullname:i,favourite:o,config:l,onToggle:u})=>{const[e,r]=m(!1),{labels:t,icons:a}=l,f=async()=>{if(!e){r(!0);try{await u(s,!o,i)}finally{r(!1)}}};return n("button",{type:"button",className:"compass-star btn btn-link p-1","aria-disabled":e||void 0,"aria-pressed":o,"aria-label":o?t.removefromfavourites:t.addtofavourites,onClick:f,children:n("span",{className:"icon-no-margin",dangerouslySetInnerHTML:c(o?a.staron:a.staroff)})})};var y=p;export{y as default};

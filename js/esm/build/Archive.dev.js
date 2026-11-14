@@ -14,6 +14,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { fill } from "./str";
+import { markup } from "./markup";
 const Archive = /* @__PURE__ */ __name(({ courseid, name, archived, busy, config, onArchive }) => {
   const { labels, icons } = config;
   const label = fill(archived ? labels.unarchive : labels.archive, name);
@@ -35,13 +36,13 @@ const Archive = /* @__PURE__ */ __name(({ courseid, name, archived, busy, config
         {
           className: "icon-no-margin",
           "aria-hidden": "true",
-          dangerouslySetInnerHTML: { __html: archived ? icons.unarchive : icons.archive }
+          dangerouslySetInnerHTML: markup(archived ? icons.unarchive : icons.archive)
         },
         void 0,
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/Archive.tsx",
-          lineNumber: 69,
+          lineNumber: 70,
           columnNumber: 13
         }
       )
@@ -50,7 +51,7 @@ const Archive = /* @__PURE__ */ __name(({ courseid, name, archived, busy, config
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/Archive.tsx",
-      lineNumber: 53,
+      lineNumber: 54,
       columnNumber: 9
     }
   );

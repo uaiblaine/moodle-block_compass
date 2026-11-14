@@ -178,7 +178,13 @@ final class client_policy_test extends advanced_testcase {
     }
 
     /**
-     * Reads retry twice, 2000 ms apart, after any failure; writes go through the bare call.
+     * Reads retry twice, 2000 ms apart give or take 500 ms of jitter per wait, after any failure; writes go through the
+     * bare call.
+     *
+     * The jitter spreads reads that failed together, so they do not return in two synchronised waves; a Behat site
+     * waits the bare delay, so a scenario's timing is the same on every run (ADR-010 decision 12, amended
+     * 2026-11-13). Changes that must make it fail: the jitter dropped from the wait; the Behat exemption dropped; the
+     * wait no longer drawn per retry; a server exception no longer retried.
      *
      * @return void
      */
@@ -187,7 +193,22 @@ final class client_policy_test extends advanced_testcase {
 
         $this->assertStringContainsString('const RETRY_ATTEMPTS = 2;', $source);
         $this->assertStringContainsString('const RETRY_DELAY_MS = 2000;', $source);
-        $this->assertStringContainsString('await sleep(RETRY_DELAY_MS);', $source);
+        $this->assertStringContainsString('const RETRY_JITTER_MS = 500;', $source);
+        $delay = $this->slice($source, 'const retryDelay = (): number => {', 'const sleep = ');
+        $this->assertStringContainsString(
+            'return RETRY_DELAY_MS + Math.round((Math.random() * 2 - 1) * RETRY_JITTER_MS);',
+            $delay,
+            'the wait carries no jitter, so reads that failed together come back together'
+        );
+        $this->assertStringContainsString(
+            "if (document.body.classList.contains('behat-site')) {\n        return RETRY_DELAY_MS;\n    }",
+            $delay,
+            'a Behat site waits a random time'
+        );
+        // Vacuity: the Behat check is the one the client already makes for its scroll.
+        $this->assertStringContainsString("document.body.classList.contains('behat-site')", $this->source('Explore.tsx'));
+        $this->assertStringContainsString('await sleep(retryDelay());', $source, 'the wait is drawn per retry');
+        $this->assertSame(1, substr_count($source, 'sleep('), 'one wait, in read()');
         $loop = $this->slice($source, 'const read = async', 'export const getAttention');
         $this->assertStringContainsString('if (attempt >= RETRY_ATTEMPTS) {', $loop);
         $this->assertStringNotContainsString('isTransportFailure', $loop, 'a server exception is retried too');

@@ -30,6 +30,7 @@
 
 import {useState} from 'react';
 import type {BlockConfig} from './types';
+import {markup} from './markup';
 
 type StarProps = {
     courseid: number,
@@ -83,7 +84,7 @@ const Star = ({courseid, fullname, favourite, config, onToggle}: StarProps) => {
             {/* Core's .icon carries a right margin meant for a glyph before a label
                 (theme/boost/scss/moodle/icons.scss); inside an icon-only control it pushes
                 the glyph off centre, and icon-no-margin is core's own way to drop it. */}
-            <span className="icon-no-margin" dangerouslySetInnerHTML={{__html: favourite ? icons.staron : icons.staroff}} />
+            <span className="icon-no-margin" dangerouslySetInnerHTML={markup(favourite ? icons.staron : icons.staroff)} />
         </button>
     );
 };

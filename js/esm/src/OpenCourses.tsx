@@ -59,7 +59,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
+import {memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import type {FocusEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode} from 'react';
 import RetryNotice from './RetryNotice';
 import {dateParts, dayMonth} from './calendar';
@@ -70,6 +70,7 @@ import {hold} from './pending';
 import {getNews} from './repository';
 import {fill, fillObject} from './str';
 import type {BlockConfig, NewsAnswer, NewsConfig, NewsGroup, NewsGroupKind, NewsKind} from './types';
+import {markup} from './markup';
 
 /** The groups the full line draws as links; the rest are behind "+N". */
 const LINE_GROUPS = 3;
@@ -79,6 +80,15 @@ const TILE_TRACKS = 3;
 
 /** Below this width of the block, in CSS px, the line wraps under its title and the popover is a bottom sheet. */
 export const NEWS_NARROW_PX = 640;
+
+/**
+ * Whether the block is narrow for the line: measured, and under NEWS_NARROW_PX. The block keeps the answer, not
+ * its width, so a resize that leaves it alone renders nothing (Block.tsx, Brackets).
+ *
+ * @param {number} width The block's content width, in CSS px; 0 before it has been measured.
+ * @returns {boolean} Whether the line takes its narrow form.
+ */
+export const newsNarrow = (width: number): boolean => width > 0 && width < NEWS_NARROW_PX;
 
 /** How long a pointer rests on a pill before its tooltip opens, in ms; keyboard focus opens it at once. */
 const TIP_HOVER_MS = 300;
@@ -201,10 +211,12 @@ export const useNews = (
      *
      * @returns {void}
      */
-    const retry = (): void => {
+    // Kept between renders, with hide and the state handed back, so the memoised line renders for its own
+    // changes only. ask() reads nothing of a render but refs and setters, so the first render's is every render's.
+    const retry = useCallback((): void => {
         setRetrying(true);
         ask();
-    };
+    }, []);
 
     /**
      * Hide the line until the next sign-in: at once, then the news member written with every other one;
@@ -212,7 +224,7 @@ export const useNews = (
      *
      * @returns {void}
      */
-    const hide = (): void => {
+    const hide = useCallback((): void => {
         if (!news) {
             return;
         }
@@ -223,9 +235,12 @@ export const useNews = (
             setHidden(false);
             notify(news.strings.news_hideerror || '');
         });
-    };
+    }, [news]);
 
-    return {answer, failed, retrying, hidden, retry, hide};
+    return useMemo(
+        (): NewsState => ({answer, failed, retrying, hidden, retry, hide}),
+        [answer, failed, retrying, hidden, retry, hide]
+    );
 };
 
 /**
@@ -504,20 +519,20 @@ type OpenCoursesProps = {
     news: NewsConfig,
     state: NewsState,
     mode: NewsMode,
-    // The block's measured width: below NEWS_NARROW_PX the line wraps and the popover is a bottom sheet.
-    width: number,
+    // Whether the block is narrow (newsNarrow()): the line wraps and the popover is a bottom sheet.
+    narrow: boolean,
 };
 
 /**
  * The line, the compact sentence or the tiles; a failure notice; or nothing.
  *
- * @param {object} props The configs, the asking's state, the shape and the block's width; see OpenCoursesProps.
+ * @param {object} props The configs, the asking's state, the shape and the narrow flag; see OpenCoursesProps.
  * @returns {object|null} The rendered line.
  */
 // A component's render branches all count toward its complexity; the three shapes share one popover,
 // so the count is acknowledged here.
 // eslint-disable-next-line complexity
-const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
+const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
     const {answer, failed, retrying, hidden, retry, hide} = state;
     // The calendar's date strings when it renders here, else the copies the shell ships with the line's.
     const strings = {...(config.calendar?.strings ?? {}), ...news.strings};
@@ -527,7 +542,6 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     const baseid = useId();
     const titleid = `${baseid}-news`;
     const popid = `${baseid}-newspop`;
-    const narrow = width > 0 && width < NEWS_NARROW_PX;
     const shown = !hidden && !failed && !!answer && answer.total > 0 && answer.groups.length > 0;
     // Grown is set before paint, after the collapsed line has been laid out, so it grows from no height.
     const [grown, setGrown] = useState(false);
@@ -789,7 +803,7 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                     <span
                         className="compass-news-icon icon-no-margin"
                         aria-hidden="true"
-                        dangerouslySetInnerHTML={{__html: news.icon}}
+                        dangerouslySetInnerHTML={markup(news.icon)}
                     />
                     <div className="compass-news-copy">
                         <p className="compass-news-popeyebrow">{strings.news_title}</p>
@@ -826,7 +840,7 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
                         <span
                             className="icon-no-margin"
                             aria-hidden="true"
-                            dangerouslySetInnerHTML={{__html: config.icons.close}}
+                            dangerouslySetInnerHTML={markup(config.icons.close)}
                         />
                         <span className="compass-news-pophidelabel">{strings.news_hide_short}</span>
                     </button>
@@ -862,7 +876,7 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     );
 
     const icon = (
-        <span className="compass-news-icon icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: news.icon}} />
+        <span className="compass-news-icon icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(news.icon)} />
     );
 
     /**
@@ -881,7 +895,7 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
             title={strings.news_hide}
             onClick={(event) => hideFrom(event.currentTarget)}
         >
-            <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={{__html: config.icons.close}} />
+            <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(config.icons.close)} />
             {labelled && <span className="compass-news-hidelabel">{strings.news_hide_short}</span>}
         </button>
     );
@@ -1039,4 +1053,4 @@ const OpenCourses = ({config, news, state, mode, width}: OpenCoursesProps) => {
     );
 };
 
-export default OpenCourses;
+export default memo(OpenCourses);
