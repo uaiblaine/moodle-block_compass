@@ -235,13 +235,16 @@ final class grading_test extends advanced_testcase {
     }
 
     /**
-     * In SEPARATEGROUPS a grader with no participation group counts everyone, as core's active group 0 does.
+     * In SEPARATEGROUPS a grader with no participation group counts nothing, as core's grading page allows nothing.
      *
-     * A grader in a group is the control: the same strip counts only that group's submissions.
+     * Core's control is assign::can_view_grades(): false for the grader in no group, true for the one
+     * in group one. Core's counter, asked directly, still answers 3 for the first (its active group 0,
+     * which the Dashboard's timeline counts); the strip departs from that count on purpose (ADR-014
+     * amendment, 2026-11-13). The grader in a group counts their group's 2, so the strip does count here.
      *
      * @return void
      */
-    public function test_a_separate_groups_grader_without_a_group_counts_everyone(): void {
+    public function test_a_separate_groups_grader_without_a_group_counts_nothing(): void {
         $this->resetAfterTest();
         $gen = $this->getDataGenerator();
         $now = time();
@@ -264,14 +267,71 @@ final class grading_test extends advanced_testcase {
         $gen->create_group_member(['groupid' => $one->id, 'userid' => $grouped]);
         $loose = $this->teacher((int) $course->id, 'teacher');
 
-        foreach ([[$grouped, 2], [$loose, 3]] as [$userid, $expected]) {
-            $this->assertSame($expected, $this->core_count($assign->cmid, $userid), "core for user {$userid}");
+        $this->assertSame(3, $this->core_count($assign->cmid, $loose), 'core\'s counter, group 0');
+        foreach ([[$grouped, true, 2], [$loose, false, 0]] as [$userid, $allowed, $expected]) {
+            $this->assertSame($allowed, $this->core_allows((int) $assign->cmid, $userid), "core's grading page for user {$userid}");
             cache::make('block_compass', 'calendarstrip')->purge();
             $this->setUser($userid);
             $tz = \core_date::get_user_timezone_object();
             $days = strip::build($userid, $now, $tz)['views']['teaching']['days'];
-            $this->assertSame($expected, $days[strip::local_day($now + 3 * DAYSECS, $tz)]['waiting'], "block for user {$userid}");
+            $day = $days[strip::local_day($now + 3 * DAYSECS, $tz)] ?? ['waiting' => 0, 'grade' => 0];
+            $this->assertSame($expected, $day['waiting'], "block for user {$userid}");
+            $this->assertSame($allowed ? 1 : 0, $day['grade'], "grading item for user {$userid}");
         }
+    }
+
+    /**
+     * The grader with no usable group hands no grading source the assignment, whichever source counts.
+     *
+     * The map grading_groups() returns is all a source sees ({@see grading}, {@see tracker_grading}), so
+     * the assignment must be absent, not mapped to a group: block_feedback_tracker files a student
+     * without a group under group 0. Controls, one assignment per rule: the separate-groups grader in a
+     * group maps to it, the visible-groups grader in no group to the course's first group, the
+     * accessallgroups grader to null (everyone), and an assignment without a group mode to null.
+     *
+     * @return void
+     */
+    public function test_a_grader_without_a_usable_group_hands_no_source_the_assignment(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $courseid = (int) $gen->create_course()->id;
+        $separate = $gen->create_module('assign', ['course' => $courseid, 'groupmode' => SEPARATEGROUPS]);
+        $visible = $gen->create_module('assign', ['course' => $courseid, 'groupmode' => VISIBLEGROUPS]);
+        $plain = $gen->create_module('assign', ['course' => $courseid, 'groupmode' => NOGROUPS]);
+        $alpha = $this->group_with_submissions($courseid, $separate, 'Alpha', 1, $now);
+        $loose = $this->teacher($courseid, 'teacher');
+        $member = $this->teacher($courseid, 'teacher');
+        $this->join($member, [$alpha]);
+        $editor = $this->teacher($courseid, 'editingteacher');
+
+        $groups = new \ReflectionMethod(strip::class, 'grading_groups');
+        $map = function (int $userid) use ($groups, $separate, $visible, $plain): array {
+            $candidates = [];
+            foreach ([[$separate, SEPARATEGROUPS], [$visible, VISIBLEGROUPS], [$plain, NOGROUPS]] as [$assign, $mode]) {
+                $row = (object) [
+                    'instance' => (int) $assign->id,
+                    'courseid' => (int) $assign->course,
+                    'groupmode' => $mode,
+                    'groupingid' => 0,
+                ];
+                $candidates[] = ['row' => $row, 'context' => \core\context\module::instance((int) $assign->cmid)];
+            }
+
+            return $groups->invoke(null, $candidates, $userid);
+        };
+
+        $this->assertSame([(int) $visible->id => $alpha, (int) $plain->id => null], $map($loose));
+        $this->assertSame(
+            [(int) $separate->id => $alpha, (int) $visible->id => $alpha, (int) $plain->id => null],
+            $map($member),
+            'control: a group of their own'
+        );
+        $this->assertSame(
+            [(int) $separate->id => null, (int) $visible->id => null, (int) $plain->id => null],
+            $map($editor),
+            'control: accessallgroups'
+        );
     }
 
     /**
@@ -539,6 +599,24 @@ final class grading_test extends advanced_testcase {
         $assign = new \assign(\core\context\module::instance($cm->id), $cm, $course);
 
         return (int) $assign->count_submissions_need_grading();
+    }
+
+    /**
+     * Whether core's grading page lets the grader see the assignment's grades, asked as the grader.
+     *
+     * @param int $cmid The assignment's course module.
+     * @param int $graderid The grader.
+     * @return bool assign::can_view_grades() for a fresh session.
+     */
+    private function core_allows(int $cmid, int $graderid): bool {
+        global $SESSION;
+
+        $this->setUser($graderid);
+        unset($SESSION->activegroup);
+        [$course, $cm] = get_course_and_cm_from_cmid($cmid, 'assign');
+        $assign = new \assign(\core\context\module::instance($cm->id), $cm, $course);
+
+        return $assign->can_view_grades();
     }
 
     /**

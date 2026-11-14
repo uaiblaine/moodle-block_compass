@@ -67,6 +67,10 @@ final class details {
     /**
      * Cached progress for the given courses of one user.
      *
+     * A delete this process's own completion events asked for is sent first
+     * ({@see pending_deletes::before_access()}), so a progress entry dropped earlier in the request is never
+     * read back.
+     *
      * @param int $userid The user.
      * @param int[] $courseids Course ids.
      * @return array Course id => int percentage, null (no completion, cached) or false (not cached).
@@ -76,6 +80,7 @@ final class details {
         if (empty($courseids)) {
             return [];
         }
+        pending_deletes::instance()->before_access($userid);
         $keys = [];
         foreach ($courseids as $courseid) {
             $keys[self::key($userid, $courseid)] = $courseid;
@@ -91,17 +96,21 @@ final class details {
     /**
      * Store one answer.
      *
+     * A delete this process's own completion events asked for is sent first, so it never drops the answer
+     * computed after it ({@see pending_deletes::before_access()}).
+     *
      * @param int $userid The user.
      * @param int $courseid The course.
      * @param int|null $progress Percentage, or null for "no completion".
      * @return void
      */
     public static function set(int $userid, int $courseid, ?int $progress): void {
+        pending_deletes::instance()->before_access($userid);
         self::cache()->set(self::key($userid, $courseid), $progress);
     }
 
     /**
-     * Drop one answer, on the user's completion events.
+     * Drop one answer at once (the completion events go through {@see pending_deletes} instead).
      *
      * @param int $userid The user.
      * @param int $courseid The course.
@@ -124,6 +133,16 @@ final class details {
             $keys[] = self::key($userid, $courseid);
         }
         self::cache()->delete_many($keys);
+    }
+
+    /**
+     * Drop answers of any users by their keys ({@see key()}) in one delete_many, for {@see pending_deletes}.
+     *
+     * @param string[] $keys The keys.
+     * @return void
+     */
+    public static function delete_keys(array $keys): void {
+        self::cache()->delete_many(array_values($keys));
     }
 
     /**

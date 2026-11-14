@@ -588,6 +588,61 @@ final class day_test extends advanced_testcase {
     }
 
     /**
+     * In SEPARATEGROUPS the teaching day of a grader in no group carries no grading work.
+     *
+     * Core's grading page refuses that grader (assign::can_view_grades() false: the control that the
+     * case is the excluded one); a grader in group A, the other control, gets the Grade action with A's
+     * one submission, and core lets them in. The class deadline of the same day stays for both, so the
+     * day is built and only the grading item is withheld.
+     *
+     * @return void
+     */
+    public function test_a_separate_groups_grader_in_no_group_gets_no_grading_on_the_day(): void {
+        global $PAGE, $SESSION;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $course = $gen->create_course(['groupmode' => SEPARATEGROUPS, 'groupmodeforce' => 1]);
+        $a = $gen->create_group(['courseid' => $course->id]);
+        $b = $gen->create_group(['courseid' => $course->id]);
+        $at = $this->noon_in_three_days();
+        $assign = $gen->create_module('assign', ['course' => $course->id, 'gradingduedate' => $at, 'duedate' => $at]);
+        foreach ([$a, $b, $b] as $group) {
+            $student = $gen->create_user();
+            $gen->enrol_user($student->id, $course->id, 'student');
+            $gen->create_group_member(['groupid' => $group->id, 'userid' => $student->id]);
+            $this->submission((int) $assign->id, (int) $student->id, $now - HOURSECS);
+        }
+        $member = $gen->create_user();
+        $loose = $gen->create_user();
+        foreach ([$member, $loose] as $teacher) {
+            $gen->enrol_user($teacher->id, $course->id, 'teacher');
+        }
+        $gen->create_group_member(['groupid' => $a->id, 'userid' => $member->id]);
+        [, $cm] = get_course_and_cm_from_cmid((int) $assign->cmid, 'assign');
+
+        foreach ([[$member, true], [$loose, false]] as [$teacher, $allowed]) {
+            $this->setUser($teacher);
+            unset($SESSION->activegroup);
+            $core = new \assign(\core\context\module::instance((int) $cm->id), $cm, $course);
+            $this->assertSame($allowed, $core->can_view_grades(), 'core\'s grading page');
+            cache::make('block_compass', 'calendarstrip')->purge();
+            $PAGE->set_context(\core\context\system::instance());
+            $tz = \core_date::get_user_timezone_object();
+            $userid = (int) $teacher->id;
+            $result = day::get($userid, strip::local_day($at, $tz), 'teaching', $now, 1700000000, $tz, $PAGE->get_renderer('core'));
+            $kinds = array_column($result['items'], 'kind');
+            $this->assertContains('class', $kinds, 'the class deadline is on the day');
+            $grade = array_values(array_filter($result['items'], fn(array $item): bool => $item['kind'] === 'grade'));
+            $this->assertCount($allowed ? 1 : 0, $grade);
+            if ($allowed) {
+                $this->assertSame(1, $grade[0]['action']['itemcount']);
+            }
+            $this->new_request();
+        }
+    }
+
+    /**
      * In Portuguese the Grade action says this plugin's verb, Avaliar, never core's gradeverb ("Nota").
      *
      * English cannot tell the two apart (both read "Grade"), so the day is built in pt_br: a

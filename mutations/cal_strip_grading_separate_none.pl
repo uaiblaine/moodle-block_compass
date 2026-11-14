@@ -1,1 +1,1 @@
-s/return \$mode === VISIBLEGROUPS \? \$first : null;/return \$first;/;
+s/return \$mode === VISIBLEGROUPS \? \$first : false;/return \$first;/;
