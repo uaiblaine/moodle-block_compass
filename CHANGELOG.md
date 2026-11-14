@@ -39,6 +39,9 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Fixed
 
+- **The read-only sessions check names both ways to turn the flag on.** Its text said the flag could only be set in
+  config.php; a configuration row stored with `admin/cli/cfg.php` works as well (measured on a two-node cluster), and
+  the check now says so.
 - **A hidden course no longer comes back in the shared course layer.** `get_attention` and the calendar strip stored
   `coursemeta` entries from rows they had read themselves, so a request that read before a category hide committed
   stored the old `visible` after the observer's delete, and nothing expired it (18 of 40 hides on a two-node cluster

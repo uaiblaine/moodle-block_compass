@@ -45,9 +45,10 @@ use core_external\external_value;
  * neither read nor written here: the cards are built from the strip rows) — plus the one read validate_context() costs here, the
  * user context, since the context cache starts empty every request. One read fewer
  * with the favourites feature off, whose strip is then not queried. Asserted by its
- * budget tests. The situations read is the price of asking local_unlistedcourses which
- * rows are applications and which start later (ADR-013): it carries the pending count and
- * the whole Starts-soon strip, course columns included, so that strip costs no read of its own.
+ * budget tests, which switch the theme badges off: these are the block's own reads, and a site whose
+ * theme answers the block's hooks pays that theme's reads on top. The situations read is the price
+ * of asking local_unlistedcourses which rows are applications and which start later (ADR-013): it
+ * carries the pending count and the whole Starts-soon strip, course columns included, so that strip costs no read of its own.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine

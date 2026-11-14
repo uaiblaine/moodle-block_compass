@@ -281,7 +281,7 @@ $string['calendar_where_desc'] = 'The surfaces that show the calendar strip.';
 $string['calendar_where_page'] = 'Compass page only';
 $string['categoryindex'] = 'Categories';
 $string['checkreadonlysessions'] = 'Read-only sessions';
-$string['checkreadonlysessions_details'] = 'Compass\'s web services declare read-only sessions, and core honours that only when <code>$CFG-&gt;enable_read_only_sessions = true;</code> is set in config.php. It is not an admin setting. Measured with four concurrent calls sharing one session, the 95th percentile rose from 75 ms to 989 ms. Before enabling it, map every cache definition in session mode to a store other than the session store: core refuses to start a session while any of them is stored in it.';
+$string['checkreadonlysessions_details'] = 'Compass\'s web services declare read-only sessions, and core honours that only while <code>enable_read_only_sessions</code> is on. No administration page offers it: set <code>$CFG-&gt;enable_read_only_sessions = true;</code> in config.php, or store it with <code>php admin/cli/cfg.php --name=enable_read_only_sessions --set=1</code>. Measured with four concurrent calls sharing one session, the 95th percentile was 989 ms, against 75 ms on separate sessions. Before enabling it, map every cache definition in session mode to a store other than the session store: core refuses to start a session while any of them is stored in it.';
 $string['checkreadonlysessions_ok'] = 'Read-only sessions are enabled, so Compass\'s reads do not wait for each other on the session lock.';
 $string['checkreadonlysessions_warning'] = 'Read-only sessions are not enabled, so Compass\'s reads wait for each other on the session lock.';
 $string['chip_all'] = 'All';
