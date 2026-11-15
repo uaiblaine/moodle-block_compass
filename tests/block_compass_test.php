@@ -139,12 +139,12 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
         // The filter bar's icon-only controls: list, grid, the sliders, the magnifier, the eraser,
-        // a chip's cross, Organise's sort glyph (ADR-015) and a menu's tick (ADR-023); the archive boxes
-        // and the accordion's chevrons. No reload glyph: a way back appears only with a failure, as
-        // RetryNotice's two text buttons (ADR-014 amendment 11).
+        // a chip's cross, Organise's sort glyph (ADR-015), a menu's tick (ADR-023) and the Organise menu's three
+        // item icons (ADR-024); the archive boxes and the accordion's chevrons. No reload glyph: a way back appears
+        // only with a failure, as RetryNotice's two text buttons (ADR-014 amendment 11).
         $icons = [
-            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'check', 'archive', 'unarchive', 'expanded',
-            'collapsed', 'collapsedrtl',
+            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'sortcategory', 'sortname', 'sortrecent', 'check',
+            'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl',
         ];
         foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
@@ -152,6 +152,7 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
         $this->assertStringContainsString('fa-sliders', $props['icons']['filter'], 'Filters is drawn with the sliders');
         $this->assertStringContainsString('fa-eraser', $props['icons']['eraser'], 'the search clears with an eraser');
+        $this->assertStringContainsString('fa-folder', $props['icons']['sortcategory'], 'By category is drawn with a folder');
         $this->assertArrayNotHasKey('reload', $props['icons'], 'no permanent reload control');
         $this->assertArrayNotHasKey('reload', $props['labels'], 'no permanent reload control');
         $this->assertArrayNotHasKey('hide', $props['icons'], 'the archive control is drawn with the archive boxes, not the eye');

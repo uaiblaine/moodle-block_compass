@@ -713,13 +713,14 @@ const FilterLine = (props: FilterLineProps) => {
 
     /**
      * Escape on the line: the open panel closes back to Filters, a menu back to its button, the open
-     * search back to the search button. Tab out of the View menu closes it, as a menu does.
+     * search back to the search button. Tab out of the Organise or the View menu closes it, as a menu does.
      *
      * @param {object} event The keyboard event.
      * @returns {void}
      */
     const lineKey = (event: KeyboardEvent<HTMLDivElement>): void => {
-        if (event.key === 'Tab' && viewopen) {
+        if (event.key === 'Tab' && (menuopen || viewopen)) {
+            setMenuopen(false);
             setViewopen(false);
 
             return;

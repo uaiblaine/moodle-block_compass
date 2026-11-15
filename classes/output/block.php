@@ -247,7 +247,8 @@ class block implements renderable, templatable {
                 // ones the file picker's view switch uses, for View and its menu; the sliders of Filters, from
                 // the plugin's own icon map; core's magnifier, its eraser (the search's, never a cross), its
                 // cross (a chip's), its sort glyph (Organise) and its tick (the chosen item of a menu). View's
-                // chevron is the accordion's expanded one, below.
+                // chevron is the accordion's expanded one, below. The Organise menu's items (ADR-024) are core's
+                // folder (By category), its ascending sort (A-Z) and its history clock (Recent).
                 'list' => $output->render(new pix_icon('a/view_list_active', '')),
                 'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
                 'filter' => $output->render(new pix_icon('sliders', '', 'block_compass')),
@@ -255,6 +256,9 @@ class block implements renderable, templatable {
                 'eraser' => $output->render(new pix_icon('e/clear_formatting', '')),
                 'close' => $output->render(new pix_icon('e/cancel', '')),
                 'organise' => $output->render(new pix_icon('t/sort_by', '')),
+                'sortcategory' => $output->render(new pix_icon('i/folder', '')),
+                'sortname' => $output->render(new pix_icon('t/sort_asc', '')),
+                'sortrecent' => $output->render(new pix_icon('t/log', '')),
                 'check' => $output->render(new pix_icon('i/checked', '')),
                 // The accordion's chevrons are the two a course section header draws, shown and
                 // hidden by core's own icons-collapse-expand rule.

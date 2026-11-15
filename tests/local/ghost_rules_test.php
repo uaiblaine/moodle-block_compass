@@ -205,7 +205,10 @@ final class ghost_rules_test extends advanced_testcase {
         $this->assertStringContainsString('slice.show && slice.count > 0', $drawn);
         $this->assertStringContainsString('const noresults = nomatch && !(unfiltered && specialdrawn);', $explore);
         // Control: the sentence is still drawn from noresults, and the old test is the base of nomatch.
-        $this->assertStringContainsString('{noresults && <p className="compass-noresults', $explore);
+        $this->assertMatchesRegularExpression(
+            '/\{noresults && \(\n(?:\s*\/\/[^\n]*\n)*\s*<div className="compass-noresults">/',
+            $explore
+        );
         $this->assertStringContainsString('const nomatch = paged ? keepsnothing', $explore);
     }
 }

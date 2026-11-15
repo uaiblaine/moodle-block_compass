@@ -1,0 +1,1 @@
+s/(box-shadow: var\(--block_compass-news-tip-shadow\);\n    opacity: 0;\n    pointer-events: none;\n    )transition: opacity var\(--block_compass-motion-fast\) ease;/$1transition: opacity 120ms ease-out, transform 120ms ease-out;/;

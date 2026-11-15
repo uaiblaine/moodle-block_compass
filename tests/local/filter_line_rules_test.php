@@ -410,37 +410,63 @@ final class filter_line_rules_test extends basic_testcase {
     }
 
     /**
-     * View is one button with a chevron, opening a menu of two radio items, Cards and List (ADR-023).
+     * View is one button with a chevron, opening a menu of two radio items, Cards and List (ADR-023); the menu is the
+     * bar's LineMenu, Organise's too (ADR-024).
      *
-     * Contract sections 1 and 8: the menu is role="menu", a choice of views is menuitemradio with
-     * aria-checked, every item an icon before its word and a tick after the chosen one's; opening it moves
-     * the keyboard to the chosen item and the arrow keys walk the items; Escape and a choice give the
-     * keyboard back to the button. View is never a pair of switches on the bar again.
+     * Contract sections 1 and 8: a menu is role="menu", a choice is menuitemradio with aria-checked, every item an
+     * icon before its word and a tick after the chosen one's; opening it moves the keyboard to the chosen item and
+     * the arrow keys walk the items; Escape, Tab and a choice give the keyboard back to the button. View is never a
+     * pair of switches on the bar again, and Organise's sorts are the same kind of item under their heading.
      *
-     * Changes that must make it fail: the menu losing its role, an item its role or aria-checked, the
-     * keyboard left on the button when the menu opens, a choice or Escape no longer returning it, the chevron
-     * dropped.
+     * Changes that must make it fail: the menu losing its role, an item its role or aria-checked, the keyboard left
+     * on the button when the menu opens, a choice or Escape no longer returning it, Tab no longer closing a menu,
+     * the chevron dropped, either button no longer drawing the shared menu.
      *
      * @return void
      */
     public function test_view_is_one_button_opening_a_menu_of_two_radio_items(): void {
-        $view = $this->source('ViewToggle.tsx');
-        $this->assertStringContainsString("const VIEWS = ['cards', 'list'];", $view);
-        $this->assertSame(2, substr_count($view, '<button'), 'View is the button and one item per view');
-        $this->assertMatchesRegularExpression('/className="compass-line-viewmenu compass-line-layer"\s+role="menu"/', $view);
-        $item = $this->slice($view, 'className="compass-line-menuitem"', 'onClick=');
+        $menu = $this->source('LineMenu.tsx');
+        $this->assertMatchesRegularExpression('/className="compass-line-menu compass-line-layer"\s+role="menu"/', $menu);
+        $item = $this->slice($menu, 'className="compass-line-menuitem"', 'onClick=');
         $this->assertStringContainsString('role="menuitemradio"', $item);
-        $this->assertStringContainsString('aria-checked={view === value}', $item);
-        $this->assertStringContainsString('dangerouslySetInnerHTML={markup(icons.check)}', $view, 'the chosen item has no tick');
-        $this->assertStringContainsString('dangerouslySetInnerHTML={markup(icons.expanded)}', $view, 'View has no chevron');
+        $this->assertStringContainsString('aria-checked={chosen === choice.value}', $item);
+        $this->assertStringContainsString('dangerouslySetInnerHTML={markup(choice.icon)}', $menu, 'an item has no icon');
+        $this->assertStringContainsString('dangerouslySetInnerHTML={markup(tick)}', $menu, 'the chosen item has no tick');
+        $this->assertMatchesRegularExpression(
+            '/<div className="compass-line-menulabel" id=\{headid\}>\{heading\}<\/div>\s*'
+                . '<div role="group" aria-labelledby=\{headid\}>\{items\}<\/div>/',
+            $menu,
+            'a heading no longer names its group of choices'
+        );
         $this->assertMatchesRegularExpression(
             '/if \(open\) \{\s*menu\.current\?\.querySelector<HTMLElement>\(\'\[aria-checked="true"\]\'\)\?\.focus\(/',
-            $view,
+            $menu,
             'opening the menu leaves the keyboard on the button'
         );
         foreach (['ArrowDown', 'ArrowUp', 'Home', 'End'] as $key) {
-            $this->assertStringContainsString("'{$key}'", $this->slice($view, 'const keydown = ', 'return ('));
+            $this->assertStringContainsString("'{$key}'", $this->slice($menu, 'const walk = ', "\n};\n"));
         }
+
+        $view = $this->source('ViewToggle.tsx');
+        $this->assertSame(1, substr_count($view, '<button'), 'View is one button; its items are the menu\'s');
+        $this->assertStringContainsString('<LineMenu', $view);
+        $this->assertMatchesRegularExpression(
+            "/\\{value: 'cards', label: labels\\.view_cards, icon: icons\\.grid\\},\\s*"
+                . "\\{value: 'list', label: labels\\.view_list, icon: icons\\.list\\},/",
+            $view
+        );
+        $this->assertStringContainsString('dangerouslySetInnerHTML={markup(icons.expanded)}', $view, 'View has no chevron');
+        $organise = $this->source('OrganiseMenu.tsx');
+        $this->assertSame(1, substr_count($organise, '<button'), 'Organise is one button; its items are the menu\'s');
+        $this->assertStringContainsString('<LineMenu', $organise);
+        $this->assertStringContainsString('heading={labels.sortby}', $organise);
+        foreach (['category', 'name', 'recent'] as $sort) {
+            $this->assertStringContainsString(
+                "{value: '{$sort}', label: labels.sort_{$sort}, icon: icons.sort{$sort}},",
+                $organise
+            );
+        }
+
         $line = $this->source('FilterLine.tsx');
         $this->assertMatchesRegularExpression(
             '/onChoose=\{\(value\) => \{\s*setViewopen\(false\);\s*focusLater\(\(\) => viewbtn\.current\);/',
@@ -448,12 +474,24 @@ final class filter_line_rules_test extends basic_testcase {
             'a choice does not give the keyboard back to View'
         );
         $this->assertMatchesRegularExpression(
+            '/onSort=\{\(value\) => \{\s*setMenuopen\(false\);\s*focusLater\(\(\) => organise\.current\);/',
+            $line,
+            'a choice does not give the keyboard back to Organise'
+        );
+        $this->assertMatchesRegularExpression(
             '/\} else if \(viewopen\) \{\s*event\.preventDefault\(\);\s*setViewopen\(false\);\s*'
                 . 'focusLater\(\(\) => viewbtn\.current\);/',
             $line,
             'Escape does not close the View menu back to its button'
         );
+        $this->assertMatchesRegularExpression(
+            "/if \\(event\\.key === 'Tab' && \\(menuopen \\|\\| viewopen\\)\\) \\{\\s*setMenuopen\\(false\\);\\s*"
+                . 'setViewopen\\(false\\);/',
+            $line,
+            'Tab out of a menu leaves it open'
+        );
         $this->assertStringNotContainsString('compass-viewbtn', $view . $this->css(), 'the two-button switch is back');
+        $this->assertStringNotContainsString('compass-line-viewmenu', $view . $this->css(), 'View draws a menu of its own again');
     }
 
     /**
@@ -597,8 +635,11 @@ final class filter_line_rules_test extends basic_testcase {
             );
         }
         $this->assertGreaterThanOrEqual(5, $rings, 'vacuity: the bar\'s rings were not read');
-        $motion = $this->slice($css, '@media (prefers-reduced-motion: no-preference) {', '}');
-        $this->assertStringContainsString('.block_compass .compass-line-iconbtn', $motion);
+        $motion = $this->slice(
+            $css,
+            "@media (prefers-reduced-motion: no-preference) {\n    .block_compass .compass-line-iconbtn,",
+            '}'
+        );
         $this->assertStringContainsString('var(--block_compass-motion-fast) var(--block_compass-motion-ease)', $motion);
         foreach ($this->rules() as [$selector, $body]) {
             if (preg_match('/\.compass-(line|scope|search)/', $selector) && preg_match('/(?<![-\w])transition\s*:/', $body)) {
@@ -680,7 +721,7 @@ final class filter_line_rules_test extends basic_testcase {
      * @return void
      */
     public function test_the_line_icons_keep_their_element_across_renders(): void {
-        foreach (['FilterLine', 'FilterToggle', 'OrganiseMenu', 'StarToggle', 'ViewToggle'] as $name) {
+        foreach (['FilterLine', 'FilterToggle', 'OrganiseMenu', 'StarToggle', 'ViewToggle', 'LineMenu'] as $name) {
             $source = $this->source($name . '.tsx');
             $this->assertStringContainsString('dangerouslySetInnerHTML={markup(', $source, $name);
             $this->assertStringNotContainsString('dangerouslySetInnerHTML={{', $source, $name);
