@@ -29,7 +29,9 @@
  * patterns would hide which one a screen reader hears.
  *
  * The count is part of each cell's accessible name (contract section 8): a space between the label
- * and its number, which flex layout ignores and the accessible name keeps.
+ * and its number, which flex layout ignores and the accessible name keeps. At the bar's narrow step the
+ * cells share the line's width (ADR-023) and a label that runs long is cut with an ellipsis, its whole
+ * text in its title; the count is never cut.
  *
  * @module     block_compass/ScopeGroup
  * @copyright  2026 Anderson Blaine
@@ -52,7 +54,6 @@ type ScopeGroupProps = {
     label: string,
     onCheck: (key: string) => void,
     onPreview: (key: string | null) => void,
-    onScroll?: (element: HTMLElement) => void,
 };
 
 /**
@@ -67,10 +68,10 @@ export const hovers = (event: PointerEvent<HTMLElement>): boolean => event.point
 /**
  * The group.
  *
- * @param {object} props The cells, the group's name, the check, preview and scroll callbacks; see ScopeGroupProps.
+ * @param {object} props The cells, the group's name, the check and preview callbacks; see ScopeGroupProps.
  * @returns {object} The rendered radio group.
  */
-const ScopeGroup = ({cells, label, onCheck, onPreview, onScroll}: ScopeGroupProps) => {
+const ScopeGroup = ({cells, label, onCheck, onPreview}: ScopeGroupProps) => {
     const drawn = cells.filter((cell) => cell.drawn);
     // The one tab stop: the checked cell, or the first drawn one when none is checked.
     const stop = (drawn.find((cell) => cell.checked) ?? drawn[0])?.key ?? null;
@@ -115,7 +116,6 @@ const ScopeGroup = ({cells, label, onCheck, onPreview, onScroll}: ScopeGroupProp
             role="radiogroup"
             aria-label={label}
             onKeyDown={keydown}
-            onScroll={(event) => onScroll?.(event.currentTarget)}
         >
             {cells.map((cell) => (
                 <button
@@ -140,7 +140,7 @@ const ScopeGroup = ({cells, label, onCheck, onPreview, onScroll}: ScopeGroupProp
                     onFocus={() => onPreview(cell.key)}
                     onBlur={() => onPreview(null)}
                 >
-                    <span className="compass-scope-label">{cell.label}</span>
+                    <span className="compass-scope-label" title={cell.label}>{cell.label}</span>
                     {cell.count !== null && (
                         <>
                             {' '}

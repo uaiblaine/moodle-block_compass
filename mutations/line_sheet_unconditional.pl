@@ -1,1 +1,1 @@
-s/const sheet = fold\.step === 's4' && !trapped;/const sheet = fold.step === 's4';/;
+s/const sheet = step === 'narrow' && !trapped;/const sheet = step === 'narrow';/;

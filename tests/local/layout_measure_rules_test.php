@@ -188,19 +188,6 @@ final class layout_measure_rules_test extends advanced_testcase {
     }
 
     /**
-     * The chips' and the scope's fades are measured on a change of what they show, on their scroll and on a new
-     * width of the line, never on every render.
-     *
-     * @return void
-     */
-    public function test_the_line_fades_are_measured_on_change(): void {
-        $line = $this->sources()['FilterLine.tsx'];
-        $this->assertStringContainsString("        fadeRows(fold.step);\n    }, [fold.step, fadeskey, fadeRows]);", $line);
-        $this->assertStringContainsString('fadeRows(drawnfold.current.step);', $line, 'a new width must redraw the fades');
-        $this->assertStringContainsString('onScroll={() => fades(chiprow.current)}', $line);
-    }
-
-    /**
      * The strip renders for its own state and its props, not for each of the block's renders: it is memoised,
      * and the empty course list it hands the block is one array, so handing it again changes no state.
      *
