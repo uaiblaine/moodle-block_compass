@@ -51,7 +51,7 @@ const Strip = /* @__PURE__ */ __name(({
   }
   return /* @__PURE__ */ jsxDEV("section", { className: "compass-strip", "data-strip": name, "aria-labelledby": headingid, children: [
     /* @__PURE__ */ jsxDEV("div", { className: "compass-strip-head", children: [
-      /* @__PURE__ */ jsxDEV(Heading, { className: "compass-strip-title h6 fw-bold text-muted mb-0", id: headingid, children: title }, void 0, false, {
+      /* @__PURE__ */ jsxDEV(Heading, { className: "compass-strip-title compass-section-title", id: headingid, children: title }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Strip.tsx",
         lineNumber: 105,
         columnNumber: 17

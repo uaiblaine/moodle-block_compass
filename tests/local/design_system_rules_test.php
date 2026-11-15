@@ -60,6 +60,9 @@ final class design_system_rules_test extends basic_testcase {
         'success-edge' => 'var(--dimensions-success-edge, var(--bs-success-border-subtle, #aecaad))',
     ];
 
+    /** @var string The open-courses close at rest, the one rule that grounds a core button on the block's surface. */
+    private const NEWS_HIDE_REST = '.block_compass .compass-news .compass-news-hide:not(:hover):not(:active)';
+
     /** @var array The classes of the buttons that are core's now: their look is the theme's. */
     private const CORE_BUTTONS = ['compass-cal-todaybtn', 'compass-news-hide', 'compass-news-see', 'compass-clear', 'compass-show'];
 
@@ -206,13 +209,16 @@ final class design_system_rules_test extends basic_testcase {
      * action-button.md: core's .btn classes as they are, a secondary action btn-outline-secondary, the main one
      * btn-primary, btn-sm in a panel's foot; no rounded-pill; a plugin sets none of their colour, radius,
      * padding or type. Today is outside a card or a panel, so it keeps the default size (the file leaves that
-     * size open, and today's button was as tall). The block's own rules for them place them only, with two
-     * stated exceptions: Today's disabled state (Bootstrap has no aria-disabled look), and the cross alone of
-     * the open-courses panel, an icon button standing alone that keeps its 32 px square.
+     * size open, and today's button was as tall). The block's own rules for them place them only, with three
+     * stated exceptions: Today's disabled state (Bootstrap has no aria-disabled look), the cross alone of
+     * the open-courses panel, an icon button standing alone that keeps its 32 px square, and the close's ground at
+     * rest, the surface with its paired text, so the panel's tinted corner does not show through it; hovered and
+     * pressed it is Bootstrap's own pair.
      *
      * Changes that must make it fail: rounded-pill back on Clear filters or Show; Today, the close or See back
      * on a class of the block's own; a radius, a colour or a background set on one of them again; the dark rule
-     * that lights the outline buttons' text reaching a disabled one.
+     * that lights the outline buttons' text reaching a disabled one; the close's resting ground off the surface,
+     * or reaching its hover or pressed state.
      *
      * @return void
      */
@@ -252,7 +258,7 @@ final class design_system_rules_test extends basic_testcase {
                     $body,
                     "{$selector} sets the type"
                 );
-                if (str_contains($selector, '[aria-disabled="true"]')) {
+                if (str_contains($selector, '[aria-disabled="true"]') || $selector === self::NEWS_HIDE_REST) {
                     continue;
                 }
                 $this->assertDoesNotMatchRegularExpression(
@@ -266,6 +272,12 @@ final class design_system_rules_test extends basic_testcase {
             }
         }
         $this->assertGreaterThanOrEqual(5, $read, 'vacuity: fewer than five rules of the buttons were read');
+
+        // The close's resting ground: the surface and its paired text, at rest only.
+        $this->holds($this->rule(self::NEWS_HIDE_REST), [
+            'background: var(--block_compass-surface);', 'color: var(--block_compass-ink);',
+        ], 'the close at rest');
+        $this->assertStringNotContainsString('border', $this->rule(self::NEWS_HIDE_REST), 'the close keeps core\'s border');
 
         // The dark rule that gives the outline buttons the body colour stops at a disabled one, or Today would not
         // recede in dark mode: both arms of the colour-mode scope carry the guard.
@@ -473,15 +485,17 @@ final class design_system_rules_test extends basic_testcase {
      * filter-panel.md and the contract's section 4: every group of Compass holds one value, so it is a radiogroup
      * named by its label, its options role="radio" with aria-checked and one tab stop (the chosen option, or the
      * first), the arrow keys moving the focus and the choice; a press on the chosen option releases the group, which
-     * has no neutral option. An option is a 28 px rounded rectangle on the control line, 0.8125rem / 500, the chosen
-     * one in the brand tone; the panel at least 300 px wide, 12 px of padding; the sheet radius xl on its top corners,
-     * at most 80 % of the screen, the large elevation; the foot under a hairline. No pill and no platter is left.
+     * has no neutral option. A group's label sits on a line of its own above its options at every width, 6 px over
+     * them (filter-panel.md, "above, the prototype"), never beside them at a wide step. An option is a 28 px rounded
+     * rectangle on the control line, 0.8125rem / 500, the chosen one in the brand tone; the panel at least 300 px wide,
+     * 12 px of padding; the sheet radius xl on its top corners, at most 80 % of the screen, the large elevation; the
+     * foot under a hairline. No pill and no platter is left.
      *
      * Changes that must make it fail: a group back to a role="group" of aria-pressed toggles, the roving tab stop or
      * the arrow keys' choice dropped, a press on the chosen option no longer releasing it, the keyboard left on the
      * body when the released option counts nothing and goes, an option back on a pill
      * or off its height, the chosen option off the brand tone, the sheet back on a 1rem corner or off its elevation,
-     * the foot's hairline dropped.
+     * the foot's hairline dropped, a group's label back beside its options, or beside them at one step only.
      *
      * @return void
      */
@@ -535,6 +549,29 @@ final class design_system_rules_test extends basic_testcase {
             'color: var(--block_compass-brand-ink);',
         ], 'the chosen option');
         $this->holds($this->rule('.block_compass .compass-fpanel-opts'), ['flex-wrap: wrap;', 'gap: 0.375rem;'], 'the options');
+        // The label above its options at every width: the group is a column in its one rule, no step class reshapes it,
+        // and the label comes first in the markup.
+        $this->holds($this->rule('.block_compass .compass-fpanel-group'), [
+            'flex-direction: column;', 'align-items: flex-start;', 'gap: 0.375rem;',
+        ], 'a group, its label above its options');
+        $this->holds($this->rule('.block_compass .compass-fpanel-head'), [
+            'color: var(--block_compass-muted);', 'font-size: 0.75rem;', 'font-weight: 600;',
+        ], 'a group\'s label');
+        $groups = 0;
+        foreach ($this->rules() as [$list]) {
+            if (preg_match('/\.compass-fpanel-group(?![\w-])/', $list)) {
+                $groups++;
+            }
+        }
+        $this->assertSame(1, $groups, 'a second rule reshapes a group at one step: the label would go beside its options');
+        $this->assertStringNotContainsString('compass-fpanel-stacked', $panel, 'the panel is drawn two ways again');
+        $this->assertStringNotContainsString('stacked', $this->source('FilterLine.tsx'), 'the line tells the panel its step');
+        $this->assertMatchesRegularExpression(
+            '/<div className="compass-fpanel-group">\s*<span className="compass-fpanel-head"[^>]*>\{field\.label\}<\/span>\s*'
+                . '<div className="compass-fpanel-opts"/',
+            $panel,
+            'a group\'s label is not the first thing in it'
+        );
         $this->holds($this->rule('.block_compass .compass-fpanel-foot'), [
             'justify-content: space-between;', 'gap: 0.5rem;', 'padding-top: 0.75rem;',
             'border-top: 1px solid var(--block_compass-line);',
@@ -616,11 +653,12 @@ final class design_system_rules_test extends basic_testcase {
      *
      * The calendar's (its view switch and Up next's hide) and the open-courses group's: the body text as the ground
      * and the surface as the text, radius sm, 0.75rem with a 1.35 line, at most 260 px wide, a 5 px arrow in the
-     * ground, opacity over the fast motion. The CSS-only tooltip waits 250 ms before it shows; the group's waits in its
-     * client (ADR-019 decision 3). Padding, shadow and layer stay each one's own: the file leaves the three open.
+     * ground, opacity over the fast motion. The CSS-only tooltip waits 100 ms before it shows, shorter than tooltip.md's
+     * 250 ms so an icon's name keeps up with the pointer; the group's waits in its client (ADR-019 decision 3). Padding,
+     * shadow and layer stay each one's own: the file leaves the three open.
      *
      * Changes that must make it fail: either tooltip back on its own ground or radius, the group's back on 0.875rem
-     * text, its old 120 ms or its rise, the calendar's delay dropped, an arrow off the ground.
+     * text, its old 120 ms or its rise, the calendar's delay dropped or back on 250 ms, an arrow off the ground.
      *
      * @return void
      */
@@ -635,12 +673,20 @@ final class design_system_rules_test extends basic_testcase {
             $this->assertStringNotContainsString('transform 120ms', $this->rule($selector), $selector);
         }
         $this->assertStringNotContainsString('font-size', $this->rule('.block_compass .compass-news-tipname'));
-        $this->assertStringContainsString(
-            'transition-delay: 250ms;',
-            $this->named(
-                '.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip'
-            )
-        );
+        // One rule shows the icon tooltips, the switch's and Up next's hide's, on hover and on keyboard focus alike.
+        foreach (
+            [
+                '.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip',
+                '.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible'
+                    . ' .compass-cal-tip',
+                '.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):hover .compass-cal-tip',
+                '.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):focus-visible .compass-cal-tip',
+            ] as $shown
+        ) {
+            $delay = $this->named($shown);
+            $this->assertStringContainsString('transition-delay: 100ms;', $delay, $shown);
+            $this->assertSame(1, preg_match_all('/transition-delay\s*:/', $delay), "{$shown}: one delay");
+        }
         $this->assertStringContainsString(
             'border-top-color: var(--block_compass-ink);',
             $this->rule('.block_compass .compass-cal-tip::after')
@@ -752,5 +798,173 @@ final class design_system_rules_test extends basic_testcase {
         sort($pills);
         $this->assertSame($allowed, array_values(array_intersect($allowed, $pills)), 'vacuity: the kept pills were not read');
         $this->assertSame([], array_values(array_diff($pills, $allowed)), 'a control is a pill');
+    }
+
+    /**
+     * Every section's title has one look, the block's own class, and the sections one room between them.
+     *
+     * Continue where you left off, New enrolments, My favourites (Strip.tsx and both copies of tier 1's skeleton), All
+     * courses (Explore.tsx) and Open enrolments (OpenCourses.tsx, its three shapes) carry .compass-section-title and no
+     * Bootstrap type utility: 1rem / 600 in the body text, one line height, whatever the heading level. The open-courses
+     * title keeps no look of its own, the slim panel's included. A section ends 2rem (32 px) above the next one's title:
+     * a strip, the calendar, the open-courses line, and All courses after any of them; the pending note under New
+     * enrolments stays 0.75rem under its cards.
+     *
+     * Changes that must make it fail: a title back on h5, h6, fw-bold or text-muted, or off the class; the class off
+     * 1rem, 600 or the body text; the open-courses title given a size, weight or colour of its own again; the room
+     * after a strip, the calendar or the open-courses line back under 2rem; All courses back on Bootstrap's mt-3.
+     *
+     * @return void
+     */
+    public function test_every_section_title_has_one_look(): void {
+        $tags = [
+            'Strip.tsx' => [$this->source('Strip.tsx'), 1],
+            'Tier1Skeleton.tsx' => [$this->source('Tier1Skeleton.tsx'), 1],
+            'Explore.tsx' => [$this->source('Explore.tsx'), 1],
+            'OpenCourses.tsx' => [$this->source('OpenCourses.tsx'), 3],
+            'tier1_skeleton.mustache' => [
+                (string) file_get_contents(dirname(__DIR__, 2) . '/templates/tier1_skeleton.mustache'),
+                1,
+            ],
+        ];
+        foreach ($tags as $file => [$source, $expected]) {
+            preg_match_all('/class(?:Name)?="([^"]*\bcompass-(?:strip|explore|news)-title\b[^"]*)"/', $source, $classes);
+            $this->assertCount($expected, $classes[1], "{$file}: the section titles drawn");
+            foreach ($classes[1] as $list) {
+                $words = preg_split('/\s+/', trim($list));
+                $this->assertContains('compass-section-title', $words, "{$file}: {$list}");
+                $this->assertSame(
+                    [],
+                    array_values(array_intersect($words, ['h5', 'h6', 'fw-bold', 'text-muted', 'mb-0'])),
+                    "{$file}: {$list} sizes or colours itself with Bootstrap"
+                );
+            }
+        }
+
+        $this->holds($this->rule('.block_compass .compass-section-title'), [
+            'margin: 0;', 'color: var(--block_compass-ink);', 'font-size: 1rem;', 'font-weight: 600;', 'line-height: 1.3;',
+        ], 'a section title');
+        foreach ($this->rules() as [$list, $body]) {
+            if (preg_match('/\.compass-(?:strip|explore|news)-title(?![\w-])/', $list)) {
+                $this->assertDoesNotMatchRegularExpression(
+                    '/(?<![-\w])(?:color|font-size|font-weight|line-height)\s*:/',
+                    $body,
+                    "{$list} gives a section title a look of its own"
+                );
+            }
+        }
+
+        $this->assertStringContainsString('margin-bottom: 2rem;', $this->rule('.block_compass .compass-strip'), 'after a strip');
+        $this->assertStringContainsString('margin-bottom: 2rem;', $this->rule('.block_compass .compass-cal'), 'after the calendar');
+        $this->assertStringContainsString(
+            'margin: 0.25rem 0 2rem;',
+            $this->rule('.block_compass .compass-news-inner > .compass-news'),
+            'after the open-courses line'
+        );
+        $this->assertStringContainsString(
+            'margin-top: 2rem;',
+            $this->rule('.block_compass .compass-explore-wrap'),
+            'before All courses'
+        );
+        $this->assertStringContainsString(
+            'margin: -1.25rem 0 2rem;',
+            $this->rule('.block_compass .compass-strip-note'),
+            'the pending note, under its cards'
+        );
+        $this->assertStringContainsString('<div className="compass-explore-wrap">', $this->source('Block.tsx'));
+    }
+
+    /**
+     * All courses names no count: the bar counts what the criteria keep, and the live region says it.
+     *
+     * The tier 3 title is the plain allcourses_title string, with no placeholder in either language; the bar's count, the
+     * scopes' counts and each group's count stay where they are.
+     *
+     * Changes that must make it fail: the total filled into the title again, or a placeholder back in its string.
+     *
+     * @return void
+     */
+    public function test_the_tier_three_title_names_no_count(): void {
+        $explore = $this->source('Explore.tsx');
+        $this->assertMatchesRegularExpression(
+            '/<Heading className="compass-explore-title compass-section-title" id=\{titleid\} tabIndex=\{-1\}>\s*'
+                . '\{labels\.allcourses_title\}\s*<\/Heading>/',
+            $explore,
+            'the title says more than its words'
+        );
+        $this->assertStringNotContainsString('data.total', $explore, 'the total is drawn somewhere in tier 3 again');
+        $this->assertStringContainsString('total={paged ? null : shown}', $explore, 'the bar\'s result count');
+        $this->assertStringContainsString('count={slice.count}', $explore, 'a group\'s count');
+        foreach (['en' => 'All courses', 'pt_br' => 'Todos os cursos'] as $lang => $words) {
+            $string = [];
+            include(dirname(__DIR__, 2) . "/lang/{$lang}/block_compass.php");
+            $this->assertSame($words, $string['allcourses_title'] ?? null, $lang);
+            $this->assertArrayNotHasKey('allcourses', $string, "{$lang}: the counted title is back");
+        }
+    }
+
+    /**
+     * The category index marks where the page is, names no count, and gives each link room and three states.
+     *
+     * A link is a name only (the group's header counts), 8 px by 12 px of padding with a 4 px gap, radius md, a 1.35
+     * line, wrapping when long. Hovered it takes the alternate surface and the body text; on keyboard focus the token
+     * ring; the current one the brand's tint and ink at 600, written after the hover so it keeps its tone under the
+     * pointer, and named aria-current="true" (the current item of a set of in-page links). The current follows the page
+     * through one IntersectionObserver, disconnected on unmount, never a scroll listener, and a click marks its link at
+     * once while it still opens its group.
+     *
+     * Changes that must make it fail: a count back in a link; aria-current dropped or on every link; the hover, focus or
+     * current state off its tokens; the current rule before the hover rule; the observer left connected or replaced by
+     * a scroll listener; a click that waits for the scroll to mark its link, or no longer opens the group.
+     *
+     * @return void
+     */
+    public function test_the_category_index_marks_where_the_page_is(): void {
+        $explore = $this->source('Explore.tsx');
+        $index = $this->slice($explore, 'const CategoryIndex = ', "\n};\n");
+        $link = $this->slice($index, '<a', '</a>');
+        $this->assertMatchesRegularExpression('/>\s*\{entry\.name\}\s*$/', $link, 'a link says more than its name');
+        $entry = $this->slice($explore, 'type IndexEntry = {', '};');
+        $this->assertStringNotContainsString('count', $entry, 'an entry carries a count');
+        $this->assertStringContainsString('className="compass-index-link"', $link);
+        $this->assertStringContainsString("aria-current={entry.anchor === shown ? 'true' : undefined}", $link);
+        $this->assertMatchesRegularExpression(
+            '/onClick=\{\(\) => \{.*?pinned\.current = \{.*?setCurrent\(entry\.anchor\);\s*onOpen\(entry\.id\);/s',
+            $link,
+            'a click marks its link at once and opens its group'
+        );
+        $this->assertStringContainsString('new IntersectionObserver(update, {', $index);
+        $this->assertStringContainsString('return () => observer.disconnect();', $index, 'the observer outlives the index');
+        $this->assertSame(1, substr_count($index, 'new IntersectionObserver('), 'one observer');
+        $this->assertDoesNotMatchRegularExpression('/addEventListener\(\s*[\'"]scroll/', $explore, 'a scroll listener');
+        $this->assertStringContainsString(
+            '<CategoryIndex entries={indexentries} label={labels.categoryindex} onOpen={openGroup} />',
+            $explore
+        );
+        $this->assertStringContainsString(
+            'const openGroup = useCallback((id: number): void => setOpen((c) => ({...c, [id]: true})), []);',
+            $explore
+        );
+
+        $this->holds($this->rule('.block_compass .compass-index-list'), ['flex-direction: column;', 'gap: 0.25rem;'], 'the list');
+        $this->holds($this->rule('.block_compass .compass-index-link'), [
+            'padding: 0.5rem 0.75rem;', 'border-radius: var(--block_compass-radius-md);', 'line-height: 1.35;',
+            'overflow-wrap: anywhere;', 'color: var(--block_compass-muted);',
+        ], 'a link');
+        $this->holds($this->rule('.block_compass .compass-index-link:hover'), [
+            'background: var(--block_compass-surface-alt);', 'color: var(--block_compass-ink);',
+        ], 'a link hovered');
+        $this->holds($this->rule('.block_compass .compass-index-link:focus-visible'), [
+            'outline: var(--block_compass-focus-width) solid var(--block_compass-focus-ring);', 'outline-offset: 2px;',
+        ], 'a link focused');
+        $this->holds($this->rule('.block_compass .compass-index-link[aria-current="true"]'), [
+            'background: var(--block_compass-brand-tint);', 'color: var(--block_compass-brand-ink);', 'font-weight: 600;',
+        ], 'the current link');
+        $order = array_column($this->rules(), 0);
+        $this->assertGreaterThan(
+            array_search('.block_compass .compass-index-link:hover', $order, true),
+            array_search('.block_compass .compass-index-link[aria-current="true"]', $order, true),
+            'the hover rule repaints the current link'
+        );
     }
 }

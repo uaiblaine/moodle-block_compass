@@ -15,6 +15,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **The filter panel, the tooltips, the category index and the section titles are refined** (2026100543). A
+  filter panel group's label is on a line of its own above its options at every width. The icon tooltips (the
+  calendar's view switch and Up next's hide) show after 100 ms instead of 250 ms. The category index beside the
+  groups names no count, gives each link more room (8 by 12 px, wrapping when long), and marks the group the page is
+  at with the brand's tint and `aria-current="true"`, following the scroll through one IntersectionObserver; a
+  click marks its link at once and still opens the group. "All courses" names no count (the `allcourses` string is
+  now `allcourses_title`, with no placeholder); the bar, the scopes and the groups keep theirs. Continue where you
+  left off, New enrolments, My favourites, All courses and Open enrolments share one title look (1rem, 600, the body
+  text), and the sections are 2rem apart. The open-courses close rests on the surface instead of the panel's tint.
+  No service or preference changes.
 - **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024;
   2026100542). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
   chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a

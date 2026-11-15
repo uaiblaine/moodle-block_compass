@@ -889,7 +889,7 @@ final class block_compass_test extends advanced_testcase {
 
         $preload = $this->preload($this->make_block()->get_content()->text);
 
-        preg_match_all('/<div class="compass-strip-title h6 fw-bold text-muted mb-0">([^<]*)<\/div>/', $preload, $titles);
+        preg_match_all('/<div class="compass-strip-title compass-section-title">([^<]*)<\/div>/', $preload, $titles);
         $this->assertSame(
             [
                 get_string('strip_continue', 'block_compass'),

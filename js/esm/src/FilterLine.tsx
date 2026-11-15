@@ -184,7 +184,7 @@ type FilterLineProps = {
     badge: number,
     panelopen: boolean,
     onPanel: (open: boolean) => void,
-    panel: (layer: {id: string, top: number | null, sheet: boolean, stacked: boolean,
+    panel: (layer: {id: string, top: number | null, sheet: boolean,
         element: RefObject<HTMLDivElement | null>, onShow: () => void}) => ReactNode,
     sort: string,
     onSort: (sort: string) => void,
@@ -961,7 +961,6 @@ const FilterLine = (props: FilterLineProps) => {
                 id: panelid,
                 top: place.panel,
                 sheet,
-                stacked: step === 'narrow',
                 element: panelel,
                 onShow: showList,
             })}
