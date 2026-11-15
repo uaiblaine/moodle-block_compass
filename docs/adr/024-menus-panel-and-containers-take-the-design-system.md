@@ -1,9 +1,8 @@
 # ADR-024: The Organise menu, the filter panel and the block's containers and feedback take the Design System's form
 
-**Status:** Proposed (2026-11-15). Written with the implementation on branch `design-system-containers`, version
-`2026100542`; the maintainer reviews it with the pull request, and it flips to `Accepted` in the commit that lands
-it. The sub-decisions taken where a component file, the contract and today's behaviour disagreed are listed under
-"Decided in implementation".
+**Status:** Accepted (2026-11-15). Written with the implementation, version `2026100542`, and accepted by the
+maintainer with its pull request. The sub-decisions taken where a component file, the contract and today's
+behaviour disagreed are listed under "Decided in implementation".
 **Date:** 2026-11-15
 **Phase:** the Design System's fourth step, containers and feedback (D25's order, after the tokens, the bar, and the
 status labels and buttons), 5.3 only (`main` = `MOODLE_503_STABLE`)
