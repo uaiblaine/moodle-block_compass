@@ -15,6 +15,10 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **The category index lists the Archived group** (2026100546). Grouped by category, the index beside the groups
+  ends with a link to *Archived* when the viewer has archived courses; the link opens the group and is marked as
+  the page reaches it, like a category's. Dormant and Hidden stay out of the index.
+
 - **Comments and the README follow the audit of 2026-11-15** (2026100545). No behaviour change: comments, the README's
   captions and wording, and the rebuilt `js/esm/build` that carries the source comments.
 
