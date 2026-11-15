@@ -531,8 +531,8 @@ final class contrast_rules_test extends basic_testcase {
                 );
             }
             $this->assertSame(
-                'var(--block_compass-cal-fg-dim)',
-                $body['--block_compass-cal-text'] ?? null,
+                'var(--block_compass-ink-dim)',
+                $body['--block_compass-ink'] ?? null,
                 "{$scope} keeps the text"
             );
             $this->assertSame(
@@ -577,7 +577,7 @@ final class contrast_rules_test extends basic_testcase {
         foreach ($this->rules() as [$selector, $body]) {
             if ($selector === '.block_compass') {
                 $root = self::custom_properties($body) + $root;
-            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-brand-text:')) {
+            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-accent-text:')) {
                 $darkoverride = self::custom_properties($body) + $darkoverride;
             }
         }
@@ -592,7 +592,7 @@ final class contrast_rules_test extends basic_testcase {
         ];
 
         $surface = 'var(--block_compass-surface)';
-        $soft = 'var(--block_compass-cal-soft)';
+        $soft = 'var(--block_compass-surface-alt)';
         $col = ['root', 'dimmed column'];
         $line = ['root', 'dimmed period'];
         $all = ['root', 'dimmed column', 'dimmed period'];
@@ -833,12 +833,12 @@ final class contrast_rules_test extends basic_testcase {
                 $dim = self::ratio(self::evaluate("var(--block_compass-cal-{$fill})", $dimchain), $base);
                 $this->assertLessThan(1 + ($full - 1) / 2, $dim, "{$mode}: the dimmed {$fill} is hardly lower than its own fill");
             }
-            $text = self::ratio(self::evaluate('var(--block_compass-cal-text)', $rootchain), $base);
-            $dimtext = self::ratio(self::evaluate('var(--block_compass-cal-text)', $dimchain), $base);
+            $text = self::ratio(self::evaluate('var(--block_compass-ink)', $rootchain), $base);
+            $dimtext = self::ratio(self::evaluate('var(--block_compass-ink)', $dimchain), $base);
             $this->assertGreaterThan(1.15, $text / $dimtext, "{$mode}: the dimmed text is not quieter than the body text");
             // The preview's dim (ADR-015 decision 6) recedes as visibly as the calendar's.
-            $rowtext = self::ratio(self::evaluate('var(--block_compass-x3-text)', $rootchain), $base);
-            $rowdim = self::ratio(self::evaluate('var(--block_compass-x3-fg-dim)', $rootchain), $base);
+            $rowtext = self::ratio(self::evaluate('var(--block_compass-ink)', $rootchain), $base);
+            $rowdim = self::ratio(self::evaluate('var(--block_compass-ink-dim)', $rootchain), $base);
             $this->assertGreaterThan(1.15, $rowtext / $rowdim, "{$mode}: a dimmed row is not quieter than a lit one");
         }
         $this->assertSame([], $failures, "pairs under their floor:\n" . implode("\n", $failures));
@@ -856,7 +856,7 @@ final class contrast_rules_test extends basic_testcase {
         foreach ($this->rules() as [$selector, $body]) {
             if ($selector === '.block_compass') {
                 $root = self::custom_properties($body) + $root;
-            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-brand-text:')) {
+            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-accent-text:')) {
                 $darkoverride = self::custom_properties($body) + $darkoverride;
             }
         }
@@ -1013,7 +1013,7 @@ final class contrast_rules_test extends basic_testcase {
         if ($hops > 32) {
             return [0, 0, 0, 0];
         }
-        if (preg_match('/^var\((--[\w-]+)\s*(?:,(.*))?\)$/s', $value, $match)) {
+        if (preg_match('/^var\(\s*(--[\w-]+)\s*(?:,(.*))?\)$/s', $value, $match)) {
             foreach ($chain as $depth => $scope) {
                 if (array_key_exists($match[1], $scope)) {
                     return self::evaluate($scope[$match[1]], array_slice($chain, $depth), $hops + 1);

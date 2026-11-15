@@ -246,7 +246,7 @@ final class course_card_rules_test extends \basic_testcase {
         );
         $this->assertMatchesRegularExpression(
             '/\.block_compass \.compass-card\.compass-card-new \{\s*--block_compass-new-edge: 2px;\s*'
-                . 'border-width: var\(--block_compass-new-edge\);\s*border-color: var\(--block_compass-brand\);\s*\}/',
+                . 'border-width: var\(--block_compass-new-edge\);\s*border-color: var\(--block_compass-accent\);\s*\}/',
             $css,
             'a new enrolment lost its brand edge'
         );

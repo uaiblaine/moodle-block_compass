@@ -513,8 +513,9 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * The brand is #0f6cbf, which is 3.02:1 on Boost's dark body #1d2125 - under the
      * 4.5:1 floor for text, while clearing the 3:1 one for an outline or a border. So the
-     * text token is a second name that dark mode overrides and the plain one is left to
-     * the rings and the borders.
+     * text token is a name of its own that dark mode overrides, beside the ink of the marks
+     * (--block_compass-accent, held by test_marks_go_through_the_dark_aware_ink). The plain
+     * --block_compass-brand, which was the ink under a second name, is gone and stays gone.
      *
      * The rule pins the pairing, not the ratio: no source can compute a contrast, so the ratio
      * is measured in a browser. The dark selector is the one dark mechanism 5.2 has, the
@@ -528,24 +529,23 @@ final class accessibility_rules_test extends basic_testcase {
 
         // The token with or without a fallback: var(--x) and var(--x, #fff) are the same paint.
         $this->assertDoesNotMatchRegularExpression(
-            '/(?<![-\w])color\s*:\s*[^;{}]*var\(\s*--block_compass-brand\s*[,)]/',
+            '/--block_compass-brand(?![\w-])/',
             $css,
-            'a text colour painted with --block_compass-brand is 3.02:1 on the dark body; '
-                . 'paint text with --block_compass-brand-text and leave the plain token to '
-                . 'outlines, borders and backgrounds'
+            'the plain --block_compass-brand is back: paint text with --block_compass-accent-text, and '
+                . 'outlines, borders and backgrounds with --block_compass-accent'
         );
         // Vacuity guard: something must actually paint text with the paired token.
         $this->assertGreaterThanOrEqual(
             1,
-            preg_match_all('/(?<![-\w])color\s*:\s*[^;{}]*var\(\s*--block_compass-brand-text\s*[,)]/', $css),
-            'nothing paints text with --block_compass-brand-text: the rule above checked nothing'
+            preg_match_all('/(?<![-\w])color\s*:\s*[^;{}]*var\(\s*--block_compass-accent-text\s*[,)]/', $css),
+            'nothing paints text with --block_compass-accent-text: the rule above checked nothing'
         );
 
         $light = 0;
         $dark = 0;
         foreach ($this->rules() as $rule) {
             [$selector, $body] = $rule;
-            if (!str_contains($body, '--block_compass-brand-text:')) {
+            if (!str_contains($body, '--block_compass-accent-text:')) {
                 continue;
             }
             if (str_contains($selector, self::DARK_ATTRIBUTE)) {
@@ -554,11 +554,11 @@ final class accessibility_rules_test extends basic_testcase {
                 $light++;
             }
         }
-        $this->assertGreaterThanOrEqual(1, $light, '--block_compass-brand-text has no light value');
+        $this->assertGreaterThanOrEqual(1, $light, '--block_compass-accent-text has no light value');
         $this->assertGreaterThanOrEqual(
             1,
             $dark,
-            '--block_compass-brand-text is not overridden under [data-bs-theme="dark"]'
+            '--block_compass-accent-text is not overridden under [data-bs-theme="dark"]'
         );
     }
 
@@ -1417,16 +1417,17 @@ final class accessibility_rules_test extends basic_testcase {
      * The a11y sweep of 2026-10-14 measured, in dark mode on the theme's navy brand, a card's outline
      * button, the calendar's dots, its needle and its checked switch at 1.1:1 against the dark body:
      * each was painted with the theme's primary, which Bootstrap does not move in dark mode. The
-     * cure is one token, --block_compass-brand-ink: the primary in light mode, a mix of the primary
-     * into the body colour in dark mode (the ratios are in styles.css). The rule pins the pairing,
-     * not the ratio, as the brand text rule does: nothing paints with the theme's primary directly
-     * outside a token declaration, the calendar's accent and the plain brand token resolve to the
-     * ink, the dark rule redefines the ink with a colour-mix() of theme tokens and points the plain
-     * brand at it, the checked switch and the dark outline button take the ink, and an accent pill's
-     * text follows its fill.
+     * cure is one token, --block_compass-accent: the family's accent, under Boost the primary in
+     * light mode and a mix of the primary into the body colour in dark mode (the ratios are in
+     * styles.css). The rule pins the pairing, not the ratio, as the brand text rule does: nothing
+     * paints with the theme's primary directly outside a token declaration, the calendar's accent
+     * resolves to the ink, the dark rule redefines the ink's Bootstrap link with a colour-mix() of
+     * theme tokens behind the family's accent, the checked switch and the dark outline button take
+     * the ink, and an accent pill's text follows its fill.
      *
      * Changes that must make it fail: a dot or a ring back on var(--bs-primary); the dark ink
-     * dropped or written as a literal; the switch or the outline button rule deleted.
+     * dropped or written as a literal; the family's accent no longer the first link; the switch or
+     * the outline button rule deleted.
      *
      * @return void
      */
@@ -1453,40 +1454,36 @@ final class accessibility_rules_test extends basic_testcase {
         foreach ($this->rules() as [$selector, $body]) {
             if (trim($selector) === '.block_compass') {
                 $light .= $body;
-            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-brand-text:')) {
+            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-accent-text:')) {
                 $dark .= $body;
             }
         }
         $this->assertMatchesRegularExpression(
-            '/--block_compass-brand-ink:\s*var\(--bs-primary\b/',
+            '/--block_compass-accent:\s*var\(--dimensions-accent,\s*var\(--bs-primary\b/',
             $light,
-            'the ink\'s light value is the theme\'s primary'
+            'the ink\'s light value is the family\'s accent, then the theme\'s primary'
         );
         $this->assertMatchesRegularExpression(
-            '/--block_compass-cal-accent:\s*var\(--block_compass-brand-ink\)/',
+            '/--block_compass-cal-accent:\s*var\(--block_compass-accent\)/',
             $light,
             'the calendar\'s dots, rings and needle are painted with --block_compass-cal-accent, which must be the ink'
         );
         $this->assertMatchesRegularExpression(
-            '/--block_compass-brand-ink:\s*color-mix\(in oklab,\s*var\(--bs-primary\b[^;]*var\(--bs-body-color\b/',
+            '/--block_compass-accent:\s*var\(\s*--dimensions-accent,\s*color-mix\(in oklab,\s*'
+                . 'var\(--bs-primary\b[^;]*var\(--bs-body-color\b/',
             $dark,
-            'the dark rule must mix the primary into the body colour for the ink'
+            'the dark rule must mix the primary into the body colour for the ink, behind the family\'s accent'
         );
-        $this->assertMatchesRegularExpression(
-            '/--block_compass-brand:\s*var\(--block_compass-brand-ink\)/',
-            $dark,
-            'the dark rule must point the plain brand (rings, outlines, borders) at the ink'
-        );
-        $this->assertMatchesRegularExpression('/--block_compass-brand-onink:/', $dark, 'the text on the ink in dark mode');
+        $this->assertMatchesRegularExpression('/--block_compass-on-accent:/', $dark, 'the text on the ink in dark mode');
 
         $switch = 0;
         $outline = 0;
         foreach ($this->rules() as [$selector, $body]) {
             if (str_contains($selector, '.form-check-input:checked') && str_contains($selector, '.block_compass')) {
-                $switch += preg_match('/background-color:\s*var\(--block_compass-brand-ink\)/', $body);
+                $switch += preg_match('/background-color:\s*var\(--block_compass-accent\)/', $body);
             }
             if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($selector, '.btn-outline-primary:not(:hover)')) {
-                $outline += preg_match('/(?<![-\w])color:\s*var\(--block_compass-brand-ink\)/', $body);
+                $outline += preg_match('/(?<![-\w])color:\s*var\(--block_compass-accent\)/', $body);
             }
         }
         $this->assertSame(1, $switch, 'the checked relevance switch is not painted with the ink');

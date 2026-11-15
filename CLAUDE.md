@@ -302,9 +302,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
   `tsc --noEmit` is a gate; a badge names its classes in a string literal; a heading tag is
   never written literally (`heading.ts` picks from `headinglevel` 4/3/2); brand text is painted
-  with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two
+  with `--block_compass-accent-text`, whose dark override is scoped to html-or-body in two
   selectors, never `:root` alone and never `.theme-dark`; brand marks (dots, rings, the needle, a checked
-  switch, an outline button) use `--block_compass-brand-ink`, which that override lightens; there is no React eslint plugin, so
+  switch, an outline button) use `--block_compass-accent`, which that override lightens; there is no React eslint plugin, so
   write code that needs no hook rule; server-rendered markup reaches React only as core's own
   output. Tier 3: two modes in one component, sequence numbers not cancellation, debounce 150
   full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed
@@ -368,8 +368,10 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   a guess; a receding state (the lighting's dim, a disabled control) remaps fill and text tokens in
   its scope and never uses opacity. `contrast_rules_test` holds the guard pairs and computes every
   declared pair, light and dark, two brands: add a new fill there.
-- Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
-  fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
+- Root class `.block_compass`; custom properties `--block_compass-*`, every colour through the
+  fleet Design System's chain `var(--dimensions-X, var(--bs-Y, literal))` and no rule reading
+  `--bs-*` itself (`design_tokens_test` holds the chain, the block's own tokens and the scale
+  tokens); inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).
 
 ## Moodle 5.2-only departures from the fleet default
