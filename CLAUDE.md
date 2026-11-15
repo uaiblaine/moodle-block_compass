@@ -175,8 +175,8 @@ details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
 page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip, 015 the filter
 line in tier 3, 023 the compact filter bar, 024 the menus, the panel and the containers in the Design
-System's form, 025 Organise's Group by and Sort by and the bar's icon tooltips (table with dates in the
-long form).
+System's form, 025 Organise's Group by and Sort by and the bar's icon tooltips, 026 every list row two lines of one
+height (table with dates in the long form).
 
 ## Code layout
 

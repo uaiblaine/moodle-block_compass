@@ -1,1 +1,1 @@
-s/(compass-row-meta compass-clamp small text-muted") title=\{meta\}/$1/;
+s/(compass-row-meta small text-muted") title=\{meta\}/$1/;
