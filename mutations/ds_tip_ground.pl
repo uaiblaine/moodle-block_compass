@@ -1,0 +1,1 @@
+s/background: var\(--block_compass-ink\);(\n    color: var\(--block_compass-surface\);\n    font-size: 0\.75rem;\n    font-weight: 400;\n    line-height: 1\.35;\n    opacity: 0;)/background: var(--block_compass-cal-ink);$1/;

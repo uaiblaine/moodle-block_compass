@@ -1,13 +1,13 @@
-import{markup as o}from"./markup";import{jsx as i,jsxs as l}from"react/jsx-runtime";/**
- * The list/cards switch of tier 3: two icon-only buttons, one pressed.
+import{useId as g}from"react";import b from"./LineMenu";import{markup as a}from"./markup";import{jsx as o,jsxs as s}from"react/jsx-runtime";/**
+ * View: one icon button with a chevron and the menu it opens, Cards and List (ADR-023).
  *
- * Each button's aria-label carries the view's name, so a Behat step that clicks the "Cards"
- * button resolves: Moodle matches a button by its aria-label too
- * (lib/behat/classes/partial_named_selector.php). The icons are core's own list and grid glyphs,
- * server-rendered and shipped as props because there is no pix helper for ESM. Each carries its word as
- * a tooltip too, as every icon-only control of the filter line does (ADR-015).
+ * The filter bar's View slot (moodle-dev/docs/filter-line/CONTRACT.md, sections 1 and 8): the button shows
+ * the current view's glyph and a chevron, names itself "View" with a tooltip, and says what it opens with
+ * aria-expanded and aria-controls. The menu is the bar's LineMenu, named "Show courses as", one
+ * menuitemradio per view; its keys, its focus and its look are LineMenu's, the Organise menu's too (ADR-024).
+ * The glyphs are core's own list, grid and chevron, server-rendered and shipped as props.
  *
  * @module     block_compass/ViewToggle
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const r=({view:a,config:n,onChoose:s})=>{const{labels:e,icons:t}=n;return l("div",{className:"compass-views",role:"group","aria-label":e.viewas,children:[i("button",{type:"button",className:"compass-viewbtn","aria-pressed":a==="list","aria-label":e.view_list,title:e.view_list,onClick:()=>s("list"),children:i("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:o(t.list)})}),i("button",{type:"button",className:"compass-viewbtn","aria-pressed":a==="cards","aria-label":e.view_cards,title:e.view_cards,onClick:()=>s("cards"),children:i("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:o(t.grid)})})]})};var p=r;export{p as default};
+ */const v=({view:i,open:l,top:r,config:c,button:p,menu:m,onToggle:u,onChoose:d})=>{const{labels:n,icons:e}=c,t=g();return s("div",{className:"compass-line-view",children:[s("button",{type:"button",ref:p,className:"compass-line-iconbtn compass-line-viewbtn","aria-haspopup":"menu","aria-expanded":l,"aria-controls":t,"aria-label":n.line_view,title:n.line_view,onClick:u,children:[o("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:a(i==="list"?e.list:e.grid)}),o("span",{className:"compass-line-chevron icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:a(e.expanded)})]}),o(b,{id:t,menu:m,open:l,top:r,label:n.viewas,heading:null,choices:[{value:"cards",label:n.view_cards,icon:e.grid},{value:"list",label:n.view_list,icon:e.list}],chosen:i,tick:e.check,onChoose:d})]})};var T=v;export{T as default};

@@ -2,38 +2,38 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { jsxDEV } from "react/jsx-dev-runtime";
 /**
- * Organise: one icon button and the menu it opens (ADR-015 decision 2).
+ * Organise: one icon button and the menu it opens (ADR-015 decision 2, ADR-024).
  *
  * The menu holds the existing three-way sort - By category, A-Z, Recent, "By category" being the
- * grouping - on the sort platter it always had, and at the line's fourth step "Show as" (List,
- * Cards), the view leaving the line for it. The vocabulary and the services' sort parameter are
+ * grouping - under its heading "Sort courses". The vocabulary and the services' sort parameter are
  * unchanged. The contract's separate Group and Sort sections are not drawn: Compass's grouping is
- * one of its three sorts, and a fourth combination would be one no service serves.
+ * one of its three sorts, and a fourth combination would be one no service serves. The view is the
+ * bar's own View menu at every width (ViewToggle.tsx, ADR-023), never a section here.
  *
- * A disclosure, not an ARIA menu: aria-expanded and aria-controls on the button, the sections
- * named groups of aria-pressed buttons inside, the hidden property toggling it with its layout under
- * :not([hidden]). A choice closes it and puts the keyboard back on the button, which FilterLine
- * does, with Escape and a press outside. FilterLine places it under the line's real bottom.
+ * The menu is the bar's LineMenu, as View's is (the contract's section 8, ADR-024): role="menu" named
+ * "Organise", the sorts a group named by the heading, each a menuitemradio with aria-checked, an icon
+ * before its word and a tick after the chosen one's. The button says what it opens with aria-expanded and
+ * aria-controls. A choice closes it and puts the keyboard back on the button, which FilterLine does, with
+ * Escape, Tab and a press outside. FilterLine places it under the line's real bottom.
  *
  * @module     block_compass/OrganiseMenu
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useId } from "react";
-import Platter from "./Platter";
-import ViewToggle from "./ViewToggle";
+import LineMenu from "./LineMenu";
 import { markup } from "./markup";
-const OrganiseMenu = /* @__PURE__ */ __name(({ open, top, config, sort, view, withview, button, menu, onToggle, onSort, onView }) => {
+const OrganiseMenu = /* @__PURE__ */ __name(({ open, top, config, sort, button, menu, onToggle, onSort }) => {
   const { labels, icons } = config;
   const menuid = useId();
-  const sortid = `${menuid}-sort`;
-  return /* @__PURE__ */ jsxDEV("div", { className: "compass-line-organise compass-line-slides", children: [
+  return /* @__PURE__ */ jsxDEV("div", { className: "compass-line-organise", children: [
     /* @__PURE__ */ jsxDEV(
       "button",
       {
         type: "button",
         ref: button,
         className: "compass-line-iconbtn compass-line-organisebtn",
+        "aria-haspopup": "menu",
         "aria-expanded": open,
         "aria-controls": menuid,
         "aria-label": labels.line_organise,
@@ -41,7 +41,7 @@ const OrganiseMenu = /* @__PURE__ */ __name(({ open, top, config, sort, view, wi
         onClick: onToggle,
         children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.organise) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-          lineNumber: 80,
+          lineNumber: 77,
           columnNumber: 17
         })
       },
@@ -49,78 +49,39 @@ const OrganiseMenu = /* @__PURE__ */ __name(({ open, top, config, sort, view, wi
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-        lineNumber: 70,
+        lineNumber: 66,
         columnNumber: 13
       }
     ),
     /* @__PURE__ */ jsxDEV(
-      "div",
+      LineMenu,
       {
         id: menuid,
-        ref: menu,
-        className: "compass-line-menu compass-line-layer",
-        hidden: !open,
-        style: top === null ? void 0 : { top: `${top}px` },
-        children: [
-          /* @__PURE__ */ jsxDEV("div", { className: "compass-line-menusection", children: [
-            /* @__PURE__ */ jsxDEV("span", { className: "compass-line-menulabel", id: sortid, children: labels.sortby }, void 0, false, {
-              fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-              lineNumber: 90,
-              columnNumber: 21
-            }),
-            /* @__PURE__ */ jsxDEV(
-              Platter,
-              {
-                labelledby: sortid,
-                items: [
-                  ["category", labels.sort_category],
-                  ["name", labels.sort_name],
-                  ["recent", labels.sort_recent]
-                ].map(([value, label]) => ({ key: value, label, pressed: sort === value })),
-                onPress: onSort
-              },
-              void 0,
-              false,
-              {
-                fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-                lineNumber: 91,
-                columnNumber: 21
-              }
-            )
-          ] }, void 0, true, {
-            fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-            lineNumber: 89,
-            columnNumber: 17
-          }),
-          withview && /* @__PURE__ */ jsxDEV("div", { className: "compass-line-menusection", children: [
-            /* @__PURE__ */ jsxDEV("span", { className: "compass-line-menulabel", "aria-hidden": "true", children: labels.viewas }, void 0, false, {
-              fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-              lineNumber: 101,
-              columnNumber: 25
-            }),
-            /* @__PURE__ */ jsxDEV(ViewToggle, { view, config, onChoose: onView }, void 0, false, {
-              fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-              lineNumber: 102,
-              columnNumber: 25
-            })
-          ] }, void 0, true, {
-            fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-            lineNumber: 99,
-            columnNumber: 21
-          })
-        ]
+        menu,
+        open,
+        top,
+        label: labels.line_organise,
+        heading: labels.sortby,
+        choices: [
+          { value: "category", label: labels.sort_category, icon: icons.sortcategory },
+          { value: "name", label: labels.sort_name, icon: icons.sortname },
+          { value: "recent", label: labels.sort_recent, icon: icons.sortrecent }
+        ],
+        chosen: sort,
+        tick: icons.check,
+        onChoose: onSort
       },
       void 0,
-      true,
+      false,
       {
         fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-        lineNumber: 82,
+        lineNumber: 79,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/OrganiseMenu.tsx",
-    lineNumber: 69,
+    lineNumber: 65,
     columnNumber: 9
   });
 }, "OrganiseMenu");

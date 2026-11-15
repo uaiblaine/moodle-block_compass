@@ -2221,10 +2221,11 @@ const CalendarStrip = ({
             {/* The month of the days wholly in view; the polite region below says it once a scroll settles. */}
             <p className="compass-cal-month">{monthlabel}</p>
             {/* Never the disabled attribute: a focused control that reaches home would drop the keyboard
-                to the body. aria-disabled, and the handler refuses. */}
+                to the body. aria-disabled, and the handler refuses. Core's secondary button at its default
+                size, outside a card or a panel (the Design System's action-button.md). */}
             <button
                 type="button"
-                className="compass-cal-todaybtn"
+                className="btn btn-outline-secondary compass-cal-todaybtn"
                 aria-disabled={rowview.athome || undefined}
                 onClick={goHome}
             >

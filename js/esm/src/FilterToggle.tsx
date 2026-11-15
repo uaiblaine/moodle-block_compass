@@ -17,11 +17,10 @@
  * Filters: the button that opens and closes the filter panel, with the count of field values in force.
  *
  * aria-expanded says which way it will go and aria-controls names the panel, so a screen
- * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. The badge
- * shows the bare count, hidden from assistive technology; the accessible name repeats it in
- * words, because a bare number beside a word is not a sentence. From the line's second step the
- * word leaves the picture (FilterLine's step class) and the badge sits on the button's corner; the
- * name is unchanged (ADR-015 decision 3). The glyph is the sliders of the plugin's icon map.
+ * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. An icon button
+ * of the bar's capsule at every width, with no word (ADR-023): the loud counter on its corner shows
+ * the bare count, hidden from assistive technology and absent at zero; the accessible name says it
+ * in words, because a bare number is not a sentence. The glyph is the sliders of the plugin's icon map.
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine
@@ -56,7 +55,7 @@ const FilterToggle = ({count, open, controls, config, button, onToggle}: FilterT
         <button
             type="button"
             ref={button}
-            className="compass-filterbtn"
+            className="compass-line-iconbtn compass-filterbtn"
             aria-expanded={open}
             aria-controls={controls}
             aria-label={`${labels.filter}, ${fillCount(labels, 'filteractive', count)}`}
@@ -64,7 +63,6 @@ const FilterToggle = ({count, open, controls, config, button, onToggle}: FilterT
             onClick={onToggle}
         >
             <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.filter)} />
-            <span className="compass-filterword" aria-hidden="true">{labels.filter}</span>
             {count > 0 && <span className="compass-filtercount" aria-hidden="true">{count}</span>}
         </button>
     );

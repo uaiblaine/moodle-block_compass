@@ -55,6 +55,7 @@ import {
 } from './filter';
 import type {Criteria, RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
+import {markup} from './markup';
 import {confirmAction, notify} from './notify';
 import {fill, fillCount, fillObject} from './str';
 import {
@@ -1659,10 +1660,12 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </Heading>
-            {/* The filter line (ADR-015): the scope, the search, the star, Filters, Organise and the
-                view, folded on its own width, with the chips of the panel's filters in force under it. */}
+            {/* The filter bar (ADR-015, ADR-023): the scope, the result count, the star, Filters, Organise,
+                View and the search, folded on its own width, with the chips of the filters in force under it.
+                Paged mode shows no result count: it holds no total for what the criteria keep (ADR-004). */}
             <FilterLine
                 config={config}
+                total={paged ? null : shown}
                 scopecells={scopecells}
                 onScope={chooseScope}
                 star={star}
@@ -1821,7 +1824,31 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                     </div>
                 )}
             </div>
-            {noresults && <p className="compass-noresults text-muted mt-2">{labels.noresults}</p>}
+            {noresults && (
+                // The Design System's full empty state (empty-state.md, ADR-024): the icon, the sentence as its
+                // title, and with a filter in force its one action, Clear filters, which leaves the keyboard on the
+                // list's title as the button goes.
+                <div className="compass-noresults">
+                    <span
+                        className="compass-noresults-icon icon-no-margin"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={markup(config.icons.search)}
+                    />
+                    <p className="compass-noresults-title">{labels.noresults}</p>
+                    {!unfiltered && (
+                        <button
+                            type="button"
+                            className="btn btn-outline-secondary compass-noresults-clear"
+                            onClick={() => {
+                                clearFilters();
+                                section.current?.querySelector<HTMLElement>('.compass-explore-title')?.focus({preventScroll: true});
+                            }}
+                        >
+                            {labels.clearfilters}
+                        </button>
+                    )}
+                </div>
+            )}
             <span key={announcement.at} className="visually-hidden" role="status" aria-live="polite">
                 {announcement.text}
             </span>

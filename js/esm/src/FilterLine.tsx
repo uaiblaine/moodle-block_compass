@@ -14,25 +14,30 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The filter line of tier 3: its slots, its folding, the search that grows over it and its
- * suggestions, the panel and the Organise menu under it, and the row of chips (ADR-015).
+ * The filter bar of tier 3: its slots, its folding, the search that opens in place and its
+ * suggestions, the panel and the two menus under it, and the row of chips (ADR-015, ADR-023).
  *
- * The rules are the fleet's filter line contract (moodle-dev/docs/filter-line/CONTRACT.md), written
- * for this client after block_dimensions' filter_line.js and theme_dimensions' categoryline.js: the
- * same behaviour, read as a specification, never imported (ADR-006: a component cannot load AMD).
- * The criteria are Explore's; this draws them, folds, places the floating layers and owns the
- * keyboard of the line, and every filter it applies it applies through a callback.
+ * The rules are the fleet's filter line contract (moodle-dev/docs/filter-line/CONTRACT.md) and the
+ * Design System's compact bar (moodle-dev/docs/design-system/components/filter-bar.md), written for this
+ * client: the same behaviour, read as a specification, never imported (ADR-006: a component cannot load
+ * AMD). The criteria are Explore's; this draws them, folds, places the floating layers and owns the
+ * keyboard of the bar, and every filter it applies it applies through a callback.
  *
- * Folding (fit): the line measures its OWN width, never the viewport's, and takes the first step at
- * which no control is drawn past its edge - full; Filters without its word; the search as an icon;
- * two lines, the scope on the second and the view inside Organise. It measures with every scope cell
- * drawn, with no transition running and with the line unwrapped, so the step follows the width and
- * the language and never the counts. A ResizeObserver on the line, not a container query (Moodle's
- * stylelint forbids @container), and a late webfont refit it.
+ * Anatomy, in order: the scope, a spacer, the cluster (the result count, then a capsule of the star,
+ * Filters, Organise and View) and the search's own capsule; the chips on a row under the bar.
  *
- * The search grows over the line from the third step: the other controls slide out, a close button
- * takes the last place; Escape or that button closes it and gives the keyboard back to the control
- * that opened it. A text left in force while the field is folded away shows as a chip.
+ * Folding (fit): the bar measures its OWN width, never the viewport's, and takes the first step at
+ * which no control is drawn past its edge: full, one line; narrow, the scope on a line of its own after
+ * the controls, its cells sharing the width. It measures with every scope cell drawn, with the search
+ * field open at its narrowest and with the line unwrapped, so the step follows the width and the
+ * language, never the counts, and opening the search never pushes the full line past its edge. A ResizeObserver on the bar,
+ * not a container query (Moodle's stylelint forbids @container), and a late webfont refit it.
+ *
+ * The search is an icon at every width. Pressing it, or the slash key, opens the field in place, in its
+ * capsule, and moves the keyboard into it; at the narrow step the cluster gives the field its line.
+ * Escape closes it and gives the keyboard back to the search button, and so does leaving it empty; the
+ * eraser clears the text and keeps it open. A text left in force once the field has closed shows as a
+ * chip.
  *
  * The suggestions are one listbox under the line's real bottom, the field its combobox with the
  * active option named by aria-activedescendant, so the focus never leaves the field. Filters first,
@@ -41,7 +46,7 @@
  * empties the field closes it.
  *
  * Every floating layer is placed under the line's measured bottom (place), never at a fixed offset;
- * at the two-line step the panel is a bottom sheet instead, unless an ancestor would clip or capture a
+ * at the narrow step the panel is a bottom sheet instead, unless an ancestor would clip or capture a
  * viewport-fixed child - Moodle 5.3's block drawer clips itself with clip-path - and then it stays a
  * popover under the line (fixedTrapped).
  *
@@ -60,32 +65,24 @@ import StarToggle from './StarToggle';
 import ViewToggle from './ViewToggle';
 import {markParts, matchOf, normalise} from './filter';
 import {hold} from './pending';
-import {fill} from './str';
+import {fill, fillCount} from './str';
 import type {BlockConfig} from './types';
 import {markup} from './markup';
 
-/** The folding steps, in the order they are tried. */
-export type Step = 's1' | 's2' | 's3' | 's4';
+/** The folding steps (contract section 2). */
+export type Step = 'full' | 'narrow';
 
 /** The class each step writes on the line, which the stylesheet reads. */
 const STEP_CLASSES: Record<Step, string> = {
-    s1: 'compass-line-s1',
-    s2: 'compass-line-s2',
-    s3: 'compass-line-s3',
-    s4: 'compass-line-s4',
+    full: 'compass-line-full',
+    narrow: 'compass-line-narrow',
 };
 
-/**
- * What is tried, in order, as [step, whether the field is folded into its icon]: the third step folds
- * it, and the fourth keeps the field on its first line while it fits there.
- */
-const TRIES: [Step, boolean][] = [['s1', false], ['s2', false], ['s3', true], ['s4', false], ['s4', true]];
+/** What is tried, in order: the one line, then the scope on a line of its own. */
+const TRIES: Step[] = ['full', 'narrow'];
 
 /** Pixels between the line's real bottom and a layer placed under it: the stylesheet's own gap. */
 const GAP = 6;
-
-/** Pixels kept clear between a revealed item and the edge of the row it scrolls in. */
-const REVEAL_PAD = 16;
 
 /** The search's floor for matching, normalised: explore::SEARCH_MIN_LENGTH, as Explore's own. */
 const MIN_TERM = 2;
@@ -177,6 +174,7 @@ const fixedTrapped = (element: HTMLElement | null): boolean => {
 
 type FilterLineProps = {
     config: BlockConfig,
+    total: number | null,
     scopecells: ScopeCell[],
     onScope: (scope: string) => void,
     star: boolean,
@@ -272,74 +270,19 @@ const shown = (element: Element | null | undefined): element is HTMLElement =>
     !!element && element.getClientRects().length > 0;
 
 /**
- * Whether the reader asked for no motion.
- *
- * @returns {boolean} Whether to skip the eased scroll.
- */
-const still = (): boolean =>
-    typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-/**
  * The line's class list for a step.
  *
  * @param {string} step One of the steps.
- * @param {boolean} folded Whether the field is folded into its icon.
- * @param {boolean} searching Whether the search is grown over the line.
+ * @param {boolean} searching Whether the search field is open.
  * @param {boolean} measuring Whether the line is being measured.
  * @returns {string} The classes.
  */
-const lineClass = (step: Step, folded: boolean, searching: boolean, measuring: boolean): string => [
+const lineClass = (step: Step, searching: boolean, measuring: boolean): string => [
     'compass-line',
     STEP_CLASSES[step],
-    folded ? 'compass-line-folded' : '',
     searching ? 'compass-line-searching' : '',
     measuring ? 'compass-line-measuring' : '',
 ].filter(Boolean).join(' ');
-
-/**
- * Show a row's fades on the sides where it hides something.
- *
- * @param {object|null} scroller A row that scrolls sideways.
- * @returns {void}
- */
-const fades = (scroller: HTMLElement | null): void => {
-    if (!scroller) {
-        return;
-    }
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    const x = scroller.scrollLeft;
-    // Right to left, scrollLeft runs from 0 down to minus the overflow.
-    const rtl = window.getComputedStyle(scroller).direction === 'rtl';
-    const start = rtl ? -x : x;
-    const end = rtl ? max + x : max - x;
-    scroller.classList.toggle('compass-scroll-fade-start', max > 1 && start > 2);
-    scroller.classList.toggle('compass-scroll-fade-end', max > 1 && end > 2);
-};
-
-/**
- * Scroll a half-hidden item of a row fully into view, with room to spare. The row scrolls itself,
- * never the page.
- *
- * @param {object|null} scroller The row.
- * @param {object|null} item The item pressed or focused.
- * @returns {void}
- */
-const reveal = (scroller: HTMLElement | null, item: Element | null): void => {
-    if (!scroller || !item || !scroller.contains(item) || scroller.scrollWidth <= scroller.clientWidth) {
-        return;
-    }
-    const box = scroller.getBoundingClientRect();
-    const rect = item.getBoundingClientRect();
-    let dx = 0;
-    if (rect.left < box.left + REVEAL_PAD) {
-        dx = rect.left - box.left - REVEAL_PAD;
-    } else if (rect.right > box.right - REVEAL_PAD) {
-        dx = rect.right - box.right + REVEAL_PAD;
-    }
-    if (dx !== 0) {
-        scroller.scrollBy({left: dx, behavior: still() ? 'auto' : 'smooth'});
-    }
-};
 
 /**
  * The line.
@@ -353,7 +296,7 @@ const reveal = (scroller: HTMLElement | null, item: Element | null): void => {
 // eslint-disable-next-line complexity
 const FilterLine = (props: FilterLineProps) => {
     const {
-        config, scopecells, onScope, star, starcount, onStar, hasfilters, badge, panelopen, onPanel, panel, sort, onSort,
+        config, total, scopecells, onScope, star, starcount, onStar, hasfilters, badge, panelopen, onPanel, panel, sort, onSort,
         view, onView, query, onQuery, onErase, filters, onApply, courses, chips, onRelease, onClearAll, onPreview,
     } = props;
     const {labels, icons} = config;
@@ -373,26 +316,25 @@ const FilterLine = (props: FilterLineProps) => {
     const panelel = useRef<HTMLDivElement>(null);
     const organise = useRef<HTMLButtonElement>(null);
     const menu = useRef<HTMLDivElement>(null);
+    const viewbtn = useRef<HTMLButtonElement>(null);
+    const viewmenu = useRef<HTMLDivElement>(null);
     const chiprow = useRef<HTMLDivElement>(null);
 
-    const [fold, setFold] = useState<{step: Step, folded: boolean}>({step: 's1', folded: false});
+    const [step, setStep] = useState<Step>('full');
     const [searching, setSearching] = useState(false);
     const [listopen, setListopen] = useState(false);
     const [active, setActive] = useState(-1);
     const [menuopen, setMenuopen] = useState(false);
+    const [viewopen, setViewopen] = useState(false);
     const [trapped, setTrapped] = useState(false);
     const [place, setPlace] = useState<{list: Place, panel: number | null, menu: number | null}>(
         {list: NOWHERE, panel: null, menu: null}
     );
 
-    // What the document listeners and the measure read: the state of this render.
-    const morphs = hassearch && (fold.step === 's3' || fold.step === 's4');
-    const growing = searching && morphs;
-    const folded = fold.folded && hassearch;
-    const live = useRef({listopen, growing, panelopen, menuopen, folded});
-    live.current = {listopen, growing, panelopen, menuopen, folded};
-    // The control that opened the grown search, which gets the keyboard back when it closes.
-    const from = useRef<HTMLElement | null>(null);
+    // What the document listeners read: the state of this render.
+    const open = searching && hassearch;
+    const live = useRef({listopen, open, panelopen, menuopen, viewopen});
+    live.current = {listopen, open, panelopen, menuopen, viewopen};
     // The reasons a focus on the field is the reader's: a press on it, a Tab just before.
     const intent = useRef(false);
     const tabat = useRef(0);
@@ -407,8 +349,8 @@ const FilterLine = (props: FilterLineProps) => {
     // The option last previewed through the keyboard, so leaving the list clears only its own preview.
     const previewed = useRef(false);
     // The step as drawn, for the measure to compare with.
-    const drawnfold = useRef(fold);
-    drawnfold.current = fold;
+    const drawnstep = useRef(step);
+    drawnstep.current = step;
 
     /**
      * Move the focus without it counting as the reader's: the field's focus handler stays quiet.
@@ -463,7 +405,9 @@ const FilterLine = (props: FilterLineProps) => {
      *
      * The classes are written on the element for the measure and put back as React drew them before
      * anything is painted; the step found becomes state, which draws it. A cell the counts hide is
-     * shown for the measure and hidden again.
+     * shown for the measure and hidden again, and the search is measured open, at its narrowest and with
+     * its eraser (the measuring class draws its field), so neither opening it nor typing in it changes the
+     * step, and an open field always fits the full line.
      *
      * @returns {void}
      */
@@ -473,14 +417,15 @@ const FilterLine = (props: FilterLineProps) => {
             return;
         }
         const drawn = element.className;
-        const absent = Array.from(element.querySelectorAll<HTMLElement>('.compass-scope-cell[hidden]'));
+        const absent = Array.from(
+            element.querySelectorAll<HTMLElement>('.compass-scope-cell[hidden], .compass-search-eraser[hidden]')
+        );
         absent.forEach((cell) => {
             cell.hidden = false;
         });
         let chosen = TRIES[TRIES.length - 1];
         for (let index = 0; index < TRIES.length; index++) {
-            const [step, foldfield] = TRIES[index];
-            element.className = lineClass(step, foldfield && hassearch, false, true);
+            element.className = lineClass(TRIES[index], false, true);
             if (index === TRIES.length - 1 || !overflows(element)) {
                 chosen = TRIES[index];
                 break;
@@ -490,40 +435,22 @@ const FilterLine = (props: FilterLineProps) => {
             cell.hidden = true;
         });
         element.className = drawn;
-        if (drawnfold.current.step === chosen[0] && drawnfold.current.folded === chosen[1]) {
+        if (drawnstep.current === chosen) {
             return;
         }
-        // The two-line step moves the scope in the document, which takes the focus from what it moves.
+        // The narrow step moves the scope in the document, which takes the focus from what it moves.
         refocus.current = element.contains(document.activeElement) ? document.activeElement : null;
-        setFold({step: chosen[0], folded: chosen[1]});
-    }, [hassearch]);
+        setStep(chosen);
+    }, []);
 
     // What changes a control's width: the words, the counts, which slots there are. The step is
     // measured again whenever it changes, before paint.
     const signature = JSON.stringify([
-        scopecells.map((cell) => [cell.label, cell.count]), starcount, badge, hasfilters, hasstar, hassearch,
+        scopecells.map((cell) => [cell.label, cell.count]), total, starcount, badge, hasfilters, hasstar, hassearch,
     ]);
     useLayoutEffect(() => {
         fit();
     }, [fit, signature]);
-
-    /**
-     * Draw the fades of the rows that scroll sideways at a step. Elsewhere than the fourth step the scope does
-     * not scroll - it slides out under the grown search, which a measure taken mid-slide would read as an
-     * overflow - so it carries no fade.
-     *
-     * @param {string} step The step drawn.
-     * @returns {void}
-     */
-    const fadeRows = useCallback((step: Step): void => {
-        fades(chiprow.current);
-        const scope = line.current?.querySelector<HTMLElement>('.compass-scope') ?? null;
-        if (step === 's4') {
-            fades(scope);
-        } else {
-            scope?.classList.remove('compass-scroll-fade-start', 'compass-scroll-fade-end');
-        }
-    }, []);
 
     // The line's own width, never the viewport's: a drawer opening changes the one and not the other.
     useEffect(() => {
@@ -554,8 +481,6 @@ const FilterLine = (props: FilterLineProps) => {
             release = hold('block_compass/FilterLine:fit');
             frame = window.requestAnimationFrame(() => {
                 fit();
-                // A new width can show or hide what the rows scroll past without changing the step.
-                fadeRows(drawnfold.current.step);
                 settle();
             });
         });
@@ -567,19 +492,16 @@ const FilterLine = (props: FilterLineProps) => {
             observer.disconnect();
             settle();
         };
-    }, [fit, fadeRows]);
+    }, [fit]);
 
-    // A step that cannot grow the search closes it; the focus a step change took is given back.
+    // The focus a step change took is given back.
     useLayoutEffect(() => {
-        if (!morphs && searching) {
-            setSearching(false);
-        }
         const element = refocus.current;
         refocus.current = null;
         if (element instanceof HTMLElement && document.activeElement !== element && document.contains(element)) {
             quietly(element);
         }
-    }, [fold.step, morphs, searching]);
+    }, [step]);
 
     // The keyboard goes where the last action said, once the control is drawn.
     useLayoutEffect(() => {
@@ -593,7 +515,7 @@ const FilterLine = (props: FilterLineProps) => {
 
     /**
      * The bottom of the line's first line of controls, as drawn: the layers hang under it. The scope
-     * of the two-line step is a line of its own, which the layers cover.
+     * of the narrow step is a line of its own, which the layers cover.
      *
      * @returns {number} A viewport coordinate.
      */
@@ -604,7 +526,7 @@ const FilterLine = (props: FilterLineProps) => {
         }
         let bottom = 0;
         Array.from(element.children).forEach((child) => {
-            if (fold.step === 's4' && child.classList.contains('compass-scope')) {
+            if (step === 'narrow' && child.classList.contains('compass-scope')) {
                 return;
             }
             const rect = child.getBoundingClientRect();
@@ -614,7 +536,7 @@ const FilterLine = (props: FilterLineProps) => {
         });
 
         return bottom || element.getBoundingClientRect().bottom;
-    }, [fold.step]);
+    }, [step]);
 
     const term = normalise(query);
     const typed = term.length >= MIN_TERM;
@@ -628,26 +550,26 @@ const FilterLine = (props: FilterLineProps) => {
     const current = active >= 0 && active < options.length ? active : -1;
 
     // The sheet needs a viewport-fixed child to reach the viewport; where an ancestor would clip it, the
-    // panel stays a popover. Read before paint, when the panel opens at the two-line step.
+    // panel stays a popover. Read before paint, when the panel opens at the narrow step.
     useLayoutEffect(() => {
-        if (fold.step === 's4' && panelopen) {
+        if (step === 'narrow' && panelopen) {
             const next = fixedTrapped(wrapper.current);
             setTrapped((before) => (before === next ? before : next));
         }
-    }, [fold.step, panelopen]);
-    const sheet = fold.step === 's4' && !trapped;
+    }, [step, panelopen]);
+    const sheet = step === 'narrow' && !trapped;
 
-    // Every open layer under the line's measured bottom; the listbox under the field at the first two steps.
+    // Every open layer under the line's measured bottom; the listbox under the field at the full step.
     useLayoutEffect(() => {
         const box = wrapper.current;
-        if (!box || (!listshown && !panelopen && !menuopen)) {
+        if (!box || (!listshown && !panelopen && !menuopen && !viewopen)) {
             return;
         }
         const origin = box.getBoundingClientRect();
         const top = Math.round(lineBottom() - origin.top + GAP);
         let list = {top, left: null as number | null, width: null as number | null};
         const search = field.current?.parentElement ?? null;
-        if (listshown && (fold.step === 's1' || fold.step === 's2') && shown(search)) {
+        if (listshown && step === 'full' && shown(search)) {
             const rect = search.getBoundingClientRect();
             const wide = Math.min(origin.width, Math.max(rect.width, MIN_LIST_WIDTH));
             list = {top, left: Math.round(Math.min(rect.left - origin.left, origin.width - wide)), width: Math.round(wide)};
@@ -656,18 +578,7 @@ const FilterLine = (props: FilterLineProps) => {
             && before.list.left === list.left && before.list.width === list.width
             ? before
             : {list, panel: top, menu: top}));
-    }, [listshown, panelopen, menuopen, fold, growing, lineBottom, chips.length]);
-
-    // The rows that scroll sideways show a fade on a hidden side: the chips, and the scope on its own
-    // line at the fourth step. Measured when what the rows hold or the step changed (here), on their own
-    // scroll, and when the line's width changed (its ResizeObserver): never on every render, where the
-    // first read after a commit that changed the page forces a layout of the whole page.
-    const fadeskey = JSON.stringify([
-        chips.map((chip) => [chip.key, chip.label]), folded && !growing ? query.trim() : '', signature,
-    ]);
-    useLayoutEffect(() => {
-        fadeRows(fold.step);
-    }, [fold.step, fadeskey, fadeRows]);
+    }, [listshown, panelopen, menuopen, viewopen, step, open, lineBottom, chips.length]);
 
     // The option the keyboard is on previews what it would keep, and leaving the list clears it.
     const activeoption = listshown && current >= 0 ? options[current] : null;
@@ -706,20 +617,18 @@ const FilterLine = (props: FilterLineProps) => {
     };
 
     /**
-     * Open the search: over the line from the third step, under the field before it, with the suggestions.
+     * Open the search in place, in its capsule, with the suggestions, and move the keyboard into it. The
+     * menus and the panel close: one layer hangs under the bar at a time.
      *
-     * @param {object|null} origin The control that opened it, which gets the keyboard back when it closes.
      * @returns {void}
      */
-    const openSearch = (origin: HTMLElement | null): void => {
+    const openSearch = (): void => {
         if (!hassearch) {
             return;
         }
-        if (morphs && !searching) {
-            setSearching(true);
-            from.current = origin ?? field.current;
-        }
+        setSearching(true);
         setMenuopen(false);
+        setViewopen(false);
         if (panelopen) {
             onPanel(false);
         }
@@ -731,8 +640,8 @@ const FilterLine = (props: FilterLineProps) => {
     };
 
     /**
-     * Close the search and its suggestions; with back, the keyboard returns to the control that opened
-     * it, or to the one standing in for it once the step has moved on.
+     * Close the search field and its suggestions; with back, the keyboard returns to the search button.
+     * A text left in the field stays in force and shows as a chip.
      *
      * @param {boolean} back Whether the focus goes back.
      * @returns {void}
@@ -743,10 +652,8 @@ const FilterLine = (props: FilterLineProps) => {
             return;
         }
         setSearching(false);
-        const origin = from.current;
-        from.current = null;
         if (back) {
-            focusLater(() => [origin, field.current, opener.current].find((control) => shown(control)) ?? null);
+            focusLater(() => opener.current);
         }
     };
 
@@ -785,7 +692,7 @@ const FilterLine = (props: FilterLineProps) => {
         if (event.key === 'ArrowDown') {
             event.preventDefault();
             if (!listopen) {
-                openSearch(from.current ?? field.current);
+                openSearch();
 
                 return;
             }
@@ -796,21 +703,28 @@ const FilterLine = (props: FilterLineProps) => {
         } else if ((event.key === 'Enter' || event.key === ' ') && current >= 0 && listshown) {
             event.preventDefault();
             choose(current);
-        } else if (event.key === 'Escape' && (listopen || searching)) {
-            // Before the browser empties a search field on the same key.
+        } else if (event.key === 'Escape') {
+            // Before the browser empties a search field on the same key: Escape closes the field, whatever
+            // it holds, and the keyboard goes back to the search button.
             event.preventDefault();
             closeSearch(true);
         }
     };
 
     /**
-     * Escape on the line: the open panel closes back to Filters, the menu back to Organise, the search
-     * grown over the line back to its opener.
+     * Escape on the line: the open panel closes back to Filters, a menu back to its button, the open
+     * search back to the search button. Tab out of the Organise or the View menu closes it, as a menu does.
      *
      * @param {object} event The keyboard event.
      * @returns {void}
      */
     const lineKey = (event: KeyboardEvent<HTMLDivElement>): void => {
+        if (event.key === 'Tab' && (menuopen || viewopen)) {
+            setMenuopen(false);
+            setViewopen(false);
+
+            return;
+        }
         if (event.key !== 'Escape' || event.defaultPrevented) {
             return;
         }
@@ -822,6 +736,10 @@ const FilterLine = (props: FilterLineProps) => {
             event.preventDefault();
             setMenuopen(false);
             focusLater(() => organise.current);
+        } else if (viewopen) {
+            event.preventDefault();
+            setViewopen(false);
+            focusLater(() => viewbtn.current);
         } else if (searching && event.target !== field.current) {
             event.preventDefault();
             closeSearch(true);
@@ -829,8 +747,8 @@ const FilterLine = (props: FilterLineProps) => {
     };
 
     /**
-     * Where the keyboard goes once the control holding it is gone: the field, its icon where the field
-     * is folded away, or Filters on a line without a search.
+     * Where the keyboard goes once the control holding it is gone: the field while it is open, else the
+     * search button, or Filters on a line without a search.
      *
      * @returns {object|null} The element.
      */
@@ -860,17 +778,19 @@ const FilterLine = (props: FilterLineProps) => {
                 return;
             }
             const state = live.current;
-            if ((state.listopen || state.growing) && !box.contains(target)) {
+            if ((state.listopen || state.open) && !box.contains(target)) {
                 setListopen(false);
                 setActive(-1);
                 setSearching(false);
-                from.current = null;
             }
             if (state.panelopen && !panelel.current?.contains(target) && !toggle.current?.contains(target)) {
                 onPanel(false);
             }
             if (state.menuopen && !menu.current?.contains(target) && !organise.current?.contains(target)) {
                 setMenuopen(false);
+            }
+            if (state.viewopen && !viewmenu.current?.contains(target) && !viewbtn.current?.contains(target)) {
+                setViewopen(false);
             }
         };
         /**
@@ -898,9 +818,8 @@ const FilterLine = (props: FilterLineProps) => {
                 return;
             }
             event.preventDefault();
-            const state = live.current;
-            if (state.folded && !state.growing) {
-                // The icon's own press opens the search over the line, from it.
+            if (!live.current.open) {
+                // The search button's own press opens the field in place.
                 opener.current?.click();
             } else {
                 intent.current = true;
@@ -917,29 +836,49 @@ const FilterLine = (props: FilterLineProps) => {
     }, [hassearch, onPanel]);
 
     /**
-     * The focus leaving the line: the suggestions go when it stays on the line, the grown search when
-     * it leaves; the menu closes once the focus is outside it and its button.
+     * A menu closes once the focus is outside it and its button.
+     *
+     * @param {object|null} next What takes the focus, null when nothing on the page does.
+     * @returns {void}
+     */
+    const closeMenusLeft = (next: Node | null): void => {
+        if (menuopen && !(next && (menu.current?.contains(next) || organise.current?.contains(next)))) {
+            setMenuopen(false);
+        }
+        if (viewopen && !(next && (viewmenu.current?.contains(next) || viewbtn.current?.contains(next)))) {
+            setViewopen(false);
+        }
+    };
+
+    /**
+     * The focus moving: the suggestions go when it stays on the bar elsewhere than the field, and the
+     * field closes when the focus leaves it empty or goes to something outside the bar (a text left in
+     * it then shows as a chip); a menu closes once the focus is outside it and its button. A focus that
+     * goes to nothing (another window, a press on what takes no focus) leaves a field with text open:
+     * the reader has not gone anywhere on the page.
      *
      * @param {object} event The focus event.
      * @returns {void}
      */
     const focusout = (event: FocusEvent<HTMLDivElement>): void => {
         const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (menuopen && !(next && (menu.current?.contains(next) || organise.current?.contains(next)))) {
-            setMenuopen(false);
-        }
-        if (next === field.current || (next && listbox.current?.contains(next))) {
+        closeMenusLeft(next);
+        if (next && (field.current?.parentElement?.contains(next) || listbox.current?.contains(next))) {
             return;
         }
         if (next && wrapper.current?.contains(next)) {
             closeList();
+            if (searching && event.target === field.current && query === '') {
+                setSearching(false);
+            }
 
             return;
         }
         if (listopen || searching) {
             closeList();
-            setSearching(false);
-            from.current = null;
+            if (next || query === '') {
+                setSearching(false);
+            }
         }
     };
 
@@ -974,10 +913,10 @@ const FilterLine = (props: FilterLineProps) => {
         focusLater(() => toggle.current);
     };
 
-    // The row under the line: the panel's filters in force, the search's chip while the field is
-    // folded away, and Clear all from two chips up.
+    // The row under the bar: the panel's filters in force, the search's chip while the field is
+    // closed, and Clear all from two chips up.
     const allchips: LineChip[] = [...chips];
-    if (hassearch && folded && !growing && term !== '') {
+    if (hassearch && !open && term !== '') {
         allchips.unshift({key: 'search', label: query.trim(), title: fill(labels.line_searchchip, query.trim()), field: null});
     }
 
@@ -988,94 +927,9 @@ const FilterLine = (props: FilterLineProps) => {
             label={labels.status}
             onCheck={onScope}
             onPreview={(key) => onPreview(key === null ? null : {scope: key})}
-            onScroll={(element) => {
-                if (fold.step === 's4') {
-                    fades(element);
-                }
-            }}
         />
     );
-    const search = hassearch ? (
-        <div className="compass-search" key="search">
-            <label className="visually-hidden" htmlFor={fieldid}>{labels.searchcourses}</label>
-            <span
-                className="compass-search-icon icon-no-margin"
-                aria-hidden="true"
-                dangerouslySetInnerHTML={markup(icons.search)}
-            />
-            <input
-                type="search"
-                ref={field}
-                className="compass-search-input"
-                id={fieldid}
-                placeholder={labels.searchplaceholder}
-                autoComplete="off"
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={listshown}
-                aria-controls={listid}
-                aria-activedescendant={current >= 0 && listshown ? `${listid}-${current}` : undefined}
-                value={query}
-                onPointerDown={() => {
-                    intent.current = true;
-                }}
-                onFocus={() => {
-                    const reader = intent.current || Date.now() - tabat.current < TAB_INTENT;
-                    intent.current = false;
-                    if (!quiet.current && reader) {
-                        openSearch(field.current);
-                    }
-                }}
-                onClick={() => {
-                    if (!listopen) {
-                        openSearch(from.current ?? field.current);
-                    }
-                }}
-                onChange={(event) => {
-                    const value = event.target.value;
-                    onQuery(value);
-                    setActive(-1);
-                    if (normalise(value) === '') {
-                        // A cleared search leaves nothing floating over the rows.
-                        setListopen(false);
-                    } else if (!listopen && document.activeElement === field.current) {
-                        openSearch(field.current);
-                    }
-                }}
-                onKeyDown={fieldKey}
-            />
-            <button
-                type="button"
-                className="compass-search-eraser"
-                aria-label={labels.line_cleartext}
-                title={labels.line_cleartext}
-                hidden={query === ''}
-                onClick={() => {
-                    onErase();
-                    setListopen(true);
-                    setActive(-1);
-                    focusLater(() => field.current);
-                }}
-            >
-                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.eraser)} />
-            </button>
-        </div>
-    ) : null;
-    const openerbtn = hassearch ? (
-        <button
-            key="opener"
-            type="button"
-            ref={opener}
-            className="compass-line-iconbtn compass-line-searchopen compass-line-slides"
-            aria-controls={fieldid}
-            aria-expanded={growing}
-            aria-label={labels.searchcourses}
-            title={labels.searchcourses}
-            onClick={() => openSearch(opener.current)}
-        >
-            <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.search)} />
-        </button>
-    ) : null;
+    const spacer = <span className="compass-line-spacer" key="spacer" aria-hidden="true" />;
     const starbtn = hasstar ? (
         <StarToggle
             key="star"
@@ -1087,7 +941,7 @@ const FilterLine = (props: FilterLineProps) => {
         />
     ) : null;
     const filtersbtn = hasfilters ? (
-        <div className="compass-line-filters compass-line-slides" key="filters">
+        <div className="compass-line-filters" key="filters">
             <FilterToggle
                 count={badge}
                 open={panelopen}
@@ -1098,6 +952,7 @@ const FilterLine = (props: FilterLineProps) => {
                     if (!panelopen) {
                         closeSearch(false);
                         setMenuopen(false);
+                        setViewopen(false);
                     }
                     onPanel(!panelopen);
                 }}
@@ -1106,7 +961,7 @@ const FilterLine = (props: FilterLineProps) => {
                 id: panelid,
                 top: place.panel,
                 sheet,
-                stacked: fold.step === 's3' || fold.step === 's4',
+                stacked: step === 'narrow',
                 element: panelel,
                 onShow: showList,
             })}
@@ -1119,13 +974,12 @@ const FilterLine = (props: FilterLineProps) => {
             top={place.menu}
             config={config}
             sort={sort}
-            view={view}
-            withview={fold.step === 's4'}
             button={organise}
             menu={menu}
             onToggle={() => {
                 if (!menuopen) {
                     closeSearch(false);
+                    setViewopen(false);
                     if (panelopen) {
                         onPanel(false);
                     }
@@ -1137,57 +991,148 @@ const FilterLine = (props: FilterLineProps) => {
                 focusLater(() => organise.current);
                 onSort(value);
             }}
-            onView={(value) => {
-                setMenuopen(false);
-                focusLater(() => organise.current);
+        />
+    );
+    const viewslot = (
+        <ViewToggle
+            key="view"
+            view={view}
+            open={viewopen}
+            top={place.menu}
+            config={config}
+            button={viewbtn}
+            menu={viewmenu}
+            onToggle={() => {
+                if (!viewopen) {
+                    closeSearch(false);
+                    setMenuopen(false);
+                    if (panelopen) {
+                        onPanel(false);
+                    }
+                }
+                setViewopen(!viewopen);
+            }}
+            onChoose={(value) => {
+                setViewopen(false);
+                focusLater(() => viewbtn.current);
                 onView(value);
             }}
         />
     );
-    // The line's own view switch; at the two-line step it is inside Organise, and the stylesheet hides
-    // this one, which stays for the measure. Later in the document than the menu's, so the first switch
-    // a search of the document finds is the one drawn.
-    const viewslot = (
-        <div className="compass-line-view compass-line-slides" key="view">
-            <ViewToggle view={view} config={config} onChoose={onView} />
+    // The cluster: the number of courses the list shows, then the capsule. The number is drawn bare and
+    // said as a sentence; paged mode leaves it out (total null), as it counts nothing it has not fetched.
+    const cluster = (
+        <div className="compass-line-cluster" key="cluster">
+            {total !== null && (
+                <span className="compass-line-count" data-region="compass-total">
+                    <span aria-hidden="true">{total}</span>
+                    <span className="visually-hidden">{fillCount(labels, 'resultsshown', total)}</span>
+                </span>
+            )}
+            <div className="compass-line-capsule">
+                {starbtn}
+                {filtersbtn}
+                {organisebtn}
+                {viewslot}
+            </div>
         </div>
     );
-    const closer = hassearch ? (
-        <button
-            key="closer"
-            type="button"
-            className="compass-line-iconbtn compass-line-searchclose"
-            aria-label={labels.line_closesearch}
-            title={labels.line_closesearch}
-            onClick={() => closeSearch(true)}
-        >
-            <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.close)} />
-        </button>
+    // The search's own capsule: the search button, or in its place the open field.
+    const search = hassearch ? (
+        <div className="compass-line-capsule compass-line-searchcap" key="search">
+            <button
+                type="button"
+                ref={opener}
+                className="compass-line-iconbtn compass-line-searchopen"
+                aria-controls={fieldid}
+                aria-expanded={open}
+                aria-label={labels.searchcourses}
+                title={labels.searchcourses}
+                onClick={() => openSearch()}
+            >
+                <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.search)} />
+            </button>
+            <div className="compass-search">
+                <label className="visually-hidden" htmlFor={fieldid}>{labels.searchcourses}</label>
+                <span
+                    className="compass-search-icon icon-no-margin"
+                    aria-hidden="true"
+                    dangerouslySetInnerHTML={markup(icons.search)}
+                />
+                <input
+                    type="search"
+                    ref={field}
+                    className="compass-search-input"
+                    id={fieldid}
+                    placeholder={labels.searchplaceholder}
+                    autoComplete="off"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={listshown}
+                    aria-controls={listid}
+                    aria-activedescendant={current >= 0 && listshown ? `${listid}-${current}` : undefined}
+                    value={query}
+                    onPointerDown={() => {
+                        intent.current = true;
+                    }}
+                    onFocus={() => {
+                        const reader = intent.current || Date.now() - tabat.current < TAB_INTENT;
+                        intent.current = false;
+                        if (!quiet.current && reader) {
+                            openSearch();
+                        }
+                    }}
+                    onClick={() => {
+                        if (!listopen) {
+                            openSearch();
+                        }
+                    }}
+                    onChange={(event) => {
+                        const value = event.target.value;
+                        onQuery(value);
+                        setActive(-1);
+                        if (normalise(value) === '') {
+                            // A cleared search leaves nothing floating over the rows.
+                            setListopen(false);
+                        } else if (!listopen && document.activeElement === field.current) {
+                            openSearch();
+                        }
+                    }}
+                    onKeyDown={fieldKey}
+                />
+                {/* The eraser keeps the field's focus on a press: it clears the text and the field stays open. */}
+                <button
+                    type="button"
+                    className="compass-search-eraser"
+                    aria-label={labels.line_cleartext}
+                    title={labels.line_cleartext}
+                    hidden={query === ''}
+                    onMouseDown={(press) => press.preventDefault()}
+                    onClick={() => {
+                        onErase();
+                        setListopen(true);
+                        setActive(-1);
+                        focusLater(() => field.current);
+                    }}
+                >
+                    <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.eraser)} />
+                </button>
+            </div>
+        </div>
     ) : null;
-    const controls = [search, openerbtn, starbtn, filtersbtn, organisebtn, viewslot, closer];
-    // The scope leads the line, and at the two-line step takes the second line, after every control in
-    // the document as on the screen.
-    const children = fold.step === 's4' ? [...controls, scope] : [scope, ...controls];
+    // The scope leads the bar, and at the narrow step takes a line of its own after the controls, in the
+    // document as on the screen.
+    const children = step === 'narrow' ? [cluster, search, spacer, scope] : [scope, spacer, cluster, search];
 
     const wrapperclasses = ['compass-filterline'];
     if (sheet && panelopen) {
         wrapperclasses.push('compass-filterline-sheet');
     }
-    const anchored = fold.step === 's1' || fold.step === 's2';
+    const anchored = step === 'full';
 
     return (
         <div className={wrapperclasses.join(' ')} ref={wrapper} onKeyDown={lineKey} onBlur={focusout}>
-            <div
-                className={lineClass(fold.step, folded, growing, false)}
-                ref={line}
-                data-step={fold.step}
-                onFocus={(event) => {
-                    const scroller = event.target instanceof Element ? event.target.closest('.compass-scope') : null;
-                    if (fold.step === 's4' && scroller instanceof HTMLElement) {
-                        reveal(scroller, event.target);
-                    }
-                }}
-            >
+            <div className={lineClass(step, open, false)} ref={line} data-step={step}>
                 {children}
             </div>
             {hassearch && (
@@ -1276,13 +1221,7 @@ const FilterLine = (props: FilterLineProps) => {
                     )}
                 </div>
             )}
-            <div
-                className="compass-line-chips"
-                ref={chiprow}
-                hidden={allchips.length === 0}
-                onScroll={() => fades(chiprow.current)}
-                onFocus={(event) => reveal(chiprow.current, event.target)}
-            >
+            <div className="compass-line-chips" ref={chiprow} hidden={allchips.length === 0}>
                 {allchips.map((chip, index) => (
                     <button
                         key={chip.key}

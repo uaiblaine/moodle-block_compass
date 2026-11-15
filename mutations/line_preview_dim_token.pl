@@ -1,1 +1,1 @@
-s/--block_compass-x3-fg-dim: color-mix\(in oklab, var\(--block_compass-x3-text\) 75%/--block_compass-x3-fg-dim: color-mix(in oklab, var(--block_compass-x3-text) 100%/;
+s/--block_compass-ink-dim: color-mix\(in oklab, var\(--block_compass-ink\) 75%/--block_compass-ink-dim: color-mix(in oklab, var(--block_compass-ink) 100%/;

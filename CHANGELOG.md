@@ -13,6 +13,47 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Changed
+
+- **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024;
+  2026100542). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
+  chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a
+  labelled radio group of 28 px options at radius 6 px, with one tab stop and the arrow keys choosing, the chosen
+  option in the brand tone; a press on the chosen option still releases it. The pill platter is gone. The calendar's
+  day card, the open-courses popover, panel and their bottom sheets take the Design System's radii, elevations and
+  layers; the open-courses groups and "+N" are rounded rectangles. The calendar's and the open-courses tooltips share
+  one look. "No course matches." is the full empty state, with Clear filters while a filter is in force. The
+  skeletons pulse slowly unless reduced motion is asked for; the calendar's shimmer is gone. Eyebrow labels are
+  0.75rem in the muted ink. New tokens: `neutral-tint`, `neutral-ink`. No string, service or preference changes.
+- **Status labels, action buttons, the calendar's segmented control and the counters follow the fleet Design
+  System** (2026100541). The enrolment state labels (Access from, Application under review, On the waiting list,
+  Completed, Hidden from students) are rounded rectangles at radius 6 px with a 1 px edge from their own tone, no
+  longer pills. Filters' Clear filters and Show, the calendar's Today and the open-courses panel's close and See are
+  core's buttons with no pill (Today at the default size, the others small); the panel keeps the body colour on its
+  outline buttons, whose gray text does not read on its tinted end. The calendar's views and filter switch take the
+  filter bar scope's measures: a 40 px inset platter, 32 px cells (36 px under a coarse pointer), the chosen one
+  raised in the body text. A group's count in the open-courses panel and a filter option's count are quiet text,
+  no longer boxes. Every focus ring outside the filter bar is the Design System's token ring, the course card's
+  own on a card surface (a list row's link and every star included). New tokens: `scheduled-edge`,
+  `awaiting-edge`, `success-edge`. No string, service or behaviour changes.
+- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023; 2026100540). One
+  40 px bar (44 px under a coarse pointer): the scope as a segmented control, then the number of courses the list
+  shows and a capsule of the star, Filters, Organise and View, then the search in a capsule of its own; the chips
+  of the filters in force on a row under it, which wraps instead of scrolling. View is one button with a chevron
+  opening a menu of Cards and List. The search is an icon at every width that opens the field in place; Escape,
+  or leaving it empty, closes it and gives the keyboard back to the search button, and its eraser clears the text
+  and keeps it open. The line folds in two steps instead of four: full, then the scope on a line of its own with
+  its cells sharing the width, the field taking the line while the search is open. Filters has no word at any
+  width and carries the loud counter. Paged mode shows no result count, as it shows no other count. New tokens:
+  `brand-fill`, `on-brand-fill`, `brand-edge`, `motion-fast`, `motion-ease`; the control line's Bootstrap link is
+  gray-500 (D45). One new string, `line_view`.
+- **The block's colours read the fleet Design System's tokens.** Every colour token of `styles.css` is now the
+  chain `var(--dimensions-X, var(--bs-Y, literal))`: a theme of the family (theme_dimensions) answers first,
+  Bootstrap's property second, so the block is painted as before under Boost. The duplicate names are one
+  token each (`ink`, `ink-dim`, `surface-alt`, `surface-inset`, `brand-ink`), no rule reads a `--bs-*`
+  property itself any more, and the scale tokens of the Design System (radius, elevation, the focus ring and
+  its width) are declared for the component steps that follow. `design_tokens_test` holds the contract.
+
 ### Fixed
 
 - **No contradicting empty messages under the special groups.** Tier 1 no longer says "Nothing to show here right now" under a ghost that is drawn for the Hidden or Archived groups alone, and tier 3 no longer says "No course matches." under a Hidden, Archived or Dormant group that holds rows while nothing is typed, starred or filtered.

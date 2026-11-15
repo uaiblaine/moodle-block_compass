@@ -882,7 +882,8 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
     /**
      * The close, in the corner of the panel: a cross and a short visible label, named in full for
      * assistive technology (the label is inside the name, WCAG 2.5.3). The slim panel draws the cross
-     * alone; below 640 px of the block the stylesheet hides the label.
+     * alone; below 640 px of the block the stylesheet hides the label. Core's secondary button at the
+     * panel's small size (the Design System's action-button.md).
      *
      * @param {boolean} labelled Whether to draw the short label beside the cross.
      * @returns {object} The button.
@@ -890,7 +891,9 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
     const closer = (labelled: boolean) => (
         <button
             type="button"
-            className={labelled ? 'compass-news-hide' : 'compass-news-hide compass-news-hide-icon'}
+            className={labelled
+                ? 'btn btn-sm btn-outline-secondary compass-news-hide'
+                : 'btn btn-sm btn-outline-secondary compass-news-hide compass-news-hide-icon'}
             aria-label={strings.news_hide}
             title={strings.news_hide}
             onClick={(event) => hideFrom(event.currentTarget)}
@@ -975,7 +978,7 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
                 </div>
                 <button
                     type="button"
-                    className="compass-news-see"
+                    className="btn btn-sm btn-outline-secondary compass-news-see"
                     aria-haspopup="dialog"
                     aria-expanded={popover}
                     aria-controls={popover ? popid : undefined}

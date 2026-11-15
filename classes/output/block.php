@@ -186,9 +186,9 @@ class block implements renderable, templatable {
             'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'chip_pending', 'chip_scheduled',
             'filterby',
             'filter', 'filteractive', 'filteractive_one', 'filterpanel', 'clearfilters', 'status',
-            'line_chip', 'line_clearall', 'line_cleartext', 'line_closesearch', 'line_namedcount', 'line_organise',
+            'line_chip', 'line_clearall', 'line_cleartext', 'line_namedcount', 'line_organise',
             'line_removechip', 'line_searchchip', 'line_show', 'line_showcourses', 'line_suggestcourses', 'line_suggestfilters',
-            'line_suggeststart',
+            'line_suggeststart', 'line_view',
             'pendingmeta', 'pendingnotice', 'pendingnotice_one', 'pendingnoticelabel', 'pendingnoticeview',
             'state_pending', 'state_scheduled', 'state_waitlisted', 'crests',
             'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
@@ -243,10 +243,12 @@ class block implements renderable, templatable {
                 // "open this course". Bring back is the box opened.
                 'archive' => $output->render(new pix_icon('archive', '', 'block_compass')),
                 'unarchive' => $output->render(new pix_icon('unarchive', '', 'block_compass')),
-                // The filter line's icon-only controls (ADR-015): core's own list and grid glyphs, the
-                // ones the file picker's view switch uses; the sliders of Filters, from the plugin's
-                // own icon map; core's magnifier, its eraser (the search's, never a cross), its cross
-                // (the grown search's close) and its sort glyph (Organise).
+                // The filter bar's icon-only controls (ADR-015, ADR-023): core's own list and grid glyphs, the
+                // ones the file picker's view switch uses, for View and its menu; the sliders of Filters, from
+                // the plugin's own icon map; core's magnifier, its eraser (the search's, never a cross), its
+                // cross (a chip's), its sort glyph (Organise) and its tick (the chosen item of a menu). View's
+                // chevron is the accordion's expanded one, below. The Organise menu's items (ADR-024) are core's
+                // folder (By category), its ascending sort (A-Z) and its history clock (Recent).
                 'list' => $output->render(new pix_icon('a/view_list_active', '')),
                 'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
                 'filter' => $output->render(new pix_icon('sliders', '', 'block_compass')),
@@ -254,6 +256,10 @@ class block implements renderable, templatable {
                 'eraser' => $output->render(new pix_icon('e/clear_formatting', '')),
                 'close' => $output->render(new pix_icon('e/cancel', '')),
                 'organise' => $output->render(new pix_icon('t/sort_by', '')),
+                'sortcategory' => $output->render(new pix_icon('i/folder', '')),
+                'sortname' => $output->render(new pix_icon('t/sort_asc', '')),
+                'sortrecent' => $output->render(new pix_icon('t/log', '')),
+                'check' => $output->render(new pix_icon('i/checked', '')),
                 // The accordion's chevrons are the two a course section header draws, shown and
                 // hidden by core's own icons-collapse-expand rule.
                 'expanded' => $output->render(new pix_icon('t/expandedchevron', '')),
