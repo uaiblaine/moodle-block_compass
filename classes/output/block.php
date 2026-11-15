@@ -191,8 +191,9 @@ class block implements renderable, templatable {
             'line_suggeststart', 'line_view',
             'pendingmeta', 'pendingnotice', 'pendingnotice_one', 'pendingnoticelabel', 'pendingnoticeview',
             'state_pending', 'state_scheduled', 'state_waitlisted', 'crests',
-            'neveropened', 'searchcourses', 'searchplaceholder', 'showmore', 'sortby',
-            'sort_category', 'sort_name', 'sort_recent',
+            'neveropened', 'searchcourses', 'searchplaceholder', 'showmore',
+            'organise_groupby', 'organise_group_category', 'organise_group_none', 'organise_group_none_paged',
+            'organise_sortby', 'organise_sort_name', 'organise_sort_recent',
             'viewas', 'view_cards', 'view_list', 'viewerror',
             'archive', 'archiveall', 'archiveallconfirm', 'archiveallconfirm_one', 'archived',
             'archiveerror', 'archivenone', 'archiving',
@@ -247,8 +248,9 @@ class block implements renderable, templatable {
                 // ones the file picker's view switch uses, for View and its menu; the sliders of Filters, from
                 // the plugin's own icon map; core's magnifier, its eraser (the search's, never a cross), its
                 // cross (a chip's), its sort glyph (Organise) and its tick (the chosen item of a menu). View's
-                // chevron is the accordion's expanded one, below. The Organise menu's items (ADR-024) are core's
-                // folder (By category), its ascending sort (A-Z) and its history clock (Recent).
+                // chevron is the accordion's expanded one, below. The Organise menu's items (ADR-025) are core's
+                // folder (Category) and its bulleted list (No grouping), its ascending sort (Name) and its history
+                // clock (Most recent).
                 'list' => $output->render(new pix_icon('a/view_list_active', '')),
                 'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
                 'filter' => $output->render(new pix_icon('sliders', '', 'block_compass')),
@@ -256,7 +258,8 @@ class block implements renderable, templatable {
                 'eraser' => $output->render(new pix_icon('e/clear_formatting', '')),
                 'close' => $output->render(new pix_icon('e/cancel', '')),
                 'organise' => $output->render(new pix_icon('t/sort_by', '')),
-                'sortcategory' => $output->render(new pix_icon('i/folder', '')),
+                'groupcategory' => $output->render(new pix_icon('i/folder', '')),
+                'groupnone' => $output->render(new pix_icon('e/bullet_list', '')),
                 'sortname' => $output->render(new pix_icon('t/sort_asc', '')),
                 'sortrecent' => $output->render(new pix_icon('t/log', '')),
                 'check' => $output->render(new pix_icon('i/checked', '')),

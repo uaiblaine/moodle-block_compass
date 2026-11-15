@@ -157,7 +157,8 @@ Design System's), in this order:
 - **Filters** (with `filter_fields`): a panel of the course custom fields the administrator
   chose, at most three, one value per field, the fields combined. Its badge counts the values in
   force; at its foot, *Clear filters* releases everything and *Show N* closes it on the list.
-- **Organise**: the sort, *By category*, *A–Z* or *Recent*.
+- **Organise**: two independent choices, *Group by* (*Category* or *No grouping*) and *Sort by* (*Name* or
+  *Most recent*); a list too large to load at once is always grouped by category.
 - **View**: a menu of *Cards* and *List*.
 - **The search**: an icon that opens the field in place, with an eraser for its text. `/` opens
   it while the bar is on screen; Escape, or leaving it empty, closes it.
@@ -170,7 +171,7 @@ chip.
 
 ![The Filters popover open under the line: the Modality field with Online, In-person and Hybrid and their counts, Clear filters and Show 14](docs/screenshots/explore-filters.png)
 
-![The Organise menu open under the line: Sort courses, with By category, A–Z and Recent](docs/screenshots/explore-organise.png)
+![The Organise menu open under the line: Group by, with Category and No grouping, then Sort by, with Name and Most recent](docs/screenshots/explore-organise.png)
 
 The search suggests as you type, in one list under the line: first the **filters** (a scope,
 the star, a field's value) whose name or field matches the text, each with the number of courses

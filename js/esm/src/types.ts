@@ -147,11 +147,13 @@ export type KeptToolbar = {explore: ExploreState, view: string, remembered: stri
 
 /**
  * The tier 3 filter line as the viewer left it (ADR-015): the shell reads the block_compass_explore
- * preference, validates its shape - migrating a chip stored before the line to a scope and a star -
- * and ships the survivors. Whether a field in cf is still configured is decided when the
- * inventory's fields array arrives.
+ * preference, validates its shape - migrating a chip stored before the line to a scope and a star, and
+ * a sort stored before ADR-025 to a grouping and a sort - and ships the survivors. group is category or
+ * none, sort name or recent; paged mode draws category whatever group holds, and keeps it. Whether a
+ * field in cf is still configured is decided when the inventory's fields array arrives.
  */
 export type ExploreState = {
+    group: string,
     sort: string,
     scope: string,
     star: boolean,
@@ -186,7 +188,8 @@ export type BlockConfig = {
         eraser: string,
         close: string,
         organise: string,
-        sortcategory: string,
+        groupcategory: string,
+        groupnone: string,
         sortname: string,
         sortrecent: string,
         check: string,

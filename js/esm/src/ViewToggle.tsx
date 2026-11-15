@@ -17,9 +17,10 @@
  * View: one icon button with a chevron and the menu it opens, Cards and List (ADR-023).
  *
  * The filter bar's View slot (moodle-dev/docs/filter-line/CONTRACT.md, sections 1 and 8): the button shows
- * the current view's glyph and a chevron, names itself "View" with a tooltip, and says what it opens with
- * aria-expanded and aria-controls. The menu is the bar's LineMenu, named "Show courses as", one
- * menuitemradio per view; its keys, its focus and its look are LineMenu's, the Organise menu's too (ADR-024).
+ * the current view's glyph and a chevron, names itself "View" with the block's tooltip (Tip.tsx, D51; at its
+ * end, as View can end the bar), and says what it opens with aria-expanded and aria-controls. The menu is the
+ * bar's LineMenu, named "Show courses as", one section of one menuitemradio per view; its keys, its focus and
+ * its look are LineMenu's, the Organise menu's too (ADR-024).
  * The glyphs are core's own list, grid and chevron, server-rendered and shipped as props.
  *
  * @module     block_compass/ViewToggle
@@ -30,6 +31,7 @@
 import {useId} from 'react';
 import type {RefObject} from 'react';
 import LineMenu from './LineMenu';
+import Tip, {tipHost} from './Tip';
 import type {BlockConfig} from './types';
 import {markup} from './markup';
 
@@ -38,6 +40,7 @@ type ViewToggleProps = {
     open: boolean,
     top: number | null,
     config: BlockConfig,
+    tipsoff: boolean,
     button: RefObject<HTMLButtonElement | null>,
     menu: RefObject<HTMLDivElement | null>,
     onToggle: () => void,
@@ -47,11 +50,11 @@ type ViewToggleProps = {
 /**
  * The button and its menu.
  *
- * @param {object} props The current view, the menu's state and place, the block config, the two element
- *     refs and the callbacks; see ViewToggleProps.
+ * @param {object} props The current view, the menu's state and place, the block config, whether Escape has
+ *     put the tooltips off, the two element refs and the callbacks; see ViewToggleProps.
  * @returns {object} The rendered control.
  */
-const ViewToggle = ({view, open, top, config, button, menu, onToggle, onChoose}: ViewToggleProps) => {
+const ViewToggle = ({view, open, top, config, tipsoff, button, menu, onToggle, onChoose}: ViewToggleProps) => {
     const {labels, icons} = config;
     const menuid = useId();
 
@@ -60,12 +63,11 @@ const ViewToggle = ({view, open, top, config, button, menu, onToggle, onChoose}:
             <button
                 type="button"
                 ref={button}
-                className="compass-line-iconbtn compass-line-viewbtn"
+                className={tipHost('compass-line-iconbtn compass-line-viewbtn', tipsoff)}
                 aria-haspopup="menu"
                 aria-expanded={open}
                 aria-controls={menuid}
                 aria-label={labels.line_view}
-                title={labels.line_view}
                 onClick={onToggle}
             >
                 <span
@@ -78,6 +80,7 @@ const ViewToggle = ({view, open, top, config, button, menu, onToggle, onChoose}:
                     aria-hidden="true"
                     dangerouslySetInnerHTML={markup(icons.expanded)}
                 />
+                <Tip text={labels.line_view} align="end" />
             </button>
             <LineMenu
                 id={menuid}
@@ -85,14 +88,17 @@ const ViewToggle = ({view, open, top, config, button, menu, onToggle, onChoose}:
                 open={open}
                 top={top}
                 label={labels.viewas}
-                heading={null}
-                choices={[
-                    {value: 'cards', label: labels.view_cards, icon: icons.grid},
-                    {value: 'list', label: labels.view_list, icon: icons.list},
-                ]}
-                chosen={view}
+                sections={[{
+                    key: 'view',
+                    heading: null,
+                    choices: [
+                        {value: 'cards', label: labels.view_cards, icon: icons.grid},
+                        {value: 'list', label: labels.view_list, icon: icons.list},
+                    ],
+                    chosen: view,
+                    onChoose,
+                }]}
                 tick={icons.check}
-                onChoose={onChoose}
             />
         </div>
     );

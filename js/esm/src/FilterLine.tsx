@@ -50,18 +50,24 @@
  * viewport-fixed child - Moodle 5.3's block drawer clips itself with clip-path - and then it stays a
  * popover under the line (fixedTrapped).
  *
+ * Every icon button of the bar names itself with the block's icon tooltip (Tip.tsx, D51), never a title.
+ * Escape puts the bar's tooltips off (useTipsOff()) and does what it does besides; the pointer coming onto
+ * a button, or a Tab onto one, puts them back, never the focus a closing menu hands back to its button, so
+ * the Escape that closed a menu does not raise its button's tooltip.
+ *
  * @module     block_compass/FilterLine
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 import {useCallback, useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
-import type {FocusEvent, KeyboardEvent, ReactNode, RefObject} from 'react';
+import type {FocusEvent, KeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject} from 'react';
 import FilterToggle from './FilterToggle';
 import OrganiseMenu from './OrganiseMenu';
 import ScopeGroup, {hovers} from './ScopeGroup';
 import type {ScopeCell} from './ScopeGroup';
 import StarToggle from './StarToggle';
+import Tip, {tipHost, useTipsOff} from './Tip';
 import ViewToggle from './ViewToggle';
 import {markParts, matchOf, normalise} from './filter';
 import {hold} from './pending';
@@ -186,8 +192,11 @@ type FilterLineProps = {
     onPanel: (open: boolean) => void,
     panel: (layer: {id: string, top: number | null, sheet: boolean,
         element: RefObject<HTMLDivElement | null>, onShow: () => void}) => ReactNode,
+    group: string,
+    onGroup: (group: string) => void,
     sort: string,
     onSort: (sort: string) => void,
+    paged: boolean,
     view: string,
     onView: (view: string) => void,
     query: string,
@@ -296,8 +305,9 @@ const lineClass = (step: Step, searching: boolean, measuring: boolean): string =
 // eslint-disable-next-line complexity
 const FilterLine = (props: FilterLineProps) => {
     const {
-        config, total, scopecells, onScope, star, starcount, onStar, hasfilters, badge, panelopen, onPanel, panel, sort, onSort,
-        view, onView, query, onQuery, onErase, filters, onApply, courses, chips, onRelease, onClearAll, onPreview,
+        config, total, scopecells, onScope, star, starcount, onStar, hasfilters, badge, panelopen, onPanel, panel, group, onGroup,
+        sort, onSort, paged, view, onView, query, onQuery, onErase, filters, onApply, courses, chips, onRelease, onClearAll,
+        onPreview,
     } = props;
     const {labels, icons} = config;
     const hassearch = config.showsearch;
@@ -327,6 +337,7 @@ const FilterLine = (props: FilterLineProps) => {
     const [menuopen, setMenuopen] = useState(false);
     const [viewopen, setViewopen] = useState(false);
     const [trapped, setTrapped] = useState(false);
+    const [tipsoff, tipsOn] = useTipsOff();
     const [place, setPlace] = useState<{list: Place, panel: number | null, menu: number | null}>(
         {list: NOWHERE, panel: null, menu: null}
     );
@@ -913,6 +924,21 @@ const FilterLine = (props: FilterLineProps) => {
         focusLater(() => toggle.current);
     };
 
+    /**
+     * The pointer coming onto an icon button from outside it puts the bar's tooltips back, as an enter on that
+     * button would: a move inside the button, onto its glyph, is no coming back.
+     *
+     * @param {object} event The pointer event.
+     * @returns {void}
+     */
+    const tipsBack = (event: ReactPointerEvent<HTMLDivElement>): void => {
+        const host = event.target instanceof Element ? event.target.closest('.compass-tiphost') : null;
+        const from = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+        if (host && hovers(event) && !(from && host.contains(from))) {
+            tipsOn();
+        }
+    };
+
     // The row under the bar: the panel's filters in force, the search's chip while the field is
     // closed, and Clear all from two chips up.
     const allchips: LineChip[] = [...chips];
@@ -936,6 +962,7 @@ const FilterLine = (props: FilterLineProps) => {
             pressed={star}
             count={starcount}
             config={config}
+            tipsoff={tipsoff}
             onToggle={onStar}
             onPreview={(on) => onPreview(on ? {star: true} : null)}
         />
@@ -947,6 +974,7 @@ const FilterLine = (props: FilterLineProps) => {
                 open={panelopen}
                 controls={panelid}
                 config={config}
+                tipsoff={tipsoff}
                 button={toggle}
                 onToggle={() => {
                     if (!panelopen) {
@@ -972,7 +1000,10 @@ const FilterLine = (props: FilterLineProps) => {
             open={menuopen}
             top={place.menu}
             config={config}
+            group={paged ? 'category' : group}
             sort={sort}
+            paged={paged}
+            tipsoff={tipsoff}
             button={organise}
             menu={menu}
             onToggle={() => {
@@ -984,6 +1015,11 @@ const FilterLine = (props: FilterLineProps) => {
                     }
                 }
                 setMenuopen(!menuopen);
+            }}
+            onGroup={(value) => {
+                setMenuopen(false);
+                focusLater(() => organise.current);
+                onGroup(value);
             }}
             onSort={(value) => {
                 setMenuopen(false);
@@ -999,6 +1035,7 @@ const FilterLine = (props: FilterLineProps) => {
             open={viewopen}
             top={place.menu}
             config={config}
+            tipsoff={tipsoff}
             button={viewbtn}
             menu={viewmenu}
             onToggle={() => {
@@ -1042,14 +1079,14 @@ const FilterLine = (props: FilterLineProps) => {
             <button
                 type="button"
                 ref={opener}
-                className="compass-line-iconbtn compass-line-searchopen"
+                className={tipHost('compass-line-iconbtn compass-line-searchopen', tipsoff)}
                 aria-controls={fieldid}
                 aria-expanded={open}
                 aria-label={labels.searchcourses}
-                title={labels.searchcourses}
                 onClick={() => openSearch()}
             >
                 <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.search)} />
+                <Tip text={labels.searchcourses} align="end" />
             </button>
             <div className="compass-search">
                 <label className="visually-hidden" htmlFor={fieldid}>{labels.searchcourses}</label>
@@ -1102,9 +1139,8 @@ const FilterLine = (props: FilterLineProps) => {
                 {/* The eraser keeps the field's focus on a press: it clears the text and the field stays open. */}
                 <button
                     type="button"
-                    className="compass-search-eraser"
+                    className={tipHost('compass-search-eraser', tipsoff)}
                     aria-label={labels.line_cleartext}
-                    title={labels.line_cleartext}
                     hidden={query === ''}
                     onMouseDown={(press) => press.preventDefault()}
                     onClick={() => {
@@ -1115,6 +1151,7 @@ const FilterLine = (props: FilterLineProps) => {
                     }}
                 >
                     <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.eraser)} />
+                    <Tip text={labels.line_cleartext} align="end" />
                 </button>
             </div>
         </div>
@@ -1130,7 +1167,19 @@ const FilterLine = (props: FilterLineProps) => {
     const anchored = step === 'full';
 
     return (
-        <div className={wrapperclasses.join(' ')} ref={wrapper} onKeyDown={lineKey} onBlur={focusout}>
+        <div
+            className={wrapperclasses.join(' ')}
+            ref={wrapper}
+            onKeyDown={lineKey}
+            onBlur={focusout}
+            onPointerOver={tipsBack}
+            onFocus={() => {
+                // A Tab onto the bar puts its tooltips back; the focus a closing menu hands back does not.
+                if (Date.now() - tabat.current < TAB_INTENT) {
+                    tipsOn();
+                }
+            }}
+        >
             <div className={lineClass(step, open, false)} ref={line} data-step={step}>
                 {children}
             </div>

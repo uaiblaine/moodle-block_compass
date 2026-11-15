@@ -122,7 +122,7 @@ final class lib_test extends advanced_testcase {
         $this->assertNull($definition['default']);
         $this->assertArrayNotHasKey('choices', $definition);
 
-        $json = '{"sort":"name","scope":"all","star":true,"cf":{"modality":1},"panel":false}';
+        $json = '{"group":"none","sort":"name","scope":"all","star":true,"cf":{"modality":1},"panel":false}';
         $this->assertSame($json, core_user::clean_preference($json, 'block_compass_explore'));
 
         $this->assertTrue(core_user::can_edit_preference('block_compass_explore', $me));
@@ -230,7 +230,14 @@ final class lib_test extends advanced_testcase {
         foreach (['a', 'b', 'c'] as $prefix) {
             $cf[str_pad($prefix, 100, 'x')] = 2147483647;
         }
-        $explore = ['sort' => 'category', 'scope' => 'scheduled', 'star' => false, 'cf' => $cf, 'panel' => false];
+        $explore = [
+            'group' => 'category',
+            'sort' => 'recent',
+            'scope' => 'scheduled',
+            'star' => false,
+            'cf' => $cf,
+            'panel' => false,
+        ];
         $calendar = [
             'view' => 'learning',
             'filter' => 'events',

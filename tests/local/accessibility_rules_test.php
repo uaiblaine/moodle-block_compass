@@ -2256,8 +2256,9 @@ final class accessibility_rules_test extends basic_testcase {
      * Beside the title the switch shows core's two glyphs. Each button is named by its view
      * (aria-label, the word the text switch shows), keeps aria-pressed, and carries the word in a child
      * tooltip that is aria-hidden and has no title (a title would draw a second, native tooltip), shown
-     * on :hover and :focus-visible and put off by Escape (WCAG 1.4.13). Not core's Bootstrap tooltip:
-     * its loader binds only the nodes present at load. On a narrow block, where touch has no hover, and
+     * on :hover and :focus-visible and put off by Escape (WCAG 1.4.13): the block's icon tooltip (Tip.tsx),
+     * which the filter bar's icon buttons draw too. Not core's Bootstrap tooltip: its loader binds only the
+     * nodes present at load. On a narrow block, where touch has no hover, and
      * in the open strip, the switch keeps its text. Vacuity guard: both branches and the rule are found.
      *
      * @return void
@@ -2276,21 +2277,22 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('aria-label={name}', $icon, 'an icon button without a name');
         $this->assertStringContainsString('aria-pressed={drawn === which}', $icon);
         $this->assertDoesNotMatchRegularExpression('/\stitle=/', $icon, 'a title draws a second, native tooltip');
-        $this->assertStringContainsString('<span className="compass-cal-tip" aria-hidden="true">{name}</span>', $body[0]);
+        $this->assertStringContainsString("className={tipHost('compass-cal-segbtn', tipsoff)}", $icon, 'no tooltip host');
+        $this->assertStringContainsString('<Tip text={name} />', $body[0]);
+        $this->assertStringContainsString('const [tipsoff, tipsOn] = useTipsOff();', $strip, 'Escape must put the tooltips off');
         $this->assertStringContainsString(
-            "            if (event.key === 'Escape') {\n                setTipsoff(true);",
-            $strip,
+            "            if (event.key === 'Escape') {\n                setOff(true);",
+            $this->reactsources()['js/esm/src/Tip.tsx'],
             'Escape must put the tooltips off'
         );
 
         $shown = null;
         $base = null;
         foreach ($this->rules() as [$selector, $rule]) {
-            if (str_contains($selector, ':hover .compass-cal-tip')) {
+            if (str_contains($selector, ':hover > .compass-tip') && str_contains($rule, 'opacity: 1')) {
                 $shown = $selector;
-                $this->assertMatchesRegularExpression('/\bopacity\s*:\s*1\b/', $rule);
             }
-            if ($selector === '.block_compass .compass-cal-tip') {
+            if ($selector === '.block_compass .compass-tip') {
                 $base = $rule;
             }
         }
@@ -2298,11 +2300,11 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertNotNull($base, 'no base tooltip rule');
         $this->assertMatchesRegularExpression('/\bopacity\s*:\s*0\b/', $base, 'the tooltip shows without a hover');
         $this->assertStringContainsString(
-            '.compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip',
+            '.compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):hover > .compass-tip',
             $shown
         );
         $this->assertStringContainsString(
-            '.compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip',
+            '.compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):focus-visible > .compass-tip',
             $shown,
             'a keyboard user never sees the name'
         );
@@ -2480,13 +2482,14 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertCount(1, $hide, 'vacuity: the hide button');
         $this->assertStringContainsString('aria-label={strings.cal_soon_hide}', $hide[0]);
         $this->assertStringNotContainsString('title=', $hide[0], 'a title draws a second tooltip');
-        $this->assertStringContainsString("'compass-soon-hide compass-cal-tipsoff'", $hide[0], 'Escape puts its tooltip off');
         $this->assertStringContainsString(
-            '<span className="compass-cal-tip" aria-hidden="true">{strings.cal_soon_hide}</span>',
-            $source
+            "className={tipHost('compass-soon-hide', tipsoff)}",
+            $hide[0],
+            'Escape puts its tooltip off'
         );
+        $this->assertStringContainsString('<Tip text={strings.cal_soon_hide} align="end" />', $source);
         $this->assertMatchesRegularExpression(
-            '/\.compass-soon-hide:not\(\.compass-cal-tipsoff\):focus-visible \.compass-cal-tip/',
+            '/\.compass-tiphost:not\(\.compass-tipsoff\):not\(\[aria-expanded="true"\]\):focus-visible > \.compass-tip/',
             $this->css(),
             'the tooltip shows on keyboard focus'
         );

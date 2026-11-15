@@ -36,12 +36,13 @@ final class explore_preference_test extends advanced_testcase {
     /**
      * Nothing stored, an empty string, and something that is not JSON all read as the defaults.
      *
-     * The defaults are the closed panel of ADR-015 decision 5, the All scope and the star released.
+     * The defaults are the closed panel of ADR-015 decision 5, the All scope, the star released, and the list
+     * grouped by category and sorted by name (ADR-025), the list a viewer saw before the two were split.
      *
      * @return void
      */
     public function test_nothing_stored_or_unreadable_reads_as_the_defaults(): void {
-        $defaults = ['sort' => 'category', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false];
+        $defaults = ['group' => 'category', 'sort' => 'name', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false];
 
         $this->assertSame($defaults, explore_preference::defaults());
         $this->assertSame($defaults, explore_preference::validate(null, true));
@@ -57,24 +58,89 @@ final class explore_preference_test extends advanced_testcase {
      * @return void
      */
     public function test_a_well_formed_state_survives_whole(): void {
-        $state = ['sort' => 'recent', 'scope' => 'new', 'star' => true, 'cf' => ['modality' => 2, 'x_y' => 0], 'panel' => true];
+        $state = [
+            'group' => 'none',
+            'sort' => 'recent',
+            'scope' => 'new',
+            'star' => true,
+            'cf' => ['modality' => 2, 'x_y' => 0],
+            'panel' => true,
+        ];
 
         $this->assertSame($state, explore_preference::validate(json_encode($state), true));
     }
 
     /**
-     * A sort or a scope outside the vocabulary falls back to its default; the rest is kept.
+     * Every grouping and sort of ADR-025 is read back as written, in each of the four combinations.
+     *
+     * The written direction of the legacy mapping: a state with a group member is never read as a legacy one, so the
+     * grouped list sorted by recency, which no state before ADR-025 could say, survives a reload.
+     *
+     * @return void
+     */
+    public function test_every_grouping_and_sort_survives_as_written(): void {
+        $this->assertSame(['category', 'none'], explore_preference::GROUPS);
+        $this->assertSame(['name', 'recent'], explore_preference::SORTS);
+        foreach (explore_preference::GROUPS as $group) {
+            foreach (explore_preference::SORTS as $sort) {
+                $state = explore_preference::validate(json_encode(['group' => $group, 'sort' => $sort]), true);
+                $this->assertSame([$group, $sort], [$state['group'], $state['sort']], "{$group} + {$sort}");
+            }
+        }
+    }
+
+    /**
+     * A state stored before ADR-025 is read as what that viewer saw: By category is the grouped list by name, A-Z and
+     * Recent the flat list in that order.
+     *
+     * The read direction of the legacy mapping. Control: the same sorts beside a group member are read as ADR-025's
+     * own, so "recent" with a group stays grouped, and the old "category" is no sort of the new vocabulary.
+     *
+     * @return void
+     */
+    public function test_a_sort_stored_before_the_split_reads_as_what_was_shown(): void {
+        $this->assertSame(['category', 'name', 'recent'], explore_preference::LEGACY_SORTS);
+        $expected = [
+            'category' => ['category', 'name'],
+            'name' => ['none', 'name'],
+            'recent' => ['none', 'recent'],
+        ];
+        foreach ($expected as $legacy => $organise) {
+            $state = explore_preference::validate(json_encode(['sort' => $legacy, 'scope' => 'new']), true);
+            $this->assertSame($organise, [$state['group'], $state['sort']], "legacy {$legacy}");
+            $this->assertSame('new', $state['scope'], "legacy {$legacy}: the rest is kept");
+            $this->assertSame(['group' => $organise[0], 'sort' => $organise[1]], explore_preference::legacy_organise($legacy));
+        }
+
+        $grouped = explore_preference::validate(json_encode(['group' => 'category', 'sort' => 'recent']), true);
+        $this->assertSame(['category', 'recent'], [$grouped['group'], $grouped['sort']], 'a group member is not a legacy state');
+        $old = explore_preference::validate(json_encode(['group' => 'none', 'sort' => 'category']), true);
+        $this->assertSame(['none', 'name'], [$old['group'], $old['sort']], '"category" is no sort beside a group');
+        $unknown = explore_preference::validate(json_encode(['sort' => 'sideways']), true);
+        $this->assertSame(['category', 'name'], [$unknown['group'], $unknown['sort']], 'an unknown legacy sort is dropped');
+    }
+
+    /**
+     * A grouping, a sort or a scope outside the vocabulary falls back to its default; the rest is kept.
      *
      * Favourites is not a scope (ADR-015 decision 1): it is the star, so a scope naming it is noise.
      *
      * @return void
      */
     public function test_a_sort_or_a_scope_outside_the_vocabulary_is_dropped(): void {
-        $json = json_encode(['sort' => 'sideways', 'scope' => 'starred', 'star' => true, 'cf' => [], 'panel' => true]);
+        $json = json_encode([
+            'group' => 'sideways',
+            'sort' => 'sideways',
+            'scope' => 'starred',
+            'star' => true,
+            'cf' => [],
+            'panel' => true,
+        ]);
 
         $state = explore_preference::validate($json, true);
 
-        $this->assertSame('category', $state['sort']);
+        $this->assertSame('category', $state['group']);
+        $this->assertSame('name', $state['sort']);
         $this->assertSame('all', $state['scope']);
         $this->assertTrue($state['star']);
         $this->assertTrue($state['panel']);
@@ -177,6 +243,40 @@ final class explore_preference_test extends advanced_testcase {
     }
 
     /**
+     * The cap's derivation holds for the shape ADR-025 writes: 91 bytes with an empty selection, at most 433 with
+     * three fields, and the cap at least twice that.
+     *
+     * Changes that must make it fail: a member added to the shape, a longer word in a vocabulary, a cap under twice
+     * the largest value.
+     *
+     * @return void
+     */
+    public function test_the_cap_is_twice_the_largest_value_the_client_writes(): void {
+        $longest = static fn(array $words): string => array_reduce(
+            $words,
+            static fn(string $carry, string $word): string => strlen($word) > strlen($carry) ? $word : $carry,
+            ''
+        );
+        $state = [
+            'group' => $longest(explore_preference::GROUPS),
+            'sort' => $longest(explore_preference::SORTS),
+            'scope' => $longest(explore_preference::SCOPES),
+            'star' => false,
+            'cf' => [],
+            'panel' => false,
+        ];
+        $this->assertSame(array_keys(explore_preference::defaults()), array_keys($state), 'the shape the client writes');
+        $this->assertSame(91, strlen(json_encode($state)));
+
+        foreach (['a', 'b', 'c'] as $prefix) {
+            $state['cf'][str_pad($prefix, 100, 'x')] = 2147483647;
+        }
+        $largest = strlen(json_encode($state));
+        $this->assertLessThanOrEqual(433, $largest);
+        $this->assertGreaterThanOrEqual(2 * 433, explore_preference::MAX_BYTES);
+    }
+
+    /**
      * read() takes the stored preference of the current user, and the pending flag from the setting.
      *
      * @return void
@@ -190,12 +290,13 @@ final class explore_preference_test extends advanced_testcase {
 
         set_user_preference(
             explore_preference::NAME,
-            json_encode(['sort' => 'name', 'scope' => 'new', 'star' => true, 'panel' => true]),
+            json_encode(['group' => 'none', 'sort' => 'recent', 'scope' => 'new', 'star' => true, 'panel' => true]),
             $user
         );
         $state = explore_preference::read();
 
-        $this->assertSame('name', $state['sort']);
+        $this->assertSame('none', $state['group']);
+        $this->assertSame('recent', $state['sort']);
         $this->assertSame('new', $state['scope']);
         $this->assertTrue($state['star']);
         $this->assertTrue($state['panel']);
@@ -228,10 +329,10 @@ final class explore_preference_test extends advanced_testcase {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
         $this->setUser($user);
-        $json = json_encode(['sort' => 'name', 'scope' => 'new', 'star' => true, 'panel' => true]);
+        $json = json_encode(['group' => 'none', 'sort' => 'recent', 'scope' => 'new', 'star' => true, 'panel' => true]);
 
         set_user_preference(explore_preference::NAME, self::padded($json, explore_preference::MAX_BYTES), $user);
-        $this->assertSame('name', explore_preference::read()['sort']);
+        $this->assertSame('recent', explore_preference::read()['sort']);
 
         set_user_preference(explore_preference::NAME, self::padded($json, explore_preference::MAX_BYTES + 1), $user);
         $this->assertSame(explore_preference::defaults(), explore_preference::read());
