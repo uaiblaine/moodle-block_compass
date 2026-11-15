@@ -54,10 +54,13 @@ const BASE = process.env.COMPASS_BASE || 'http://localhost:9502';
 const OUT = process.env.COMPASS_OUT || join(here, '..');
 const SESSIONS = JSON.parse(readFileSync(process.env.COMPASS_SESSIONS, 'utf8'));
 const DESKTOP = 1200;
-// A tablet's width, where the Dashboard's column folds the filter line to its two-line step.
-const NARROW = 768;
+// A width where the Dashboard's column folds the filter bar to its narrow step (the bar folds below about
+// 490 px of its own width; a tablet's 768 px still draws it full).
+const NARROW = 500;
 // What the search shot types: a word that matches a filter value and course names alike.
 const SEARCH = 'on';
+// What the filtered shot leaves in force beside Hybrid: a word in three of the seeded Hybrid courses' names.
+const FILTERED = 'instruction';
 
 // The day the calendar card opens on: tomorrow, the richest day of the seeded data.
 const tomorrow = (() => {
@@ -119,6 +122,49 @@ const setStrip = async(page, wantOpen) => {
     await page.until(wantOpen ? OPEN_READY : LINE_READY, 30000);
     await sleep(400);
     await page.until(wantOpen ? OPEN_READY : LINE_READY, 30000);
+};
+
+/**
+ * The strip's clip without Up next: Up next sits inside the strip's section, under its legend, and has a
+ * picture of its own (soon), so a picture of the row or the line stops above it when it shows.
+ *
+ * @param {object} page The page.
+ * @returns {Promise<object>} The clip.
+ */
+const stripAlone = async(page) => {
+    const clip = await page.box(STRIP, 12);
+    const soon = await page.eval(`(() => {
+        const wrap = document.querySelector('.block_compass .compass-soon-wrap');
+        const rect = wrap && wrap.getBoundingClientRect();
+        return rect && rect.height > 0 ? rect.top + scrollY : null;
+    })()`);
+    return soon === null || soon <= clip.y ? clip : {...clip, height: soon - clip.y};
+};
+
+/**
+ * Take the pointer off the page and wait until no icon tooltip is drawn and no CSS transition runs: a
+ * tooltip raised by a control that appeared under the resting pointer, or the hover ground of the control
+ * just pressed fading out, would otherwise be in the picture.
+ *
+ * @param {object} page The page.
+ */
+const rest = async(page) => {
+    await page.mouseAway();
+    await page.until(`[...document.querySelectorAll('.block_compass .compass-tip')]
+        .every((tip) => getComputedStyle(tip).opacity === '0') &&
+        !document.getAnimations().some((animation) => animation instanceof CSSTransition)`, 5000);
+};
+
+/**
+ * Press and release a key on the focused element.
+ *
+ * @param {object} page The page.
+ * @param {string} key The key's name.
+ * @param {number} code Its Windows virtual key code.
+ */
+const press = async(page, key, code) => {
+    await page.send('Input.dispatchKeyEvent', {type: 'keyDown', key, code: key, windowsVirtualKeyCode: code});
+    await page.send('Input.dispatchKeyEvent', {type: 'keyUp', key, code: key, windowsVirtualKeyCode: code});
 };
 
 /**
@@ -197,6 +243,11 @@ const openExplore = async(page, touch = false) => {
     }
     await page.until(`document.querySelector('.compass-line[data-step]:not(.compass-line-measuring)') &&
         document.querySelector('.compass-explore-body [data-course-id]')`);
+    // The panel's open state is remembered (block_compass_explore's panel): every shot starts from it closed.
+    if (await page.eval(`!!document.querySelector('.compass-filterbtn[aria-expanded="true"]')`)) {
+        await (touch ? page.tap('.compass-filterbtn') : page.click('.compass-filterbtn'));
+        await page.until(`document.querySelector('.compass-filterbtn[aria-expanded="false"]')`);
+    }
     await settle(page);
     return page.eval(`document.querySelector('.compass-line').dataset.step`);
 };
@@ -291,15 +342,15 @@ const SHOTS = {
         const page = await open(browser, 'demo.student', '/my/');
         await page.fit(DESKTOP);
         await settle(page);
-        await page.mouseAway();
+        await rest(page);
         save('dashboard.png', await page.shot(await page.box('.block_compass', 12)));
     },
 
     // The open strip alone, nothing hovered: the scroller at home, floating arrows, the scrubber map, one mark per kind.
     async strip(browser) {
         const page = await open(browser, 'demo.student', '/my/');
-        await page.mouseAway();
-        save('calendar-strip.png', await page.shot(await page.box(STRIP, 12)));
+        await rest(page);
+        save('calendar-strip.png', await page.shot(await stripAlone(page)));
     },
 
     // Tomorrow's card, pinned by a click.
@@ -323,8 +374,8 @@ const SHOTS = {
     // The closed line for the student: Late, Today, Tomorrow, This week and Later.
     async line(browser) {
         const page = await open(browser, 'demo.student', '/my/', {strip: 'closed'});
-        await page.mouseAway();
-        save('calendar-line.png', await page.shot(await page.box(STRIP, 12)));
+        await rest(page);
+        save('calendar-line.png', await page.shot(await stripAlone(page)));
     },
 
     // Open for enrolment (ADR-017) under the closed line, for demo.student. The line is drawn full only on a calm
@@ -339,18 +390,18 @@ const SHOTS = {
             // eslint-disable-next-line no-console
             console.log('NOTE open-courses.png: the compact sentence (a busy day) with its list open; the full line shows on a calm one');
             // A busy day puts the sentence under tier 1's first strip, or below it while Up next shows: the picture is
-            // the sentence and the list its "See" opens, not the strip above it.
-            await page.eval(`document.querySelector('.block_compass .compass-news-compact').scrollIntoView({block: 'center'})`);
-            await sleep(300);
-            // A script click: the pointer helper aims at viewport coordinates, which the scroll above moved.
-            await page.eval(`document.querySelector('.block_compass .compass-news-compact .compass-news-see').click()`);
+            // the sentence and the list its "See" opens, not the strip above it. The whole page in the viewport, so
+            // the list hung under the sentence is not cut by the viewport's bottom.
+            await page.fit(DESKTOP);
+            await settle(page);
+            await page.click('.block_compass .compass-news-compact .compass-news-see');
             await page.until(`document.querySelector('.block_compass .compass-news-pop')`, 10000);
             await sleep(400);
-            await page.mouseAway();
+            await rest(page);
             save('open-courses.png', await page.shot(await page.box(['.compass-news-wrap-open', '.compass-news-pop'], 12)));
             return;
         }
-        await page.mouseAway();
+        await rest(page);
         save('open-courses.png', await page.shot(await page.box([...STRIP, '.compass-news-wrap-open'], 12)));
     },
 
@@ -359,7 +410,7 @@ const SHOTS = {
         const page = await open(browser, 'demo.student', '/my/', {strip: 'closed'});
         await page.until(`document.querySelector('.block_compass .compass-soon .compass-soon-row')`, 30000);
         await sleep(600);
-        await page.mouseAway();
+        await rest(page);
         save('calendar-soon.png', await page.shot(await page.box([...STRIP, 'section.compass-soon'], 12)));
     },
 
@@ -374,8 +425,8 @@ const SHOTS = {
             console.log('SKIPPED calendar-line-teaching.png: no To grade cell (the ledger does not cover the teacher)');
             return;
         }
-        await page.mouseAway();
-        save('calendar-line-teaching.png', await page.shot(await page.box(STRIP, 12)));
+        await rest(page);
+        save('calendar-line-teaching.png', await page.shot(await stripAlone(page)));
     },
 
     // Pointing at a first-tier card: the days that do not hold its course dim, their numbers stay legible.
@@ -390,16 +441,16 @@ const SHOTS = {
     // The ring style (calendar_style = ring on the site), for calendar-styles.png.
     async ring(browser) {
         const page = await open(browser, 'demo.student', '/my/');
-        await page.mouseAway();
-        save('styles-ring.png', await page.shot(await page.box(STRIP, 12)));
+        await rest(page);
+        save('styles-ring.png', await page.shot(await stripAlone(page)));
     },
 
     // The pulse style (calendar_style = pulse on the site): the strip on its own, which is also
     // calendar-styles.png's right half, and a second picture with tomorrow pinned.
     async pulse(browser) {
         const page = await open(browser, 'demo.student', '/my/');
-        await page.mouseAway();
-        const png = await page.shot(await page.box(STRIP, 12));
+        await rest(page);
+        const png = await page.shot(await stripAlone(page));
         save('calendar-pulse.png', png);
         save('styles-pulse.png', png);
         await page.fit(DESKTOP);
@@ -415,19 +466,20 @@ const SHOTS = {
         save('calendar-dark.png', await page.shot(await page.box([...STRIP, '.compass-cal-card'], 12)));
     },
 
-    // Tier 3 on the block's own page, where the line is wide (s1): the line at rest, nothing pressed.
+    // Tier 3 on the block's own page, the bar full: at rest, nothing pressed; the category index beside the
+    // groups, the open group's link tinted, Archived last (the seeder archives a course for demo.student).
     async explore(browser) {
         const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
         await page.fit(DESKTOP);
         await openExplore(page);
         await page.fit(DESKTOP);
         await settle(page);
-        await page.mouseAway();
+        await rest(page);
         save('explore.png', await page.shot(await page.box('.compass-explore', 12)));
     },
 
-    // The Dashboard's column (s3, the search an icon): a field value chosen in the panel and a search
-    // left in force with the field folded, so the row under the line holds two chips and Clear all.
+    // The Dashboard's column, the bar full: a field value chosen in the panel and a search left in force,
+    // the field closed by Escape, so the row under the bar holds two chips and Clear all.
     async filtered(browser) {
         const page = await open(browser, 'demo.student', '/my/', {strip: false});
         await page.fit(DESKTOP);
@@ -442,56 +494,68 @@ const SHOTS = {
         await sleep(600);
         await page.click('.compass-line-searchopen');
         await page.until(`document.activeElement && document.activeElement.matches('.compass-search-input')`);
-        await typeText(page, 'health');
+        await typeText(page, FILTERED);
         await sleep(600);
-        await page.click('.compass-line-searchclose');
-        await page.until(`document.querySelector('.compass-line-clearall')`);
+        // Escape closes the field whatever it holds, and the text left in force becomes a chip.
+        await press(page, 'Escape', 27);
+        await page.until(`document.querySelector('.compass-line-searchopen[aria-expanded="false"]') &&
+            document.querySelector('.compass-line-clearall')`);
+        // The keyboard's focus lands on the search button: no focus ring in the picture.
+        await page.eval(`document.activeElement && document.activeElement.blur()`);
         await page.fit(DESKTOP);
         await settle(page);
-        await page.mouseAway();
+        await rest(page);
         save('explore-filtered.png', await page.shot(await page.box('.compass-explore', 12)));
         await releaseExplore(page);
     },
 
-    // The search grown over the Dashboard's line (s3), its listbox under it: filters, then courses.
+    // The search opened in place at the bar's end, its listbox under it: filters, then courses.
     async search(browser) {
         const page = await open(browser, 'demo.student', '/my/', {strip: false});
         await page.fit(DESKTOP);
         await openExplore(page);
         await page.click('.compass-line-searchopen');
         await page.until(`document.activeElement && document.activeElement.matches('.compass-search-input')`);
-        await sleep(400);
+        // Off the field's end before the eraser appears there, under the pointer, with its tooltip.
+        await rest(page);
         await typeText(page, SEARCH);
         await page.until(`document.querySelector('.compass-line-suggest:not([hidden]) [role="option"]')`);
         await sleep(900);
-        await page.mouseAway();
+        await rest(page);
         save('explore-search.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-line-suggest'], 24)));
+        await releaseExplore(page);
     },
 
-    // The Filters popover on the block's page (s1): each field's values with their counts, Clear filters and Show N.
+    // The Filters panel on the block's page, the bar full: each field's label above its values with their
+    // counts, one value chosen (Hybrid) so the chosen state shows, Clear filters and Show N at the foot.
     async filters(browser) {
         const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
         await page.fit(DESKTOP);
         await openExplore(page);
         await page.click('.compass-filterbtn');
         await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-fpanel-opt')`);
+        await mark(page, '.compass-fpanel .compass-fpanel-opt', 'Hybrid', 'value');
+        await page.click('[data-capture="value"]');
+        await page.until(`document.querySelector('[data-capture="value"][aria-checked="true"]')`);
         await sleep(900);
-        await page.mouseAway();
+        await rest(page);
         save('explore-filters.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-fpanel'], 48)));
-        await page.click('.compass-filterbtn');
-        await sleep(600);
+        await releaseExplore(page);
     },
 
-    // The Organise menu on the block's page (s1): the sort, By category, A-Z or Recent.
+    // The Organise menu on the block's page, the bar full: Group by (Category, No grouping) and Sort by
+    // (Name, Most recent), the chosen one of each ticked.
     async organise(browser) {
         const page = await open(browser, 'demo.student', '/blocks/compass/index.php', {strip: false});
         await page.fit(DESKTOP);
         await openExplore(page);
         await page.click('.compass-line-organisebtn');
-        await page.until(`document.querySelector('.compass-line-menu:not([hidden])')`);
+        await page.until(`document.querySelector('.compass-line-organisebtn[aria-expanded="true"]') &&
+            document.querySelector('.compass-line-menu:not([hidden]) [role="menuitemradio"]')`);
         await sleep(700);
-        await page.mouseAway();
+        await rest(page);
         save('explore-organise.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-line-menu'], 48)));
+        await press(page, 'Escape', 27);
     },
 
     // The preview on the block's page: the mouse on the New cell rings the rows it would keep and dims the others.
@@ -521,14 +585,18 @@ const SHOTS = {
         await sleep(600);
     },
 
-    // The Dashboard at a tablet's width: the block's line folds to two lines (s4), the scope under the rest.
+    // The Dashboard at a narrow width: the bar folds to its narrow step, the controls first and the scope on a
+    // line of its own after them.
     async narrow(browser) {
         const page = await open(browser, 'demo.student', '/my/', {width: NARROW, strip: false});
         await page.fit(NARROW);
-        await openExplore(page);
+        const step = await openExplore(page);
+        if (step !== 'narrow') {
+            throw new Error(`The bar is at its ${step} step at ${NARROW} px, not narrow`);
+        }
         await page.fit(NARROW);
         await settle(page);
-        await page.mouseAway();
+        await rest(page);
         save('explore-narrow.png', await page.shot(await page.box('.compass-explore', 12)));
     },
 
@@ -537,7 +605,7 @@ const SHOTS = {
         const page = await open(browser, 'demo.student', '/blocks/compass/index.php');
         await page.fit(DESKTOP);
         await settle(page);
-        await page.mouseAway();
+        await rest(page);
         save('page.png', await page.shot(await page.box(['#page-header', '#region-main'], 12)));
     },
 
@@ -569,8 +637,20 @@ const SHOTS = {
         }
         // The settings page's own column, from the section heading to its last setting.
         const column = await page.box('#region-main', 0);
-        // The last of the section's settings: calendar_grading exists only with block_feedback_tracker.
-        const last = await page.eval(`document.querySelector('#admin-calendar_grading') ? '#admin-calendar_grading' : '#admin-calendar_start'`);
+        // The last of the section's settings, the last one before the next heading (calendar_grading exists only
+        // with block_feedback_tracker, so the section's end is found, not named).
+        const last = await page.eval(`(() => {
+            const heading = document.querySelector('[data-capture="calendar"]');
+            const headings = [...document.querySelectorAll('#region-main h3')];
+            const next = headings[headings.indexOf(heading) + 1] || null;
+            const rows = [...document.querySelectorAll('#region-main .form-item[id^="admin-"]')].filter((row) =>
+                (heading.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+                (!next || (next.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_PRECEDING)));
+            return rows.length ? '#' + rows[rows.length - 1].id : '';
+        })()`);
+        if (!last) {
+            throw new Error('No setting under the calendar heading');
+        }
         const rows = await page.box(['[data-capture="calendar"]', last], 16);
         save('settings.png', await page.shot({x: column.x, y: rows.y, width: column.width, height: rows.height}));
     },

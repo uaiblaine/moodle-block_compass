@@ -47,28 +47,38 @@ docker exec m502b-webserver-1 php $T/holidays.php --add      # if holidays-state
 #   {"demo.student": "MoodleSession502b=...", "demo.teacher": "...", "admin": "..."}
 COMPASS_SESSIONS=/path/sessions.json node capture.mjs        # every shot but ring and pulse
 # calendar_style=ring: node capture.mjs ring; calendar_style=pulse: node capture.mjs pulse (also calendar-pulse.png and calendar-pulse-card.png);
-# calendar_style back to dots
+# calendar_style back to dots. The setting, from the host:
+#   docker exec m502b-webserver-1 php /var/www/html/admin/cli/cfg.php --component=block_compass --name=calendar_style --set=ring
 python3 finish.py
 ```
 
 Each shot puts the strip in the state it needs (open or closed) by pressing the heading's toggle,
 which writes the user's `block_compass_calendar` preference, and waits for that state's data: the
 open row's days, or the closed line's counts. Note each demo user's `open` value before a run and
-restore it afterwards. The shots are `dashboard`, `strip` (open, student), `card`, `teaching`
-(open, a day with submissions to grade pinned), `line` (closed, student), `news` (closed strip, student: `open-courses.png`, the open-for-enrolment line, the compact
-sentence with its list open on a busy day), `lineteaching` (closed,
+restore it afterwards, with the `block_compass_explore` and `block_compass_tier1` preferences the
+pages write as they settle (a user who had none gets one: delete it). Up next sits inside the strip's
+section and has its own shot (`soon`), so `strip`, `line`, `lineteaching`, `ring` and `pulse` stop
+above it when it shows. Every shot takes the pointer off the page and waits for no tooltip and no
+transition before it captures. The shots are `dashboard`, `strip` (open, student), `card`, `teaching`
+(open, a day with submissions to grade pinned), `line` (closed, student), `soon` (Up next under the closed line), `news` (closed strip, student: `open-courses.png`, the open-for-enrolment line; the full line only on a calm day, else the compact sentence with the list its See opens, and the shot prints which), `lineteaching` (closed,
 teacher; written only when the *To grade* cell is there, which needs the feedback_tracker ledger to
-cover his courses), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, the tier 3 shots,
-`page`, `mobile` and `settings`, plus `ring` and `pulse`.
+cover his courses), `dim` (a tier 1 card hovered, the other days dimmed), `dark`, the tier 3 shots, `page`,
+`mobile` and `settings` (the calendar section, down to its last setting before the next heading),
+plus `ring` and `pulse`.
 
-The tier 3 shots open *All courses* from the ghost and leave the strip as it is: `explore` (the
-filter line at rest on the Compass page, one row), `filtered` (the Dashboard's folded line with a
-field value and a search in force: two chips and Clear all), `search` (the search grown over the
-Dashboard's line, its suggestions open), `filters` and `organise` (the panel and the menu on the
-Compass page), `preview` (the mouse on the New scope, the open group ringed and dimmed), `phone`
-(a phone, the panel as a bottom sheet) and `narrow` (the Dashboard at 768 px, the line on two
-lines). `filtered` releases what it pressed through *Clear filters* and every shot closes what it
-opened, so `block_compass_explore` ends as it started; check it after a run all the same.
+The tier 3 shots open *All courses* from the ghost, close the Filters panel when the user's
+remembered state has it open, and leave the strip as it is: `explore` (the bar at rest on the
+Compass page, on one row, the category index with the open group's link tinted and *Archived*
+last), `filtered` (the Dashboard, Hybrid chosen in the panel and a search left in force by Escape:
+two chips and Clear all), `search` (the search opened in place at the bar's end, its suggestions
+open), `filters` (the panel on the Compass page, each field's label above its values, Hybrid
+chosen so the chosen state shows), `organise` (the menu on the Compass page, its Group by and Sort
+by sections), `preview` (the mouse on the New scope, the open group ringed and dimmed), `phone` (a
+phone, the panel as a bottom sheet) and `narrow` (the Dashboard at 500 px, the narrow step: the
+scope on a line of its own after the controls; a tablet's 768 px still draws the bar full, and the
+shot fails if the bar is not at its narrow step). `filtered`, `search` and `filters` release what
+they pressed through *Clear filters* and every shot closes what it opened; the panel's remembered
+state still changes, so put `block_compass_explore` back after a run.
 
 Node 22 or later (global `WebSocket`), Google Chrome at its macOS path or `CHROME_BIN`. The card
 opens on tomorrow, the richest day of the seeded data. The texts that depend on the clock ("Last
