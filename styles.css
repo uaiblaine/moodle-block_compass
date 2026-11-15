@@ -4,38 +4,74 @@
  * one today; a surface the plugin painted inside something core relocates (a
  * core/modal dialogue is appended to body, outside the block) would need the
  * declaration repeated on its own root. The one dialogue the client opens is
- * core's save and cancel confirmation, which the theme paints. Read the
- * theme's tokens with a fallback chain; never hardcode a palette and never
- * declare --mds-* names.
+ * core's save and cancel confirmation, which the theme paints.
+ *
+ * Every colour is read through the fleet Design System's chain (moodle-dev/docs/design-system/tokens.md):
+ * the family token theme_dimensions declares, then Bootstrap's property, then a literal, so the block
+ * looks as Boost paints it under any theme that declares no --dimensions-* name. A rule reads the
+ * block's own token, never --bs-* or --dimensions-* itself; never hardcode a palette and never declare
+ * a --dimensions-* or --mds-* name. tests/local/design_tokens_test.php holds the chain, the tokens that
+ * are the block's own on purpose and the scale tokens.
  */
 .block_compass {
-    --block_compass-brand: var(--bs-primary, #0f6cbf);
-    --block_compass-brand-text: var(--bs-primary, #0f6cbf);
-    /* The brand as ink for marks: dots, the needle, rings, the checked switch and the outline of a
-       card's button. The theme's primary in light mode; dark mode moves it (below). */
-    --block_compass-brand-ink: var(--bs-primary, #0f6cbf);
-    --block_compass-brand-onink: var(--bs-white, #fff);
-    --block_compass-line: var(--bs-border-color, #dee2e6);
+    /* Brand-coloured text: links and the words of quiet buttons. Dark mode moves it (below). */
+    --block_compass-accent-text: var(--dimensions-accent, var(--bs-primary, #0f6cbf));
+    /* The brand as ink for marks and strokes: dots, the needle, rings, focus outlines, the checked
+       switch and the outline of a card's button. The family's accent, an ink; the theme's primary
+       under Boost in light mode, where dark mode moves it (below). */
+    --block_compass-accent: var(--dimensions-accent, var(--bs-primary, #0f6cbf));
+    /* Text on the ink where the ink is a fill (a count, an accent pill): the ground the ink is read
+       against, so the pair holds wherever the ink does. Not the family's on-brand-fill, which pairs
+       with brand-fill and stays white in dark mode. */
+    --block_compass-on-accent: var(--dimensions-surface, var(--bs-white, #fff));
+    /* The brand tone, ground and text: a chosen filter's chip. Dark mode moves the text (below). */
+    --block_compass-brand-tint: var(--dimensions-brand-tint, var(--bs-primary-bg-subtle, #edeefb));
+    --block_compass-brand-ink: var(--dimensions-brand-ink, var(--bs-primary-text-emphasis, #050073));
+    --block_compass-ink: var(--dimensions-ink, var(--bs-body-color, #1d2125));
+    --block_compass-line: var(--dimensions-line, var(--bs-border-color, #dee2e6));
     /* A control's border, the one Bootstrap's outline-secondary buttons draw (Boost's gray-600):
        4.8:1 on Boost's white card, 4.6:1 on its gray-100 page, and in Boost 5.3's dark mode, which
        maps gray-600 to gray-400, 7.7:1 on the raised card and 10.8:1 on the page: all over the 3:1
        a control's edge needs. The
        hairline --block_compass-line (1.3:1) is left to separators. */
-    --block_compass-control-line: var(--bs-gray-600, #6a737b);
-    --block_compass-muted: var(--bs-secondary-color, #6a737b);
+    --block_compass-control-line: var(--dimensions-control-line, var(--bs-gray-600, #6a737b));
+    --block_compass-muted: var(--dimensions-ink-muted, var(--bs-secondary-color, #6a737b));
     /* The colour behind the block, which cards, rings and the strip's edge fades are painted
        with. On the Dashboard the block's section is Bootstrap's .card and its --bs-card-bg is
        declared on this very element: white on Boost 5.3 ($card-bg: var(--bs-white)), its raised
        grey in dark mode. On the block's own page there is no card around it and the page's
-       --bs-body-bg is behind it, which on Boost 5.3 is gray-100 ($body-bg), no longer white. */
-    --block_compass-surface: var(--bs-card-bg, var(--bs-body-bg, #fff));
-    /* The state pills' two families, the theme card's (a Boost Union child theme): a later start
-       in the primary's subtle pair, an application in the warning's. The fallbacks are the
-       theme's own measured pairs, 14.53:1 and 7.82:1; Boost 5.2 serves 10.85:1 and 7.82:1. */
-    --block_compass-scheduled-bg: var(--bs-primary-bg-subtle, #edeefb);
-    --block_compass-scheduled-text: var(--bs-primary-text-emphasis, #050073);
-    --block_compass-awaiting-bg: var(--bs-warning-bg-subtle, #fcefdc);
-    --block_compass-awaiting-text: var(--bs-warning-text-emphasis, #60451f);
+       --bs-body-bg is behind it, which on Boost 5.3 is gray-100 ($body-bg), no longer white.
+       The card's property comes before the family's surface, which is the page's ground computed
+       on body and cannot know the card this element is: theme_dimensions' dark card is #343a40 on
+       a #1d2125 page. */
+    --block_compass-surface: var(--bs-card-bg, var(--dimensions-surface, var(--bs-body-bg, #fff)));
+    /* The soft fill a hover takes, and the inset one of a platter's track. */
+    --block_compass-surface-alt: var(--dimensions-surface-alt, var(--bs-tertiary-bg, #f8f9fa));
+    --block_compass-surface-inset: var(--dimensions-surface-inset, var(--bs-secondary-bg, #e9ecef));
+    /* The dim a preview gives what it would not keep: the body colour 75 % into the surface
+       (contrast_rules_test computes it on the row's and the card's surface, light and dark). */
+    --block_compass-ink-dim: color-mix(in oklab, var(--block_compass-ink) 75%, var(--block_compass-surface));
+    /* The focus ring, every surface's: the family's, then the emphasis colour; 2px, the theme's 3px
+       when it declares one. Declared for the component steps; today's outlines are still literal. */
+    --block_compass-focus-ring: var(--dimensions-focus-ring, var(--bs-emphasis-color, #000));
+    --block_compass-focus-width: var(--dimensions-focus-width, 2px);
+    /* The Design System's scales, declared for the component steps: no rule reads them yet. */
+    --block_compass-radius-xs: var(--dimensions-radius-xs, 4px);
+    --block_compass-radius-sm: var(--dimensions-radius-sm, 6px);
+    --block_compass-radius-md: var(--dimensions-radius-md, 8px);
+    --block_compass-radius-lg: var(--dimensions-radius-lg, 12px);
+    --block_compass-radius-xl: var(--dimensions-radius-xl, 16px);
+    --block_compass-elevation-sm: var(--dimensions-elevation-sm, 0 1px 2px rgba(7, 0, 147, 0.08), 0 1px 3px rgba(7, 0, 147, 0.06));
+    --block_compass-elevation-md: var(--dimensions-elevation-md, 0 4px 12px rgba(7, 0, 147, 0.1));
+    --block_compass-elevation-lg: var(--dimensions-elevation-lg, 0 12px 32px rgba(7, 0, 147, 0.14));
+    /* The state pills' two families, the family's enrolment states: a later start is scheduled, in
+       the primary's subtle pair under Boost; an application is pending, in the warning's. The
+       literals are theme_dimensions' own measured pairs, 14.53:1 and 7.82:1; Boost 5.2 serves
+       10.85:1 and 7.82:1. */
+    --block_compass-scheduled-bg: var(--dimensions-state-scheduled-bg, var(--bs-primary-bg-subtle, #edeefb));
+    --block_compass-scheduled-text: var(--dimensions-state-scheduled-ink, var(--bs-primary-text-emphasis, #050073));
+    --block_compass-awaiting-bg: var(--dimensions-state-pending-bg, var(--bs-warning-bg-subtle, #fcefdc));
+    --block_compass-awaiting-text: var(--dimensions-state-pending-ink, var(--bs-warning-text-emphasis, #60451f));
     /* The course card's tokens (moodle-dev/docs/course-card/CONTRACT.md, section 7): every visual value of
        Card.tsx, RowCard.tsx and Row.tsx is one of these thirty names, each reading the family token
        theme_dimensions declares first (--dimensions-card-*, never declared here), then the compass's own chain
@@ -89,34 +125,41 @@
    Pinned by accessibility_rules_test::test_dark_override_scope_is_html_or_body. */
 body[data-bs-theme="dark"] .block_compass,
 [data-bs-theme="dark"] body .block_compass {
-    --block_compass-brand-text: var(--bs-body-color, #dee2e6);
+    --block_compass-accent-text: var(--dimensions-accent, var(--bs-body-color, #dee2e6));
     /* Marks and rings in the brand stay brand-tinted, pulled towards the body colour until they read
        on the darkest surface they sit on. On Boost 5.3 that is the Dashboard block's raised card,
        #343a40, lighter than the page: 30 % of the primary is 4.77:1 there for the theme's navy
        (#070093) and 6.09:1 for Boost's blue, 5.75:1 and 7.36:1 on the recessed background a hovered
        row takes, 6.71:1 and 8.58:1 on the page (#1d2125, the block's own page), so the ink clears
        4.5:1 as text and 3:1 as a mark. The primary itself is 1.28:1 (navy) and 2.15:1 (Boost) on
-       the card. A mix of the theme's own tokens, so no palette is written here. */
-    --block_compass-brand-ink: color-mix(in oklab, var(--bs-primary, #0f6cbf) 30%, var(--bs-body-color, #dee2e6));
-    --block_compass-brand: var(--block_compass-brand-ink);
+       the card. A mix of the theme's own tokens, so no palette is written here. A theme of the
+       family answers with its own dark accent instead (theme_dimensions: 4.8:1 on its raised card). */
+    --block_compass-accent:
+        var(
+            --dimensions-accent,
+            color-mix(in oklab, var(--bs-primary, #0f6cbf) 30%, var(--bs-body-color, #dee2e6))
+        );
     /* Text on the ink (an accent pill, a hovered outline button) is the dark body colour, as text on
        a light fill must be. */
-    --block_compass-brand-onink: var(--bs-body-bg, #1d2125);
+    --block_compass-on-accent: var(--dimensions-surface, var(--bs-body-bg, #1d2125));
     /* The third heat step mixes more warning into the dark surface than the light one does: at 62 %
        it is a mid-tone neither numeral colour reads on (3.64:1 dark, 3.2:1 light); at 80 % the dark
        numeral is 5.35:1 on Boost's warning. */
     --block_compass-cal-heat-3: color-mix(in oklab, var(--block_compass-cal-warn) 80%, var(--block_compass-surface));
     /* A past day's numeral on the second heat step: the theme's muted is 4.14:1 on it in dark mode, so
        it is the body colour drawn a little towards the fill (4.74:1). */
-    --block_compass-cal-muted-on-heat-2: color-mix(in oklab, var(--block_compass-cal-text) 85%, var(--block_compass-cal-heat-2));
+    --block_compass-cal-muted-on-heat-2: color-mix(in oklab, var(--block_compass-ink) 85%, var(--block_compass-cal-heat-2));
     /* A pill's text is the body colour in dark mode for the brand text's reason: the primary's dark
        emphasis tint is 4.18:1 on its own subtle fill for a navy primary (the theme's), under the
        floor. On Boost's dark fills the body colour is 14.06:1 and 11.74:1. The fallbacks are the
        theme's dark fills. */
-    --block_compass-scheduled-bg: var(--bs-primary-bg-subtle, #1c2350);
-    --block_compass-scheduled-text: var(--bs-body-color, #dee2e6);
-    --block_compass-awaiting-bg: var(--bs-warning-bg-subtle, #3a2c0c);
-    --block_compass-awaiting-text: var(--bs-body-color, #dee2e6);
+    --block_compass-scheduled-bg: var(--dimensions-state-scheduled-bg, var(--bs-primary-bg-subtle, #1c2350));
+    --block_compass-scheduled-text: var(--dimensions-state-scheduled-ink, var(--bs-body-color, #dee2e6));
+    --block_compass-awaiting-bg: var(--dimensions-state-pending-bg, var(--bs-warning-bg-subtle, #3a2c0c));
+    --block_compass-awaiting-text: var(--dimensions-state-pending-ink, var(--bs-body-color, #dee2e6));
+    /* The brand tone's text, for the pills' reason; the family's dark brand ink is its own. */
+    --block_compass-brand-tint: var(--dimensions-brand-tint, var(--bs-primary-bg-subtle, #1c2350));
+    --block_compass-brand-ink: var(--dimensions-brand-ink, var(--bs-body-color, #dee2e6));
     /* The open-courses panel's warm gradient stop and the sand of its middle sparkle (decoration). */
     --block_compass-news-warm: #24211d;
     --block_compass-news-sand: #e8c67a;
@@ -124,18 +167,18 @@ body[data-bs-theme="dark"] .block_compass,
        on a light tile, the pill's box included (decision 2): a navy crest vanishes on the dark surface.
        Bootstrap's dark tertiary background is dark, so the tile is gray-200, light in both modes, and
        whatever text it could carry is the dark body colour, as on any light fill. */
-    --block_compass-news-tip-bg: var(--bs-tertiary-bg, #2b3035);
+    --block_compass-news-tip-bg: var(--dimensions-surface-alt, var(--bs-tertiary-bg, #2b3035));
     --block_compass-news-tip-shadow: 0 14px 32px -8px rgba(0, 0, 0, 0.6);
     --block_compass-news-crest-tile: var(--bs-gray-200, #e9ecef);
-    --block_compass-news-crest-fg: var(--bs-body-bg, #1d2125);
+    --block_compass-news-crest-fg: var(--dimensions-surface, var(--bs-body-bg, #1d2125));
     --block_compass-news-crestbox-bg: var(--block_compass-news-crest-tile);
     /* The course card in dark mode, each still reading the family token first. The title's hover, the bar's
        fill and the plugin slot's icon take the brand's ink (Bootstrap's link hover and the primary are under
        3:1 on the dark card for a navy brand); the completed pair and base take Boost 5.3's dark success pair
        (the success tinted 40 % and shaded 80 %); the shadows deepen to read on a dark page. */
-    --block_compass-card-title-hover: var(--dimensions-card-title-hover, var(--block_compass-brand-ink));
-    --block_compass-card-fill: var(--dimensions-card-fill, var(--block_compass-brand-ink));
-    --block_compass-card-extra-icon: var(--dimensions-card-extra-icon, var(--block_compass-brand-ink));
+    --block_compass-card-title-hover: var(--dimensions-card-title-hover, var(--block_compass-accent));
+    --block_compass-card-fill: var(--dimensions-card-fill, var(--block_compass-accent));
+    --block_compass-card-extra-icon: var(--dimensions-card-extra-icon, var(--block_compass-accent));
     --block_compass-card-done: var(--dimensions-card-done, var(--bs-success-text-emphasis, #86af84));
     --block_compass-card-done-bg: var(--dimensions-card-done-bg, var(--bs-success-bg-subtle, #0b180a));
     --block_compass-card-done-ink: var(--dimensions-card-done-ink, var(--bs-success-text-emphasis, #86af84));
@@ -151,22 +194,22 @@ body[data-bs-theme="dark"] .block_compass,
    resting rule leaves hover and active out, or its colour would outweigh Bootstrap's hover. */
 body[data-bs-theme="dark"] .block_compass .btn-outline-primary:not(:hover):not(:active),
 [data-bs-theme="dark"] body .block_compass .btn-outline-primary:not(:hover):not(:active) {
-    border-color: var(--block_compass-brand-ink);
-    color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
+    color: var(--block_compass-accent);
 }
 
 body[data-bs-theme="dark"] .block_compass .btn-outline-primary:hover,
 body[data-bs-theme="dark"] .block_compass .btn-outline-primary:active,
 [data-bs-theme="dark"] body .block_compass .btn-outline-primary:hover,
 [data-bs-theme="dark"] body .block_compass .btn-outline-primary:active {
-    border-color: var(--block_compass-brand-ink);
-    background-color: var(--block_compass-brand-ink);
-    color: var(--block_compass-brand-onink);
+    border-color: var(--block_compass-accent);
+    background-color: var(--block_compass-accent);
+    color: var(--block_compass-on-accent);
 }
 
 body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not(:active),
 [data-bs-theme="dark"] body .block_compass .btn-outline-secondary:not(:hover):not(:active) {
-    color: var(--bs-body-color, #dee2e6);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-status,
@@ -227,13 +270,13 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 
 .block_compass .compass-strip-more,
 .block_compass .compass-linkbtn {
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     font-variant-numeric: tabular-nums;
 }
 
 .block_compass .compass-strip-more:focus-visible,
 .block_compass .compass-linkbtn:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -376,7 +419,7 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 .block_compass .compass-card.compass-card-new {
     --block_compass-new-edge: 2px;
     border-width: var(--block_compass-new-edge);
-    border-color: var(--block_compass-brand);
+    border-color: var(--block_compass-accent);
 }
 
 .block_compass .compass-card.compass-card-new .compass-card-img {
@@ -650,7 +693,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     position: relative;
     z-index: 2;
     line-height: 1;
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 .block_compass .compass-card .compass-star {
@@ -682,7 +725,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 }
 
 .block_compass .compass-star:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -727,7 +770,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 
 .block_compass .compass-ghost:hover,
 .block_compass .compass-ghost:focus-visible {
-    background: var(--bs-secondary-bg, #f8f9fa);
+    background: var(--block_compass-surface-inset);
 }
 
 /* The retry notice lays its message and actions out on one line. The layout is stated here,
@@ -751,7 +794,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 }
 
 .block_compass .compass-ghost-cta {
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 /* The ghost drawn for the special groups alone (ADR-022): its call to action takes the count's place and weight,
@@ -806,7 +849,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 
 .block_compass .compass-index a:hover,
 .block_compass .compass-index a:focus-visible {
-    background: var(--bs-secondary-bg, #f8f9fa);
+    background: var(--block_compass-surface-inset);
 }
 
 .block_compass .compass-group {
@@ -825,7 +868,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 /* Every other control here states its own ring; without this the summary would rely on the
    browser default alone. */
 .block_compass .compass-group-summary:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -844,7 +887,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     align-items: center;
     margin-right: 0.25rem;
     vertical-align: middle;
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 /* The list has the theme's list look (ADR-013 decision 8): every row its own framed line, at
@@ -931,7 +974,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 /* The underline above marks the name; this marks the link, which is what a keyboard user
    is actually on. A card's ring is its stretched link's (the course card, above). */
 .block_compass .compass-row-link:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -944,7 +987,7 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 }
 
 .block_compass .compass-ghost:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -1149,7 +1192,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-archive:hover,
 .block_compass .compass-archive:focus-visible {
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 .block_compass .compass-card-action {
@@ -1179,7 +1222,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     overflow-x: auto;
     scrollbar-width: none;
     border-radius: 999px;
-    background: var(--bs-secondary-bg, #e9ecef);
+    background: var(--block_compass-surface-inset);
 }
 
 .block_compass .compass-platter-mask::-webkit-scrollbar {
@@ -1224,12 +1267,12 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-chip[aria-pressed="true"] {
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 /* Inset, because an outward ring is clipped by the mask the pill scrolls inside. */
 .block_compass .compass-chip:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: -2px;
 }
 
@@ -1248,7 +1291,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-chip[aria-pressed="true"] .compass-chip-count {
-    background: var(--bs-secondary-bg, #e9ecef);
+    background: var(--block_compass-surface-inset);
 }
 
 /* The scroll paddles: decorative, mouse-only (aria-hidden, tabindex -1), drawn only while
@@ -1288,7 +1331,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     display: inline-flex;
     padding: 3px;
     border-radius: 0.5rem;
-    background: var(--bs-secondary-bg, #e9ecef);
+    background: var(--block_compass-surface-inset);
 }
 
 .block_compass .compass-viewbtn {
@@ -1307,12 +1350,12 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-viewbtn[aria-pressed="true"] {
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
 .block_compass .compass-viewbtn:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -1322,15 +1365,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
    suggestions, the panel, the Organise menu - which FilterLine.tsx places under the line's measured
    bottom. Every control is 2.25rem, the platter's own height.
 
-   The tier 3 tokens: the body text, the soft fill a hover takes, the track of a platter, and the dim
-   the preview gives a row it would not keep - the calendar's dim formula, the body colour 75 % into the
-   surface (contrast_rules_test computes it on the row's and the card's surface, light and dark). */
-.block_compass {
-    --block_compass-x3-text: var(--bs-body-color, #1d2125);
-    --block_compass-x3-soft: var(--bs-tertiary-bg, #f8f9fa);
-    --block_compass-x3-track: var(--bs-secondary-bg, #e9ecef);
-    --block_compass-x3-fg-dim: color-mix(in oklab, var(--block_compass-x3-text) 75%, var(--block_compass-surface));
-}
+   Its colours are the block's root tokens: the body text, the soft fill a hover takes, the inset track
+   of a platter, and the dim the preview gives a row it would not keep (--block_compass-ink-dim). */
 
 .block_compass .compass-filterline {
     position: relative;
@@ -1363,7 +1399,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     max-width: 100%;
     padding: 4px;
     border-radius: 999px;
-    background: var(--block_compass-x3-track);
+    background: var(--block_compass-surface-inset);
     color: var(--block_compass-muted);
 }
 
@@ -1384,13 +1420,13 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-scope-cell[aria-checked="true"] {
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 /* Inset, because an outward ring is clipped where the scope scrolls on its own line. */
 .block_compass .compass-scope-cell:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: -2px;
 }
 
@@ -1403,15 +1439,15 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 0 0.375rem;
     border-radius: 999px;
     background: var(--block_compass-surface);
-    color: var(--block_compass-x3-text);
+    color: var(--block_compass-ink);
     font-size: 0.75rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
 
 .block_compass .compass-scope-cell[aria-checked="true"] .compass-scope-count {
-    background: var(--block_compass-x3-track);
-    color: var(--block_compass-x3-text);
+    background: var(--block_compass-surface-inset);
+    color: var(--block_compass-ink);
 }
 
 /* The search: a pill, the magnifier at its start, the eraser at its end. The field keeps the
@@ -1442,7 +1478,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 1px solid var(--block_compass-control-line);
     border-radius: 999px;
     background: var(--block_compass-surface);
-    color: var(--block_compass-x3-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
     appearance: none;
 }
@@ -1452,8 +1488,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-search .compass-search-input:focus {
-    border-color: var(--block_compass-brand-ink);
-    outline: 2px solid var(--block_compass-brand);
+    border-color: var(--block_compass-accent);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -1478,12 +1514,12 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-search-eraser:hover {
-    background: var(--block_compass-x3-soft);
-    color: var(--block_compass-x3-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-search-eraser:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -1504,27 +1540,27 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-line-iconbtn:hover {
-    background: var(--block_compass-x3-soft);
-    color: var(--block_compass-x3-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-line-iconbtn:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
 .block_compass .compass-line-iconbtn[aria-expanded="true"] {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 /* The star pressed: the filled glyph carries the state, the brand's edge and text repeat it. */
 .block_compass .compass-line-star[aria-pressed="true"],
 .block_compass .compass-line-star[aria-pressed="true"]:hover {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 /* Filters: the sliders, the word and the count badge; brand-edged while the panel is open. Its
@@ -1545,25 +1581,25 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 1px solid var(--block_compass-control-line);
     border-radius: 999px;
     background: var(--block_compass-surface);
-    color: var(--block_compass-x3-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
     font-weight: 500;
     white-space: nowrap;
 }
 
 .block_compass .compass-filterbtn:hover {
-    background: var(--block_compass-x3-soft);
-    color: var(--block_compass-x3-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-filterbtn[aria-expanded="true"] {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 .block_compass .compass-filterbtn:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -1575,8 +1611,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     height: 1.25rem;
     padding: 0 0.375rem;
     border-radius: 999px;
-    background: var(--block_compass-brand);
-    color: var(--block_compass-brand-onink);
+    background: var(--block_compass-accent);
+    color: var(--block_compass-on-accent);
     font-size: 0.75rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
@@ -1777,7 +1813,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 1px solid var(--block_compass-line);
     border-radius: 0.75rem;
     background: var(--block_compass-surface);
-    color: var(--block_compass-x3-text);
+    color: var(--block_compass-ink);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
@@ -1902,19 +1938,19 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     min-height: 2.25rem;
     padding: 6px 10px;
     border-radius: 0.5rem;
-    color: var(--block_compass-x3-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
     cursor: pointer;
 }
 
 .block_compass .compass-line-option:hover,
 .block_compass .compass-line-option.compass-line-option-active {
-    background: var(--block_compass-x3-soft);
-    color: var(--block_compass-x3-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-line-option.compass-line-option-active {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: -2px;
 }
 
@@ -1976,10 +2012,10 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     min-height: 2rem;
     max-width: 16rem;
     padding: 0 0.75rem;
-    border: 1px solid var(--block_compass-brand-ink);
+    border: 1px solid var(--block_compass-accent);
     border-radius: 999px;
-    background: var(--block_compass-scheduled-bg);
-    color: var(--block_compass-scheduled-text);
+    background: var(--block_compass-brand-tint);
+    color: var(--block_compass-brand-ink);
     font-size: 0.8125rem;
     font-weight: 500;
     white-space: nowrap;
@@ -1993,7 +2029,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-line-chip:focus-visible,
 .block_compass .compass-line-clearall:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -2002,7 +2038,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 0 0.25rem;
     border: 0;
     background: none;
-    color: var(--block_compass-x3-text);
+    color: var(--block_compass-ink);
     font-size: 0.8125rem;
     font-weight: 600;
     text-decoration: underline;
@@ -2012,11 +2048,11 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
    class as it scrolls. A mask reads the ALPHA of its image and nothing else, so its opaque stop is
    the body text, which is opaque in both colour modes, and no colour of its own. */
 .block_compass .compass-scroll-fade-start {
-    mask-image: linear-gradient(90deg, transparent, var(--block_compass-x3-text) 28px);
+    mask-image: linear-gradient(90deg, transparent, var(--block_compass-ink) 28px);
 }
 
 .block_compass .compass-scroll-fade-end {
-    mask-image: linear-gradient(90deg, var(--block_compass-x3-text) calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, var(--block_compass-ink) calc(100% - 28px), transparent);
 }
 
 .block_compass .compass-scroll-fade-start.compass-scroll-fade-end {
@@ -2024,8 +2060,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
         linear-gradient(
             90deg,
             transparent,
-            var(--block_compass-x3-text) 28px,
-            var(--block_compass-x3-text) calc(100% - 28px),
+            var(--block_compass-ink) 28px,
+            var(--block_compass-ink) calc(100% - 28px),
             transparent
         );
 }
@@ -2045,7 +2081,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-row.compass-preview-dim,
 .block_compass .compass-rowcard.compass-preview-dim {
-    color: var(--block_compass-x3-fg-dim);
+    color: var(--block_compass-ink-dim);
 }
 
 @media (prefers-contrast: more) {
@@ -2087,25 +2123,23 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
    fades its text with it: it remaps the fill and foreground tokens in its own scope. */
 .block_compass {
     --block_compass-cal-warn: var(--bs-warning, #f0ad4e);
-    --block_compass-cal-accent: var(--block_compass-brand-ink);
+    --block_compass-cal-accent: var(--block_compass-accent);
     --block_compass-cal-danger: var(--bs-danger, #ca3120);
-    --block_compass-cal-ink: var(--bs-emphasis-color, #000);
-    --block_compass-cal-soft: var(--bs-tertiary-bg, #f8f9fa);
-    --block_compass-cal-text: var(--bs-body-color, #1d2125);
+    --block_compass-cal-ink: var(--dimensions-ink-strong, var(--bs-emphasis-color, #000));
     --block_compass-cal-heat-1: color-mix(in oklab, var(--block_compass-cal-warn) 17%, var(--block_compass-surface));
     --block_compass-cal-heat-2: color-mix(in oklab, var(--block_compass-cal-warn) 36%, var(--block_compass-surface));
     --block_compass-cal-heat-3: color-mix(in oklab, var(--block_compass-cal-warn) 62%, var(--block_compass-surface));
     --block_compass-cal-heat-4: color-mix(in oklab, var(--block_compass-cal-warn) 92%, var(--block_compass-surface));
     /* The foregrounds, per background family. The surface, the soft fill and the first two heat steps
-       take the body text (--block_compass-cal-text); the two strongest steps are mostly the warning
+       take the body text (--block_compass-ink); the two strongest steps are mostly the warning
        colour in either mode, so their numerals stay dark. A past day's numeral is the muted one of its
        own fill; dark mode moves the second step's (the theme's muted is 4.14:1 there). */
-    --block_compass-cal-fg-on-ink: var(--bs-body-bg, #fff);
-    --block_compass-cal-fg-on-heat-1: var(--block_compass-cal-text);
-    --block_compass-cal-fg-on-heat-2: var(--block_compass-cal-text);
+    --block_compass-cal-fg-on-ink: var(--dimensions-surface, var(--bs-body-bg, #fff));
+    --block_compass-cal-fg-on-heat-1: var(--block_compass-ink);
+    --block_compass-cal-fg-on-heat-2: var(--block_compass-ink);
     --block_compass-cal-fg-on-heat-3: var(--bs-dark, #212529);
     --block_compass-cal-fg-on-heat-4: var(--bs-dark, #212529);
-    --block_compass-cal-fg-late: var(--bs-danger-text-emphasis, var(--block_compass-cal-danger));
+    --block_compass-cal-fg-late: var(--dimensions-danger-ink, var(--bs-danger-text-emphasis, var(--block_compass-cal-danger)));
     --block_compass-cal-muted-on-surface: var(--block_compass-muted);
     --block_compass-cal-muted-on-heat-1: var(--block_compass-muted);
     --block_compass-cal-muted-on-heat-2: var(--block_compass-muted);
@@ -2118,8 +2152,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     --block_compass-cal-heat-3-dim: color-mix(in oklab, var(--block_compass-cal-heat-3) 22%, var(--block_compass-surface));
     --block_compass-cal-heat-4-dim: color-mix(in oklab, var(--block_compass-cal-heat-4) 22%, var(--block_compass-surface));
     --block_compass-cal-ink-dim: color-mix(in oklab, var(--block_compass-cal-ink) 12%, var(--block_compass-surface));
-    --block_compass-cal-fg-on-ink-dim: var(--block_compass-cal-text);
-    --block_compass-cal-fg-dim: color-mix(in oklab, var(--block_compass-cal-text) 75%, var(--block_compass-surface));
+    --block_compass-cal-fg-on-ink-dim: var(--block_compass-ink);
     --block_compass-cal-mark-dim: var(--block_compass-muted);
     --block_compass-cal-ring: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-accent);
     --block_compass-cal-ring-dim: 0 0 0 1.5px var(--block_compass-surface), 0 0 0 3px var(--block_compass-cal-mark-dim);
@@ -2131,12 +2164,12 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
        a dimmed period or column keeps the ring whole. Both move with the tokens they mix, so dark mode
        needs no override; contrast_rules_test computes them. The ring at now is the brand's ink. */
     --block_compass-cal-soon-fill: color-mix(in oklab, var(--block_compass-cal-warn) 36%, var(--block_compass-surface));
-    --block_compass-cal-fg-on-soon: var(--block_compass-cal-text);
-    --block_compass-cal-soon-ring: color-mix(in oklab, var(--block_compass-cal-warn) 65%, var(--bs-body-color, #1d2125));
+    --block_compass-cal-fg-on-soon: var(--block_compass-ink);
+    --block_compass-cal-soon-ring: color-mix(in oklab, var(--block_compass-cal-warn) 65%, var(--block_compass-ink));
     /* The hatch of a weekend or a day off (the mockup's #d4d9de on white): the hairline darkened by
        a touch of text, so it reads on the surface in either mode. Decorative: a day's sentence says
        what the day is. A day off the institution marked is cross-hatched, a weekend hatched once. */
-    --block_compass-cal-hatch: color-mix(in oklab, var(--block_compass-cal-text) 6%, var(--block_compass-line));
+    --block_compass-cal-hatch: color-mix(in oklab, var(--block_compass-ink) 6%, var(--block_compass-line));
     --block_compass-cal-hatch-weekend:
         repeating-linear-gradient(
             135deg,
@@ -2173,7 +2206,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-cal button:focus-visible,
 .block_compass .compass-cal a:focus-visible {
-    outline: 2px solid var(--block_compass-brand);
+    outline: 2px solid var(--block_compass-accent);
     outline-offset: 2px;
 }
 
@@ -2220,14 +2253,14 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 1px solid var(--block_compass-control-line);
     border-radius: 0.6rem;
     background: var(--block_compass-surface);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 0.8125rem;
     transition: background-color 120ms ease;
 }
 
 .block_compass .compass-cal-todaybtn:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 /* A disabled arrow or Today recedes by its colours, not by opacity (which took its text to 4.29:1 in
@@ -2251,7 +2284,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 3px;
     border: 1px solid var(--block_compass-line);
     border-radius: 0.6rem;
-    background: var(--block_compass-cal-soft);
+    background: var(--block_compass-surface-alt);
 }
 
 .block_compass .compass-cal-segbtn {
@@ -2266,7 +2299,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 .block_compass .compass-cal-segbtn[aria-pressed="true"] {
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     font-weight: 600;
     box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
 }
@@ -2365,7 +2398,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border-radius: 50%;
     background: var(--block_compass-surface);
     box-shadow: 0 2px 8px -2px rgba(16, 24, 40, 0.28);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 0.8125rem;
     line-height: 1;
     transition: background-color 120ms ease, box-shadow 120ms ease;
@@ -2380,8 +2413,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-edge:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-edge[aria-disabled="true"] {
@@ -2421,7 +2454,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     top: -2px;
     height: 6px;
     border-radius: 6px;
-    background: color-mix(in oklab, var(--block_compass-cal-text) 26%, transparent);
+    background: color-mix(in oklab, var(--block_compass-ink) 26%, transparent);
     cursor: grab;
 }
 
@@ -2429,7 +2462,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 .block_compass .compass-cal-map-drag .compass-cal-thumb {
     top: -3px;
     height: 8px;
-    background: color-mix(in oklab, var(--block_compass-cal-text) 40%, transparent);
+    background: color-mix(in oklab, var(--block_compass-ink) 40%, transparent);
 }
 
 .block_compass .compass-cal-map-drag,
@@ -2444,7 +2477,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     height: 12px;
     margin-inline-start: -1px;
     border-radius: 2px;
-    background: var(--block_compass-cal-text);
+    background: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-mapneedle {
@@ -2507,7 +2540,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 0;
     border-radius: 50%;
     background: transparent;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-disc {
@@ -2548,7 +2581,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
    step's on the first two steps. The two strongest steps keep their dark numeral, on a past day too.
    Never today's ink (the guard), though today is never past. */
 .block_compass .compass-cal-disc.compass-cal-past.compass-cal-heat-0:not(.compass-cal-off):not(.compass-cal-today) {
-    background: color-mix(in oklab, var(--block_compass-cal-soft) 70%, transparent);
+    background: color-mix(in oklab, var(--block_compass-surface-alt) 70%, transparent);
     color: var(--block_compass-cal-muted-on-surface);
 }
 
@@ -2563,8 +2596,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 /* An empty day under the pointer: the soft fill and the body text, a past day's numeral brightening
    with it. Never today's ink, whose text would stay on the ink's colour over the soft fill. */
 .block_compass .compass-cal-day:hover .compass-cal-disc.compass-cal-heat-0:not(.compass-cal-off):not(.compass-cal-today) {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 /* An empty weekend or day off is hatched (the mockup's cc-off). Weighted above the past, hover and
@@ -2575,7 +2608,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal .compass-cal-day:hover .compass-cal-disc.compass-cal-off:not(.compass-cal-today) {
-    background: var(--block_compass-cal-hatch-weekend), var(--block_compass-cal-soft);
+    background: var(--block_compass-cal-hatch-weekend), var(--block_compass-surface-alt);
     color: var(--block_compass-cal-muted-on-surface);
 }
 
@@ -2585,7 +2618,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal .compass-cal-day:hover .compass-cal-disc.compass-cal-off.compass-cal-holiday:not(.compass-cal-today) {
-    background: var(--block_compass-cal-hatch-holiday), var(--block_compass-cal-soft);
+    background: var(--block_compass-cal-hatch-holiday), var(--block_compass-surface-alt);
     color: var(--block_compass-cal-muted-on-surface);
 }
 
@@ -2594,7 +2627,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
    which wins over it. */
 .block_compass .compass-cal-style-pulse .compass-cal-disc {
     background: transparent;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
 }
 
@@ -2734,7 +2767,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-col-today .compass-cal-wd {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-weight: 600;
 }
 
@@ -2873,8 +2906,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 /* The checked switch in the brand's ink, which dark mode lightens (the theme's primary is 1.1:1 there
    for a navy brand). Qualified by the plugin's class: core's rule loads after this sheet. */
 .block_compass .compass-cal-relevance .form-check-input:checked {
-    border-color: var(--block_compass-brand-ink);
-    background-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
+    background-color: var(--block_compass-accent);
 }
 
 .block_compass .compass-cal-actions {
@@ -2900,13 +2933,13 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 1px solid var(--block_compass-control-line);
     border-radius: 0.6rem;
     background: var(--block_compass-surface);
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     text-decoration: none;
 }
 
 .block_compass .compass-cal-link:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-brand-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-accent-text);
 }
 
 .block_compass .compass-cal-note {
@@ -2932,15 +2965,15 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 0;
     border-radius: 0.6rem;
     background: transparent;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 1rem;
     font-weight: 600;
     transition: background-color 120ms ease;
 }
 
 .block_compass .compass-cal-toggle:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 /* Core's chevron pair in core's section toggle box (btn-icon icons-collapse-expand paints it), inline
@@ -2954,7 +2987,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-toggle:hover .compass-cal-togglechev {
-    outline: 2px solid var(--block_compass-brand-ink);
+    outline: 2px solid var(--block_compass-accent);
 }
 
 /* Closed, the strip is one band: the toggle, the icon switch, the line's cells and the calendar link. */
@@ -3113,14 +3146,14 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 0;
     border-radius: 0.6rem;
     background: transparent;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     text-align: start;
     transition: background-color 120ms ease;
 }
 
 .block_compass .compass-cal-period:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-plabel {
@@ -3131,7 +3164,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-period-today .compass-cal-plabel {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-weight: 700;
 }
 
@@ -3195,12 +3228,12 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     --block_compass-cal-heat-4: var(--block_compass-cal-heat-4-dim);
     --block_compass-cal-ink: var(--block_compass-cal-ink-dim);
     --block_compass-cal-fg-on-ink: var(--block_compass-cal-fg-on-ink-dim);
-    --block_compass-cal-text: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-1: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-2: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-3: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-4: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-late: var(--block_compass-cal-fg-dim);
+    --block_compass-ink: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-1: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-2: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-3: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-4: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-late: var(--block_compass-ink-dim);
 }
 
 .block_compass .compass-cal-period.compass-cal-period-match .compass-cal-pchip {
@@ -3226,9 +3259,9 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     background:
         linear-gradient(
             90deg,
-            var(--block_compass-cal-soft) 0,
+            var(--block_compass-surface-alt) 0,
             var(--block_compass-line) 40%,
-            var(--block_compass-cal-soft) 80%
+            var(--block_compass-surface-alt) 80%
         );
     background-size: 300% 100%;
     animation: block_compass-cal-shimmer 1100ms linear infinite;
@@ -3291,7 +3324,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     background: color-mix(in srgb, var(--block_compass-surface) 92%, transparent);
     backdrop-filter: blur(22px) saturate(170%);
     box-shadow: var(--block_compass-cal-shadow);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
     font-weight: 400;
     text-align: start;
@@ -3352,8 +3385,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 1px 0.5rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 1rem;
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
     font-weight: 600;
 }
 
@@ -3373,7 +3406,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 1px 0.5rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 1rem;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-daytype::before {
@@ -3413,8 +3446,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-close:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-sumbar {
@@ -3462,8 +3495,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 2px 0.55rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 1rem;
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
     font-size: 0.75rem;
     white-space: nowrap;
 }
@@ -3515,8 +3548,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-item:hover {
-    background: color-mix(in oklab, var(--block_compass-cal-soft) 85%, transparent);
-    color: var(--block_compass-cal-text);
+    background: color-mix(in oklab, var(--block_compass-surface-alt) 85%, transparent);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-cal-item-done {
@@ -3585,14 +3618,14 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 /* The item's name: two lines at most through .compass-clamp, the whole name in its title. */
 .block_compass .compass-cal-itemtitle {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-weight: 600;
     line-height: 1.3;
     text-decoration: none;
 }
 
 .block_compass .compass-cal-itemtitle:hover {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     text-decoration: underline;
 }
 
@@ -3610,8 +3643,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 1px 0.375rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 0.375rem;
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
     font-size: 0.6875rem;
     font-weight: 600;
     text-overflow: ellipsis;
@@ -3621,19 +3654,19 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 .block_compass .compass-cal-pill-accent {
     border-color: var(--block_compass-cal-accent);
     background: var(--block_compass-cal-accent);
-    color: var(--block_compass-brand-onink);
+    color: var(--block_compass-on-accent);
 }
 
 .block_compass .compass-cal-pill-soft {
     border-color: color-mix(in oklab, var(--block_compass-cal-accent) 30%, var(--block_compass-surface));
     background: color-mix(in oklab, var(--block_compass-cal-accent) 10%, var(--block_compass-surface));
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
 }
 
 .block_compass .compass-cal-pill-late {
     border-color: color-mix(in oklab, var(--block_compass-cal-warn) 45%, var(--block_compass-surface));
     background: color-mix(in oklab, var(--block_compass-cal-warn) 22%, var(--block_compass-surface));
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
 }
 
 /* The day's action: one short verb from this plugin's strings (CalendarCard.tsx actionLabel()), core's
@@ -3672,7 +3705,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-cal-cardfoot a {
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     font-weight: 600;
     text-decoration: none;
 }
@@ -3844,7 +3877,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border: 1px solid var(--block_compass-line);
     border-radius: 0.75rem;
     background: var(--block_compass-surface);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
 }
 
 /* The region's edge follows its rung, as decoration only: the rows say the rung in words. */
@@ -3888,8 +3921,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-soon-hide:hover {
-    background: var(--block_compass-cal-soft);
-    color: var(--block_compass-cal-text);
+    background: var(--block_compass-surface-alt);
+    color: var(--block_compass-ink);
 }
 
 .block_compass .compass-soon-hide .compass-cal-tip {
@@ -3950,7 +3983,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-soon-time {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 1rem;
     font-weight: 700;
 }
@@ -3976,7 +4009,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 
 /* Now: the brand's text, and a dot that pulses unless reduced motion is asked for. */
 .block_compass .compass-soon-rel-now {
-    color: var(--block_compass-brand-text);
+    color: var(--block_compass-accent-text);
     font-weight: 700;
 }
 
@@ -4027,7 +4060,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 /* The name is one line, cut with an ellipsis, its whole text in its title. */
 .block_compass .compass-soon-name {
     overflow: hidden;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-weight: 600;
     text-decoration: none;
     text-overflow: ellipsis;
@@ -4035,7 +4068,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-soon-name:hover {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     text-decoration: underline;
 }
 
@@ -4133,13 +4166,13 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     --block_compass-cal-heat-4: var(--block_compass-cal-heat-4-dim);
     --block_compass-cal-ink: var(--block_compass-cal-ink-dim);
     --block_compass-cal-fg-on-ink: var(--block_compass-cal-fg-on-ink-dim);
-    --block_compass-cal-text: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-1: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-2: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-3: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-fg-on-heat-4: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-muted-on-heat-1: var(--block_compass-cal-fg-dim);
-    --block_compass-cal-muted-on-heat-2: var(--block_compass-cal-fg-dim);
+    --block_compass-ink: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-1: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-2: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-3: var(--block_compass-ink-dim);
+    --block_compass-cal-fg-on-heat-4: var(--block_compass-ink-dim);
+    --block_compass-cal-muted-on-heat-1: var(--block_compass-ink-dim);
+    --block_compass-cal-muted-on-heat-2: var(--block_compass-ink-dim);
     --block_compass-cal-accent: var(--block_compass-cal-mark-dim);
     --block_compass-cal-danger: var(--block_compass-cal-mark-dim);
     --block_compass-cal-ring: var(--block_compass-cal-ring-dim);
@@ -4188,19 +4221,19 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
  * from the anchor beside the clip, never inside it.
  */
 .block_compass {
-    --block_compass-news-accent: var(--block_compass-brand-ink);
+    --block_compass-news-accent: var(--block_compass-accent);
     --block_compass-news-tint: color-mix(in oklab, var(--block_compass-news-accent) 12%, var(--block_compass-surface));
-    --block_compass-news-subtle: var(--bs-primary-bg-subtle, var(--block_compass-news-tint));
+    --block_compass-news-subtle: var(--dimensions-brand-tint, var(--bs-primary-bg-subtle, var(--block_compass-news-tint)));
     --block_compass-news-fill: var(--block_compass-news-subtle);
-    --block_compass-news-fg: color-mix(in oklab, var(--block_compass-news-accent) 72%, var(--block_compass-cal-text));
+    --block_compass-news-fg: color-mix(in oklab, var(--block_compass-news-accent) 72%, var(--block_compass-ink));
     --block_compass-news-warm: #fdfbf7;
     --block_compass-news-sand: #8a6420;
     /* A group's tooltip and the crests' tiles (ADR-019); their dark values are in the dark override. The
        pill's crest box is a tile in dark mode only. */
     --block_compass-news-tip-bg: var(--block_compass-surface);
     --block_compass-news-tip-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 14px 32px -8px rgba(16, 24, 40, 0.28);
-    --block_compass-news-crest-tile: var(--bs-tertiary-bg, #f8f9fa);
-    --block_compass-news-crest-fg: var(--block_compass-cal-text);
+    --block_compass-news-crest-tile: var(--block_compass-surface-alt);
+    --block_compass-news-crest-fg: var(--block_compass-ink);
     --block_compass-news-crestbox-bg: transparent;
 }
 
@@ -4240,7 +4273,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     margin-top: 0.75rem;
     padding: 1.125rem 1.375rem 1.25rem;
     overflow: hidden;
-    border: 1px solid var(--bs-secondary-bg, #e9ecef);
+    border: 1px solid var(--block_compass-surface-inset);
     border-radius: 1rem;
     background:
         linear-gradient(
@@ -4249,7 +4282,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
             var(--block_compass-surface) 60%,
             var(--block_compass-news-subtle) 100%
         );
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
 }
 
 /* The sparkles sit under the content: whatever is positioned after them paints above. */
@@ -4344,7 +4377,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-news-sum {
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 1.03125rem;
     font-variant-numeric: tabular-nums;
     font-weight: 650;
@@ -4419,7 +4452,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border-radius: 999px;
     background: var(--block_compass-surface);
     box-shadow: 0 1px 2px color-mix(in oklab, var(--bs-emphasis-color, #000) 6%, transparent);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
     text-decoration: none;
 }
@@ -4429,7 +4462,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 .block_compass .compass-news-group:hover {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
     text-decoration: none;
 }
 
@@ -4492,7 +4525,7 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
     border: 1px solid color-mix(in oklab, var(--block_compass-news-accent) 14%, transparent);
     border-radius: 0.75rem;
     background: var(--block_compass-news-tip-bg);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     box-shadow: var(--block_compass-news-tip-shadow);
     opacity: 0;
     pointer-events: none;
@@ -4642,7 +4675,7 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
 }
 
 .block_compass .compass-news-more:hover {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
 }
 
 /* Below 640 px of block: the icon's column folds, the groups and the tiles take the whole width and the
@@ -4749,7 +4782,7 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
 }
 
 .block_compass .compass-news-see:hover {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
 }
 
 .block_compass .compass-news-compact .compass-news-hide {
@@ -4774,7 +4807,7 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
     width: 22rem;
     max-width: 100%;
     padding: 0.875rem 1rem 0.75rem;
-    border: 1px solid var(--bs-secondary-bg, #e9ecef);
+    border: 1px solid var(--block_compass-surface-inset);
     border-radius: 0.875rem;
     background:
         linear-gradient(
@@ -4783,7 +4816,7 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
             var(--block_compass-surface) 60%,
             var(--block_compass-news-subtle) 100%
         );
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     box-shadow: var(--block_compass-cal-shadow);
 }
 
@@ -4854,7 +4887,7 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
 
 .block_compass .compass-news-popsum {
     margin: 0;
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     font-size: 0.875rem;
     font-variant-numeric: tabular-nums;
     line-height: 1.3;
@@ -4879,14 +4912,14 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
     border: 1px solid var(--block_compass-line);
     border-radius: 0.75rem;
     background: var(--block_compass-surface);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     text-decoration: none;
 }
 
 .block_compass .compass-news-poprow:hover {
     border-color: color-mix(in oklab, var(--block_compass-news-accent) 55%, transparent);
     background: var(--block_compass-surface);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     text-decoration: none;
 }
 
@@ -4995,12 +5028,12 @@ body[data-bs-theme="dark"] .block_compass .compass-news-crestbox,
     border: 1px solid var(--block_compass-line);
     border-radius: 0.75rem;
     background: var(--block_compass-surface);
-    color: var(--block_compass-cal-text);
+    color: var(--block_compass-ink);
     text-decoration: none;
 }
 
 .block_compass .compass-news-tile:hover {
-    border-color: var(--block_compass-brand-ink);
+    border-color: var(--block_compass-accent);
     text-decoration: none;
 }
 
