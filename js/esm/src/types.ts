@@ -186,6 +186,7 @@ export type BlockConfig = {
         eraser: string,
         close: string,
         organise: string,
+        check: string,
         expanded: string,
         collapsed: string,
         collapsedrtl: string,

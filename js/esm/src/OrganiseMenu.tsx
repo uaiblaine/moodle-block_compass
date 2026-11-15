@@ -17,10 +17,10 @@
  * Organise: one icon button and the menu it opens (ADR-015 decision 2).
  *
  * The menu holds the existing three-way sort - By category, A-Z, Recent, "By category" being the
- * grouping - on the sort platter it always had, and at the line's fourth step "Show as" (List,
- * Cards), the view leaving the line for it. The vocabulary and the services' sort parameter are
+ * grouping - on the sort platter it always had. The vocabulary and the services' sort parameter are
  * unchanged. The contract's separate Group and Sort sections are not drawn: Compass's grouping is
- * one of its three sorts, and a fourth combination would be one no service serves.
+ * one of its three sorts, and a fourth combination would be one no service serves. The view is the
+ * bar's own View menu at every width (ViewToggle.tsx, ADR-023), never a section here.
  *
  * A disclosure, not an ARIA menu: aria-expanded and aria-controls on the button, the sections
  * named groups of aria-pressed buttons inside, the hidden property toggling it with its layout under
@@ -35,7 +35,6 @@
 import {useId} from 'react';
 import type {RefObject} from 'react';
 import Platter from './Platter';
-import ViewToggle from './ViewToggle';
 import type {BlockConfig} from './types';
 import {markup} from './markup';
 
@@ -44,29 +43,26 @@ type OrganiseMenuProps = {
     top: number | null,
     config: BlockConfig,
     sort: string,
-    view: string,
-    withview: boolean,
     button: RefObject<HTMLButtonElement | null>,
     menu: RefObject<HTMLDivElement | null>,
     onToggle: () => void,
     onSort: (sort: string) => void,
-    onView: (view: string) => void,
 };
 
 /**
  * The button and its menu.
  *
- * @param {object} props The menu's state and place, the block config, the sort and the view, whether
- *     the view is in the menu, the two element refs and the callbacks; see OrganiseMenuProps.
+ * @param {object} props The menu's state and place, the block config, the sort, the two element refs and
+ *     the callbacks; see OrganiseMenuProps.
  * @returns {object} The rendered control.
  */
-const OrganiseMenu = ({open, top, config, sort, view, withview, button, menu, onToggle, onSort, onView}: OrganiseMenuProps) => {
+const OrganiseMenu = ({open, top, config, sort, button, menu, onToggle, onSort}: OrganiseMenuProps) => {
     const {labels, icons} = config;
     const menuid = useId();
     const sortid = `${menuid}-sort`;
 
     return (
-        <div className="compass-line-organise compass-line-slides">
+        <div className="compass-line-organise">
             <button
                 type="button"
                 ref={button}
@@ -95,13 +91,6 @@ const OrganiseMenu = ({open, top, config, sort, view, withview, button, menu, on
                         onPress={onSort}
                     />
                 </div>
-                {withview && (
-                    <div className="compass-line-menusection">
-                        {/* The switch names itself (viewas); the visible words are its heading. */}
-                        <span className="compass-line-menulabel" aria-hidden="true">{labels.viewas}</span>
-                        <ViewToggle view={view} config={config} onChoose={onView} />
-                    </div>
-                )}
             </div>
         </div>
     );

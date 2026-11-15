@@ -362,6 +362,7 @@ $string['line_showcourses'] = 'Show courses';
 $string['line_suggestcourses'] = 'Courses';
 $string['line_suggestfilters'] = 'Filters';
 $string['line_suggeststart'] = 'Start with a filter';
+$string['line_view'] = 'View';
 $string['loaderror'] = 'Your courses could not be loaded.';
 $string['loadingrows'] = 'Loading…';
 $string['neveropened'] = 'Never opened';

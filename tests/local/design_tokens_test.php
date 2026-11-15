@@ -24,7 +24,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  *
  * The contract is moodle-dev/docs/design-system/tokens.md: a colour is the chain
  * var(--dimensions-X, var(--bs-Y, literal)) under the block's own prefix, a rule reads the block's
- * token and nothing of the theme's, and the scales (radius, elevation, the focus ring and its width,
+ * token and nothing of the theme's, and the scales (radius, elevation, motion, the focus ring and its width,
  * the control line) are the family's with a literal fallback. No linter reads a token chain, so each
  * rule is a test here; each method names the change that must redden it, and mutations/gates.conf
  * makes that change.
@@ -81,7 +81,9 @@ final class design_tokens_test extends basic_testcase {
         'elevation-lg' => 'var(--dimensions-elevation-lg, 0 12px 32px rgba(7, 0, 147, 0.14))',
         'focus-ring' => 'var(--dimensions-focus-ring, var(--bs-emphasis-color, #000))',
         'focus-width' => 'var(--dimensions-focus-width, 2px)',
-        'control-line' => 'var(--dimensions-control-line, var(--bs-gray-600, #6a737b))',
+        'control-line' => 'var(--dimensions-control-line, var(--bs-gray-500, #8f959e))',
+        'motion-fast' => 'var(--dimensions-motion-fast, 150ms)',
+        'motion-ease' => 'var(--dimensions-motion-ease, cubic-bezier(0.4, 0, 0.2, 1))',
     ];
 
     /** @var array The names that were a second name of another token or not the family's; each is one token now. */
@@ -210,11 +212,11 @@ final class design_tokens_test extends basic_testcase {
     /**
      * The scale tokens are declared on the block's root, each the family's name with tokens.md's fallback.
      *
-     * The control line's Bootstrap link is still gray-600, the border the block draws today; the
-     * Design System's gray-500 comes with the filter bar's step.
+     * The control line's Bootstrap link is gray-500 since the filter bar's step (D45), and the motion
+     * tokens came with it: the bar's transitions read them.
      *
      * Changes that must make it fail: a scale token dropped or renamed; a fallback other than the
-     * scale's step.
+     * scale's step; the control line back on gray-600.
      *
      * @return void
      */

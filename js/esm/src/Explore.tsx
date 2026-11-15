@@ -1659,10 +1659,12 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
                 {fill(labels.allcourses, String(data.total))}
             </Heading>
-            {/* The filter line (ADR-015): the scope, the search, the star, Filters, Organise and the
-                view, folded on its own width, with the chips of the panel's filters in force under it. */}
+            {/* The filter bar (ADR-015, ADR-023): the scope, the result count, the star, Filters, Organise,
+                View and the search, folded on its own width, with the chips of the filters in force under it.
+                Paged mode shows no result count: it holds no total for what the criteria keep (ADR-004). */}
             <FilterLine
                 config={config}
+                total={paged ? null : shown}
                 scopecells={scopecells}
                 onScope={chooseScope}
                 star={star}

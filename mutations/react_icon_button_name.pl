@@ -1,1 +1,1 @@
-s/\n                aria-label=\{labels\.view_list\}//;
+s/\n\s*aria-label=\{labels\.line_view\}//;

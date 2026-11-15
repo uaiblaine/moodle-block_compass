@@ -55,7 +55,7 @@ const StarToggle = ({pressed, count, config, onToggle, onPreview}: StarTogglePro
     return (
         <button
             type="button"
-            className="compass-line-iconbtn compass-line-star compass-line-slides"
+            className="compass-line-iconbtn compass-line-star"
             aria-pressed={pressed}
             aria-label={name}
             title={name}

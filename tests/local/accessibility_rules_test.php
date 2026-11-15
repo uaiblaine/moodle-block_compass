@@ -363,17 +363,22 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
      * without an aria-label a screen reader announces "button" and the user is told to press
-     * something unnamed. The list/cards switch (ViewToggle) is two such buttons, and the Filters
-     * button (FilterToggle) hides its own text and count from the accessibility tree to say them
-     * as one sentence. The filter line's (ADR-015) are the favourites star (StarToggle), Organise
-     * (OrganiseMenu) and, in FilterLine, the search's eraser, its icon and its close button, each
-     * chip's cross and Clear all, which name themselves the same way. Every button tag in these
-     * files must carry the attribute.
+     * something unnamed. View (ViewToggle) is such a button, and the Filters button (FilterToggle)
+     * hides its count from the accessibility tree to say it in its name as one sentence. The filter
+     * bar's (ADR-015, ADR-023) are the favourites star (StarToggle), Organise (OrganiseMenu) and, in
+     * FilterLine, the search button, the eraser, each chip's cross and Clear all, which name themselves
+     * the same way. Every button tag in these files must carry the attribute, but one: a menu item
+     * (role="menuitemradio", View's Cards and List) is named by its visible word, which must then be a
+     * span of text that is not aria-hidden, written inside it.
+     *
+     * Changes that must make it fail: an aria-label dropped from any icon-only button, or a menu item's
+     * word removed or hidden.
      *
      * @return void
      */
     public function test_the_icon_only_buttons_name_themselves(): void {
         $files = $this->sources();
+        $menuitems = 0;
         $iconfiles = [
             'js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
             'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
@@ -384,6 +389,17 @@ final class accessibility_rules_test extends basic_testcase {
             // Vacuity guard: each file exists to render such a button, so finding none is the bug.
             $this->assertNotEmpty($tags, "{$file}: no button tag found, so the rule checked nothing");
             foreach ($tags as $tag) {
+                if (preg_match('/\brole="menuitemradio"/', $tag)) {
+                    $menuitems++;
+                    $at = strpos($files[$file], $tag) + strlen($tag);
+                    $content = substr($files[$file], $at, strpos($files[$file], '</button>', $at) - $at);
+                    $this->assertMatchesRegularExpression(
+                        '/<span>\{[^}]+\}<\/span>/',
+                        $content,
+                        "{$file}: a menu item with no visible word announces itself as \"menu item\": " . trim($tag)
+                    );
+                    continue;
+                }
                 $this->assertMatchesRegularExpression(
                     '/\baria-label=/',
                     $tag,
@@ -391,14 +407,16 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
+        // Vacuity guard: View's menu items were read as such.
+        $this->assertSame(1, $menuitems, 'View\'s menu item (one tag, drawn per view) was not read');
     }
 
     /**
      * Every toolbar grouping carries a name.
      *
      * role="group" tells a screen reader that the buttons inside belong together and then
-     * says nothing about what they do; unnamed, the tier 3 toolbar's platters and view
-     * switch are read as anonymous groups of buttons in a row.
+     * says nothing about what they do; unnamed, the tier 3 toolbar's platters and the
+     * suggestions' sections are read as anonymous groups in a row.
      *
      * @return void
      */
@@ -418,7 +436,7 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: Platter and ViewToggle each write one.
+        // Vacuity guard: Platter writes one, and the suggestions' two sections.
         $this->assertGreaterThanOrEqual(1, $groups, 'no role="group" found: has the tier 3 toolbar changed?');
     }
 
