@@ -73,7 +73,7 @@ const Tier1Skeleton = ({skeleton}: {skeleton: SkeletonModel}) => {
                     {strip && (
                         <div className="compass-strip">
                             <div className="compass-strip-head">
-                                <div className="compass-strip-title h6 fw-bold text-muted mb-0">
+                                <div className="compass-strip-title compass-section-title">
                                     {strip.hastitle
                                         ? strip.title
                                         : <span className={BAR_TITLE}></span>}

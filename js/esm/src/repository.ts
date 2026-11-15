@@ -424,7 +424,7 @@ export const setTier1Preference = async(value: Record<string, unknown>): Promise
  * changes nothing and the route accepts it; the shell validates the shape when it reads it
  * back, and the client the field membership when the inventory's fields arrive.
  *
- * @param {object} state The sort, the status chip, the field selection and the panel.
+ * @param {object} state The grouping, the sort, the scope, the star, the field selection and the panel.
  * @returns {Promise} Resolves once the preference is written.
  */
 export const setExplorePreference = async(state: ExploreState): Promise<void> => {

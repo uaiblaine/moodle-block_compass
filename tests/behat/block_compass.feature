@@ -74,10 +74,11 @@ Feature: The Compass block puts the courses that need attention first
     And I should not see "Course 7" in the "Compass" "block"
     When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled scope with its first category group open, which here holds no
-    # later start; the flat A-Z list shows every row the scope keeps, whatever group it is in. The
-    # sort is inside the filter line's Organise menu (ADR-015), and a choice closes the menu.
+    # later start; the list with no grouping shows every row the scope keeps, whatever group it is in.
+    # The grouping is inside the filter line's Organise menu (ADR-015, ADR-025),
+    # and a choice closes the menu.
     And I click on "Organise" "button" in the "Compass" "block"
-    And I click on "A–Z" "button" in the "Compass" "block"
+    And I click on "No grouping" "button" in the "Compass" "block"
     Then I should see "Course 7" in the "Compass" "block"
     # Course 3 is an active course tier 1 had no room for; the chip keeps it out of tier 3 too.
     And I should not see "Course 3" in the "Compass" "block"
@@ -89,7 +90,7 @@ Feature: The Compass block puts the courses that need attention first
     Given the following config values are set as admin:
       | attention_max | 1        | block_compass |
       | filter_fields | delivery | block_compass |
-    # A select course custom field, visible to everyone, is what the filter panel draws a chip
+    # A select course custom field, visible to everyone, is what the filter panel draws a radio
     # group for; seeded with core's own generators, and the value with the course, the way
     # create_course() saves custom fields.
     And the following "custom field categories" exist:
@@ -123,14 +124,14 @@ Feature: The Compass block puts the courses that need attention first
     # The ghost is a React component and the mount point's fallback is a paragraph with no
     # controls, so an "Explore all" button exists only once the component is running.
     When I click on "Explore all" "button"
-    Then I should see "All courses (5)" in the "Compass" "block"
+    Then I should see "All courses" in the "Compass" "block"
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
     # The filter panel starts closed (ADR-015 decision 5) and Filters opens it - in the Dashboard's
-    # drawer, at the line's two-line step, as a bottom sheet. Its platters and chips are then on
-    # screen - all but the chip nobody's course carries: a chip that would show nothing is not drawn.
-    # Hybrid is the third option of the field and no course has it.
+    # drawer, at the bar's narrow step, as a bottom sheet. Its radio groups and their options are then
+    # on screen - all but the option nobody's course carries: an option that would show nothing is not
+    # drawn (ADR-024). Hybrid is the third option of the field and no course has it.
     When I click on "Filters" "button" in the "Compass" "block"
     Then I should see "Delivery" in the "Compass" "block"
     And I should see "On campus" in the "Compass" "block"
@@ -139,7 +140,7 @@ Feature: The Compass block puts the courses that need attention first
     # here, which is the most this scenario ever shows (a settled search narrows the list to its
     # hits).
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
-    # A field chip narrows the list to the one course carrying the option, in the browser: the
+    # A field option narrows the list to the one course carrying it, in the browser: the
     # live region announces the count, which is what settles the re-render before the negative
     # assertion runs (Course 5 is not in tier 1, so its absence is tier 3's).
     When I click on "Online" "button" in the "Compass" "block"
@@ -148,7 +149,9 @@ Feature: The Compass block puts the courses that need attention first
     And I should not see "Course 5" in the "Compass" "block"
     When I click on "Clear filters" "button" in the "Compass" "block"
     Then I should see "5 courses shown" in the "Compass" "block"
-    When I set the field "Search my courses" to "Course 4"
+    # The search is an icon at every width (ADR-023): its button opens the field in place.
+    When I click on "Search my courses" "button" in the "Compass" "block"
+    And I set the field "Search my courses" to "Course 4"
     # The count settles the race before the negative assertion runs: searching is debounced,
     # and "should not see" fails the instant it finds the text rather than waiting for it to
     # go. The live region says how many rows survived the filter, so waiting for it is waiting
@@ -157,16 +160,16 @@ Feature: The Compass block puts the courses that need attention first
     Then I should see "1 course shown" in the "Compass" "block"
     And I should see "Course 4" in the "Compass" "block"
     And I should not see "Course 2" in the "Compass" "block"
-    # At the two-line step the search grows over the line as it is typed in, sliding the other
-    # controls out; its close button brings them back.
-    When I click on "Close search" "button" in the "Compass" "block"
+    # At the narrow step the open field takes the bar's line and the cluster hides; Escape closes the
+    # field, the text staying in force as a chip, and brings the cluster back.
+    When I press the escape key
     # The cards are a second component tree over the same rows, and in React a defect in one
     # unmounts the whole block rather than drawing a broken card - so this is the only place
     # that would notice. The reload is what proves the choice was written through core's
     # preferences endpoint: a client that failed to persist it would look correct until the
-    # next page load. The switch is an icon-only button, found by its aria-label; at the two-line
-    # step it is inside Organise, whose switch comes first in the document.
-    And I click on "Organise" "button" in the "Compass" "block"
+    # next page load. View is an icon-only button, found by its aria-label, opening a menu whose
+    # items are named by their words.
+    And I click on "View" "button" in the "Compass" "block"
     And I click on "Cards" "button" in the "Compass" "block"
     Then ".compass-rowcard" "css_element" should exist in the "Compass" "block"
     # The cards are a grid whose column count the client sets from the width it has. Here the
@@ -227,8 +230,9 @@ Feature: The Compass block puts the courses that need attention first
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
     # The archive's rows are held once fetched and filtered in the browser like every other
     # group's: a query nothing archived matches empties the group, and clearing it brings the
-    # row back.
-    When I set the field "Search my courses" to "zzz"
+    # row back. The search button opens the field first (ADR-023).
+    When I click on "Search my courses" "button" in the "Compass" "block"
+    And I set the field "Search my courses" to "zzz"
     Then I should see "0 courses" in the "//details[contains(@class, 'compass-group')][.//span[contains(@class, 'compass-group-name') and text()='Archived']]" "xpath_element"
     # And a query the archived course does match keeps it: the name map the matcher reads must
     # know the archive's rows too, or they would match nothing whatever their name.

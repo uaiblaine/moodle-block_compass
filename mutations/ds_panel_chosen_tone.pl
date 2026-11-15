@@ -1,0 +1,1 @@
+s/(\.compass-fpanel-opt\[aria-checked="true"\] \{\n    border-color: var\(--block_compass-brand-edge\);\n    )background: var\(--block_compass-brand-tint\);/$1background: var(--block_compass-surface-alt);/;

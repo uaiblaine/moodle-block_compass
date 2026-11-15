@@ -166,7 +166,9 @@ pre-Phase-0 decisions; ADR-001 cache, 002 stamp, 003 pre-warming, 004 paged mode
 details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009 favourites and
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
 page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip, 015 the filter
-line in tier 3 (table with dates in the long form).
+line in tier 3, 023 the compact filter bar, 024 the menus, the panel and the containers in the Design
+System's form, 025 Organise's Group by and Sort by and the bar's icon tooltips (table with dates in the
+long form).
 
 ## Code layout
 
@@ -202,7 +204,7 @@ classes/hook/course_kinds.php the block's own hook, dispatched by local/course_k
                            and each value's kind and nouns out (ADR-019 decision 4)
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
-                           StarToggle, OrganiseMenu, FilterPanel, FilterToggle, Platter, ViewToggle, RowList, Row,
+                           StarToggle, OrganiseMenu, FilterPanel, FilterToggle, LineMenu, ViewToggle, Tip, RowList, Row,
                            RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext,
                            OpenCourses (ADR-017's line), Tier1Skeleton (the shell's skeleton, drawn alike; ADR-018),
                            calendar, calendarpref (every member of block_compass_calendar, for every writer), tier1shape
@@ -302,17 +304,17 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
   `tsc --noEmit` is a gate; a badge names its classes in a string literal; a heading tag is
   never written literally (`heading.ts` picks from `headinglevel` 4/3/2); brand text is painted
-  with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two
+  with `--block_compass-accent-text`, whose dark override is scoped to html-or-body in two
   selectors, never `:root` alone and never `.theme-dark`; brand marks (dots, rings, the needle, a checked
-  switch, an outline button) use `--block_compass-brand-ink`, which that override lightens; there is no React eslint plugin, so
+  switch, an outline button) use `--block_compass-accent`, which that override lightens; there is no React eslint plugin, so
   write code that needs no hook rule; server-rendered markup reaches React only as core's own
   output. Tier 3: two modes in one component, sequence numbers not cancellation, debounce 150
   full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed
   on a counter, index hidden below 640 px of the section, focus moved deliberately after
   "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant,
   archived and invisible (Hidden) groups `-1`/`-2`/`-3`, the last two fetched on open in both modes
-  (`ondemand()`), the filter line remembered through `explore_preference` (`{sort,
-  scope, star, cf, panel}`, an old `chip` migrated on read; shape validated server-side,
+  (`ondemand()`), the filter line remembered through `explore_preference` (`{group, sort,
+  scope, star, cf, panel}`, an old `chip` and a sort stored before ADR-025 migrated on read; shape validated server-side,
   membership client-side), resilience in `repository.ts` (bounded retry:
   every failed read twice, 2 s ± 500 ms apart, no jitter under Behat), then `RetryNotice` (Try again, Reload page): **no
   permanent reload control**, a way back appears only once a load has failed, and every failed
@@ -322,18 +324,39 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `scrollIntoView`; a day is focused with `preventScroll`), its own scrolls are flagged so they close no card and hold the
   pending counter until they settle, the day card is the scroller's sibling, and a day opens on hover only while wholly in
   view (`calendar.ts` `whollyInView()`). Long form: "Client side".
-- **The filter line** (ADR-015; `moodle-dev/docs/filter-line/CONTRACT.md`): `FilterLine.tsx`
-  draws the slots in the contract's order (scope, search, star, Filters, Organise, view), folds on
-  the line's own width (a ResizeObserver, every scope cell drawn while measuring, no `@container`),
-  grows the search over the line from step 3, owns the combobox and its one listbox, and hangs the
-  panel and the Organise menu under the line's measured bottom (a bottom sheet at step 4). The
-  scope is a `radiogroup` (`ScopeGroup.tsx`), the star an `aria-pressed` toggle ANDed with it
-  (`filter.ts` `passesStar()`, the favourites chip's rule). Paged mode tells the server one chip
-  (`star ? 'favourites' : scope`), narrows what it holds in the browser, asks nothing for the star
-  with Awaiting or Scheduled, and shows no counts. The preview writes `compass-preview-lit/-dim`
-  on the drawn rows outside React's render, mouse, pen and keyboard only; dim is a token, never
-  opacity. Every new guard is a gate under "Phase 12" in `mutations/gates.conf`;
-  `filter_line_rules_test` reads the sources.
+- **The filter line** (ADR-015, ADR-023 and ADR-024; `moodle-dev/docs/filter-line/CONTRACT.md` and the Design
+  System's `components/filter-bar.md`): `FilterLine.tsx` draws the compact bar in the contract's order - the
+  scope, a spacer, the cluster (the result count, then a capsule of the star, Filters, Organise and View), the
+  search in a capsule of its own - with the chips on a row under it that wraps (no sideways scroll, no fades).
+  It folds on its own width in two steps (a ResizeObserver, every scope cell drawn and the search measured
+  open at its narrowest, no `@container`): full, or narrow with the scope on a line of its own after the
+  controls. The search is an icon at every width that opens the field in place (Escape or leaving it empty
+  closes it back to its button, the eraser keeps it open, a text left in force is a chip); the combobox and
+  its one listbox are FilterLine's. View (`ViewToggle.tsx`) and Organise (`OrganiseMenu.tsx`) are one button each
+  opening the same `LineMenu.tsx`: a `role="menu"` of sections of `menuitemradio` items, an icon before each word and
+  a tick after the chosen one's (ADR-024); Organise is two sections, Group by and Sort by, independent (ADR-025), and
+  paged mode, always grouped, draws No grouping `aria-disabled` with its reason and keeps the stored grouping; Escape,
+  Tab, a choice and a press outside close it. Every icon button of the bar carries the block's icon tooltip
+  (`Tip.tsx`, never a `title`): above the bar, never while its own menu or panel is open, never on touch, put off by
+  Escape. The panel (`FilterPanel.tsx`)
+  is one labelled `radiogroup` per field (one tab stop, arrows that choose, a press on the chosen option releases
+  it); no platter of pills is left. The panel, the suggestions and the two menus hang under the bar's measured
+  bottom (a bottom sheet at the narrow step). The scope is a `radiogroup` (`ScopeGroup.tsx`), the star an `aria-pressed`
+  toggle ANDed with it (`filter.ts` `passesStar()`, the favourites chip's rule). Paged mode tells the server
+  one chip (`star ? 'favourites' : scope`), narrows what it holds in the browser, asks nothing for the star
+  with Awaiting or Scheduled, and shows no counts, the bar's result count included. The preview writes
+  `compass-preview-lit/-dim` on the drawn rows outside React's render, mouse, pen and keyboard only; dim is a
+  token, never opacity. Every new guard is a gate under "Phase 12" or "The compact filter bar" in
+  `mutations/gates.conf`; `filter_line_rules_test` reads the sources.
+- **Containers and feedback follow the Design System** (ADR-024; `moodle-dev/docs/design-system/components/`): every
+  radius, elevation and layer of a menu, panel, popover or sheet is a scale token (the two absolute popovers, the day
+  card and the open-courses one, on the anchored rung, z 20, under core's navbar and drawers; sheets 1050); one
+  tooltip look for the icon tooltip (`Tip.tsx`: the calendar's switch, Up next's hide, the bar) and the open-courses
+  group's; tier 3's empty result is the full empty state, other
+  empties the compact line; skeletons pulse only under `prefers-reduced-motion: no-preference`; no control is a pill
+  but the loud counter, the card's kind chip and Up next's countdown. `design_system_rules_test` pins them, the
+  skeleton's pulse `tier1_skeleton_rules_test`; a guard's gate goes under "The Design System's containers and
+  feedback".
 - **Text that runs long has one system** (a Portuguese label is often twice its English one): a
   name or line that can run long is clamped to two lines (`.compass-clamp`) or cut to one with an
   ellipsis, and the element carries its whole text in `title` (`accessibility_rules_test` reads
@@ -349,8 +372,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
 - **The closed line** (ADR-014 amendment 13): the teaching view's grading cell exists only with the
   ledger (`counts.grading`), outside the periods' list, named by a sentence that starts with its label,
   lighting `waitingcourseids` (recorded per day by `strip::add()`, never the days' `courseids`); the
-  view switch is icons beside the title with an own `aria-hidden` tooltip (`:hover`, `:focus-visible`,
-  Escape), never core's Bootstrap tooltip and never a `title`, and keeps its words on a narrow block and
+  view switch is icons beside the title with the block's own `aria-hidden` tooltip (`Tip.tsx`; `:hover`,
+  `:focus-visible`, Escape), never core's Bootstrap tooltip and never a `title`, and keeps its words on a narrow block and
   in the open strip. One row or the cells on a row of their own is measured in a layout effect (the
   head's children summed while nothing wraps; a ResizeObserver; no `@container`), and the same flag
   (`compact`) shows a period's `_short` twin, which is part of the whole name.
@@ -368,8 +391,10 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   a guess; a receding state (the lighting's dim, a disabled control) remaps fill and text tokens in
   its scope and never uses opacity. `contrast_rules_test` holds the guard pairs and computes every
   declared pair, light and dark, two brands: add a new fill there.
-- Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
-  fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
+- Root class `.block_compass`; custom properties `--block_compass-*`, every colour through the
+  fleet Design System's chain `var(--dimensions-X, var(--bs-Y, literal))` and no rule reading
+  `--bs-*` itself (`design_tokens_test` holds the chain, the block's own tokens and the scale
+  tokens); inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).
 
 ## Moodle 5.2-only departures from the fleet default

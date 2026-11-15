@@ -75,6 +75,7 @@ import CalendarCard from './CalendarCard';
 import type {DayEntry} from './CalendarCard';
 import CalendarLine, {LineNotes, summaryOf} from './CalendarLine';
 import RetryNotice from './RetryNotice';
+import Tip, {tipHost, useTipsOff} from './Tip';
 import UpNext, {useUpNext} from './UpNext';
 import {
     BOUND_KINDS, LEVEL_CALM, LEVEL_IMMINENT, addDays, busyOf, countsOf, dateParts, dayMonth, dayOff, daysBetween, fit,
@@ -533,9 +534,9 @@ const CalendarStrip = ({
     const [fits, setFits] = useState(true);
     // Bumped by the ResizeObserver, so a head or a line that changed size is measured again.
     const [resized, setResized] = useState(0);
-    // Up after Escape, so the icon switch's tooltips hide until the pointer or the keyboard comes back
-    // to the switch (WCAG 1.4.13, dismissible).
-    const [tipsoff, setTipsoff] = useState(false);
+    // Up after Escape, so the icon switch's and Up next's tooltips hide until the pointer or the keyboard
+    // comes back to the control (WCAG 1.4.13, dismissible; Tip.tsx).
+    const [tipsoff, tipsOn] = useTipsOff();
     const stripseq = useRef(0);
     const countsseq = useRef(0);
     const dayseq = useRef(0);
@@ -1324,25 +1325,6 @@ const CalendarStrip = ({
         };
     }, []);
 
-    // Escape hides the icon switch's tooltips wherever the keyboard is, as a tooltip shown by hover must
-    // be dismissible without moving the pointer (WCAG 1.4.13); coming back to the switch shows them again.
-    useEffect(() => {
-        /**
-         * Hide the tooltips on Escape.
-         *
-         * @param {object} event The key event.
-         * @returns {void}
-         */
-        const onkey = (event: {key: string}): void => {
-            if (event.key === 'Escape') {
-                setTipsoff(true);
-            }
-        };
-        document.addEventListener('keydown', onkey);
-
-        return () => document.removeEventListener('keydown', onkey);
-    }, []);
-
     // A ResizeObserver on the head and the line, (re)attached whenever a render drew them anew: it bumps
     // resized on a size change the block's width does not carry (the line's numbers, a web font arriving)
     // and once when it starts watching, which measures a head that was just drawn. Reads no layout, so it
@@ -1538,7 +1520,7 @@ const CalendarStrip = ({
             soon={soon}
             hiddenrank={hiddenrank}
             tipsoff={tipsoff}
-            onTipsOn={() => setTipsoff(false)}
+            onTipsOn={tipsOn}
             onHide={(rank) => setSoonRemembered(rank)}
             onShow={() => setSoonRemembered(null)}
             onOpenToday={openToday}
@@ -1558,9 +1540,9 @@ const CalendarStrip = ({
      * The studying and teaching switch, when the viewer has both. As text in the open strip and on a
      * narrow block, where it has a row of its own and touch has no hover. As icons beside the title on
      * the closed line: each button named by its view (cal_view_*, the word the text switch shows) and
-     * shown that word in a tooltip of the component's own, an aria-hidden child shown on :hover and
-     * :focus-visible and hidden by Escape (tipsoff), so it needs no binding of core's, whose tooltip
-     * loader binds only the nodes present at load, and no title, which would draw a second tooltip.
+     * shown that word in the block's icon tooltip (Tip.tsx): an aria-hidden child shown on :hover and
+     * :focus-visible and hidden by Escape (tipsoff), so it needs no binding of core's, whose tooltip loader
+     * binds only the nodes present at load, and no title, which would draw a second tooltip.
      *
      * @param {boolean} icons Whether the switch is drawn as icons.
      * @returns {object|null} The rendered switch, or nothing.
@@ -1594,19 +1576,17 @@ const CalendarStrip = ({
 
         return (
             <div
-                className={tipsoff
-                    ? 'compass-cal-seg compass-cal-seg-icons compass-cal-tipsoff'
-                    : 'compass-cal-seg compass-cal-seg-icons'}
+                className="compass-cal-seg compass-cal-seg-icons"
                 role="group"
                 aria-label={strings.cal_views}
-                onPointerEnter={() => setTipsoff(false)}
-                onFocus={() => setTipsoff(false)}
+                onPointerEnter={tipsOn}
+                onFocus={tipsOn}
             >
                 {views.map(([which, name, glyph]) => (
                     <button
                         key={which}
                         type="button"
-                        className="compass-cal-segbtn"
+                        className={tipHost('compass-cal-segbtn', tipsoff)}
                         aria-pressed={drawn === which}
                         aria-label={name}
                         onClick={() => chooseView(which)}
@@ -1616,7 +1596,7 @@ const CalendarStrip = ({
                             aria-hidden="true"
                             dangerouslySetInnerHTML={markup(glyph)}
                         />
-                        <span className="compass-cal-tip" aria-hidden="true">{name}</span>
+                        <Tip text={name} />
                     </button>
                 ))}
             </div>
@@ -2221,10 +2201,11 @@ const CalendarStrip = ({
             {/* The month of the days wholly in view; the polite region below says it once a scroll settles. */}
             <p className="compass-cal-month">{monthlabel}</p>
             {/* Never the disabled attribute: a focused control that reaches home would drop the keyboard
-                to the body. aria-disabled, and the handler refuses. */}
+                to the body. aria-disabled, and the handler refuses. Core's secondary button at its default
+                size, outside a card or a panel (the Design System's action-button.md). */}
             <button
                 type="button"
-                className="compass-cal-todaybtn"
+                className="btn btn-outline-secondary compass-cal-todaybtn"
                 aria-disabled={rowview.athome || undefined}
                 onClick={goHome}
             >

@@ -16,12 +16,12 @@
 /**
  * Filters: the button that opens and closes the filter panel, with the count of field values in force.
  *
- * aria-expanded says which way it will go and aria-controls names the panel, so a screen
- * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. The badge
- * shows the bare count, hidden from assistive technology; the accessible name repeats it in
- * words, because a bare number beside a word is not a sentence. From the line's second step the
- * word leaves the picture (FilterLine's step class) and the badge sits on the button's corner; the
- * name is unchanged (ADR-015 decision 3). The glyph is the sliders of the plugin's icon map.
+ * aria-expanded says whether the panel is open and aria-controls names it, so a screen
+ * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. An icon button
+ * of the bar's capsule at every width, with no word (ADR-023): the loud counter on its corner shows
+ * the bare count, hidden from assistive technology and absent at zero; the accessible name says it
+ * in words, because a bare number is not a sentence. Its tooltip says "Filters" alone (Tip.tsx, D51), and
+ * not while the panel is open. The glyph is the sliders of the plugin's icon map.
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine
@@ -30,6 +30,7 @@
 
 import type {RefObject} from 'react';
 import {fillCount} from './str';
+import Tip, {tipHost} from './Tip';
 import type {BlockConfig} from './types';
 import {markup} from './markup';
 
@@ -38,6 +39,7 @@ type FilterToggleProps = {
     open: boolean,
     controls: string,
     config: BlockConfig,
+    tipsoff: boolean,
     button?: RefObject<HTMLButtonElement | null>,
     onToggle: () => void,
 };
@@ -46,26 +48,25 @@ type FilterToggleProps = {
  * The button.
  *
  * @param {object} props The count of field values in force, the panel state and id, the block config,
- *     the element ref and the callback; see FilterToggleProps.
+ *     whether Escape has put the tooltips off, the element ref and the callback; see FilterToggleProps.
  * @returns {object} The rendered button.
  */
-const FilterToggle = ({count, open, controls, config, button, onToggle}: FilterToggleProps) => {
+const FilterToggle = ({count, open, controls, config, tipsoff, button, onToggle}: FilterToggleProps) => {
     const {labels, icons} = config;
 
     return (
         <button
             type="button"
             ref={button}
-            className="compass-filterbtn"
+            className={tipHost('compass-line-iconbtn compass-filterbtn', tipsoff)}
             aria-expanded={open}
             aria-controls={controls}
             aria-label={`${labels.filter}, ${fillCount(labels, 'filteractive', count)}`}
-            title={labels.filter}
             onClick={onToggle}
         >
             <span className="icon-no-margin" aria-hidden="true" dangerouslySetInnerHTML={markup(icons.filter)} />
-            <span className="compass-filterword" aria-hidden="true">{labels.filter}</span>
             {count > 0 && <span className="compass-filtercount" aria-hidden="true">{count}</span>}
+            <Tip text={labels.filter} />
         </button>
     );
 };

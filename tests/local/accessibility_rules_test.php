@@ -219,7 +219,7 @@ final class accessibility_rules_test extends basic_testcase {
         $files = $this->sources();
 
         $components = [
-            'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
+            'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'LineMenu', 'ViewToggle', 'FilterToggle', 'FilterPanel',
             'FilterLine', 'ScopeGroup', 'StarToggle', 'OrganiseMenu', 'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip',
             'CalendarLine', 'UpNext', 'OpenCourses', 'Block',
         ];
@@ -363,20 +363,25 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * Archive and Star render a glyph and nothing else, and the glyph is aria-hidden, so
      * without an aria-label a screen reader announces "button" and the user is told to press
-     * something unnamed. The list/cards switch (ViewToggle) is two such buttons, and the Filters
-     * button (FilterToggle) hides its own text and count from the accessibility tree to say them
-     * as one sentence. The filter line's (ADR-015) are the favourites star (StarToggle), Organise
-     * (OrganiseMenu) and, in FilterLine, the search's eraser, its icon and its close button, each
-     * chip's cross and Clear all, which name themselves the same way. Every button tag in these
-     * files must carry the attribute.
+     * something unnamed. View (ViewToggle) is such a button, and the Filters button (FilterToggle)
+     * hides its count from the accessibility tree to say it in its name as one sentence. The filter
+     * bar's (ADR-015, ADR-023) are the favourites star (StarToggle), Organise (OrganiseMenu) and, in
+     * FilterLine, the search button, the eraser, each chip's cross and Clear all, which name themselves
+     * the same way. Every button tag in these files must carry the attribute, but one: a menu item
+     * (role="menuitemradio" in LineMenu, View's Cards and List and Organise's sorts) is named by its visible
+     * word, which must then be a span of text that is not aria-hidden, written inside it.
+     *
+     * Changes that must make it fail: an aria-label dropped from any icon-only button, or a menu item's
+     * word removed or hidden.
      *
      * @return void
      */
     public function test_the_icon_only_buttons_name_themselves(): void {
         $files = $this->sources();
+        $menuitems = 0;
         $iconfiles = [
             'js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
-            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
+            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx', 'js/esm/src/LineMenu.tsx',
         ];
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
@@ -384,6 +389,17 @@ final class accessibility_rules_test extends basic_testcase {
             // Vacuity guard: each file exists to render such a button, so finding none is the bug.
             $this->assertNotEmpty($tags, "{$file}: no button tag found, so the rule checked nothing");
             foreach ($tags as $tag) {
+                if (preg_match('/\brole="menuitemradio"/', $tag)) {
+                    $menuitems++;
+                    $at = strpos($files[$file], $tag) + strlen($tag);
+                    $content = substr($files[$file], $at, strpos($files[$file], '</button>', $at) - $at);
+                    $this->assertMatchesRegularExpression(
+                        '/<span>\{[^}]+\}<\/span>/',
+                        $content,
+                        "{$file}: a menu item with no visible word announces itself as \"menu item\": " . trim($tag)
+                    );
+                    continue;
+                }
                 $this->assertMatchesRegularExpression(
                     '/\baria-label=/',
                     $tag,
@@ -391,14 +407,16 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
+        // Vacuity guard: the bar's menu items were read as such.
+        $this->assertSame(1, $menuitems, 'LineMenu\'s item (one tag, drawn per choice) was not read');
     }
 
     /**
      * Every toolbar grouping carries a name.
      *
      * role="group" tells a screen reader that the buttons inside belong together and then
-     * says nothing about what they do; unnamed, the tier 3 toolbar's platters and view
-     * switch are read as anonymous groups of buttons in a row.
+     * says nothing about what they do; unnamed, the Organise menu's sorts and the
+     * suggestions' sections are read as anonymous groups in a row.
      *
      * @return void
      */
@@ -418,7 +436,7 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: Platter and ViewToggle each write one.
+        // Vacuity guard: LineMenu writes one, and the suggestions' two sections.
         $this->assertGreaterThanOrEqual(1, $groups, 'no role="group" found: has the tier 3 toolbar changed?');
     }
 
@@ -513,8 +531,9 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * The brand is #0f6cbf, which is 3.02:1 on Boost's dark body #1d2125 - under the
      * 4.5:1 floor for text, while clearing the 3:1 one for an outline or a border. So the
-     * text token is a second name that dark mode overrides and the plain one is left to
-     * the rings and the borders.
+     * text token is a name of its own that dark mode overrides, beside the ink of the marks
+     * (--block_compass-accent, held by test_marks_go_through_the_dark_aware_ink). --block_compass-brand
+     * is not a token; paint text with --block_compass-accent-text.
      *
      * The rule pins the pairing, not the ratio: no source can compute a contrast, so the ratio
      * is measured in a browser. The dark selector is the one dark mechanism 5.2 has, the
@@ -528,24 +547,23 @@ final class accessibility_rules_test extends basic_testcase {
 
         // The token with or without a fallback: var(--x) and var(--x, #fff) are the same paint.
         $this->assertDoesNotMatchRegularExpression(
-            '/(?<![-\w])color\s*:\s*[^;{}]*var\(\s*--block_compass-brand\s*[,)]/',
+            '/--block_compass-brand(?![\w-])/',
             $css,
-            'a text colour painted with --block_compass-brand is 3.02:1 on the dark body; '
-                . 'paint text with --block_compass-brand-text and leave the plain token to '
-                . 'outlines, borders and backgrounds'
+            'the plain --block_compass-brand is back: paint text with --block_compass-accent-text, and '
+                . 'outlines, borders and backgrounds with --block_compass-accent'
         );
         // Vacuity guard: something must actually paint text with the paired token.
         $this->assertGreaterThanOrEqual(
             1,
-            preg_match_all('/(?<![-\w])color\s*:\s*[^;{}]*var\(\s*--block_compass-brand-text\s*[,)]/', $css),
-            'nothing paints text with --block_compass-brand-text: the rule above checked nothing'
+            preg_match_all('/(?<![-\w])color\s*:\s*[^;{}]*var\(\s*--block_compass-accent-text\s*[,)]/', $css),
+            'nothing paints text with --block_compass-accent-text: the rule above checked nothing'
         );
 
         $light = 0;
         $dark = 0;
         foreach ($this->rules() as $rule) {
             [$selector, $body] = $rule;
-            if (!str_contains($body, '--block_compass-brand-text:')) {
+            if (!str_contains($body, '--block_compass-accent-text:')) {
                 continue;
             }
             if (str_contains($selector, self::DARK_ATTRIBUTE)) {
@@ -554,11 +572,11 @@ final class accessibility_rules_test extends basic_testcase {
                 $light++;
             }
         }
-        $this->assertGreaterThanOrEqual(1, $light, '--block_compass-brand-text has no light value');
+        $this->assertGreaterThanOrEqual(1, $light, '--block_compass-accent-text has no light value');
         $this->assertGreaterThanOrEqual(
             1,
             $dark,
-            '--block_compass-brand-text is not overridden under [data-bs-theme="dark"]'
+            '--block_compass-accent-text is not overridden under [data-bs-theme="dark"]'
         );
     }
 
@@ -791,7 +809,7 @@ final class accessibility_rules_test extends basic_testcase {
     public function test_the_icon_only_glyphs_carry_no_margin(): void {
         $files = [
             'js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
-            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
+            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx', 'js/esm/src/LineMenu.tsx',
         ];
         foreach ($files as $file) {
             $spans = array_filter(
@@ -1143,7 +1161,7 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * The rule covers every source, not only headings. Bootstrap's text-uppercase and a
      * text-transform declaration are the two ways to shout, and the strip heading is the
-     * vacuity guard: it must exist and carry a weight class.
+     * vacuity guard: it must exist and carry the section title's class, whose rule gives it its weight.
      *
      * @return void
      */
@@ -1168,10 +1186,11 @@ final class accessibility_rules_test extends basic_testcase {
         );
         // Vacuity guard: the strip heading is the tag this rule was written over.
         $this->assertCount(1, $headings, 'the strip heading tag was not found in Strip.tsx');
+        $this->assertStringContainsString('compass-section-title', reset($headings), 'the strip heading carries no weight');
         $this->assertMatchesRegularExpression(
-            '/\bfw-(bold|semibold|medium)\b/',
-            reset($headings),
-            'the strip heading carries no weight class'
+            '/\.block_compass \.compass-section-title\s*\{[^}]*font-weight:\s*600;/',
+            $this->css(),
+            'the section title is emphasised by no weight'
         );
     }
 
@@ -1417,16 +1436,17 @@ final class accessibility_rules_test extends basic_testcase {
      * The a11y sweep of 2026-10-14 measured, in dark mode on the theme's navy brand, a card's outline
      * button, the calendar's dots, its needle and its checked switch at 1.1:1 against the dark body:
      * each was painted with the theme's primary, which Bootstrap does not move in dark mode. The
-     * cure is one token, --block_compass-brand-ink: the primary in light mode, a mix of the primary
-     * into the body colour in dark mode (the ratios are in styles.css). The rule pins the pairing,
-     * not the ratio, as the brand text rule does: nothing paints with the theme's primary directly
-     * outside a token declaration, the calendar's accent and the plain brand token resolve to the
-     * ink, the dark rule redefines the ink with a colour-mix() of theme tokens and points the plain
-     * brand at it, the checked switch and the dark outline button take the ink, and an accent pill's
-     * text follows its fill.
+     * cure is one token, --block_compass-accent: the family's accent, under Boost the primary in
+     * light mode and a mix of the primary into the body colour in dark mode (the ratios are in
+     * styles.css). The rule pins the pairing, not the ratio, as the brand text rule does: nothing
+     * paints with the theme's primary directly outside a token declaration, the calendar's accent
+     * resolves to the ink, the dark rule redefines the ink's Bootstrap link with a colour-mix() of
+     * theme tokens behind the family's accent, the checked switch and the dark outline button take
+     * the ink, and an accent pill's text follows its fill.
      *
      * Changes that must make it fail: a dot or a ring back on var(--bs-primary); the dark ink
-     * dropped or written as a literal; the switch or the outline button rule deleted.
+     * dropped or written as a literal; the family's accent no longer the first link; the switch or
+     * the outline button rule deleted.
      *
      * @return void
      */
@@ -1453,40 +1473,36 @@ final class accessibility_rules_test extends basic_testcase {
         foreach ($this->rules() as [$selector, $body]) {
             if (trim($selector) === '.block_compass') {
                 $light .= $body;
-            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-brand-text:')) {
+            } else if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($body, '--block_compass-accent-text:')) {
                 $dark .= $body;
             }
         }
         $this->assertMatchesRegularExpression(
-            '/--block_compass-brand-ink:\s*var\(--bs-primary\b/',
+            '/--block_compass-accent:\s*var\(--dimensions-accent,\s*var\(--bs-primary\b/',
             $light,
-            'the ink\'s light value is the theme\'s primary'
+            'the ink\'s light value is the family\'s accent, then the theme\'s primary'
         );
         $this->assertMatchesRegularExpression(
-            '/--block_compass-cal-accent:\s*var\(--block_compass-brand-ink\)/',
+            '/--block_compass-cal-accent:\s*var\(--block_compass-accent\)/',
             $light,
             'the calendar\'s dots, rings and needle are painted with --block_compass-cal-accent, which must be the ink'
         );
         $this->assertMatchesRegularExpression(
-            '/--block_compass-brand-ink:\s*color-mix\(in oklab,\s*var\(--bs-primary\b[^;]*var\(--bs-body-color\b/',
+            '/--block_compass-accent:\s*var\(\s*--dimensions-accent,\s*color-mix\(in oklab,\s*'
+                . 'var\(--bs-primary\b[^;]*var\(--bs-body-color\b/',
             $dark,
-            'the dark rule must mix the primary into the body colour for the ink'
+            'the dark rule must mix the primary into the body colour for the ink, behind the family\'s accent'
         );
-        $this->assertMatchesRegularExpression(
-            '/--block_compass-brand:\s*var\(--block_compass-brand-ink\)/',
-            $dark,
-            'the dark rule must point the plain brand (rings, outlines, borders) at the ink'
-        );
-        $this->assertMatchesRegularExpression('/--block_compass-brand-onink:/', $dark, 'the text on the ink in dark mode');
+        $this->assertMatchesRegularExpression('/--block_compass-on-accent:/', $dark, 'the text on the ink in dark mode');
 
         $switch = 0;
         $outline = 0;
         foreach ($this->rules() as [$selector, $body]) {
             if (str_contains($selector, '.form-check-input:checked') && str_contains($selector, '.block_compass')) {
-                $switch += preg_match('/background-color:\s*var\(--block_compass-brand-ink\)/', $body);
+                $switch += preg_match('/background-color:\s*var\(--block_compass-accent\)/', $body);
             }
             if (str_contains($selector, self::DARK_ATTRIBUTE) && str_contains($selector, '.btn-outline-primary:not(:hover)')) {
-                $outline += preg_match('/(?<![-\w])color:\s*var\(--block_compass-brand-ink\)/', $body);
+                $outline += preg_match('/(?<![-\w])color:\s*var\(--block_compass-accent\)/', $body);
             }
         }
         $this->assertSame(1, $switch, 'the checked relevance switch is not painted with the ink');
@@ -2240,8 +2256,9 @@ final class accessibility_rules_test extends basic_testcase {
      * Beside the title the switch shows core's two glyphs. Each button is named by its view
      * (aria-label, the word the text switch shows), keeps aria-pressed, and carries the word in a child
      * tooltip that is aria-hidden and has no title (a title would draw a second, native tooltip), shown
-     * on :hover and :focus-visible and put off by Escape (WCAG 1.4.13). Not core's Bootstrap tooltip:
-     * its loader binds only the nodes present at load. On a narrow block, where touch has no hover, and
+     * on :hover and :focus-visible and put off by Escape (WCAG 1.4.13): the block's icon tooltip (Tip.tsx),
+     * which the filter bar's icon buttons draw too. Not core's Bootstrap tooltip: its loader binds only the
+     * nodes present at load. On a narrow block, where touch has no hover, and
      * in the open strip, the switch keeps its text. Vacuity guard: both branches and the rule are found.
      *
      * @return void
@@ -2260,21 +2277,22 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('aria-label={name}', $icon, 'an icon button without a name');
         $this->assertStringContainsString('aria-pressed={drawn === which}', $icon);
         $this->assertDoesNotMatchRegularExpression('/\stitle=/', $icon, 'a title draws a second, native tooltip');
-        $this->assertStringContainsString('<span className="compass-cal-tip" aria-hidden="true">{name}</span>', $body[0]);
+        $this->assertStringContainsString("className={tipHost('compass-cal-segbtn', tipsoff)}", $icon, 'no tooltip host');
+        $this->assertStringContainsString('<Tip text={name} />', $body[0]);
+        $this->assertStringContainsString('const [tipsoff, tipsOn] = useTipsOff();', $strip, 'Escape must put the tooltips off');
         $this->assertStringContainsString(
-            "            if (event.key === 'Escape') {\n                setTipsoff(true);",
-            $strip,
+            "            if (event.key === 'Escape') {\n                setOff(true);",
+            $this->reactsources()['js/esm/src/Tip.tsx'],
             'Escape must put the tooltips off'
         );
 
         $shown = null;
         $base = null;
         foreach ($this->rules() as [$selector, $rule]) {
-            if (str_contains($selector, ':hover .compass-cal-tip')) {
+            if (str_contains($selector, ':hover > .compass-tip') && str_contains($rule, 'opacity: 1')) {
                 $shown = $selector;
-                $this->assertMatchesRegularExpression('/\bopacity\s*:\s*1\b/', $rule);
             }
-            if ($selector === '.block_compass .compass-cal-tip') {
+            if ($selector === '.block_compass .compass-tip') {
                 $base = $rule;
             }
         }
@@ -2282,11 +2300,11 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertNotNull($base, 'no base tooltip rule');
         $this->assertMatchesRegularExpression('/\bopacity\s*:\s*0\b/', $base, 'the tooltip shows without a hover');
         $this->assertStringContainsString(
-            '.compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip',
+            '.compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):hover > .compass-tip',
             $shown
         );
         $this->assertStringContainsString(
-            '.compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip',
+            '.compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):focus-visible > .compass-tip',
             $shown,
             'a keyboard user never sees the name'
         );
@@ -2464,13 +2482,14 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertCount(1, $hide, 'vacuity: the hide button');
         $this->assertStringContainsString('aria-label={strings.cal_soon_hide}', $hide[0]);
         $this->assertStringNotContainsString('title=', $hide[0], 'a title draws a second tooltip');
-        $this->assertStringContainsString("'compass-soon-hide compass-cal-tipsoff'", $hide[0], 'Escape puts its tooltip off');
         $this->assertStringContainsString(
-            '<span className="compass-cal-tip" aria-hidden="true">{strings.cal_soon_hide}</span>',
-            $source
+            "className={tipHost('compass-soon-hide', tipsoff)}",
+            $hide[0],
+            'Escape puts its tooltip off'
         );
+        $this->assertStringContainsString('<Tip text={strings.cal_soon_hide} align="end" />', $source);
         $this->assertMatchesRegularExpression(
-            '/\.compass-soon-hide:not\(\.compass-cal-tipsoff\):focus-visible \.compass-cal-tip/',
+            '/\.compass-tiphost:not\(\.compass-tipsoff\):not\(\[aria-expanded="true"\]\):focus-visible > \.compass-tip/',
             $this->css(),
             'the tooltip shows on keyboard focus'
         );
@@ -2697,7 +2716,7 @@ final class accessibility_rules_test extends basic_testcase {
             'the close never shrinks: on a phone the slim row squeezed it to a sliver'
         );
         $this->assertMatchesRegularExpression(
-            '/margin:\s*0\.25rem 0 1rem/',
+            '/margin:\s*0\.25rem 0 2rem/',
             $bodies['.block_compass .compass-news-inner > .compass-news'] ?? '',
             'room around the panel: the heading after it never sits on its edge'
         );
@@ -2743,7 +2762,7 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('aria-label={strings.news_hide}', $hide[0], 'named by the whole sentence');
         $this->assertStringContainsString('title={strings.news_hide}', $hide[0]);
         $this->assertStringNotContainsString('news_hide_short', $hide[0], 'the short label is the text, never the name');
-        $this->assertStringContainsString("'compass-news-hide compass-news-hide-icon'", $hide[0]);
+        $this->assertStringContainsString("'btn btn-sm btn-outline-secondary compass-news-hide compass-news-hide-icon'", $hide[0]);
 
         $sparks = array_values(array_filter(
             $this->tags($source, 'span'),
@@ -2772,17 +2791,17 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * The open-courses popover and its sheet are the panel's family: the gradient, the cards and the pill.
+     * The open-courses popover and its sheet are the panel's family: the gradient, the cards and the close.
      *
-     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4). The popover paints the panel's
-     * gradient with a soft border, radius 14 (the sheet keeps its top-only 18), one decorative sparkle
-     * and a head of the 34 px tile, the eyebrow and the summary. A group is a card on the surface (border,
-     * radius 12, 10px 12px, 6 px between cards, the accent at 55 % on hover). "Hide until the next
-     * sign-in" is the close's pill with the short visible label and keeps the whole sentence as its name
-     * (aria-label and title, WCAG 2.5.3). No rule of the popover changes case. Vacuity guards: the rules
-     * and the tags are found.
+     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4), at the Design System's container radii.
+     * The popover paints the panel's gradient with a soft border, radius lg (the sheet radius xl on its top
+     * corners only), one decorative sparkle and a head of the 34 px tile, the eyebrow and the summary. A group
+     * is a card on the surface (border, radius md, 10px 12px, 6 px between cards, the accent at 55 % on hover).
+     * "Hide until the next sign-in" is the close, core's button, with the short visible label and keeps the
+     * whole sentence as its name (aria-label and title, WCAG 2.5.3). No rule of the popover changes case.
+     * Vacuity guards: the rules and the tags are found.
      *
-     * Changes that must make it fail: the old plain card back, a flat row, the pill unnamed or named by
+     * Changes that must make it fail: the old plain card back, a flat row, the close unnamed or named by
      * its short label, a text-transform on a popover rule, the sparkle announced.
      *
      * @return void
@@ -2815,16 +2834,16 @@ final class accessibility_rules_test extends basic_testcase {
             . '\s*var\(--block_compass-news-subtle\) 100%\s*\)/';
         $this->assertMatchesRegularExpression($gradient, $panel, 'vacuity: the panel\'s gradient');
         $this->assertMatchesRegularExpression($gradient, $pop, 'the popover uses the panel gradient');
-        $this->assertMatchesRegularExpression('/border-radius:\s*0\.875rem/', $pop);
+        $this->assertMatchesRegularExpression('/border-radius:\s*var\(--block_compass-radius-lg\)/', $pop);
         $this->assertMatchesRegularExpression('/padding:\s*0\.875rem 1rem 0\.75rem/', $pop);
         $this->assertMatchesRegularExpression(
-            '/border-radius:\s*1\.125rem 1\.125rem 0 0/',
+            '/border-radius:\s*var\(--block_compass-radius-xl\) var\(--block_compass-radius-xl\) 0 0/',
             $bodies['.block_compass .compass-news-pop.compass-news-sheet'] ?? '',
             'the sheet keeps its top-only radius'
         );
         $row = $bodies['.block_compass .compass-news-poprow'] ?? '';
         $this->assertMatchesRegularExpression('/border:\s*1px solid var\(--block_compass-line\)/', $row, 'the rows are cards');
-        $this->assertMatchesRegularExpression('/border-radius:\s*0\.75rem/', $row);
+        $this->assertMatchesRegularExpression('/border-radius:\s*var\(--block_compass-radius-md\)/', $row);
         $this->assertMatchesRegularExpression('/padding:\s*0\.625rem 0\.75rem/', $row);
         $this->assertMatchesRegularExpression('/background:\s*var\(--block_compass-surface\)/', $row);
         $this->assertMatchesRegularExpression(
@@ -2999,8 +3018,9 @@ final class accessibility_rules_test extends basic_testcase {
      * the keyboard is and moves no focus; it is drawn on the full line, and on a tile only while the tile
      * cuts a text, never on the slim panel nor below 640 px of the block. The pill's crest has an empty
      * alt (the name is beside it), the tooltip's the listener's text; the popover's and the tiles' crest
-     * slots exist only while some group has a crest (Q5). Its motion is 120 ms, none under reduced motion,
-     * and the name is capped at 12.5 rem. Vacuity guards: the tags and the rules are found.
+     * slots exist only while some group has a crest (Q5). Its motion is the Design System tooltip's, 150 ms of
+     * opacity (ADR-024), none under reduced motion, it is at most 260 px wide, and the name is capped at 12.5 rem.
+     * Vacuity guards: the tags and the rules are found.
      *
      * @return void
      */
@@ -3077,9 +3097,12 @@ final class accessibility_rules_test extends basic_testcase {
             $bodies[$selector] = ($bodies[$selector] ?? '') . $body;
         }
         $tip = $bodies['.block_compass .compass-news-tip'] ?? '';
-        $this->assertSame(1, preg_match('/transition:\s*opacity\s+(\d+)ms/', $tip, $ms), 'vacuity: the tooltip\'s transition');
-        $this->assertSame(120, (int) $ms[1]);
-        $this->assertMatchesRegularExpression('/max-width:\s*18\.75rem/', $tip, 'at most 300 px wide');
+        $this->assertMatchesRegularExpression(
+            '/transition:\s*opacity var\(--block_compass-motion-fast\) ease;/',
+            $tip,
+            'the tooltip\'s motion is not the Design System\'s 150 ms of opacity'
+        );
+        $this->assertMatchesRegularExpression('/max-width:\s*16\.25rem/', $tip, 'at most 260 px wide');
         $this->assertMatchesRegularExpression('/pointer-events:\s*none/', $tip, 'unshown, it takes no pointer');
         $this->assertMatchesRegularExpression(
             '/pointer-events:\s*auto/',

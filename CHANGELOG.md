@@ -13,6 +13,79 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Changed
+
+- **The category index lists the Archived group** (2026042042). Grouped by category, the index beside the groups
+  ends with a link to *Archived* when the viewer has archived courses; the link opens the group and is marked as
+  the page reaches it, like a category's. Dormant and Hidden stay out of the index.
+
+- **Comments and the README follow the audit of 2026-11-15** (2026042041). No behaviour change: comments, the README's
+  captions and wording, and the rebuilt `js/esm/build` that carries the source comments.
+
+- **Organise groups and sorts as two choices, and the bar's icon buttons name themselves quickly** (ADR-025;
+  2026042040). The Organise menu has two sections, *Group by* (Category, No grouping) and, after a
+  separator, *Sort by* (Name, Most recent), each a radio group with an icon and a tick on the chosen item; choosing
+  in one never changes the other. The grouped list sorted by most recent is new: inside each group the courses
+  opened last come first, the never-opened last, ties by name, the groups themselves still by name. A list too
+  large to load at once is always grouped: there *No grouping* is drawn disabled with "Not available with this many
+  courses" under it, and the viewer's stored grouping is kept for when the list fits again. The remembered toolbar
+  (`block_compass_explore`) stores `group` beside `sort`; a value stored before reads as what it showed (By
+  category as Category and Name, A–Z as No grouping and Name, Recent as No grouping and Most recent), with no
+  upgrade step. The star, Filters, Organise, View, the search and its eraser show the block's own tooltip after
+  100 ms instead of the browser's `title`: never while that button's menu or panel is open, never on a touch
+  screen, and dismissed by Escape; the calendar's switch and Up next's hide draw the same component (`Tip.tsx`).
+  New strings: `organise_groupby`, `organise_group_category`, `organise_group_none`, `organise_group_none_paged`,
+  `organise_sortby`, `organise_sort_name`, `organise_sort_recent`; removed: `sortby`, `sort_category`, `sort_name`,
+  `sort_recent`. No service or SQL changes.
+- **The filter panel, the tooltips, the category index and the section titles are refined** (2026042039). A
+  filter panel group's label is on a line of its own above its options at every width. The icon tooltips (the
+  calendar's view switch and Up next's hide) show after 100 ms instead of 250 ms. The category index beside the
+  groups names no count, gives each link more room (8 by 12 px, wrapping when long), and marks the group the page is
+  at with the brand's tint and `aria-current="true"`, following the scroll through one IntersectionObserver; a
+  click marks its link at once and still opens the group. "All courses" names no count (the `allcourses` string is
+  now `allcourses_title`, with no placeholder); the bar, the scopes and the groups keep theirs. Continue where you
+  left off, New enrolments, My favourites, All courses and Open enrolments share one title look (1rem, 600, the body
+  text), and the sections are 2rem apart. The open-courses close rests on the surface instead of the panel's tint.
+  No service or preference changes.
+- **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024;
+  2026042038). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
+  chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a
+  labelled radio group of 28 px options at radius 6 px, with one tab stop and the arrow keys choosing, the chosen
+  option in the brand tone; a press on the chosen option still releases it. The pill platter is gone. The calendar's
+  day card, the open-courses popover, panel and their bottom sheets take the Design System's radii, elevations and
+  layers; the open-courses groups and "+N" are rounded rectangles. The calendar's and the open-courses tooltips share
+  one look. "No course matches." is the full empty state, with Clear filters while a filter is in force. The
+  skeletons pulse slowly unless reduced motion is asked for; the calendar's shimmer is gone. Eyebrow labels are
+  0.75rem in the muted ink. New tokens: `neutral-tint`, `neutral-ink`. No string, service or preference changes.
+- **Status labels, action buttons, the calendar's segmented control and the counters follow the fleet Design
+  System** (2026042037). The enrolment state labels (Access from, Application under review, On the waiting list,
+  Completed, Hidden from students) are rounded rectangles at radius 6 px with a 1 px edge from their own tone, no
+  longer pills. Filters' Clear filters and Show, the calendar's Today and the open-courses panel's close and See are
+  core's buttons with no pill (Today at the default size, the others small); the panel keeps the body colour on its
+  outline buttons, whose gray text does not read on its tinted end. The calendar's views and filter switch take the
+  filter bar scope's measures: a 40 px inset platter, 32 px cells (36 px under a coarse pointer), the chosen one
+  raised in the body text. A group's count in the open-courses panel and a filter option's count are quiet text,
+  no longer boxes. Every focus ring outside the filter bar is the Design System's token ring, the course card's
+  own on a card surface (a list row's link and every star included). New tokens: `scheduled-edge`,
+  `awaiting-edge`, `success-edge`. No string, service or behaviour changes.
+- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023; 2026042036). One
+  40 px bar (44 px under a coarse pointer): the scope as a segmented control, then the number of courses the list
+  shows and a capsule of the star, Filters, Organise and View, then the search in a capsule of its own; the chips
+  of the filters in force on a row under it, which wraps instead of scrolling. View is one button with a chevron
+  opening a menu of Cards and List. The search is an icon at every width that opens the field in place; Escape,
+  or leaving it empty, closes it and gives the keyboard back to the search button, and its eraser clears the text
+  and keeps it open. The line folds in two steps instead of four: full, then the scope on a line of its own with
+  its cells sharing the width, the field taking the line while the search is open. Filters has no word at any
+  width and carries the loud counter. Paged mode shows no result count, as it shows no other count. New tokens:
+  `brand-fill`, `on-brand-fill`, `brand-edge`, `motion-fast`, `motion-ease`; the control line's Bootstrap link is
+  gray-500 (D45). One new string, `line_view`.
+- **The block's colours read the fleet Design System's tokens** (2026042035). Every colour token of `styles.css` is now the
+  chain `var(--dimensions-X, var(--bs-Y, literal))`: a theme of the family (theme_dimensions) answers first,
+  Bootstrap's property second, so the block is painted as before under Boost. The duplicate names are one
+  token each (`ink`, `ink-dim`, `surface-alt`, `surface-inset`, `brand-ink`), no rule reads a `--bs-*`
+  property itself any more, and the scale tokens of the Design System (radius, elevation, the focus ring and
+  its width) are declared for the component steps that follow. `design_tokens_test` holds the contract.
+
 ### Fixed
 
 - **No contradicting empty messages under the special groups.** Tier 1 no longer says "Nothing to show here right now" under a ghost that is drawn for the Hidden or Archived groups alone, and tier 3 no longer says "No course matches." under a Hidden, Archived or Dormant group that holds rows while nothing is typed, starred or filtered.

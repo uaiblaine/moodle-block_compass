@@ -1162,11 +1162,13 @@ final class explore_test extends advanced_testcase {
      * or a cache purge. Accounting: the inventory fill, the preference load, the coursemeta
      * fill, the filter preload, the categorymeta fill for the courses' own category and the
      * categorymeta fill for the ancestor that forms the group — six. The nested fixture is what
-     * makes the sixth read happen; a flat one would pass at five and prove less.
+     * makes the sixth read happen; a flat one would pass at five and prove less. No listener: the
+     * budget is the block's own reads, and a theme that answers the course kinds adds one.
      *
      * @return void
      */
     public function test_build_costs_at_most_six_reads_with_every_plugin_cache_cold(): void {
+        $this->use_kinds_listener(false);
         $tree = $this->nested_budget_fixture();
         $this->setUser($this->user);
         $this->build(1);
@@ -2226,11 +2228,13 @@ final class explore_test extends advanced_testcase {
      * them, and compared with rows() and search() under the same selection. Two groups combine
      * with AND; an empty selection constrains nothing; a course with no stored value for the
      * select is excluded by every chip of that group and included by the other group's chips;
-     * a checkbox with no stored value takes its default, No, as core displays it.
+     * a checkbox with no stored value takes its default, No, as core displays it. No listener: a
+     * theme that answers the course kinds adds a key to the payload.
      *
      * @return void
      */
     public function test_custom_field_filters_agree_between_full_and_paged_mode(): void {
+        $this->use_kinds_listener(false);
         [$courses, , $alpha] = $this->field_fixture();
         $fields = ['modality', 'certified'];
 

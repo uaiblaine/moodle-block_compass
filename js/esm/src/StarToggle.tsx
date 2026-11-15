@@ -17,9 +17,10 @@
  * The filter line's favourites star: an aria-pressed toggle ANDed with the scope (ADR-015 decision 1).
  *
  * Icon-only, so it names itself: "Favourites", with the count it would keep in full mode
- * (line_namedcount), and the same words as its tooltip. The glyph is core's star, filled while
- * pressed. It is not the course star of a row (Star.tsx), which writes core's favourite; this one
- * only filters.
+ * (line_namedcount), and its tooltip says "Favourites" (Tip.tsx, D51: the name without the count,
+ * which changes with every filter), lined up with its start, as the star can start the bar. The glyph is
+ * core's star, filled while pressed. It is not the course star of a row (Star.tsx), which writes core's
+ * favourite; this one only filters.
  *
  * @module     block_compass/StarToggle
  * @copyright  2026 Anderson Blaine
@@ -27,6 +28,7 @@
  */
 
 import {hovers} from './ScopeGroup';
+import Tip, {tipHost} from './Tip';
 import {fillObject} from './str';
 import type {BlockConfig} from './types';
 import {markup} from './markup';
@@ -35,6 +37,7 @@ type StarToggleProps = {
     pressed: boolean,
     count: number | null,
     config: BlockConfig,
+    tipsoff: boolean,
     onToggle: () => void,
     onPreview: (on: boolean) => void,
 };
@@ -42,11 +45,11 @@ type StarToggleProps = {
 /**
  * The toggle.
  *
- * @param {object} props Whether it is pressed, the count it would keep, the block config and the
- *     two callbacks; see StarToggleProps.
+ * @param {object} props Whether it is pressed, the count it would keep, the block config, whether
+ *     Escape has put the tooltips off and the two callbacks; see StarToggleProps.
  * @returns {object} The rendered button.
  */
-const StarToggle = ({pressed, count, config, onToggle, onPreview}: StarToggleProps) => {
+const StarToggle = ({pressed, count, config, tipsoff, onToggle, onPreview}: StarToggleProps) => {
     const {labels, icons} = config;
     const name = count === null
         ? labels.chip_favourites
@@ -55,10 +58,9 @@ const StarToggle = ({pressed, count, config, onToggle, onPreview}: StarTogglePro
     return (
         <button
             type="button"
-            className="compass-line-iconbtn compass-line-star compass-line-slides"
+            className={tipHost('compass-line-iconbtn compass-line-star', tipsoff)}
             aria-pressed={pressed}
             aria-label={name}
-            title={name}
             onClick={() => {
                 onPreview(false);
                 onToggle();
@@ -77,6 +79,7 @@ const StarToggle = ({pressed, count, config, onToggle, onPreview}: StarTogglePro
                 aria-hidden="true"
                 dangerouslySetInnerHTML={markup(pressed ? icons.staron : icons.staroff)}
             />
+            <Tip text={labels.chip_favourites} align="start" />
         </button>
     );
 };

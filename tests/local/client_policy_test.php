@@ -111,7 +111,7 @@ final class client_policy_test extends advanced_testcase {
         $source = $this->source('Explore.tsx');
 
         $this->assertStringContainsString(
-            'const state: ExploreState = {sort, scope, star, cf: selection, panel: panelopen};',
+            'const state: ExploreState = {group, sort, scope, star, cf: selection, panel: panelopen};',
             $source
         );
         $this->assertStringNotContainsString('query', $this->slice($this->source('types.ts'), 'ExploreState', '};'));

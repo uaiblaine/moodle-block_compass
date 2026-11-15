@@ -31,7 +31,7 @@
  * pointing at a card renders the calendar strip that lights its days and no card (ADR-014 decision 9), and
  * a change of the open day's courses renders only the cards whose outline it moves.
  *
- * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
+ * The heading's level comes from heading.ts; only the level moves - the section title's class keeps the size.
  * The grid's column count is the block's (columns.ts), so the theme card's three tracks become two
  * and then one as the block narrows, and the ghost keeps a track of its own.
  *
@@ -100,9 +100,9 @@ const Strip = ({
     return (
         <section className="compass-strip" data-strip={name} aria-labelledby={headingid}>
             <div className="compass-strip-head">
-                {/* Weight, never case: a heading is emphasised with fw-bold and nothing in the block is
-                    written in capitals (accessibility_rules_test::test_nothing_is_uppercase). */}
-                <Heading className="compass-strip-title h6 fw-bold text-muted mb-0" id={headingid}>{title}</Heading>
+                {/* Weight, never case: a heading is emphasised by the section title's weight and nothing in the
+                    block is written in capitals (accessibility_rules_test::test_nothing_is_uppercase). */}
+                <Heading className="compass-strip-title compass-section-title" id={headingid}>{title}</Heading>
                 {overflow && (
                     <button
                         type="button"

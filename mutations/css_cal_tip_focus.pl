@@ -1,1 +1,1 @@
-s/\.compass-cal-segbtn:focus-visible \.compass-cal-tip/.compass-cal-segbtn:active .compass-cal-tip/;
+s/:not\(\[aria-expanded="true"\]\):focus-visible > \.compass-tip \{/:not([aria-expanded="true"]):active > .compass-tip {/;

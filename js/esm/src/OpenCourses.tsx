@@ -29,7 +29,7 @@
  * news_hideerror.
  *
  * OpenCourses is the drawing, in the shape the block chose (decision 7), all three in one panel (round 2,
- * docs/mockup-new-courses/Rodada2.dc.html): the full line (the eyebrow and the summary over a head, up to
+ * docs/mockup-new-courses/Rodada2.dc.html): the full line (the title and the summary over a head, up to
  * three groups as links on a row of their own, "+N", and a labelled close), the slim panel with "See", or
  * tier 1's empty state as tiles. "See" and "+N" open the groups in a popover, a dialog that takes the keyboard and
  * gives it back, closed by Escape and by a press outside it; below 640 px of the block's width it is a
@@ -462,8 +462,8 @@ type GroupTipProps = {
  *
  * aria-hidden: the pill's accessible name already says all of it, and a tooltip of the block's own is never
  * announced twice. Drawn once unplaced and invisible, measured before paint, then placed and shown, so it
- * fades in (120 ms) where it belongs. It takes the pointer only once shown, and its ::before bridges the
- * gap to the pill (styles.css), so the pointer can move onto it and it stays (WCAG 1.4.13).
+ * fades in (the motion scale's fast step) where it belongs. It takes the pointer only once shown, and its
+ * ::before bridges the gap to the pill (styles.css), so the pointer can move onto it and it stays (WCAG 1.4.13).
  *
  * @param {object} props The group, its pill, the anchor, the line and the two pointer callbacks; see GroupTipProps.
  * @returns {object} The tooltip.
@@ -882,7 +882,8 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
     /**
      * The close, in the corner of the panel: a cross and a short visible label, named in full for
      * assistive technology (the label is inside the name, WCAG 2.5.3). The slim panel draws the cross
-     * alone; below 640 px of the block the stylesheet hides the label.
+     * alone; below 640 px of the block the stylesheet hides the label. Core's secondary button at the
+     * panel's small size (the Design System's action-button.md).
      *
      * @param {boolean} labelled Whether to draw the short label beside the cross.
      * @returns {object} The button.
@@ -890,7 +891,9 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
     const closer = (labelled: boolean) => (
         <button
             type="button"
-            className={labelled ? 'compass-news-hide' : 'compass-news-hide compass-news-hide-icon'}
+            className={labelled
+                ? 'btn btn-sm btn-outline-secondary compass-news-hide'
+                : 'btn btn-sm btn-outline-secondary compass-news-hide compass-news-hide-icon'}
             aria-label={strings.news_hide}
             title={strings.news_hide}
             onClick={(event) => hideFrom(event.currentTarget)}
@@ -921,7 +924,7 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
                 <div className="compass-news-head">
                     {icon}
                     <div className="compass-news-copy">
-                        <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                        <Title id={titleid} className="compass-news-title compass-section-title">{strings.news_title}</Title>
                         <span className="compass-news-sum">{fill(strings.news_empty_lead, until)}</span>
                     </div>
                 </div>
@@ -970,12 +973,12 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
                 <Spark place="compass-news-spark-b" />
                 {icon}
                 <div className="compass-news-sentence">
-                    <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                    <Title id={titleid} className="compass-news-title compass-section-title">{strings.news_title}</Title>
                     <span className="compass-news-sum">{summary}</span>
                 </div>
                 <button
                     type="button"
-                    className="compass-news-see"
+                    className="btn btn-sm btn-outline-secondary compass-news-see"
                     aria-haspopup="dialog"
                     aria-expanded={popover}
                     aria-controls={popover ? popid : undefined}
@@ -998,7 +1001,7 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
             <div className="compass-news-head">
                 {icon}
                 <div className="compass-news-copy">
-                    <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                    <Title id={titleid} className="compass-news-title compass-section-title">{strings.news_title}</Title>
                     <span className="compass-news-sum">{summary}</span>
                 </div>
             </div>
