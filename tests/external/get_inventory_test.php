@@ -58,6 +58,19 @@ use PHPUnit\Framework\Attributes\CoversClass;
 #[CoversClass(get_inventory::class)]
 final class get_inventory_test extends advanced_testcase {
     /**
+     * No listener: the block's hooks are answered by whatever the site has installed.
+     *
+     * A theme's course kinds add a key to the payload, so every test starts with none; a test that
+     * wants a listener installs its fixture over this.
+     *
+     * @return void
+     */
+    protected function setUp(): void {
+        parent::setUp();
+        \core\di::set(manager::class, manager::phpunit_get_instance([]));
+    }
+
+    /**
      * A user with three courses across two categories.
      *
      * One course is opened, one is a brand-new starred enrolment and one is an
