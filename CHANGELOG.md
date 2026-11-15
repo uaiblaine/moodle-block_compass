@@ -13,6 +13,18 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+## v5.3-r5 (2026100546) - 2026-11-15
+
+Fifth release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings the fleet's course card to the strips and to
+*All courses* (ADR-020), a *Hidden* group and the course's kind in *All courses* (ADR-021), a way into *All courses*
+from a ghost that counts nothing (ADR-022), and the fleet Design System: the colour tokens, the compact filter bar
+(ADR-023), the menus, the filter panel and the containers (ADR-024), and Organise's *Group by* and *Sort by*
+(ADR-025). It also carries the fixes of the audit of 2026-11-13, security among them, and a smaller package. No
+schema change, no new setting and no upgrade step of the block's own: the version moves because every event
+observer now runs after the commit and three shared cache definitions gain a 10-minute TTL, and core's upgrade
+purges the caches. Fifteen new strings, five removed (`allcourses` becomes `allcourses_title`); a toolbar preference
+stored before is read as it showed.
+
 ### Changed
 
 - **The category index lists the Archived group** (2026100546). Grouped by category, the index beside the groups
@@ -273,6 +285,52 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 - **The kind chip on Explore's cards and rows** (ADR-021 decision 2.4): the course's kind before *New* in slot 2, on
   the cards' cover and after the name on the list; the kinds of the first `get_inventory` answer are kept for the
   section's life and index every page and search hit; a row whose `kd` names no held kind draws nothing.
+
+## v5.2-r5 (2026042042) - 2026-11-15
+
+Fifth release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It carries every change of
+v5.3-r5 (2026042026 to 2026042042 on this branch; 2026100529 to 2026100546 there): the fleet's course card, the
+*Hidden* group and the kinds in *All courses*, the ghost's way into *All courses*, the fleet Design System and the
+fixes of the audit of 2026-11-13. No schema change, no new setting and no upgrade step of the block's own; the same
+event observers, cache definitions and strings change as on 5.3. No 5.3-only API was needed. It needs
+`local_unlistedcourses` 2026042003 or later from that plugin's `MOODLE_502_STABLE` branch, as v5.2-r4 did.
+
+### Added
+
+- **The additions of v5.3-r5**, whose full descriptions are in that section: the *Hidden* group and the course's
+  kind on the rows and cards of *All courses*; the ghost's line naming the *Hidden* and *Archived* groups, and its
+  way into *All courses* when it counts nothing else; Boost Union's course overview settings deciding the cards.
+
+### Changed
+
+- **The changes of v5.3-r5**: the fleet's course card; the colours on the Design System's tokens; the compact
+  filter bar; the menus, the filter panel, the containers and the feedback; the status labels, the action buttons
+  and the calendar's segmented control; Organise's *Group by* and *Sort by* and the bar's tooltips; the category
+  index listing *Archived*; batched cache deletes, a lighter revalidation and cheaper role joins; a smaller package.
+- **What differs from v5.3-r5.**
+  - The `surface` token reads `--dimensions-surface`, then `--bs-body-bg`: Boost's page is white on 5.2, where
+    5.3's chain puts `--bs-card-bg` first on a grey page. The dark accent keeps 5.2's 35 % mix.
+  - The package leaves out the source maps only: 5.2's build writes no `.dev.js` twin. There is no
+    `js/esm/src/swizzle.json` on 5.2.
+  - 5.2 has no asynchronous course deletion, so the *Hidden* group and the ghost's counts carry no clause for a
+    course core is deleting; the cards keep no dark title override, as core 5.2 draws no dark underline under the
+    page's links.
+  - Eight of the README's screenshots are this branch's own, taken on 5.2: they predate the calendar's segmented
+    control and the status labels' new form.
+
+### Fixed
+
+- **The fixes of v5.3-r5**: no contradicting empty messages under the special groups; a hidden course no longer
+  comes back in the shared course layer; a course in a hidden category leaves *All courses*; a completed course is
+  never new; a teacher in no group is shown no grading work in separate groups; the start page option and the
+  read-only sessions check; the cards' cover, button and pills; a hover or a resize renders only what it
+  changes; icons, right-to-left and read retries.
+
+### Security
+
+- **The fixes of v5.3-r5**: the cache observers run after the commit; the three JSON preferences have a size cap;
+  the block's page follows the block type; a listener's course kind cannot break the open-courses line; no raw
+  HTML in a day's items; grading work completed later is asked again.
 
 ## v5.3-r4 (2026100528) - 2026-11-05
 
