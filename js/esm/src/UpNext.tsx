@@ -45,6 +45,7 @@
 import {useEffect, useId, useLayoutEffect, useRef, useState} from 'react';
 import {actionOf, kindPillOf} from './CalendarCard';
 import RetryNotice from './RetryNotice';
+import Tip, {tipHost} from './Tip';
 import {
     LEVEL_CALM, LEVEL_IMMINENT, LEVEL_NOW, LEVEL_PASSED, LEVEL_SOON, clockTime, gateNext, gateOpens, soonLevel, timeParts,
 } from './calendar';
@@ -727,13 +728,13 @@ const UpNext = ({
                         <div className="compass-soon-head">
                             <Title id={titleid} className="compass-soon-title h6 mb-0">{strings.cal_soon_title}</Title>
                             <span className="compass-soon-sub">{fill(strings.cal_soon_horizon, String(calendar.soon.hours))}</span>
-                            {/* An icon button named by its label, with the strip's own tooltip (never core's,
-                                never a title): an aria-hidden child shown on hover and keyboard focus, put
-                                off by Escape. */}
+                            {/* An icon button named by its label, with the block's icon tooltip (Tip.tsx; never
+                                core's, never a title): an aria-hidden child shown on hover and keyboard focus,
+                                put off by Escape, opened below and at the button's end. */}
                             <button
                                 type="button"
                                 ref={hidebutton}
-                                className={tipsoff ? 'compass-soon-hide compass-cal-tipsoff' : 'compass-soon-hide'}
+                                className={tipHost('compass-soon-hide', tipsoff)}
                                 aria-label={strings.cal_soon_hide}
                                 onPointerEnter={onTipsOn}
                                 onFocus={onTipsOn}
@@ -747,7 +748,7 @@ const UpNext = ({
                                     aria-hidden="true"
                                     dangerouslySetInnerHTML={markup(config.icons.close)}
                                 />
-                                <span className="compass-cal-tip" aria-hidden="true">{strings.cal_soon_hide}</span>
+                                <Tip text={strings.cal_soon_hide} align="end" />
                             </button>
                         </div>
                         <ul className="compass-soon-list">

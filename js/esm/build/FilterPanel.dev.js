@@ -12,8 +12,8 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * aria-checked, the chosen one, or the first drawn one when none is, its one tab stop; the arrow keys,
  * Home and End move the focus to another option and choose it, as the scope does. A field group has no
  * neutral option, so a press on the chosen option releases the group: that is its "any". Groups combine
- * with AND. The label is not a heading: the panel is a control, not a section. It sits beside its
- * options at the line's full step and above them at the narrow one (stacked).
+ * with AND. The label is not a heading: the panel is a control, not a section. It sits on a line of its
+ * own above its options at every width, so a long label never pushes the options sideways.
  *
  * An option counts the rows it would keep, and its count is part of its name ("Online 2"); an option that
  * would show nothing is not drawn. Pointing at one with a mouse or a pen, or the keyboard on it, previews
@@ -61,7 +61,7 @@ const FieldGroup = /* @__PURE__ */ __name(({ labelid, field, options, onSelect, 
   return /* @__PURE__ */ jsxDEV("div", { className: "compass-fpanel-group", children: [
     /* @__PURE__ */ jsxDEV("span", { className: "compass-fpanel-head", id: labelid, children: field.label }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-      lineNumber: 137,
+      lineNumber: 136,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-fpanel-opts", role: "radiogroup", "aria-labelledby": labelid, onKeyDown: keydown, children: options.map((option) => /* @__PURE__ */ jsxDEV(
@@ -91,12 +91,12 @@ const FieldGroup = /* @__PURE__ */ __name(({ labelid, field, options, onSelect, 
             " ",
             /* @__PURE__ */ jsxDEV("span", { className: "compass-fpanel-count", children: option.count }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-              lineNumber: 167,
+              lineNumber: 166,
               columnNumber: 33
             })
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-            lineNumber: 165,
+            lineNumber: 164,
             columnNumber: 29
           })
         ]
@@ -105,17 +105,17 @@ const FieldGroup = /* @__PURE__ */ __name(({ labelid, field, options, onSelect, 
       true,
       {
         fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-        lineNumber: 140,
+        lineNumber: 139,
         columnNumber: 21
       }
     )) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-      lineNumber: 138,
+      lineNumber: 137,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-    lineNumber: 136,
+    lineNumber: 135,
     columnNumber: 9
   });
 }, "FieldGroup");
@@ -124,7 +124,6 @@ const FilterPanel = /* @__PURE__ */ __name(({
   hidden,
   top,
   sheet,
-  stacked,
   element,
   config,
   filtered,
@@ -163,9 +162,6 @@ const FilterPanel = /* @__PURE__ */ __name(({
   if (sheet) {
     classes.push("compass-fpanel-sheet");
   }
-  if (stacked) {
-    classes.push("compass-fpanel-stacked");
-  }
   return /* @__PURE__ */ jsxDEV(
     "div",
     {
@@ -198,7 +194,7 @@ const FilterPanel = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-              lineNumber: 264,
+              lineNumber: 260,
               columnNumber: 21
             }
           );
@@ -221,18 +217,18 @@ const FilterPanel = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-              lineNumber: 281,
+              lineNumber: 277,
               columnNumber: 17
             }
           ),
           /* @__PURE__ */ jsxDEV("button", { type: "button", className: "btn btn-sm btn-primary compass-show", onClick: onShow, children: shown === null ? labels.line_showcourses : fill(labels.line_show, String(shown)) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-            lineNumber: 296,
+            lineNumber: 292,
             columnNumber: 17
           })
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-          lineNumber: 274,
+          lineNumber: 270,
           columnNumber: 13
         })
       ]
@@ -241,7 +237,7 @@ const FilterPanel = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-      lineNumber: 244,
+      lineNumber: 240,
       columnNumber: 9
     }
   );

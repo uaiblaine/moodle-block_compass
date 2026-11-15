@@ -171,6 +171,37 @@ const keptBy = (scope: string, star: boolean, row: InventoryRow): boolean => {
 };
 
 /**
+ * The order of a list of rows by the sort Organise chose (ADR-025): the flat list's, and the rows' inside
+ * each group in full mode, one comparator for both so the two cannot drift.
+ *
+ * By name, a run of digits comparing by its value, so "Unit 2" comes before "Unit 10" and "Unit 01" ties
+ * with "Unit 1", as in the server's order (explore::order()). Three things differ from that order: case
+ * and accents are folded away by normalise() before comparing, so names differing only in them tie here;
+ * the locale is the browser's default rather than the one of the user's Moodle language; and a tie keeps
+ * the order the rows arrived in (sort() is stable), where the server puts the lower course id first. By
+ * recency, the last access newest first, a course never opened last, and a tie by name as above.
+ *
+ * @param {string} sort name or recent.
+ * @param {object} names Each row's normalised name, by course id.
+ * @returns {Function} The comparator.
+ */
+const rowOrder = (sort: string, names: Map<number, string>): ((a: InventoryRow, b: InventoryRow) => number) => {
+    /**
+     * Compare two rows by their normalised names, which is what the eye reads.
+     *
+     * @param {object} a One row.
+     * @param {object} b Another row.
+     * @returns {number} The comparison.
+     */
+    const byname = (a: InventoryRow, b: InventoryRow): number =>
+        (names.get(a.id) || '').localeCompare(names.get(b.id) || '', undefined, {numeric: true});
+
+    return sort === 'recent'
+        ? (a, b) => ((b.opened || 0) - (a.opened || 0)) || byname(a, b)
+        : byname;
+};
+
+/**
  * Whether the section should scroll without easing: the reader asked for less motion, or a
  * Behat run is driving the page and a click must not land on a moving element.
  *
@@ -231,6 +262,142 @@ const NO_KINDS: RowKind[] = [];
  */
 const ondemand = (id: number): boolean => id === GROUP_ARCHIVED || id === GROUP_INVISIBLE;
 
+/** One link of the category index: the group, its name, and the id of the group's element its fragment names. */
+type IndexEntry = {
+    id: number,
+    name: string,
+    anchor: string,
+};
+
+type CategoryIndexProps = {
+    entries: IndexEntry[],
+    label: string,
+    onOpen: (id: number) => void,
+};
+
+/**
+ * How far under the line a link's own scroll leaves a group (its scroll-margin-top) a header may sit and still be
+ * the current one: the group's border and the rounding of a fragment's scroll. The observer's edge is drawn there
+ * too, so a header that lands on the line crosses the edge and is seen landing.
+ */
+const SPY_SLACK_PX = 4;
+
+/**
+ * Whether a box is anywhere in the viewport.
+ *
+ * @param {object} rect The box.
+ * @returns {boolean} Whether any of it is on screen.
+ */
+const onScreen = (rect: DOMRect): boolean => rect.bottom > 0 && rect.top < window.innerHeight;
+
+/**
+ * The current group of a scrollspy: the last whose header has reached the edge, the first when none has.
+ *
+ * @param {Array} tops Each header's top, in document order.
+ * @param {number} edge The edge, from the viewport's top.
+ * @returns {number} The current header's index.
+ */
+const spied = (tops: number[], edge: number): number => {
+    let at = 0;
+    tops.forEach((top, index) => {
+        if (top < edge) {
+            at = index;
+        }
+    });
+
+    return at;
+};
+
+/**
+ * The category index beside the groups: a link per category group, and the one the page is at marked current.
+ *
+ * The current one follows the page through one IntersectionObserver over the groups' headers, never a scroll
+ * listener: a header crossing the edge under the navbar asks spied() again. A click marks its link at once and
+ * holds it (pinned) while the page travels to the group, and where the page cannot bring the group up to the
+ * edge (the last groups of a short page), for as long as the group's header stays on screen after it was seen.
+ *
+ * @param {object} props The links, the index's accessible name and the callback that opens a group.
+ * @returns {object} The rendered index.
+ */
+const CategoryIndex = ({entries, label, onOpen}: CategoryIndexProps) => {
+    const [current, setCurrent] = useState<string | null>(null);
+    // The link last pressed, and whether its group's header has been on screen since.
+    const pinned = useRef<{anchor: string, seen: boolean} | null>(null);
+    // The observer is set up again only when the set of groups changes, not on every render of tier 3.
+    const key = entries.map((entry) => entry.anchor).join(' ');
+
+    useEffect(() => {
+        const anchors = key === '' ? [] : key.split(' ');
+        const groups = anchors.map((anchor) => document.getElementById(anchor));
+        if (anchors.length === 0 || typeof IntersectionObserver === 'undefined' || groups.includes(null)) {
+            return undefined;
+        }
+        const heads = (groups as HTMLElement[]).map((group) => group.querySelector<HTMLElement>('.compass-group-summary') ?? group);
+        // Where a link's own scroll leaves a group: under core's fixed navbar (styles.css, scroll-margin-top).
+        const edge = (parseFloat(getComputedStyle(groups[0] as HTMLElement).scrollMarginTop) || 0) + SPY_SLACK_PX;
+
+        /**
+         * The current group again, after a header crossed the edge or the viewport's foot.
+         *
+         * @returns {void}
+         */
+        const update = (): void => {
+            const rects = heads.map((head) => head.getBoundingClientRect());
+            const natural = anchors[spied(rects.map((rect) => rect.top), edge)];
+            const pin = pinned.current;
+            const pinrect = pin === null ? undefined : rects[anchors.indexOf(pin.anchor)];
+            if (pin !== null && pinrect !== undefined && natural !== pin.anchor && (onScreen(pinrect) || !pin.seen)) {
+                pin.seen = pin.seen || onScreen(pinrect);
+                setCurrent(pin.anchor);
+
+                return;
+            }
+            pinned.current = null;
+            setCurrent(natural);
+        };
+        const observer = new IntersectionObserver(update, {
+            rootMargin: `${-Math.round(edge)}px 0px 0px 0px`,
+            threshold: [0, 1],
+        });
+        heads.forEach((head) => observer.observe(head));
+
+        return () => observer.disconnect();
+    }, [key]);
+
+    const shown = entries.some((entry) => entry.anchor === current) ? current : entries[0]?.anchor ?? null;
+
+    return (
+        <nav className="compass-index" aria-label={label}>
+            <ul className="compass-index-list">
+                {entries.map((entry) => (
+                    <li key={entry.id}>
+                        {/* An anchor, not a button: the browser's own fragment navigation is what scrolls the group
+                            into view. The click also opens the group, so the reader lands on its rows rather than on
+                            a closed summary. aria-current="true", the current item of a set: the index is a set of
+                            links within one page, which "page" and "location" do not describe. */}
+                        <a
+                            href={`#${entry.anchor}`}
+                            className="compass-index-link"
+                            aria-current={entry.anchor === shown ? 'true' : undefined}
+                            onClick={() => {
+                                const head = document.getElementById(entry.anchor);
+                                pinned.current = {
+                                    anchor: entry.anchor,
+                                    seen: head !== null && onScreen(head.getBoundingClientRect()),
+                                };
+                                setCurrent(entry.anchor);
+                                onOpen(entry.id);
+                            }}
+                        >
+                            {entry.name}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </nav>
+    );
+};
+
 /**
  * Tier 3.
  *
@@ -251,6 +418,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         explore: {...config.explore, cf: shippedSelection(config.explore.cf)},
         view: config.view === 'cards' ? 'cards' : 'list',
         remembered: JSON.stringify({
+            group: config.explore.group,
             sort: config.explore.sort,
             scope: config.explore.scope,
             star: config.explore.star,
@@ -278,6 +446,9 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // Closed at first render for a viewer who never opened it (explore_preference::defaults(),
     // ADR-015 decision 5): a popover over the list, whose chips the line shows in force.
     const [panelopen, setPanelopen] = useState(seed.explore.panel);
+    // Organise's two choices (ADR-025). Paged mode draws category whatever group holds, and never writes it:
+    // the stored grouping comes back when the list is held whole again.
+    const [group, setGroup] = useState(seed.explore.group);
     const [sort, setSort] = useState(seed.explore.sort);
     const [open, setOpen] = useState<Record<number, boolean>>({});
     const [pages, setPages] = useState<Record<number, PageState>>({});
@@ -450,7 +621,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 id,
                 before.after,
                 paged ? serverchip : 'all',
-                paged && sort === 'recent' ? 'recent' : 'name',
+                paged ? sort : 'name',
                 paged ? filters : []
             );
             if (groupseq.current[id] !== mine) {
@@ -947,7 +1118,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // The toolbar is remembered once a change has settled: one write per half-second of quiet,
     // never for a render and never for a value equal to what was read.
     useEffect(() => {
-        const state: ExploreState = {sort, scope, star, cf: selection, panel: panelopen};
+        const state: ExploreState = {group, sort, scope, star, cf: selection, panel: panelopen};
         const json = JSON.stringify(state);
         if (json === remembered.current) {
             return undefined;
@@ -961,18 +1132,18 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         }, REMEMBER_MS);
 
         return () => window.clearTimeout(timer);
-    }, [sort, scope, star, selection, panelopen, labels.viewerror, kept]);
+    }, [group, sort, scope, star, selection, panelopen, labels.viewerror, kept]);
 
     // The toolbar as it is now, for Block to hand back after a reload's remount:
     // the live values, and the JSON last read or written, which a change made under the debounce
     // above is still ahead of - so the remounted effect writes it rather than losing it.
     useEffect(() => {
         kept.current = {
-            explore: {sort, scope, star, cf: selection, panel: panelopen},
+            explore: {group, sort, scope, star, cf: selection, panel: panelopen},
             view,
             remembered: remembered.current,
         };
-    }, [sort, scope, star, selection, panelopen, view, kept]);
+    }, [group, sort, scope, star, selection, panelopen, view, kept]);
 
     // When the browser comes back online, whatever failed is asked for once more on its own:
     // the inventory, the search, and every group whose page failed.
@@ -1011,16 +1182,30 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, [failed, searchfailed, loadInventory]);
 
     /**
-     * Change the sort. Paged mode never flattens: category and A-Z are one server order.
+     * Change the grouping (ADR-025). Paged mode is always grouped, its rows coming a page of one group at a
+     * time (ADR-004): there the choice is not offered (OrganiseMenu draws No grouping disabled) and the stored
+     * one is kept, so the list drawn whole again is the one the viewer chose.
      *
-     * @param {string} value category, name or recent.
+     * @param {string} value category or none.
+     * @returns {void}
+     */
+    const chooseGroup = (value: string): void => {
+        if (paged) {
+            return;
+        }
+        setGroup(value);
+    };
+
+    /**
+     * Change the sort (ADR-025): full mode orders the rows it holds, inside each group or over the flat list;
+     * paged mode asks for every open group's pages again, in the server's order for that sort.
+     *
+     * @param {string} value name or recent.
      * @returns {void}
      */
     const chooseSort = (value: string): void => {
-        const serverbefore = sort === 'recent' ? 'recent' : 'name';
-        const serverafter = value === 'recent' ? 'recent' : 'name';
         setSort(value);
-        if (paged && serverafter !== serverbefore) {
+        if (paged && value !== sort) {
             resetGroups();
         }
     };
@@ -1276,36 +1461,15 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
      */
     const categoryof = useCallback((row: InventoryRow): string => categoryname.get(row.id) || '', [categoryname]);
 
+    // The order Organise's sort gives the rows full mode holds: the flat list's, and each group's by recency.
+    const order = useMemo(() => rowOrder(sort, normalised), [sort, normalised]);
+
     /**
      * The rows of the flat list, sorted; full mode only uses it when not grouped.
      *
      * @returns {object[]} The rows in order.
      */
-    const flatrows = useMemo((): InventoryRow[] => {
-        const rows = Array.from(visible.values()).flat();
-
-        /**
-         * Compare two rows by their normalised names, which is what the eye reads.
-         *
-         * A run of digits compares by its value, so "Unit 2" comes before "Unit 10" and "Unit 01"
-         * ties with "Unit 1", as in the server's order (explore::order()). Three things differ from
-         * that order: case and accents are folded away by normalise() before comparing, so names
-         * differing only in them tie here; the locale is the browser's default rather than the
-         * one of the user's Moodle language; and a tie keeps the order the rows arrived in
-         * (sort() is stable), where the server puts the lower course id first.
-         *
-         * @param {object} a One row.
-         * @param {object} b Another row.
-         * @returns {number} The comparison.
-         */
-        const byname = (a: InventoryRow, b: InventoryRow): number =>
-            (normalised.get(a.id) || '').localeCompare(normalised.get(b.id) || '', undefined, {numeric: true});
-        rows.sort(sort === 'recent'
-            ? (a, b) => ((b.opened || 0) - (a.opened || 0)) || byname(a, b)
-            : byname);
-
-        return rows;
-    }, [visible, sort, normalised]);
+    const flatrows = useMemo((): InventoryRow[] => Array.from(visible.values()).flat().sort(order), [visible, order]);
 
     // Paged mode: the hits of the last search, narrowed by the scope and the star in the browser.
     const keptHits = useMemo(
@@ -1384,7 +1548,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // deferred term, not applied: the rows move when it does.
     useLayoutEffect(() => {
         preview(null);
-    }, [preview, term, sort, view]);
+    }, [preview, term, group, sort, view]);
 
     // The scope's cells: counted in full mode, a zero one not drawn unless it is the checked one; All
     // always drawn, because it is the release.
@@ -1492,7 +1656,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     /**
      * Every group's visible rows and the count its summary shows, by group id.
      *
-     * In full mode both follow the filter. In paged mode the count is the server's
+     * In full mode both follow the filter, and by recency (ADR-025) each group's rows follow the flat list's
+     * order; by name they keep the server's, which is the same order. In paged mode the count is the server's
      * total until the group's own rows arrive, and then it is what the group holds of them that the
      * scope and the star keep; with the star and Awaiting or Scheduled nothing is kept and no group
      * is drawn. Memoised, so a group's rows stay the same array until what decides them changes: the
@@ -1503,7 +1668,8 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         data?.groups.forEach((group) => {
             if (!pagedgroup(group.id)) {
                 const rows = visible.get(group.id) ?? NO_ROWS;
-                map.set(group.id, {rows, count: rows.length, show: rows.length > 0});
+                const ordered = sort === 'recent' ? [...rows].sort(order) : rows;
+                map.set(group.id, {rows: ordered, count: rows.length, show: rows.length > 0});
 
                 return;
             }
@@ -1519,7 +1685,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                 const complete = page.loaded && !page.hasmore;
                 const fetched = group.id === GROUP_INVISIBLE ? invisiblevisible : archivedvisible;
                 map.set(group.id, {
-                    rows: fetched,
+                    rows: sort === 'recent' ? [...fetched].sort(order) : fetched,
                     count: complete ? fetched.length : group.count,
                     show: true,
                 });
@@ -1536,7 +1702,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         });
 
         return map;
-    }, [data, pagedgroup, visible, pages, paged, archivedvisible, invisiblevisible, keepsnothing, scope, star]);
+    }, [data, pagedgroup, visible, pages, paged, archivedvisible, invisiblevisible, keepsnothing, scope, star, sort, order]);
 
     /**
      * A group opened or closed by its own summary.
@@ -1552,6 +1718,14 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             setPages((c) => (c[id]?.failed ? {...c, [id]: EMPTY_PAGE} : c));
         }
     }, []);
+
+    /**
+     * A group opened by its link in the category index, as the link scrolls to it.
+     *
+     * @param {number} id The group.
+     * @returns {void}
+     */
+    const openGroup = useCallback((id: number): void => setOpen((c) => ({...c, [id]: true})), []);
 
     /**
      * Show more: the group's next page, with the keyboard following the rows it adds.
@@ -1626,7 +1800,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
         );
     }
 
-    const grouped = paged ? hits === null : sort === 'category';
+    const grouped = paged ? hits === null : group === 'category';
     const showindex = config.showindex && grouped && !narrow;
     // The cards grid's column count: three without the index, two with it, one while the
     // section is narrow.
@@ -1651,14 +1825,24 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     });
     const noresults = nomatch && !(unfiltered && specialdrawn);
 
-    // The panel title's level comes from heading.ts. The h5 class keeps the size, and
-    // keepFocus() finds the element by its class, so the level is free to move.
+    // The panel title's level comes from heading.ts. The section title's class keeps the size, and
+    // keepFocus() finds the element by its own class, so the level is free to move.
     const Heading = sectionTag(config.headinglevel);
+    // The index is a map of the categories; the three groups that are not categories sit at the end
+    // and are found by scrolling. It names no count: the group's header says it.
+    const indexentries: IndexEntry[] = showindex
+        ? data.groups.filter((group) => group.id >= 0 && (slices.get(group.id) ?? NO_SLICE).show).map((group) => ({
+            id: group.id,
+            name: group.name,
+            anchor: `${titleid}-group-${group.id}`,
+        }))
+        : [];
 
     return (
         <section className="compass-explore" ref={section} tabIndex={-1} aria-labelledby={titleid}>
-            <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
-                {fill(labels.allcourses, String(data.total))}
+            {/* No count: the bar beside the star counts what the criteria keep, and the live region says it. */}
+            <Heading className="compass-explore-title compass-section-title" id={titleid} tabIndex={-1}>
+                {labels.allcourses_title}
             </Heading>
             {/* The filter bar (ADR-015, ADR-023): the scope, the result count, the star, Filters, Organise,
                 View and the search, folded on its own width, with the chips of the filters in force under it.
@@ -1681,7 +1865,6 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                         hidden={!panelopen}
                         top={layer.top}
                         sheet={layer.sheet}
-                        stacked={layer.stacked}
                         element={layer.element}
                         config={config}
                         filtered={scope !== 'all' || star}
@@ -1696,8 +1879,11 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                         onShow={layer.onShow}
                     />
                 )}
+                group={group}
+                onGroup={chooseGroup}
                 sort={sort}
                 onSort={chooseSort}
+                paged={paged}
                 view={view}
                 onView={chooseView}
                 query={query}
@@ -1716,35 +1902,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             )}
             <div className="compass-explore-body">
                 {showindex && (
-                    <nav className="compass-index" aria-label={labels.categoryindex}>
-                        <ul className="list-unstyled small mb-0">
-                            {data.groups.map((group) => {
-                                const slice = slices.get(group.id) ?? NO_SLICE;
-                                // The index is a map of the categories; the three groups that are
-                                // not categories sit at the end and are found by scrolling.
-                                if (!slice.show || group.id < 0) {
-                                    return null;
-                                }
-
-                                return (
-                                    <li key={group.id}>
-                                        {/* An anchor, not a button: the browser's own fragment
-                                            navigation is what scrolls the group into view. The click
-                                            also opens the group, so the reader lands on its rows
-                                            rather than on a closed summary. */}
-                                        <a
-                                            href={`#${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
-                                            className="d-flex justify-content-between text-decoration-none"
-                                            onClick={() => setOpen((c) => ({...c, [group.id]: true}))}
-                                        >
-                                            <span>{group.name}</span>
-                                            <span className="text-muted">{slice.count}</span>
-                                        </a>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </nav>
+                    <CategoryIndex entries={indexentries} label={labels.categoryindex} onOpen={openGroup} />
                 )}
                 {grouped && (
                     <div className="compass-groups flex-grow-1">

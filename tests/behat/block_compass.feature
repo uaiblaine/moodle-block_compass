@@ -75,11 +75,11 @@ Feature: The Compass block puts the courses that need attention first
     And I should not see "Course 7" in the "Compass" "block"
     When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled scope with its first category group open, which here holds no
-    # later start; the flat A-Z list shows every row the scope keeps, whatever group it is in. The
-    # sort is inside the filter line's Organise menu (ADR-015, a menu of radio items since ADR-024), and a
-    # choice closes the menu.
+    # later start; the list with no grouping shows every row the scope keeps, whatever group it is in.
+    # The grouping is inside the filter line's Organise menu (ADR-015; its Group by section since ADR-025),
+    # and a choice closes the menu.
     And I click on "Organise" "button" in the "Compass" "block"
-    And I click on "A–Z" "button" in the "Compass" "block"
+    And I click on "No grouping" "button" in the "Compass" "block"
     Then I should see "Course 7" in the "Compass" "block"
     # Course 3 is an active course tier 1 had no room for; the chip keeps it out of tier 3 too.
     And I should not see "Course 3" in the "Compass" "block"
@@ -125,7 +125,7 @@ Feature: The Compass block puts the courses that need attention first
     # The ghost is a React component and the mount point's fallback is a paragraph with no
     # controls, so an "Explore all" button exists only once the component is running.
     When I click on "Explore all" "button"
-    Then I should see "All courses (5)" in the "Compass" "block"
+    Then I should see "All courses" in the "Compass" "block"
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"

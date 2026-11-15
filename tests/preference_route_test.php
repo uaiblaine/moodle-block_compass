@@ -61,7 +61,14 @@ final class preference_route_test extends route_testcase {
         foreach (['a', 'b', 'c'] as $prefix) {
             $cf[str_pad($prefix, 100, 'x')] = 2147483647;
         }
-        $explore = ['sort' => 'category', 'scope' => 'scheduled', 'star' => false, 'cf' => $cf, 'panel' => false];
+        $explore = [
+            'group' => 'category',
+            'sort' => 'recent',
+            'scope' => 'scheduled',
+            'star' => false,
+            'cf' => $cf,
+            'panel' => false,
+        ];
         $calendar = [
             'view' => 'learning',
             'filter' => 'events',

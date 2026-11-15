@@ -1,1 +1,1 @@
-s/setTipsoff\(true\);/setTipsoff(false);/;
+s/setOff\(true\);/setOff(false);/;

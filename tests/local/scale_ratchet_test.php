@@ -154,7 +154,8 @@ final class scale_ratchet_test extends basic_testcase {
      * Lower a count when a use is brought onto the scale; never raise it.
      */
     private const OFF_SCALE_MOTION = [
-        '100ms' => 2,
+        // The third is the icon tooltips' 100 ms rest (.compass-tip, Tip.tsx), shorter than the base step on purpose.
+        '100ms' => 3,
         '10s' => 2,
         '120ms' => 5,
         '1300ms' => 1,

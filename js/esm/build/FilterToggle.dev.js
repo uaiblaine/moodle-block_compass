@@ -8,37 +8,43 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. An icon button
  * of the bar's capsule at every width, with no word (ADR-023): the loud counter on its corner shows
  * the bare count, hidden from assistive technology and absent at zero; the accessible name says it
- * in words, because a bare number is not a sentence. The glyph is the sliders of the plugin's icon map.
+ * in words, because a bare number is not a sentence. Its tooltip says "Filters" alone (Tip.tsx, D51), and
+ * not while the panel is open. The glyph is the sliders of the plugin's icon map.
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { fillCount } from "./str";
+import Tip, { tipHost } from "./Tip";
 import { markup } from "./markup";
-const FilterToggle = /* @__PURE__ */ __name(({ count, open, controls, config, button, onToggle }) => {
+const FilterToggle = /* @__PURE__ */ __name(({ count, open, controls, config, tipsoff, button, onToggle }) => {
   const { labels, icons } = config;
   return /* @__PURE__ */ jsxDEV(
     "button",
     {
       type: "button",
       ref: button,
-      className: "compass-line-iconbtn compass-filterbtn",
+      className: tipHost("compass-line-iconbtn compass-filterbtn", tipsoff),
       "aria-expanded": open,
       "aria-controls": controls,
       "aria-label": `${labels.filter}, ${fillCount(labels, "filteractive", count)}`,
-      title: labels.filter,
       onClick: onToggle,
       children: [
         /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.filter) }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/FilterToggle.tsx",
-          lineNumber: 65,
+          lineNumber: 67,
           columnNumber: 13
         }),
         count > 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-filtercount", "aria-hidden": "true", children: count }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/FilterToggle.tsx",
-          lineNumber: 66,
+          lineNumber: 68,
           columnNumber: 27
+        }),
+        /* @__PURE__ */ jsxDEV(Tip, { text: labels.filter }, void 0, false, {
+          fileName: "public/blocks/compass/js/esm/src/FilterToggle.tsx",
+          lineNumber: 69,
+          columnNumber: 13
         })
       ]
     },
@@ -46,7 +52,7 @@ const FilterToggle = /* @__PURE__ */ __name(({ count, open, controls, config, bu
     true,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterToggle.tsx",
-      lineNumber: 55,
+      lineNumber: 58,
       columnNumber: 9
     }
   );

@@ -15,6 +15,31 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **Organise groups and sorts as two choices, and the bar's icon buttons name themselves quickly** (ADR-025;
+  2026100544). The Organise menu has two sections, *Group by* (Category, No grouping) and, after a
+  separator, *Sort by* (Name, Most recent), each a radio group with an icon and a tick on the chosen item; choosing
+  in one never changes the other. The grouped list sorted by most recent is new: inside each group the courses
+  opened last come first, the never-opened last, ties by name, the groups themselves still by name. A list too
+  large to load at once is always grouped: there *No grouping* is drawn disabled with "Not available with this many
+  courses" under it, and the viewer's stored grouping is kept for when the list fits again. The remembered toolbar
+  (`block_compass_explore`) stores `group` beside `sort`; a value stored before reads as what it showed (By
+  category as Category and Name, A–Z as No grouping and Name, Recent as No grouping and Most recent), with no
+  upgrade step. The star, Filters, Organise, View, the search and its eraser show the block's own tooltip after
+  100 ms instead of the browser's `title`: never while that button's menu or panel is open, never on a touch
+  screen, and dismissed by Escape; the calendar's switch and Up next's hide draw the same component (`Tip.tsx`).
+  New strings: `organise_groupby`, `organise_group_category`, `organise_group_none`, `organise_group_none_paged`,
+  `organise_sortby`, `organise_sort_name`, `organise_sort_recent`; removed: `sortby`, `sort_category`, `sort_name`,
+  `sort_recent`. No service or SQL changes.
+- **The filter panel, the tooltips, the category index and the section titles are refined** (2026100543). A
+  filter panel group's label is on a line of its own above its options at every width. The icon tooltips (the
+  calendar's view switch and Up next's hide) show after 100 ms instead of 250 ms. The category index beside the
+  groups names no count, gives each link more room (8 by 12 px, wrapping when long), and marks the group the page is
+  at with the brand's tint and `aria-current="true"`, following the scroll through one IntersectionObserver; a
+  click marks its link at once and still opens the group. "All courses" names no count (the `allcourses` string is
+  now `allcourses_title`, with no placeholder); the bar, the scopes and the groups keep theirs. Continue where you
+  left off, New enrolments, My favourites, All courses and Open enrolments share one title look (1rem, 600, the body
+  text), and the sections are 2rem apart. The open-courses close rests on the surface instead of the panel's tint.
+  No service or preference changes.
 - **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024;
   2026100542). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
   chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a

@@ -29,7 +29,7 @@
  * news_hideerror.
  *
  * OpenCourses is the drawing, in the shape the block chose (decision 7), all three in one panel (round 2,
- * docs/mockup-new-courses/Rodada2.dc.html): the full line (the eyebrow and the summary over a head, up to
+ * docs/mockup-new-courses/Rodada2.dc.html): the full line (the title and the summary over a head, up to
  * three groups as links on a row of their own, "+N", and a labelled close), the slim panel with "See", or
  * tier 1's empty state as tiles. "See" and "+N" open the groups in a popover, a dialog that takes the keyboard and
  * gives it back, closed by Escape and by a press outside it; below 640 px of the block's width it is a
@@ -924,7 +924,7 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
                 <div className="compass-news-head">
                     {icon}
                     <div className="compass-news-copy">
-                        <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                        <Title id={titleid} className="compass-news-title compass-section-title">{strings.news_title}</Title>
                         <span className="compass-news-sum">{fill(strings.news_empty_lead, until)}</span>
                     </div>
                 </div>
@@ -973,7 +973,7 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
                 <Spark place="compass-news-spark-b" />
                 {icon}
                 <div className="compass-news-sentence">
-                    <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                    <Title id={titleid} className="compass-news-title compass-section-title">{strings.news_title}</Title>
                     <span className="compass-news-sum">{summary}</span>
                 </div>
                 <button
@@ -1001,7 +1001,7 @@ const OpenCourses = ({config, news, state, mode, narrow}: OpenCoursesProps) => {
             <div className="compass-news-head">
                 {icon}
                 <div className="compass-news-copy">
-                    <Title id={titleid} className="compass-news-title h6 mb-0">{strings.news_title}</Title>
+                    <Title id={titleid} className="compass-news-title compass-section-title">{strings.news_title}</Title>
                     <span className="compass-news-sum">{summary}</span>
                 </div>
             </div>
