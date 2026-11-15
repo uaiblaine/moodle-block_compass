@@ -15,8 +15,8 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
-- **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024,
-  proposed; 2026100542). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
+- **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024;
+  2026100542). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
   chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a
   labelled radio group of 28 px options at radius 6 px, with one tab stop and the arrow keys choosing, the chosen
   option in the brand tone; a press on the chosen option still releases it. The pill platter is gone. The calendar's
@@ -36,7 +36,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   no longer boxes. Every focus ring outside the filter bar is the Design System's token ring, the course card's
   own on a card surface (a list row's link and every star included). New tokens: `scheduled-edge`,
   `awaiting-edge`, `success-edge`. No string, service or behaviour changes.
-- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023, proposed; 2026100540). One
+- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023; 2026100540). One
   40 px bar (44 px under a coarse pointer): the scope as a segmented control, then the number of courses the list
   shows and a capsule of the star, Filters, Organise and View, then the search in a capsule of its own; the chips
   of the filters in force on a row under it, which wraps instead of scrolling. View is one button with a chevron

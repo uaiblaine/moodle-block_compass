@@ -174,8 +174,8 @@ pre-Phase-0 decisions; ADR-001 cache, 002 stamp, 003 pre-warming, 004 paged mode
 details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009 favourites and
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
 page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip, 015 the filter
-line in tier 3, 023 the compact filter bar (proposed), 024 the menus, the panel and the containers in the Design
-System's form (proposed) (table with dates in the long form).
+line in tier 3, 023 the compact filter bar, 024 the menus, the panel and the containers in the Design
+System's form (table with dates in the long form).
 
 ## Code layout
 
@@ -336,7 +336,7 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
   costs the crests, never the first paint), and the listener, not the block, decides which
   courses the current user may see a crest for.
-- **The filter line** (ADR-015, ADR-023 and ADR-024 proposed; `moodle-dev/docs/filter-line/CONTRACT.md` and the Design
+- **The filter line** (ADR-015, ADR-023 and ADR-024; `moodle-dev/docs/filter-line/CONTRACT.md` and the Design
   System's `components/filter-bar.md`): `FilterLine.tsx` draws the compact bar in the contract's order - the
   scope, a spacer, the cluster (the result count, then a capsule of the star, Filters, Organise and View), the
   search in a capsule of its own - with the chips on a row under it that wraps (no sideways scroll, no fades).
