@@ -745,7 +745,7 @@ const Block = (config: BlockConfig) => {
             )}
             {newsAt('empty')}
             {exploring && (
-                <div className="compass-explore-wrap mt-3">
+                <div className="compass-explore-wrap">
                     <Explore
                         config={config}
                         chip={chip}

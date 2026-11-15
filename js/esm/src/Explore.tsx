@@ -231,6 +231,142 @@ const NO_KINDS: RowKind[] = [];
  */
 const ondemand = (id: number): boolean => id === GROUP_ARCHIVED || id === GROUP_INVISIBLE;
 
+/** One link of the category index: the group, its name, and the id of the group's element its fragment names. */
+type IndexEntry = {
+    id: number,
+    name: string,
+    anchor: string,
+};
+
+type CategoryIndexProps = {
+    entries: IndexEntry[],
+    label: string,
+    onOpen: (id: number) => void,
+};
+
+/**
+ * How far under the line a link's own scroll leaves a group (its scroll-margin-top) a header may sit and still be
+ * the current one: the group's border and the rounding of a fragment's scroll. The observer's edge is drawn there
+ * too, so a header that lands on the line crosses the edge and is seen landing.
+ */
+const SPY_SLACK_PX = 4;
+
+/**
+ * Whether a box is anywhere in the viewport.
+ *
+ * @param {object} rect The box.
+ * @returns {boolean} Whether any of it is on screen.
+ */
+const onScreen = (rect: DOMRect): boolean => rect.bottom > 0 && rect.top < window.innerHeight;
+
+/**
+ * The current group of a scrollspy: the last whose header has reached the edge, the first when none has.
+ *
+ * @param {Array} tops Each header's top, in document order.
+ * @param {number} edge The edge, from the viewport's top.
+ * @returns {number} The current header's index.
+ */
+const spied = (tops: number[], edge: number): number => {
+    let at = 0;
+    tops.forEach((top, index) => {
+        if (top < edge) {
+            at = index;
+        }
+    });
+
+    return at;
+};
+
+/**
+ * The category index beside the groups: a link per category group, and the one the page is at marked current.
+ *
+ * The current one follows the page through one IntersectionObserver over the groups' headers, never a scroll
+ * listener: a header crossing the edge under the navbar asks spied() again. A click marks its link at once and
+ * holds it (pinned) while the page travels to the group, and where the page cannot bring the group up to the
+ * edge (the last groups of a short page), for as long as the group's header stays on screen after it was seen.
+ *
+ * @param {object} props The links, the index's accessible name and the callback that opens a group.
+ * @returns {object} The rendered index.
+ */
+const CategoryIndex = ({entries, label, onOpen}: CategoryIndexProps) => {
+    const [current, setCurrent] = useState<string | null>(null);
+    // The link last pressed, and whether its group's header has been on screen since.
+    const pinned = useRef<{anchor: string, seen: boolean} | null>(null);
+    // The observer is set up again only when the set of groups changes, not on every render of tier 3.
+    const key = entries.map((entry) => entry.anchor).join(' ');
+
+    useEffect(() => {
+        const anchors = key === '' ? [] : key.split(' ');
+        const groups = anchors.map((anchor) => document.getElementById(anchor));
+        if (anchors.length === 0 || typeof IntersectionObserver === 'undefined' || groups.includes(null)) {
+            return undefined;
+        }
+        const heads = (groups as HTMLElement[]).map((group) => group.querySelector<HTMLElement>('.compass-group-summary') ?? group);
+        // Where a link's own scroll leaves a group: under core's fixed navbar (styles.css, scroll-margin-top).
+        const edge = (parseFloat(getComputedStyle(groups[0] as HTMLElement).scrollMarginTop) || 0) + SPY_SLACK_PX;
+
+        /**
+         * The current group again, after a header crossed the edge or the viewport's foot.
+         *
+         * @returns {void}
+         */
+        const update = (): void => {
+            const rects = heads.map((head) => head.getBoundingClientRect());
+            const natural = anchors[spied(rects.map((rect) => rect.top), edge)];
+            const pin = pinned.current;
+            const pinrect = pin === null ? undefined : rects[anchors.indexOf(pin.anchor)];
+            if (pin !== null && pinrect !== undefined && natural !== pin.anchor && (onScreen(pinrect) || !pin.seen)) {
+                pin.seen = pin.seen || onScreen(pinrect);
+                setCurrent(pin.anchor);
+
+                return;
+            }
+            pinned.current = null;
+            setCurrent(natural);
+        };
+        const observer = new IntersectionObserver(update, {
+            rootMargin: `${-Math.round(edge)}px 0px 0px 0px`,
+            threshold: [0, 1],
+        });
+        heads.forEach((head) => observer.observe(head));
+
+        return () => observer.disconnect();
+    }, [key]);
+
+    const shown = entries.some((entry) => entry.anchor === current) ? current : entries[0]?.anchor ?? null;
+
+    return (
+        <nav className="compass-index" aria-label={label}>
+            <ul className="compass-index-list">
+                {entries.map((entry) => (
+                    <li key={entry.id}>
+                        {/* An anchor, not a button: the browser's own fragment navigation is what scrolls the group
+                            into view. The click also opens the group, so the reader lands on its rows rather than on
+                            a closed summary. aria-current="true", the current item of a set: the index is a set of
+                            links within one page, which "page" and "location" do not describe. */}
+                        <a
+                            href={`#${entry.anchor}`}
+                            className="compass-index-link"
+                            aria-current={entry.anchor === shown ? 'true' : undefined}
+                            onClick={() => {
+                                const head = document.getElementById(entry.anchor);
+                                pinned.current = {
+                                    anchor: entry.anchor,
+                                    seen: head !== null && onScreen(head.getBoundingClientRect()),
+                                };
+                                setCurrent(entry.anchor);
+                                onOpen(entry.id);
+                            }}
+                        >
+                            {entry.name}
+                        </a>
+                    </li>
+                ))}
+            </ul>
+        </nav>
+    );
+};
+
 /**
  * Tier 3.
  *
@@ -1554,6 +1690,14 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     }, []);
 
     /**
+     * A group opened by its link in the category index, as the link scrolls to it.
+     *
+     * @param {number} id The group.
+     * @returns {void}
+     */
+    const openGroup = useCallback((id: number): void => setOpen((c) => ({...c, [id]: true})), []);
+
+    /**
      * Show more: the group's next page, with the keyboard following the rows it adds.
      *
      * @param {number} id The group.
@@ -1651,14 +1795,24 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     });
     const noresults = nomatch && !(unfiltered && specialdrawn);
 
-    // The panel title's level comes from heading.ts. The h5 class keeps the size, and
-    // keepFocus() finds the element by its class, so the level is free to move.
+    // The panel title's level comes from heading.ts. The section title's class keeps the size, and
+    // keepFocus() finds the element by its own class, so the level is free to move.
     const Heading = sectionTag(config.headinglevel);
+    // The index is a map of the categories; the three groups that are not categories sit at the end
+    // and are found by scrolling. It names no count: the group's header says it.
+    const indexentries: IndexEntry[] = showindex
+        ? data.groups.filter((group) => group.id >= 0 && (slices.get(group.id) ?? NO_SLICE).show).map((group) => ({
+            id: group.id,
+            name: group.name,
+            anchor: `${titleid}-group-${group.id}`,
+        }))
+        : [];
 
     return (
         <section className="compass-explore" ref={section} tabIndex={-1} aria-labelledby={titleid}>
-            <Heading className="compass-explore-title h5" id={titleid} tabIndex={-1}>
-                {fill(labels.allcourses, String(data.total))}
+            {/* No count: the bar beside the star counts what the criteria keep, and the live region says it. */}
+            <Heading className="compass-explore-title compass-section-title" id={titleid} tabIndex={-1}>
+                {labels.allcourses_title}
             </Heading>
             {/* The filter bar (ADR-015, ADR-023): the scope, the result count, the star, Filters, Organise,
                 View and the search, folded on its own width, with the chips of the filters in force under it.
@@ -1681,7 +1835,6 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                         hidden={!panelopen}
                         top={layer.top}
                         sheet={layer.sheet}
-                        stacked={layer.stacked}
                         element={layer.element}
                         config={config}
                         filtered={scope !== 'all' || star}
@@ -1716,35 +1869,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
             )}
             <div className="compass-explore-body">
                 {showindex && (
-                    <nav className="compass-index" aria-label={labels.categoryindex}>
-                        <ul className="list-unstyled small mb-0">
-                            {data.groups.map((group) => {
-                                const slice = slices.get(group.id) ?? NO_SLICE;
-                                // The index is a map of the categories; the three groups that are
-                                // not categories sit at the end and are found by scrolling.
-                                if (!slice.show || group.id < 0) {
-                                    return null;
-                                }
-
-                                return (
-                                    <li key={group.id}>
-                                        {/* An anchor, not a button: the browser's own fragment
-                                            navigation is what scrolls the group into view. The click
-                                            also opens the group, so the reader lands on its rows
-                                            rather than on a closed summary. */}
-                                        <a
-                                            href={`#${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
-                                            className="d-flex justify-content-between text-decoration-none"
-                                            onClick={() => setOpen((c) => ({...c, [group.id]: true}))}
-                                        >
-                                            <span>{group.name}</span>
-                                            <span className="text-muted">{slice.count}</span>
-                                        </a>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </nav>
+                    <CategoryIndex entries={indexentries} label={labels.categoryindex} onOpen={openGroup} />
                 )}
                 {grouped && (
                     <div className="compass-groups flex-grow-1">

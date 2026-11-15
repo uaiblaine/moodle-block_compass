@@ -100,7 +100,15 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-news-poprow', '.block_compass .compass-news-poprow:hover', '.block_compass .compass-news-tile',
         '.block_compass .compass-news-pophide', '.block_compass .compass-news-pophide:hover',
         '.block_compass .compass-news-tip', '.block_compass .compass-news-crestbox', '.block_compass .compass-news-slot',
-        '.block_compass .compass-news-tipcrest',
+        '.block_compass .compass-news-tipcrest', self::NEWS_HIDE_REST,
+    ];
+
+    /** @var string The open-courses close at rest, on the surface rather than the gradient it floats over. */
+    private const NEWS_HIDE_REST = '.block_compass .compass-news .compass-news-hide:not(:hover):not(:active)';
+
+    /** @var string[] The category index's filled links: hovered, and the one the page is at (Explore.tsx CategoryIndex). */
+    private const INDEX_FILLS = [
+        '.block_compass .compass-index-link:hover', '.block_compass .compass-index-link[aria-current="true"]',
     ];
 
     /**
@@ -425,6 +433,11 @@ final class contrast_rules_test extends basic_testcase {
             ['.block_compass .compass-cal-edge[aria-disabled="true"]', '.block_compass .compass-cal-edge:hover'],
             // The amber pill is a countdown too: its pair wins over the plain countdown's muted text.
             ['.block_compass .compass-soon-pill', '.block_compass .compass-soon-rel'],
+            // The index's current link keeps its tone under the pointer, and both fills outweigh the resting link.
+            ['.block_compass .compass-index-link[aria-current="true"]', '.block_compass .compass-index-link:hover'],
+            ['.block_compass .compass-index-link:hover', '.block_compass .compass-index-link'],
+            // The close's resting ground outweighs the panel's rule that gives the outline buttons their text.
+            [self::NEWS_HIDE_REST, '.block_compass .compass-news .btn-outline-secondary:not(:hover):not(:active)'],
         ];
         foreach ([1, 2, 3, 4] as $step) {
             $outweighed[] = [self::TODAY_DISC, ".block_compass .compass-cal-heat-{$step}"];
@@ -499,7 +512,7 @@ final class contrast_rules_test extends basic_testcase {
             '.block_compass .compass-soon', '.block_compass .compass-soon-pill', '.block_compass .compass-soon-hide:hover',
         ];
         // The filter bar's fills (ADR-015, ADR-023): LINE_FILLS says which.
-        $filled = array_merge($filled, self::LINE_FILLS, self::NEWS_FILLS, self::CARD_FILLS);
+        $filled = array_merge($filled, self::LINE_FILLS, self::NEWS_FILLS, self::CARD_FILLS, self::INDEX_FILLS);
         foreach ($filled as $selector) {
             [, $body] = $this->rule($selectors, $selector);
             $this->assertArrayHasKey('background', $body, "{$selector} no longer fills: is it still a pair?");
@@ -751,6 +764,12 @@ final class contrast_rules_test extends basic_testcase {
             ['the empty result\'s icon', '.block_compass .compass-noresults-icon', '.block_compass .compass-noresults-icon',
                 ['root']],
             ['Clear all', '.block_compass .compass-line-clearall', $surface, ['root']],
+            // The category index: a link at rest on the surface, hovered on its own ground, the current one on the brand.
+            ['an index link', '.block_compass .compass-index-link', $surface, ['root']],
+            ['an index link hovered', '.block_compass .compass-index-link:hover', '.block_compass .compass-index-link:hover',
+                ['root']],
+            ['the current index link', '.block_compass .compass-index-link[aria-current="true"]',
+                '.block_compass .compass-index-link[aria-current="true"]', ['root']],
             ['a dimmed row', '.block_compass .compass-row.compass-preview-dim', $surface, ['root']],
             ['a dimmed card', '.block_compass .compass-rowcard.compass-preview-dim', $surface, ['root']],
         ]);
@@ -764,7 +783,9 @@ final class contrast_rules_test extends basic_testcase {
         $pophide = '.block_compass .compass-news-pophide';
         $pairs = array_merge($pairs, [
             ['the panel', '.block_compass .compass-news', $surface, ['root']],
-            ['the eyebrow', '.block_compass .compass-news-title', $surface, ['root']],
+            // Every section's title, the open-courses line's among them (computed on its gradient's stops below too).
+            ['the title', '.block_compass .compass-section-title', $surface, ['root']],
+            ['the close at rest', self::NEWS_HIDE_REST, self::NEWS_HIDE_REST, ['root']],
             ['the summary', '.block_compass .compass-news-sum', $surface, ['root']],
             ['the line\'s icon', '.block_compass .compass-news-icon', '.block_compass .compass-news-icon', ['root']],
             ['a group', $group, $group, ['root']],
@@ -964,7 +985,7 @@ final class contrast_rules_test extends basic_testcase {
         $this->assertSame($panel['background'], $pop['background'] ?? '', 'the popover uses the panel\'s gradient');
         // Each pair: what it is, the text's rule, the translucent fill's rule laid over the stop (or null).
         $pairs = [
-            ['the eyebrow', '.block_compass .compass-news-title', null],
+            ['the title', '.block_compass .compass-section-title', null],
             ['the summary', '.block_compass .compass-news-sum', null],
             // The close and "See" are core's outline buttons, whose resting text the panel sets (hovered, Bootstrap's
             // own fill and text, which the panel's ground does not reach).

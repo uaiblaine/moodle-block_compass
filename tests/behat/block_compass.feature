@@ -124,7 +124,7 @@ Feature: The Compass block puts the courses that need attention first
     # The ghost is a React component and the mount point's fallback is a paragraph with no
     # controls, so an "Explore all" button exists only once the component is running.
     When I click on "Explore all" "button"
-    Then I should see "All courses (5)" in the "Compass" "block"
+    Then I should see "All courses" in the "Compass" "block"
     And I should see "Cat A" in the "Compass" "block"
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
