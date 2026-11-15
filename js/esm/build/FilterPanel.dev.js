@@ -114,7 +114,7 @@ const FilterPanel = /* @__PURE__ */ __name(({
             "button",
             {
               type: "button",
-              className: pressed === 0 ? "btn btn-sm btn-outline-secondary rounded-pill compass-clear disabled" : "btn btn-sm btn-outline-secondary rounded-pill compass-clear",
+              className: pressed === 0 ? "btn btn-sm btn-outline-secondary compass-clear disabled" : "btn btn-sm btn-outline-secondary compass-clear",
               "aria-disabled": pressed === 0 || void 0,
               onClick: () => {
                 if (pressed > 0) {
@@ -127,13 +127,13 @@ const FilterPanel = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-              lineNumber: 154,
+              lineNumber: 155,
               columnNumber: 17
             }
           ),
-          /* @__PURE__ */ jsxDEV("button", { type: "button", className: "btn btn-sm btn-primary rounded-pill compass-show", onClick: onShow, children: shown === null ? labels.line_showcourses : fill(labels.line_show, String(shown)) }, void 0, false, {
+          /* @__PURE__ */ jsxDEV("button", { type: "button", className: "btn btn-sm btn-primary compass-show", onClick: onShow, children: shown === null ? labels.line_showcourses : fill(labels.line_show, String(shown)) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/FilterPanel.tsx",
-            lineNumber: 169,
+            lineNumber: 170,
             columnNumber: 17
           })
         ] }, void 0, true, {
