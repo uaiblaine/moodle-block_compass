@@ -219,7 +219,7 @@ final class accessibility_rules_test extends basic_testcase {
         $files = $this->sources();
 
         $components = [
-            'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'Platter', 'ViewToggle', 'FilterToggle', 'FilterPanel',
+            'Archive', 'Star', 'Card', 'RowCard', 'Strip', 'Explore', 'LineMenu', 'ViewToggle', 'FilterToggle', 'FilterPanel',
             'FilterLine', 'ScopeGroup', 'StarToggle', 'OrganiseMenu', 'RetryNotice', 'RowList', 'Row', 'Group', 'CalendarStrip',
             'CalendarLine', 'UpNext', 'OpenCourses', 'Block',
         ];
@@ -368,8 +368,8 @@ final class accessibility_rules_test extends basic_testcase {
      * bar's (ADR-015, ADR-023) are the favourites star (StarToggle), Organise (OrganiseMenu) and, in
      * FilterLine, the search button, the eraser, each chip's cross and Clear all, which name themselves
      * the same way. Every button tag in these files must carry the attribute, but one: a menu item
-     * (role="menuitemradio", View's Cards and List) is named by its visible word, which must then be a
-     * span of text that is not aria-hidden, written inside it.
+     * (role="menuitemradio" in LineMenu, View's Cards and List and Organise's sorts) is named by its visible
+     * word, which must then be a span of text that is not aria-hidden, written inside it.
      *
      * Changes that must make it fail: an aria-label dropped from any icon-only button, or a menu item's
      * word removed or hidden.
@@ -381,7 +381,7 @@ final class accessibility_rules_test extends basic_testcase {
         $menuitems = 0;
         $iconfiles = [
             'js/esm/src/Archive.tsx', 'js/esm/src/Star.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
-            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
+            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx', 'js/esm/src/LineMenu.tsx',
         ];
         foreach ($iconfiles as $file) {
             $this->assertArrayHasKey($file, $files, "{$file} is not in the scan any more");
@@ -407,15 +407,15 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: View's menu items were read as such.
-        $this->assertSame(1, $menuitems, 'View\'s menu item (one tag, drawn per view) was not read');
+        // Vacuity guard: the bar's menu items were read as such.
+        $this->assertSame(1, $menuitems, 'LineMenu\'s item (one tag, drawn per choice) was not read');
     }
 
     /**
      * Every toolbar grouping carries a name.
      *
      * role="group" tells a screen reader that the buttons inside belong together and then
-     * says nothing about what they do; unnamed, the tier 3 toolbar's platters and the
+     * says nothing about what they do; unnamed, the Organise menu's sorts and the
      * suggestions' sections are read as anonymous groups in a row.
      *
      * @return void
@@ -436,7 +436,7 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: Platter writes one, and the suggestions' two sections.
+        // Vacuity guard: LineMenu writes one, and the suggestions' two sections.
         $this->assertGreaterThanOrEqual(1, $groups, 'no role="group" found: has the tier 3 toolbar changed?');
     }
 
@@ -809,7 +809,7 @@ final class accessibility_rules_test extends basic_testcase {
     public function test_the_icon_only_glyphs_carry_no_margin(): void {
         $files = [
             'js/esm/src/Star.tsx', 'js/esm/src/Archive.tsx', 'js/esm/src/ViewToggle.tsx', 'js/esm/src/FilterToggle.tsx',
-            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx',
+            'js/esm/src/StarToggle.tsx', 'js/esm/src/OrganiseMenu.tsx', 'js/esm/src/FilterLine.tsx', 'js/esm/src/LineMenu.tsx',
         ];
         foreach ($files as $file) {
             $spans = array_filter(
@@ -2789,10 +2789,10 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * The open-courses popover and its sheet are the panel's family: the gradient, the cards and the pill.
      *
-     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4). The popover paints the panel's
-     * gradient with a soft border, radius 14 (the sheet keeps its top-only 18), one decorative sparkle
-     * and a head of the 34 px tile, the eyebrow and the summary. A group is a card on the surface (border,
-     * radius 12, 10px 12px, 6 px between cards, the accent at 55 % on hover). "Hide until the next
+     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4), at the Design System's container radii since
+     * ADR-024. The popover paints the panel's gradient with a soft border, radius lg (the sheet radius xl on its top
+     * corners only), one decorative sparkle and a head of the 34 px tile, the eyebrow and the summary. A group is a
+     * card on the surface (border, radius md, 10px 12px, 6 px between cards, the accent at 55 % on hover). "Hide until the next
      * sign-in" is the close's pill with the short visible label and keeps the whole sentence as its name
      * (aria-label and title, WCAG 2.5.3). No rule of the popover changes case. Vacuity guards: the rules
      * and the tags are found.
@@ -2830,16 +2830,16 @@ final class accessibility_rules_test extends basic_testcase {
             . '\s*var\(--block_compass-news-subtle\) 100%\s*\)/';
         $this->assertMatchesRegularExpression($gradient, $panel, 'vacuity: the panel\'s gradient');
         $this->assertMatchesRegularExpression($gradient, $pop, 'the popover uses the panel gradient');
-        $this->assertMatchesRegularExpression('/border-radius:\s*0\.875rem/', $pop);
+        $this->assertMatchesRegularExpression('/border-radius:\s*var\(--block_compass-radius-lg\)/', $pop);
         $this->assertMatchesRegularExpression('/padding:\s*0\.875rem 1rem 0\.75rem/', $pop);
         $this->assertMatchesRegularExpression(
-            '/border-radius:\s*1\.125rem 1\.125rem 0 0/',
+            '/border-radius:\s*var\(--block_compass-radius-xl\) var\(--block_compass-radius-xl\) 0 0/',
             $bodies['.block_compass .compass-news-pop.compass-news-sheet'] ?? '',
             'the sheet keeps its top-only radius'
         );
         $row = $bodies['.block_compass .compass-news-poprow'] ?? '';
         $this->assertMatchesRegularExpression('/border:\s*1px solid var\(--block_compass-line\)/', $row, 'the rows are cards');
-        $this->assertMatchesRegularExpression('/border-radius:\s*0\.75rem/', $row);
+        $this->assertMatchesRegularExpression('/border-radius:\s*var\(--block_compass-radius-md\)/', $row);
         $this->assertMatchesRegularExpression('/padding:\s*0\.625rem 0\.75rem/', $row);
         $this->assertMatchesRegularExpression('/background:\s*var\(--block_compass-surface\)/', $row);
         $this->assertMatchesRegularExpression(
@@ -3014,8 +3014,9 @@ final class accessibility_rules_test extends basic_testcase {
      * the keyboard is and moves no focus; it is drawn on the full line, and on a tile only while the tile
      * cuts a text, never on the slim panel nor below 640 px of the block. The pill's crest has an empty
      * alt (the name is beside it), the tooltip's the listener's text; the popover's and the tiles' crest
-     * slots exist only while some group has a crest (Q5). Its motion is 120 ms, none under reduced motion,
-     * and the name is capped at 12.5 rem. Vacuity guards: the tags and the rules are found.
+     * slots exist only while some group has a crest (Q5). Its motion is the Design System tooltip's, 150 ms of
+     * opacity (ADR-024), none under reduced motion, it is at most 260 px wide, and the name is capped at 12.5 rem.
+     * Vacuity guards: the tags and the rules are found.
      *
      * @return void
      */
@@ -3092,9 +3093,12 @@ final class accessibility_rules_test extends basic_testcase {
             $bodies[$selector] = ($bodies[$selector] ?? '') . $body;
         }
         $tip = $bodies['.block_compass .compass-news-tip'] ?? '';
-        $this->assertSame(1, preg_match('/transition:\s*opacity\s+(\d+)ms/', $tip, $ms), 'vacuity: the tooltip\'s transition');
-        $this->assertSame(120, (int) $ms[1]);
-        $this->assertMatchesRegularExpression('/max-width:\s*18\.75rem/', $tip, 'at most 300 px wide');
+        $this->assertMatchesRegularExpression(
+            '/transition:\s*opacity var\(--block_compass-motion-fast\) ease;/',
+            $tip,
+            'the tooltip\'s motion is not the Design System\'s 150 ms of opacity'
+        );
+        $this->assertMatchesRegularExpression('/max-width:\s*16\.25rem/', $tip, 'at most 260 px wide');
         $this->assertMatchesRegularExpression('/pointer-events:\s*none/', $tip, 'unshown, it takes no pointer');
         $this->assertMatchesRegularExpression(
             '/pointer-events:\s*auto/',

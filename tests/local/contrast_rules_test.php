@@ -66,7 +66,8 @@ final class contrast_rules_test extends basic_testcase {
      * @var string[] The filter bar's filled rules (ADR-015, ADR-023), each declaring its paired text: the scope's
      *     platter and cells, the cluster and the capsules, the open field, its input and the eraser, the icon
      *     buttons at rest, hovered, pressed and open, the loud counter, the floating layers, a menu item, a
-     *     hovered option, the mark and a chip.
+     *     hovered option, the mark, a chip, the filter panel's options at rest and chosen (ADR-024), and the full
+     *     empty state's icon disc.
      */
     private const LINE_FILLS = [
         '.block_compass .compass-scope', '.block_compass .compass-scope-cell',
@@ -81,6 +82,8 @@ final class contrast_rules_test extends basic_testcase {
         '.block_compass .compass-line-menuitem:hover',
         '.block_compass .compass-line-option:hover', '.block_compass .compass-line-mark',
         '.block_compass .compass-line-chip',
+        '.block_compass .compass-fpanel-opt', '.block_compass .compass-fpanel-opt[aria-checked="true"]',
+        '.block_compass .compass-noresults-icon',
     ];
 
     /**
@@ -157,7 +160,9 @@ final class contrast_rules_test extends basic_testcase {
      * (ADR-015), is Boost's gray-200 and its dark gray-800 (theme/boost/scss/bootstrap/_variables.scss
      * :442, _variables-dark.scss:46, the design system's primitives). Gray-500, the control line's link
      * (D45), is Boost's #8f959e, which Boost 5.3's dark mode lifts halfway to gray-400 (#afb5bc,
-     * theme/boost/scss/moodle/dark.scss:25). Two brands: Boost's blue and an institution's navy (#070093).
+     * theme/boost/scss/moodle/dark.scss:25). The neutral tone's subtle ground and emphasis, which the full empty
+     * state's disc reads (ADR-024), were measured the same way on m503b, 2026-11-15. Two brands: Boost's blue and an
+     * institution's navy (#070093).
      * A --bs-* token not listed here takes the literal fallback the stylesheet writes beside it.
      *
      * @return array Mode name => token name => CSS value.
@@ -178,6 +183,8 @@ final class contrast_rules_test extends basic_testcase {
             '--bs-gray-500' => '#8f959e',
             '--bs-gray-600' => '#6a737b',
             '--bs-white' => '#ffffff',
+            '--bs-secondary-bg-subtle' => '#f5f6f8',
+            '--bs-secondary-text-emphasis' => '#525557',
         ];
         $dark = [
             '--bs-body-bg' => '#1d2125',
@@ -194,6 +201,8 @@ final class contrast_rules_test extends basic_testcase {
             '--bs-gray-500' => '#afb5bc',
             '--bs-gray-600' => '#6a737b',
             '--bs-white' => '#ffffff',
+            '--bs-secondary-bg-subtle' => '#292a2c',
+            '--bs-secondary-text-emphasis' => '#e2e5e9',
         ];
 
         return [
@@ -701,6 +710,8 @@ final class contrast_rules_test extends basic_testcase {
         $iconbtn = '.block_compass .compass-line-iconbtn';
         $layer = '.block_compass .compass-line-layer';
         $item = '.block_compass .compass-line-menuitem';
+        $option = '.block_compass .compass-fpanel-opt';
+        $chosen = '.block_compass .compass-fpanel-opt[aria-checked="true"]';
         $pairs = array_merge($pairs, [
             ['a scope cell', '.block_compass .compass-scope-cell', $scopefill, ['root']],
             ['the checked scope cell', $checked, $checked, ['root']],
@@ -729,6 +740,16 @@ final class contrast_rules_test extends basic_testcase {
             ['a suggestion\'s count', '.block_compass .compass-line-optioncount', $hover, ['root']],
             ['the typed text marked', '.block_compass .compass-line-mark', '.block_compass .compass-line-mark', ['root']],
             ['a chip', '.block_compass .compass-line-chip', '.block_compass .compass-line-chip', ['root']],
+            // The filter panel (ADR-024): a group's label on the layer, an option and its count, the chosen one and its
+            // count on the brand tone; the full empty state's title and its icon on the neutral disc.
+            ['a panel group\'s label', '.block_compass .compass-fpanel-head', $layer, ['root']],
+            ['a panel option', $option, $option, ['root']],
+            ['a panel option\'s count', '.block_compass .compass-fpanel-count', $option, ['root']],
+            ['the chosen option', $chosen, $chosen, ['root']],
+            ['the chosen option\'s count', "{$chosen} .compass-fpanel-count", $chosen, ['root']],
+            ['the empty result\'s title', '.block_compass .compass-noresults-title', $surface, ['root']],
+            ['the empty result\'s icon', '.block_compass .compass-noresults-icon', '.block_compass .compass-noresults-icon',
+                ['root']],
             ['Clear all', '.block_compass .compass-line-clearall', $surface, ['root']],
             ['a dimmed row', '.block_compass .compass-row.compass-preview-dim', $surface, ['root']],
             ['a dimmed card', '.block_compass .compass-rowcard.compass-preview-dim', $surface, ['root']],

@@ -51,21 +51,19 @@ final class design_tokens_test extends basic_testcase {
         'cal-danger' => 'a late mark is the solid danger; the family has the danger tone triple only',
         'cal-fg-on-heat-3' => 'text on a fill that is mostly the solid warning in either mode stays dark',
         'cal-fg-on-heat-4' => 'text on a fill that is mostly the solid warning in either mode stays dark',
-        'cal-shadow' => 'the day card\'s own shadow, a literal until the containers step reads an elevation',
         'news-crest-tile' => 'a crest\'s tile is light in both modes (ADR-019): gray-200 in the dark one',
         'news-warm' => 'the open-courses panel\'s warm gradient stop, decoration',
         'news-sand' => 'the open-courses panel\'s sparkle, decoration',
-        'news-tip-shadow' => 'a group tooltip\'s own shadow, a literal until the containers step reads an elevation',
+        'news-tip-shadow' => 'a group tooltip\'s own shadow: tooltip.md leaves the tooltip\'s shadow open (ADR-024)',
     ];
 
     /**
      * @var array The rules that still read a theme property themselves, selector => declaration.
      *
-     * Both are a shadow or a veil, which the containers step replaces with an elevation and a scrim.
+     * The open-courses sheet's veil: tokens.md's scrim is a veil of the page's own surface, not the darkening
+     * behind a sheet, and panel-popover-sheet.md leaves a sheet's scrim open (ADR-024).
      */
     private const DIRECT = [
-        '.block_compass .compass-news-group'
-            => 'box-shadow: 0 1px 2px color-mix(in oklab, var(--bs-emphasis-color, #000) 6%, transparent)',
         '.block_compass .compass-news-scrim'
             => 'background: color-mix(in oklab, var(--bs-black, #000) 35%, transparent)',
     ];

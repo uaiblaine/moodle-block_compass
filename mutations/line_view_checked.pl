@@ -1,1 +1,1 @@
-s/aria-checked=\{view === value\}/aria-checked={false}/;
+s/aria-checked=\{chosen === choice\.value\}/aria-checked={false}/;

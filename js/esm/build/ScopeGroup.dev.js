@@ -12,9 +12,8 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * hidden attribute, so the line can draw it while it measures and the step follows the width and
  * the language, never the counts; the keys skip it.
  *
- * Platter.tsx is not reused: its pills are aria-pressed toggles, and the same component draws the
- * panel's field groups and the sort, where a press releases a group. One component with two ARIA
- * patterns would hide which one a screen reader hears.
+ * The filter panel's field groups are radio groups too (FilterPanel.tsx, ADR-024), drawn there: their options
+ * are never hidden in place, and a press on the chosen one releases its group, which a scope never does.
  *
  * The count is part of each cell's accessible name (contract section 8): a space between the label
  * and its number, which flex layout ignores and the accessible name keeps. At the bar's narrow step the
@@ -88,19 +87,19 @@ const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview })
           children: [
             /* @__PURE__ */ jsxDEV("span", { className: "compass-scope-label", title: cell.label, children: cell.label }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
-              lineNumber: 143,
+              lineNumber: 142,
               columnNumber: 21
             }),
             cell.count !== null && /* @__PURE__ */ jsxDEV(Fragment, { children: [
               " ",
               /* @__PURE__ */ jsxDEV("span", { className: "compass-scope-count", children: cell.count }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
-                lineNumber: 147,
+                lineNumber: 146,
                 columnNumber: 29
               })
             ] }, void 0, true, {
               fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
-              lineNumber: 145,
+              lineNumber: 144,
               columnNumber: 25
             })
           ]
@@ -109,7 +108,7 @@ const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview })
         true,
         {
           fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
-          lineNumber: 121,
+          lineNumber: 120,
           columnNumber: 17
         }
       ))
@@ -118,7 +117,7 @@ const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview })
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
-      lineNumber: 114,
+      lineNumber: 113,
       columnNumber: 9
     }
   );

@@ -51,15 +51,15 @@
     "eject": "prohibited",
     "wrap": "prohibited"
   },
+  "LineMenu": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
   "OpenCourses": {
     "eject": "prohibited",
     "wrap": "prohibited"
   },
   "OrganiseMenu": {
-    "eject": "prohibited",
-    "wrap": "prohibited"
-  },
-  "Platter": {
     "eject": "prohibited",
     "wrap": "prohibited"
   },

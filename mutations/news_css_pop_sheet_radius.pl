@@ -1,1 +1,1 @@
-s/border-radius: 1\.125rem 1\.125rem 0 0;/border-radius: 0.875rem;/;
+s/(overflow-y: auto;\n    )border-radius: var\(--block_compass-radius-xl\) var\(--block_compass-radius-xl\) 0 0;(\n    box-shadow: var\(--block_compass-elevation-lg\);\n\}\n\n\.block_compass \.compass-news-pop \.compass-news-pophead)/$1border-radius: var(--block_compass-radius-lg);$2/;

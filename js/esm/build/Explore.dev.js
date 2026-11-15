@@ -45,6 +45,7 @@ import {
   wordsOf
 } from "./filter";
 import { sectionTag } from "./heading";
+import { markup } from "./markup";
 import { confirmAction, notify } from "./notify";
 import { fill, fillCount, fillObject } from "./str";
 import {
@@ -900,12 +901,12 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1586,
+      lineNumber: 1587,
       columnNumber: 13
     }
   ) }, void 0, false, {
     fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-    lineNumber: 1577,
+    lineNumber: 1578,
     columnNumber: 9
   }) : void 0, [dormantrows, busy, archiveAll, labels.archiving, labels.archiveall]);
   if (failed !== null) {
@@ -921,12 +922,12 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1602,
+        lineNumber: 1603,
         columnNumber: 17
       }
     ) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1601,
+      lineNumber: 1602,
       columnNumber: 13
     });
   }
@@ -936,11 +937,11 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       attempts: String(reconnecting.attempts)
     }) : labels.loading }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1616,
+      lineNumber: 1617,
       columnNumber: 17
     }) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1615,
+      lineNumber: 1616,
       columnNumber: 13
     });
   }
@@ -965,7 +966,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
   return /* @__PURE__ */ jsxDEV("section", { className: "compass-explore", ref: section, tabIndex: -1, "aria-labelledby": titleid, children: [
     /* @__PURE__ */ jsxDEV(Heading, { className: "compass-explore-title h5", id: titleid, tabIndex: -1, children: fill(labels.allcourses, String(data.total)) }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1659,
+      lineNumber: 1660,
       columnNumber: 13
     }),
     /* @__PURE__ */ jsxDEV(
@@ -1007,7 +1008,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1678,
+            lineNumber: 1679,
             columnNumber: 21
           }
         ),
@@ -1030,13 +1031,13 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1665,
+        lineNumber: 1666,
         columnNumber: 13
       }
     ),
     details.failed && /* @__PURE__ */ jsxDEV(RetryNotice, { message: labels.progresserror, retrying: false, config, onRetry: details.retry }, void 0, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1714,
+      lineNumber: 1715,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-explore-body", children: [
@@ -1054,12 +1055,12 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
             children: [
               /* @__PURE__ */ jsxDEV("span", { children: group.name }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-                lineNumber: 1739,
+                lineNumber: 1740,
                 columnNumber: 45
               }),
               /* @__PURE__ */ jsxDEV("span", { className: "text-muted", children: slice.count }, void 0, false, {
                 fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-                lineNumber: 1740,
+                lineNumber: 1741,
                 columnNumber: 45
               })
             ]
@@ -1068,21 +1069,21 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1734,
+            lineNumber: 1735,
             columnNumber: 41
           }
         ) }, group.id, false, {
           fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-          lineNumber: 1729,
+          lineNumber: 1730,
           columnNumber: 37
         });
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1719,
+        lineNumber: 1720,
         columnNumber: 25
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1718,
+        lineNumber: 1719,
         columnNumber: 21
       }),
       grouped && /* @__PURE__ */ jsxDEV("div", { className: "compass-groups flex-grow-1", children: data.groups.map((group) => {
@@ -1126,13 +1127,13 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1764,
+            lineNumber: 1765,
             columnNumber: 33
           }
         );
       }) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1749,
+        lineNumber: 1750,
         columnNumber: 21
       }),
       !grouped && /* @__PURE__ */ jsxDEV("div", { className: "compass-flat flex-grow-1", children: [
@@ -1148,7 +1149,7 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1800,
+            lineNumber: 1801,
             columnNumber: 29
           }
         ),
@@ -1174,33 +1175,76 @@ const Explore = /* @__PURE__ */ __name(({ config, chip: pressedchip, reveal, sta
           false,
           {
             fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-            lineNumber: 1807,
+            lineNumber: 1808,
             columnNumber: 25
           }
         )
       ] }, void 0, true, {
         fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-        lineNumber: 1798,
+        lineNumber: 1799,
         columnNumber: 21
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1716,
+      lineNumber: 1717,
       columnNumber: 13
     }),
-    noresults && /* @__PURE__ */ jsxDEV("p", { className: "compass-noresults text-muted mt-2", children: labels.noresults }, void 0, false, {
+    noresults && // The Design System's full empty state (empty-state.md, ADR-024): the icon, the sentence as its
+    // title, and with a filter in force its one action, Clear filters, which leaves the keyboard on the
+    // list's title as the button goes.
+    /* @__PURE__ */ jsxDEV("div", { className: "compass-noresults", children: [
+      /* @__PURE__ */ jsxDEV(
+        "span",
+        {
+          className: "compass-noresults-icon icon-no-margin",
+          "aria-hidden": "true",
+          dangerouslySetInnerHTML: markup(config.icons.search)
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
+          lineNumber: 1832,
+          columnNumber: 21
+        }
+      ),
+      /* @__PURE__ */ jsxDEV("p", { className: "compass-noresults-title", children: labels.noresults }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
+        lineNumber: 1837,
+        columnNumber: 21
+      }),
+      !unfiltered && /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          type: "button",
+          className: "btn btn-outline-secondary compass-noresults-clear",
+          onClick: () => {
+            clearFilters();
+            section.current?.querySelector(".compass-explore-title")?.focus({ preventScroll: true });
+          },
+          children: labels.clearfilters
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
+          lineNumber: 1839,
+          columnNumber: 25
+        }
+      )
+    ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1826,
-      columnNumber: 27
+      lineNumber: 1831,
+      columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", role: "status", "aria-live": "polite", children: announcement.text }, announcement.at, false, {
       fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-      lineNumber: 1827,
+      lineNumber: 1852,
       columnNumber: 13
     })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/Explore.tsx",
-    lineNumber: 1658,
+    lineNumber: 1659,
     columnNumber: 9
   });
 }, "Explore");

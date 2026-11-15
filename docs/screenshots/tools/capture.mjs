@@ -433,9 +433,9 @@ const SHOTS = {
         await page.fit(DESKTOP);
         await openExplore(page);
         await page.click('.compass-filterbtn');
-        await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-chip')`);
+        await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-fpanel-opt')`);
         await sleep(600);
-        await mark(page, '.compass-fpanel .compass-chip', 'Hybrid', 'value');
+        await mark(page, '.compass-fpanel .compass-fpanel-opt', 'Hybrid', 'value');
         await page.click('[data-capture="value"]');
         await sleep(600);
         await page.click('.compass-fpanel .compass-show');
@@ -474,7 +474,7 @@ const SHOTS = {
         await page.fit(DESKTOP);
         await openExplore(page);
         await page.click('.compass-filterbtn');
-        await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-chip')`);
+        await page.until(`document.querySelector('.compass-fpanel:not([hidden]) .compass-fpanel-opt')`);
         await sleep(900);
         await page.mouseAway();
         save('explore-filters.png', await page.shot(await exploreTop(page, ['.compass-line', '.compass-fpanel'], 48)));

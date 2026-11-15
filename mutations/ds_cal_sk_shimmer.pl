@@ -1,0 +1,1 @@
+s/(border-radius: var\(--block_compass-radius-md\);\n    )background: var\(--block_compass-line\);(\n\})/$1background: linear-gradient(90deg, var(--block_compass-surface-alt) 0, var(--block_compass-line) 40%);$2/;

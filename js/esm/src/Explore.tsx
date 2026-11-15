@@ -55,6 +55,7 @@ import {
 } from './filter';
 import type {Criteria, RowFacts, Selection} from './filter';
 import {sectionTag} from './heading';
+import {markup} from './markup';
 import {confirmAction, notify} from './notify';
 import {fill, fillCount, fillObject} from './str';
 import {
@@ -1823,7 +1824,31 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                     </div>
                 )}
             </div>
-            {noresults && <p className="compass-noresults text-muted mt-2">{labels.noresults}</p>}
+            {noresults && (
+                // The Design System's full empty state (empty-state.md, ADR-024): the icon, the sentence as its
+                // title, and with a filter in force its one action, Clear filters, which leaves the keyboard on the
+                // list's title as the button goes.
+                <div className="compass-noresults">
+                    <span
+                        className="compass-noresults-icon icon-no-margin"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={markup(config.icons.search)}
+                    />
+                    <p className="compass-noresults-title">{labels.noresults}</p>
+                    {!unfiltered && (
+                        <button
+                            type="button"
+                            className="btn btn-outline-secondary compass-noresults-clear"
+                            onClick={() => {
+                                clearFilters();
+                                section.current?.querySelector<HTMLElement>('.compass-explore-title')?.focus({preventScroll: true});
+                            }}
+                        >
+                            {labels.clearfilters}
+                        </button>
+                    )}
+                </div>
+            )}
             <span key={announcement.at} className="visually-hidden" role="status" aria-live="polite">
                 {announcement.text}
             </span>
