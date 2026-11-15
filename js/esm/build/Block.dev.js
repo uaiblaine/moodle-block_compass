@@ -439,7 +439,7 @@ const Block = /* @__PURE__ */ __name((config) => {
       columnNumber: 17
     }),
     newsAt("empty"),
-    exploring && /* @__PURE__ */ jsxDEV("div", { className: "compass-explore-wrap mt-3", children: /* @__PURE__ */ jsxDEV(
+    exploring && /* @__PURE__ */ jsxDEV("div", { className: "compass-explore-wrap", children: /* @__PURE__ */ jsxDEV(
       Explore,
       {
         config,

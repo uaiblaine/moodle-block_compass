@@ -17,7 +17,7 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * news_hideerror.
  *
  * OpenCourses is the drawing, in the shape the block chose (decision 7), all three in one panel (round 2,
- * docs/mockup-new-courses/Rodada2.dc.html): the full line (the eyebrow and the summary over a head, up to
+ * docs/mockup-new-courses/Rodada2.dc.html): the full line (the title and the summary over a head, up to
  * three groups as links on a row of their own, "+N", and a labelled close), the slim panel with "See", or
  * tier 1's empty state as tiles. "See" and "+N" open the groups in a popover, a dialog that takes the keyboard and
  * gives it back, closed by Escape and by a press outside it; below 640 px of the block's width it is a
@@ -694,7 +694,7 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, narrow 
             /* @__PURE__ */ jsxDEV("div", { className: "compass-news-head", children: [
               icon,
               /* @__PURE__ */ jsxDEV("div", { className: "compass-news-copy", children: [
-                /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title h6 mb-0", children: strings.news_title }, void 0, false, {
+                /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title compass-section-title", children: strings.news_title }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
                   lineNumber: 927,
                   columnNumber: 25
@@ -803,7 +803,7 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, narrow 
         }),
         icon,
         /* @__PURE__ */ jsxDEV("div", { className: "compass-news-sentence", children: [
-          /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title h6 mb-0", children: strings.news_title }, void 0, false, {
+          /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title compass-section-title", children: strings.news_title }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
             lineNumber: 976,
             columnNumber: 21
@@ -866,7 +866,7 @@ const OpenCourses = /* @__PURE__ */ __name(({ config, news, state, mode, narrow 
       /* @__PURE__ */ jsxDEV("div", { className: "compass-news-head", children: [
         icon,
         /* @__PURE__ */ jsxDEV("div", { className: "compass-news-copy", children: [
-          /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title h6 mb-0", children: strings.news_title }, void 0, false, {
+          /* @__PURE__ */ jsxDEV(Title, { id: titleid, className: "compass-news-title compass-section-title", children: strings.news_title }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/OpenCourses.tsx",
             lineNumber: 1004,
             columnNumber: 21

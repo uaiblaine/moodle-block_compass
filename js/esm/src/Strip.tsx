@@ -100,9 +100,9 @@ const Strip = ({
     return (
         <section className="compass-strip" data-strip={name} aria-labelledby={headingid}>
             <div className="compass-strip-head">
-                {/* Weight, never case: a heading is emphasised with fw-bold and nothing in the block is
-                    written in capitals (accessibility_rules_test::test_nothing_is_uppercase). */}
-                <Heading className="compass-strip-title h6 fw-bold text-muted mb-0" id={headingid}>{title}</Heading>
+                {/* Weight, never case: a heading is emphasised by the section title's weight and nothing in the
+                    block is written in capitals (accessibility_rules_test::test_nothing_is_uppercase). */}
+                <Heading className="compass-strip-title compass-section-title" id={headingid}>{title}</Heading>
                 {overflow && (
                     <button
                         type="button"

@@ -183,7 +183,7 @@ class block implements renderable, templatable {
             'searchtooshort', 'searchtruncated', 'loadingrows', 'pagednote', 'filterupdated',
             'badge_new', 'progressloading', 'progresserror', 'progresspercent', 'progressvalue', 'completed', 'retry',
             'action_review',
-            'allcourses', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'chip_pending', 'chip_scheduled',
+            'allcourses_title', 'categoryindex', 'chip_all', 'chip_new', 'chip_favourites', 'chip_pending', 'chip_scheduled',
             'filterby',
             'filter', 'filteractive', 'filteractive_one', 'filterpanel', 'clearfilters', 'status',
             'line_chip', 'line_clearall', 'line_cleartext', 'line_namedcount', 'line_organise',

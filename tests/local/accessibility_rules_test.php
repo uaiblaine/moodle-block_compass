@@ -1161,7 +1161,7 @@ final class accessibility_rules_test extends basic_testcase {
      *
      * The rule covers every source, not only headings. Bootstrap's text-uppercase and a
      * text-transform declaration are the two ways to shout, and the strip heading is the
-     * vacuity guard: it must exist and carry a weight class.
+     * vacuity guard: it must exist and carry the section title's class, whose rule gives it its weight.
      *
      * @return void
      */
@@ -1186,10 +1186,11 @@ final class accessibility_rules_test extends basic_testcase {
         );
         // Vacuity guard: the strip heading is the tag this rule was written over.
         $this->assertCount(1, $headings, 'the strip heading tag was not found in Strip.tsx');
+        $this->assertStringContainsString('compass-section-title', reset($headings), 'the strip heading carries no weight');
         $this->assertMatchesRegularExpression(
-            '/\bfw-(bold|semibold|medium)\b/',
-            reset($headings),
-            'the strip heading carries no weight class'
+            '/\.block_compass \.compass-section-title\s*\{[^}]*font-weight:\s*600;/',
+            $this->css(),
+            'the section title is emphasised by no weight'
         );
     }
 
@@ -2712,7 +2713,7 @@ final class accessibility_rules_test extends basic_testcase {
             'the close never shrinks: on a phone the slim row squeezed it to a sliver'
         );
         $this->assertMatchesRegularExpression(
-            '/margin:\s*0\.25rem 0 1rem/',
+            '/margin:\s*0\.25rem 0 2rem/',
             $bodies['.block_compass .compass-news-inner > .compass-news'] ?? '',
             'room around the panel: the heading after it never sits on its edge'
         );

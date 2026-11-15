@@ -24,8 +24,8 @@
  * aria-checked, the chosen one, or the first drawn one when none is, its one tab stop; the arrow keys,
  * Home and End move the focus to another option and choose it, as the scope does. A field group has no
  * neutral option, so a press on the chosen option releases the group: that is its "any". Groups combine
- * with AND. The label is not a heading: the panel is a control, not a section. It sits beside its
- * options at the line's full step and above them at the narrow one (stacked).
+ * with AND. The label is not a heading: the panel is a control, not a section. It sits on a line of its
+ * own above its options at every width, so a long label never pushes the options sideways.
  *
  * An option counts the rows it would keep, and its count is part of its name ("Online 2"); an option that
  * would show nothing is not drawn. Pointing at one with a mouse or a pen, or the keyboard on it, previews
@@ -67,7 +67,6 @@ type FilterPanelProps = {
     hidden: boolean,
     top: number | null,
     sheet: boolean,
-    stacked: boolean,
     element: RefObject<HTMLDivElement | null>,
     config: BlockConfig,
     filtered: boolean,
@@ -182,7 +181,7 @@ const FieldGroup = ({labelid, field, options, onSelect, onPreview}: FieldGroupPr
  * @returns {object} The rendered panel.
  */
 const FilterPanel = ({
-    id, hidden, top, sheet, stacked, element, config, filtered, fields, selection, searching, facets, shown, onSelect,
+    id, hidden, top, sheet, element, config, filtered, fields, selection, searching, facets, shown, onSelect,
     onPreview, onClear, onShow,
 }: FilterPanelProps) => {
     const {labels} = config;
@@ -235,9 +234,6 @@ const FilterPanel = ({
     const classes = ['compass-fpanel', 'compass-line-layer'];
     if (sheet) {
         classes.push('compass-fpanel-sheet');
-    }
-    if (stacked) {
-        classes.push('compass-fpanel-stacked');
     }
 
     return (

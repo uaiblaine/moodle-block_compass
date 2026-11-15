@@ -1,1 +1,1 @@
-s/\n    transition-delay: 250ms;//;
+s/\n    transition-delay: 100ms;//;

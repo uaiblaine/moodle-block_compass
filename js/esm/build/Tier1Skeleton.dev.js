@@ -33,7 +33,7 @@ const Tier1Skeleton = /* @__PURE__ */ __name(({ skeleton }) => {
   return /* @__PURE__ */ jsxDEV("div", { className: "compass-tier1-skeleton", "data-region": "tier1-skeleton", "aria-hidden": "true", children: [
     skeleton.slots.map(({ strip, note }, at) => /* @__PURE__ */ jsxDEV(Fragment, { children: [
       strip && /* @__PURE__ */ jsxDEV("div", { className: "compass-strip", children: [
-        /* @__PURE__ */ jsxDEV("div", { className: "compass-strip-head", children: /* @__PURE__ */ jsxDEV("div", { className: "compass-strip-title h6 fw-bold text-muted mb-0", children: strip.hastitle ? strip.title : /* @__PURE__ */ jsxDEV("span", { className: BAR_TITLE }, void 0, false, {
+        /* @__PURE__ */ jsxDEV("div", { className: "compass-strip-head", children: /* @__PURE__ */ jsxDEV("div", { className: "compass-strip-title compass-section-title", children: strip.hastitle ? strip.title : /* @__PURE__ */ jsxDEV("span", { className: BAR_TITLE }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/Tier1Skeleton.tsx",
           lineNumber: 79,
           columnNumber: 43
