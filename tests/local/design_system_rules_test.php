@@ -976,9 +976,12 @@ final class design_system_rules_test extends basic_testcase {
      * through one IntersectionObserver, disconnected on unmount, never a scroll listener, and a click marks its link at
      * once while it still opens its group.
      *
+     * The Archived group is its last entry when it holds rows, under the id its element carries.
+     *
      * Changes that must make it fail: a count back in a link; aria-current dropped or on every link; the hover, focus or
      * current state off its tokens; the current rule before the hover rule; the observer left connected or replaced by
-     * a scroll listener; a click that waits for the scroll to mark its link, or no longer opens the group.
+     * a scroll listener; a click that waits for the scroll to mark its link, or no longer opens the group; Archived
+     * out of the index, in it when empty, or before a category; a link naming another id than its group's element.
      *
      * @return void
      */
@@ -1004,6 +1007,20 @@ final class design_system_rules_test extends basic_testcase {
             '<CategoryIndex entries={indexentries} label={labels.categoryindex} onOpen={openGroup} />',
             $explore
         );
+        // The Archived group is the index's last entry when it holds rows; the group's element and its link
+        // name one id, which a reserved group's negative id cannot be.
+        $this->assertStringContainsString(
+            'slice.show && (id >= 0 || (id === GROUP_ARCHIVED && slice.count > 0));',
+            $explore,
+            'the index links every drawn category, and Archived only when it holds rows'
+        );
+        $this->assertStringContainsString(
+            '.sort((a, b) => Number(a.id === GROUP_ARCHIVED) - Number(b.id === GROUP_ARCHIVED))',
+            $explore,
+            'Archived is the last entry'
+        );
+        $this->assertSame(2, substr_count($explore, 'groupAnchor(titleid, group.id)'), 'the link and the group name one id');
+        $this->assertStringContainsString('-group-${Math.abs(id)}${id < 0 ? \'r\' : \'\'}', $explore, 'a reserved id as it is');
         $this->assertStringContainsString(
             'const openGroup = useCallback((id: number): void => setOpen((c) => ({...c, [id]: true})), []);',
             $explore
