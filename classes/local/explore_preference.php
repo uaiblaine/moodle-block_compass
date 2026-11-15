@@ -37,12 +37,11 @@ namespace block_compass\local;
  * instead of a scope and a star, and is migrated here, on read: the favourites chip becomes the
  * star on the All scope, any other chip of the old vocabulary becomes that scope. A state stored before
  * ADR-025 carries no group and one sort of three, of which "category" was the grouping; it is read as
- * what that viewer saw (legacy_organise()), with no upgrade step. Whether a field
- * is still configured, and whether its value is still one of the field's keys, is decided when the
- * inventory arrives with its fields array (js/esm/src/Explore.tsx): the shell renders the block
- * without a database or cache read, and the eligible fields live in a cache that may be cold. The
- * two paging services validate the same selection a third time, by the allowlist of
- * filter_fields::validate(), before any work.
+ * what that viewer saw (legacy_organise()), with no upgrade step. Whether a field is still configured,
+ * and whether its value is still one of the field's keys, is decided when the inventory arrives with its
+ * fields array (js/esm/src/Explore.tsx): the shell renders the block without a database or cache read,
+ * and the eligible fields live in a cache that may be cold. The two paging services validate the same
+ * selection a third time, by the allowlist of filter_fields::validate(), before any work.
  *
  * @package    block_compass
  * @copyright  2026 Anderson Blaine
@@ -85,7 +84,7 @@ final class explore_preference {
     /**
      * The state the toolbar starts in for a viewer who never changed it.
      *
-     * Grouped by category and sorted by name, the list a viewer saw before ADR-025 split the two. The
+     * Grouped by category and sorted by name; legacy_organise() maps a state stored before ADR-025 to the same pair. The
      * filter panel starts closed (ADR-015 decision 5): its field groups are a popover over the list, and
      * the line's chips show what it holds in force.
      *

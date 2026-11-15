@@ -459,7 +459,7 @@ import{Fragment as am,useCallback as es,useEffect as ro,useMemo as mi,useRef as 
  * pointing at a card renders the calendar strip that lights its days and no card (ADR-014 decision 9), and
  * a change of the open day's courses renders only the cards whose outline it moves.
  *
- * The heading's level comes from heading.ts; only the level moves - the h6 class keeps the size.
+ * The heading's level comes from heading.ts; only the level moves - the section title's class keeps the size.
  * The grid's column count is the block's (columns.ts), so the theme card's three tracks become two
  * and then one as the block narrows, and the ghost keeps a track of its own.
  *
@@ -470,7 +470,7 @@ import{Fragment as am,useCallback as es,useEffect as ro,useMemo as mi,useRef as 
 /**
  * Filters: the button that opens and closes the filter panel, with the count of field values in force.
  *
- * aria-expanded says which way it will go and aria-controls names the panel, so a screen
+ * aria-expanded says whether the panel is open and aria-controls names it, so a screen
  * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. An icon button
  * of the bar's capsule at every width, with no word (ADR-023): the loud counter on its corner shows
  * the bare count, hidden from assistive technology and absent at zero; the accessible name says it
@@ -570,6 +570,7 @@ import{Fragment as am,useCallback as es,useEffect as ro,useMemo as mi,useRef as 
  * end, as View can end the bar), and says what it opens with aria-expanded and aria-controls. The menu is the
  * bar's LineMenu, named "Show courses as", one section of one menuitemradio per view; its keys, its focus and
  * its look are LineMenu's, the Organise menu's too (ADR-024).
+ *
  * The glyphs are core's own list, grid and chevron, server-rendered and shipped as props.
  *
  * @module     block_compass/ViewToggle
@@ -615,8 +616,9 @@ import{Fragment as am,useCallback as es,useEffect as ro,useMemo as mi,useRef as 
  * which no control is drawn past its edge: full, one line; narrow, the scope on a line of its own after
  * the controls, its cells sharing the width. It measures with every scope cell drawn, with the search
  * field open at its narrowest and with the line unwrapped, so the step follows the width and the
- * language, never the counts, and opening the search never pushes the full line past its edge. A ResizeObserver on the bar,
- * not a container query (Moodle's stylelint forbids @container), and a late webfont refit it.
+ * language, never the counts, and opening the search never pushes the full line past its edge. A
+ * ResizeObserver on the bar, not a container query (Moodle's stylelint forbids @container), and a late
+ * webfont refit it.
  *
  * The search is an icon at every width. Pressing it, or the slash key, opens the field in place, in its
  * capsule, and moves the keyboard into it; at the narrow step the cluster gives the field its line.
@@ -813,7 +815,7 @@ import{Fragment as am,useCallback as es,useEffect as ro,useMemo as mi,useRef as 
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 /**
- * Tier 3: the inventory, grouped by category, filtered and reordered in place.
+ * Tier 3: the inventory, grouped by category or flat, filtered and reordered in place.
  *
  * Two modes, decided by the server. In full mode one request brings every row but those of
  * the archived and the invisible groups (see pagedgroup()) and the toolbar only re-renders

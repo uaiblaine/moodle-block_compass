@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { jsxDEV } from "react/jsx-dev-runtime";
 /**
- * Tier 3: the inventory, grouped by category, filtered and reordered in place.
+ * Tier 3: the inventory, grouped by category or flat, filtered and reordered in place.
  *
  * Two modes, decided by the server. In full mode one request brings every row but those of
  * the archived and the invisible groups (see pagedgroup()) and the toolbar only re-renders

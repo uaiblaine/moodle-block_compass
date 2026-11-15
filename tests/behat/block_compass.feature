@@ -76,7 +76,7 @@ Feature: The Compass block puts the courses that need attention first
     When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled scope with its first category group open, which here holds no
     # later start; the list with no grouping shows every row the scope keeps, whatever group it is in.
-    # The grouping is inside the filter line's Organise menu (ADR-015; its Group by section since ADR-025),
+    # The grouping is inside the filter line's Organise menu (ADR-015, ADR-025),
     # and a choice closes the menu.
     And I click on "Organise" "button" in the "Compass" "block"
     And I click on "No grouping" "button" in the "Compass" "block"

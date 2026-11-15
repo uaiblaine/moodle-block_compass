@@ -30,8 +30,9 @@
  * which no control is drawn past its edge: full, one line; narrow, the scope on a line of its own after
  * the controls, its cells sharing the width. It measures with every scope cell drawn, with the search
  * field open at its narrowest and with the line unwrapped, so the step follows the width and the
- * language, never the counts, and opening the search never pushes the full line past its edge. A ResizeObserver on the bar,
- * not a container query (Moodle's stylelint forbids @container), and a late webfont refit it.
+ * language, never the counts, and opening the search never pushes the full line past its edge. A
+ * ResizeObserver on the bar, not a container query (Moodle's stylelint forbids @container), and a late
+ * webfont refit it.
  *
  * The search is an icon at every width. Pressing it, or the slash key, opens the field in place, in its
  * capsule, and moves the keyboard into it; at the narrow step the cluster gives the field its line.
@@ -153,7 +154,7 @@ type Place = {top: number | null, left: number | null, width: number | null};
 const NOWHERE: Place = {top: null, left: null, width: null};
 
 /**
- * Whether an ancestor would clip or capture a position: fixed child, so that it could not reach the viewport.
+ * Whether an ancestor would clip or capture a position: fixed child, so that the child could not reach the viewport.
  *
  * Moodle 5.3's open block drawer carries clip-path: inset(0), which hides everything outside its box
  * even for a fixed descendant (a sheet drawn there is cut to the drawer's width and the chips outside

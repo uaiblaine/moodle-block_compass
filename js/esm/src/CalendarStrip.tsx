@@ -1540,10 +1540,9 @@ const CalendarStrip = ({
      * The studying and teaching switch, when the viewer has both. As text in the open strip and on a
      * narrow block, where it has a row of its own and touch has no hover. As icons beside the title on
      * the closed line: each button named by its view (cal_view_*, the word the text switch shows) and
-     * shown that word in a tooltip of the component's own, an aria-hidden child shown on :hover and
-     * :focus-visible and hidden by Escape (tipsoff), the block's icon tooltip (Tip.tsx), so it needs no
-     * binding of core's, whose tooltip loader binds only the nodes present at load, and no title, which
-     * would draw a second tooltip.
+     * shown that word in the block's icon tooltip (Tip.tsx): an aria-hidden child shown on :hover and
+     * :focus-visible and hidden by Escape (tipsoff), so it needs no binding of core's, whose tooltip loader
+     * binds only the nodes present at load, and no title, which would draw a second tooltip.
      *
      * @param {boolean} icons Whether the switch is drawn as icons.
      * @returns {object|null} The rendered switch, or nothing.
