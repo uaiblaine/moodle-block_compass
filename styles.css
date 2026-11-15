@@ -400,8 +400,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-card-ink);
 }
 
-/* In a list row the pills sit on the row's centre line, as its other items do: the start alignment above is the
-   card's, whose body is a column. */
+/* On a list row's second line the labels sit on the line's centre line, as its other parts do: the start
+   alignment above is the card's, whose body is a column. */
 .block_compass .compass-row .compass-state {
     align-self: center;
 }
@@ -606,8 +606,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 /* The theme's crests (Crests.tsx): on a card, bottom-right of the cover, clear of the kind chip and the star, in a
-   row that starts at the right edge as the theme card's does; in a list row, 24 px and inline. 56 by 62 on every
-   card (D2). The crests let a click through to the card's stretched link. */
+   row that starts at the right edge as the theme card's does; in a list row, the first crest alone, 24 px and
+   inline (ADR-026). 56 by 62 on every card (D2). The crests let a click through to the card's stretched link. */
 .block_compass .compass-crests {
     display: flex;
     gap: 6px;
@@ -980,8 +980,8 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     color: var(--block_compass-accent-text);
 }
 
-/* The list has the theme's list look (ADR-013 decision 8): every row its own framed line, at
-   least 56 px high, with the image as a 56 px square at its start. */
+/* The list has the theme's list look (ADR-013 decision 8): every row its own framed box, two lines high
+   (ADR-026), with the image at its start. */
 .block_compass .compass-rows {
     display: grid;
     gap: 8px;
@@ -998,22 +998,35 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     border-radius: 0;
 }
 
-/* A row wraps once its parts no longer fit on one line - the name first, then the date, the
-   progress and the controls below it. Unwrapped, a row overflows a narrow block and scrolls
-   horizontally at 320 CSS px (WCAG 1.4.10 Reflow). */
+/* Every row is two lines of fixed height at every width, so every row of a list is as tall as the next
+   (ADR-026): 32 px for the name and the controls, 30 px for the qualifiers, 64 px with the border. The
+   thumbnail spans both lines at the row's start; the controls take the first line's end; the second line
+   runs under the name and the controls. The tracks are lengths, so nothing a row holds or receives from its
+   batch can make it taller, and the name's track is minmax(0, 1fr), so nothing can make it wider than the
+   block: at 320 CSS px the name gives way and the second line clips, and nothing scrolls sideways (WCAG
+   1.4.10 Reflow). The grid places; the DOM keeps the reading order (Row.tsx). */
 .block_compass .compass-row {
-    flex-wrap: wrap;
-    min-height: 56px;
-    padding: 0 16px 0 0;
-    overflow: hidden;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: 2rem 1.875rem;
+    grid-template-areas:
+        "thumb name controls"
+        "thumb line line";
+    column-gap: 0.5rem;
+    padding-inline-end: 1rem;
     border: 1px solid var(--block_compass-line);
     border-radius: 12px;
     background: var(--block_compass-surface);
 }
 
 /* Boost Union's "Show course images" with List unchecked (contract section 8): no thumbnail, a 4 px edge at the
-   row's start in the cover's fallback colour, green once complete. */
+   row's start in the cover's fallback colour, green once complete. The same two lines, without the image's
+   column. */
 .block_compass .compass-row.compass-row-nothumb {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "name controls"
+        "line line";
     padding-inline-start: 12px;
     border-inline-start: var(--block_compass-card-done-edge) solid var(--block_compass-card-cover-fallback);
 }
@@ -1022,38 +1035,67 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     border-inline-start-color: var(--block_compass-card-done);
 }
 
+/* The image spans the row's two lines, the full height inside the border, flush with its start, its start
+   corners the row's. The row itself clips nothing, so the controls' focus rings show whole on a 32 px line. */
 .block_compass .compass-row-thumb {
     display: flex;
-    flex: 0 0 56px;
-    align-self: stretch;
-    min-height: 56px;
-    margin-right: 6px;
+    grid-area: thumb;
+    width: 56px;
+    margin-inline-end: 6px;
+    overflow: hidden;
+    border-start-start-radius: inherit;
+    border-end-start-radius: inherit;
 }
 
 .block_compass .compass-row-thumb-fill {
     display: block;
     width: 56px;
     height: 100%;
-    min-height: 56px;
     object-fit: cover;
 }
 
-/* The clamped name is a block, so the link lays its name and its badges out as a row. The link's
-   basis is a small fixed width, not its content: with the content as the basis a long name
-   claimed the whole line and pushed the progress and the controls under the image, whereas now
-   the name gives way (it clamps) and the row wraps only when even that minimum does not fit. */
+/* The first line's name: one line, cut with an ellipsis, the whole name in its title (Row.tsx). The link is
+   the name's cell and holds nothing else. */
 .block_compass .compass-row .compass-row-link {
-    display: flex;
-    align-items: center;
-    flex: 1 1 8rem;
-    flex-wrap: wrap;
-    gap: 0.25rem;
+    display: block;
+    grid-area: name;
+    align-self: center;
     min-width: 0;
-    padding: 8px 0;
 }
 
 .block_compass .compass-row-name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The controls at the first line's end, on its centre line. */
+.block_compass .compass-row-controls {
+    display: flex;
+    grid-area: controls;
+    align-self: center;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+/* The second line: one line that never wraps and never grows the row. Its parts keep their size but three:
+   the date gives way first, down to nothing, with an ellipsis (as the teacher's note does), then the progress
+   bar narrows to a stub, and the chips last of the three, each one's shrink weight ten times the next one's;
+   past that the line clips at its end. The state label, Hidden from students and the crest never shrink: with
+   nowrap, a flex item's automatic minimum is its whole text or image. The line fills its track but the last
+   4 px, so its centre line is the same on every row whatever it holds, and its tallest part (the crest, 26 px)
+   sits under the name at about the name's own distance from the row's top. */
+.block_compass .compass-row-line {
+    display: flex;
+    grid-area: line;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem;
+    padding-block-end: 0.25rem;
     min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .block_compass .compass-row-link:hover .compass-row-name,
@@ -1115,17 +1157,24 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
     height: 100%;
 }
 
-/* The row's date: a column of its own, so the progress bars line up, and narrow enough that a phone's
-   first line still holds the image, the name and the date. A long date ("Aberto semana passada") stops
-   at two lines (.compass-clamp) with the whole text in its title. */
-.block_compass .compass-row .compass-row-meta {
-    flex: 0 1 5.5rem;
+/* The date, and the teacher's note where it applies: the first to give way on the second line, cut with an
+   ellipsis, the whole text in the title (Row.tsx). */
+.block_compass .compass-row-line .compass-row-meta,
+.block_compass .compass-row-line .compass-row-nocompletion {
+    flex: 0 1000 auto;
     min-width: 0;
-    text-align: end;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.block_compass .compass-row-nocompletion {
-    white-space: nowrap;
+/* The chips give way last of the three, down to a stub that still starts their word, with an ellipsis and the
+   word in the title (Row.tsx); a block, since an ellipsis does not reach the text of a flex container. */
+.block_compass .compass-row-line .compass-row-chip {
+    display: block;
+    flex: 0 10 auto;
+    min-width: 2.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* The list keeps the bar alone, at the width its skeleton stands in for; the card has
@@ -1136,6 +1185,18 @@ body[data-bs-theme="dark"] .block_compass .btn-outline-secondary:not(:hover):not
 }
 
 .block_compass .compass-rowcard .compass-row-progress {
+    width: auto;
+}
+
+/* On the list row's second line the bar narrows after the date, down to a 2 rem stub, and its skeleton fills
+   the same box, so the answer moves nothing after it. */
+.block_compass .compass-row-line .compass-row-progress {
+    flex: 0 100 4.5rem;
+    width: auto;
+    min-width: 2rem;
+}
+
+.block_compass .compass-row-line .compass-skeleton-progress {
     width: auto;
 }
 

@@ -18,29 +18,35 @@
  *
  * A row registers itself with the details store when it mounts and stops when it goes: the
  * observer decides when the row is close enough to the viewport to be worth a request, and
- * the batch that answers brings progress, the image and the theme's crests. The row has the
- * theme's list look (ADR-013 decision 8): the image as a 56 px square at its start, and the
- * crests at 24 px beside the state pill.
+ * the batch that answers brings progress, the image and the theme's crests.
+ *
+ * Every row is two lines of fixed height, at every width (ADR-026): the thumbnail spans both at
+ * the row's start; the first line is the course's name, cut to one line with the whole name in
+ * its title, and the controls (the star, the archive control) at its end; the second line holds
+ * the qualifiers in the owner's order - the kind and New chips, the state label, Hidden from
+ * students, one crest, the date, the progress bar, the teacher's "no completion" note - and never
+ * wraps: what does not fit gives way (styles.css says in which order) or is clipped at its end.
+ * The grid places the parts; the DOM keeps the reading order, the name's link first, then the
+ * second line (nothing in it is focusable), then the controls, so the focus goes name, star,
+ * archive, as the eye does on the first line.
  *
  * A row the learner cannot enter yet - an enrolment application awaiting a decision or on the
  * waiting list, or an enrolment that starts later - is a row like the others except where it
- * cannot be: its name links to the course's enrolment page, not into the course, the state pill
- * after the link says which situation it is in, and it has no star, no archive control and no
- * progress; the batch answers it with its image and crests only. The name is clamped to two
- * lines with the whole name in its title attribute.
+ * cannot be: its name links to the course's enrolment page, not into the course, the state label
+ * on the second line says which situation it is in, and it has no star, no archive control and no
+ * progress; the batch answers it with its image and crest only. It keeps the same two lines.
  *
- * The row is the same size before and after its batch answers, because a narrow block wraps it
- * and anything that appears or goes moves the star and the archive control under the pointer:
- * the image slot is always 56 px, and the progress slot is there from the first render exactly
- * when the inventory says comp - a skeleton while the batch is out, then the bar, or nothing in
- * the same room when the course has no progress for this learner yet.
+ * Nothing that arrives with the batch moves the row or its controls: the two lines have a fixed
+ * height and the controls their own cell, so the answer only fills the second line in - the
+ * skeleton in the bar's place while the batch is out, then the bar, or the completed label and
+ * no bar, which reserves no width.
  *
  * The row is the course card contract's list surface (moodle-dev/docs/course-card/CONTRACT.md, section 1):
- * once complete, the bar goes and the state pill is the green seal (D4). Boost Union's settings (CardFlags)
- * take the thumbnail away (a 4 px inline-start edge instead, green once complete) and the progress slot.
- * Slot 2 follows the name inside the link as the cards draw it, the course's kind and then New, both the light
- * chip (ADR-021 decision 2.6); a course hidden from students says so beside the state pill wherever it sits
- * among visible ones (decision 1.8).
+ * once complete, the bar goes and the state label is the green seal (D4). Boost Union's settings (CardFlags)
+ * take the thumbnail away (a 4 px inline-start edge instead, green once complete) and the progress bar.
+ * Slot 2, the course's kind and then New, both the light chip (ADR-021 decision 2.6), leads the second line;
+ * a course hidden from students says so beside the state label wherever it sits among visible ones
+ * (decision 1.8).
  *
  * @module     block_compass/Row
  * @copyright  2026 Anderson Blaine
@@ -131,58 +137,73 @@ const Row = ({
 
     return (
         <div
-            className={`compass-row d-flex align-items-center gap-2${enrolled ? '' : ' compass-row-pending'}`
+            className={`compass-row${enrolled ? '' : ' compass-row-pending'}`
                 + `${nothumb ? ' compass-row-nothumb' : ''}${complete ? ' compass-row-done' : ''}`}
             data-course-id={row.id}
             ref={element}
         >
             {/* The image is the name's decoration: the link already says which course this is. */}
             {!nothumb && <span className="compass-row-thumb" aria-hidden="true">{thumb}</span>}
-            <a href={url} className="compass-row-link flex-grow-1 text-reset text-decoration-none">
-                <span className="compass-row-name compass-clamp" title={row.name}>{row.name}</span>
-                {/* Slot 2 of the course card contract, as the cards draw it: the kind first, then New, each the
-                    light chip with the card's border (styles.css), inside the link as the name's qualifiers. */}
-                {kind !== undefined && <span className="compass-card-kind">{kind.name}</span>}
-                {row.new && <span className="compass-card-kind">{labels.badge_new}</span>}
+            {/* The first line: the name, one line, the whole of it in the title. */}
+            <a href={url} className="compass-row-link text-reset text-decoration-none">
+                <span className="compass-row-name" title={row.name}>{row.name}</span>
             </a>
-            <StatePill row={row} labels={labels} complete={complete} />
-            {markhidden && row.invis && <InvisiblePill label={labels.hiddenfromstudents} />}
-            <Crests badges={detail?.badges} label={labels.crests} inline />
-            {meta !== null && <span className="compass-row-meta compass-clamp small text-muted" title={meta}>{meta}</span>}
-            {/* The progress slot, held from the first render when comp says a bar may come: a
-                skeleton while the batch is out, then the rule of Card.tsx completion() - a bar
-                when there is one, else the empty slot, which is also what a failed batch leaves.
-                "No completion configured" goes to a teacher only, on a row with no slot. */}
-            {enrolled && row.comp && config.card.progress && (
-                <div className="compass-row-progress">
-                    {waiting && <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>}
-                    {answered && !complete && detail.hascompletion && detail.progress !== null && (
+            {/* The second line, in the owner's order (ADR-026): slot 2 of the course card contract first, the kind and
+                then New, each the light chip with the card's border (styles.css), its word in the title since a narrow
+                line cuts it; then the state label, Hidden from students, one crest, the date, the progress bar and the
+                teacher's note. Nothing here is focusable. */}
+            <div className="compass-row-line">
+                {kind !== undefined && (
+                    <span className="compass-card-kind compass-row-chip" title={kind.name}>{kind.name}</span>
+                )}
+                {row.new && <span className="compass-card-kind compass-row-chip" title={labels.badge_new}>{labels.badge_new}</span>}
+                <StatePill row={row} labels={labels} complete={complete} />
+                {markhidden && row.invis && <InvisiblePill label={labels.hiddenfromstudents} />}
+                <Crests badges={detail?.badges} label={labels.crests} inline />
+                {meta !== null && <span className="compass-row-meta small text-muted" title={meta}>{meta}</span>}
+                {/* The bar's place, only while it holds something: the skeleton while the batch is out, then the rule
+                    of Card.tsx completion() - the bar for a known percentage below 100. A completed course draws its
+                    label and no bar, and nothing keeps the bar's width for it; nor for a course with no progress yet,
+                    or a failed batch. "No completion configured" goes to a teacher only. */}
+                {enrolled && row.comp && config.card.progress && waiting && (
+                    <div className="compass-row-progress">
+                        <span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>
+                    </div>
+                )}
+                {enrolled && row.comp && config.card.progress && answered && !complete && detail.hascompletion
+                    && detail.progress !== null && (
+                    <div className="compass-row-progress">
                         <Progress progress={detail.progress} labels={labels} compact />
-                    )}
-                </div>
-            )}
-            {answered && !detail.hascompletion && detail.teacher && (
-                <span className="compass-row-nocompletion small text-muted">{labels.nocompletion}</span>
-            )}
-            {/* The star that toggles, beside the archive control. */}
-            {enrolled && config.favouritesenabled && (
-                <Star
-                    courseid={row.id}
-                    fullname={row.name}
-                    favourite={row.fav}
-                    config={config}
-                    onToggle={onToggleFavourite}
-                />
-            )}
+                    </div>
+                )}
+                {answered && !detail.hascompletion && detail.teacher && (
+                    <span className="compass-row-nocompletion small text-muted" title={labels.nocompletion}>
+                        {labels.nocompletion}
+                    </span>
+                )}
+            </div>
+            {/* The controls, at the first line's end: the star that toggles, beside the archive control. A row with
+                neither keeps its two lines. */}
             {enrolled && (
-                <Archive
-                    courseid={row.id}
-                    name={row.name}
-                    archived={archived}
-                    busy={busy}
-                    config={config}
-                    onArchive={onArchive}
-                />
+                <span className="compass-row-controls">
+                    {config.favouritesenabled && (
+                        <Star
+                            courseid={row.id}
+                            fullname={row.name}
+                            favourite={row.fav}
+                            config={config}
+                            onToggle={onToggleFavourite}
+                        />
+                    )}
+                    <Archive
+                        courseid={row.id}
+                        name={row.name}
+                        archived={archived}
+                        busy={busy}
+                        config={config}
+                        onArchive={onArchive}
+                    />
+                </span>
             )}
         </div>
     );

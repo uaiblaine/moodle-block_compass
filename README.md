@@ -39,7 +39,13 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
   gone quiet gather in a *Dormant* group, courses hidden from students in a *Hidden* group shown
   only to those who may see them (a course's own teacher, as in the Course overview block), and
   archived ones in an *Archived* group shared with the Course overview block. Where a theme or
-  plugin tells kinds of course apart (an event, a trail), each card and row says its kind.
+  plugin tells kinds of course apart (an event, a trail), each card and row says its kind. In the
+  list view every row is two lines of one height: the course's name on one line (the whole name
+  on hover) with the star and the archive control at its end, then one line of what qualifies it,
+  in this order: the kind and *New*, the status label, *Hidden from students*, the course's first
+  institutional crest (the cards show them all), when it was last opened, and the progress bar.
+  That line never wraps: on a narrow block the date gives way first, then the bar narrows, then
+  the chips, and the rest is cut at the line's end.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
