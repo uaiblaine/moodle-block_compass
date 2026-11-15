@@ -13,17 +13,29 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+## v5.3-r5 (2026100546) - 2026-11-15
+
+Fifth release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings the fleet's course card to the strips and to
+*All courses* (ADR-020), a *Hidden* group and the course's kind in *All courses* (ADR-021), a way into *All courses*
+from a ghost that counts nothing (ADR-022), and the fleet Design System: the colour tokens, the compact filter bar
+(ADR-023), the menus, the filter panel and the containers (ADR-024), and Organise's *Group by* and *Sort by*
+(ADR-025). It also carries the fixes of the audit of 2026-11-13, security among them, and a smaller package. No
+schema change, no new setting and no upgrade step of the block's own: the version moves because every event
+observer now runs after the commit and three shared cache definitions gain a 10-minute TTL, and core's upgrade
+purges the caches. Fifteen new strings, five removed (`allcourses` becomes `allcourses_title`); a toolbar preference
+stored before is read as it showed.
+
 ### Changed
 
-- **The category index lists the Archived group** (2026042042). Grouped by category, the index beside the groups
+- **The category index lists the Archived group** (2026100546). Grouped by category, the index beside the groups
   ends with a link to *Archived* when the viewer has archived courses; the link opens the group and is marked as
   the page reaches it, like a category's. Dormant and Hidden stay out of the index.
 
-- **Comments and the README follow the audit of 2026-11-15** (2026042041). No behaviour change: comments, the README's
+- **Comments and the README follow the audit of 2026-11-15** (2026100545). No behaviour change: comments, the README's
   captions and wording, and the rebuilt `js/esm/build` that carries the source comments.
 
 - **Organise groups and sorts as two choices, and the bar's icon buttons name themselves quickly** (ADR-025;
-  2026042040). The Organise menu has two sections, *Group by* (Category, No grouping) and, after a
+  2026100544). The Organise menu has two sections, *Group by* (Category, No grouping) and, after a
   separator, *Sort by* (Name, Most recent), each a radio group with an icon and a tick on the chosen item; choosing
   in one never changes the other. The grouped list sorted by most recent is new: inside each group the courses
   opened last come first, the never-opened last, ties by name, the groups themselves still by name. A list too
@@ -37,7 +49,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   New strings: `organise_groupby`, `organise_group_category`, `organise_group_none`, `organise_group_none_paged`,
   `organise_sortby`, `organise_sort_name`, `organise_sort_recent`; removed: `sortby`, `sort_category`, `sort_name`,
   `sort_recent`. No service or SQL changes.
-- **The filter panel, the tooltips, the category index and the section titles are refined** (2026042039). A
+- **The filter panel, the tooltips, the category index and the section titles are refined** (2026100543). A
   filter panel group's label is on a line of its own above its options at every width. The icon tooltips (the
   calendar's view switch and Up next's hide) show after 100 ms instead of 250 ms. The category index beside the
   groups names no count, gives each link more room (8 by 12 px, wrapping when long), and marks the group the page is
@@ -48,7 +60,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   text), and the sections are 2rem apart. The open-courses close rests on the surface instead of the panel's tint.
   No service or preference changes.
 - **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024;
-  2026042038). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
+  2026100542). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
   chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a
   labelled radio group of 28 px options at radius 6 px, with one tab stop and the arrow keys choosing, the chosen
   option in the brand tone; a press on the chosen option still releases it. The pill platter is gone. The calendar's
@@ -58,7 +70,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   skeletons pulse slowly unless reduced motion is asked for; the calendar's shimmer is gone. Eyebrow labels are
   0.75rem in the muted ink. New tokens: `neutral-tint`, `neutral-ink`. No string, service or preference changes.
 - **Status labels, action buttons, the calendar's segmented control and the counters follow the fleet Design
-  System** (2026042037). The enrolment state labels (Access from, Application under review, On the waiting list,
+  System** (2026100541). The enrolment state labels (Access from, Application under review, On the waiting list,
   Completed, Hidden from students) are rounded rectangles at radius 6 px with a 1 px edge from their own tone, no
   longer pills. Filters' Clear filters and Show, the calendar's Today and the open-courses panel's close and See are
   core's buttons with no pill (Today at the default size, the others small); the panel keeps the body colour on its
@@ -68,7 +80,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   no longer boxes. Every focus ring outside the filter bar is the Design System's token ring, the course card's
   own on a card surface (a list row's link and every star included). New tokens: `scheduled-edge`,
   `awaiting-edge`, `success-edge`. No string, service or behaviour changes.
-- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023; 2026042036). One
+- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023; 2026100540). One
   40 px bar (44 px under a coarse pointer): the scope as a segmented control, then the number of courses the list
   shows and a capsule of the star, Filters, Organise and View, then the search in a capsule of its own; the chips
   of the filters in force on a row under it, which wraps instead of scrolling. View is one button with a chevron
@@ -79,7 +91,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   width and carries the loud counter. Paged mode shows no result count, as it shows no other count. New tokens:
   `brand-fill`, `on-brand-fill`, `brand-edge`, `motion-fast`, `motion-ease`; the control line's Bootstrap link is
   gray-500 (D45). One new string, `line_view`.
-- **The block's colours read the fleet Design System's tokens** (2026042035). Every colour token of `styles.css` is now the
+- **The block's colours read the fleet Design System's tokens** (2026100539). Every colour token of `styles.css` is now the
   chain `var(--dimensions-X, var(--bs-Y, literal))`: a theme of the family (theme_dimensions) answers first,
   Bootstrap's property second, so the block is painted as before under Boost. The duplicate names are one
   token each (`ink`, `ink-dim`, `surface-alt`, `surface-inset`, `brand-ink`), no rule reads a `--bs-*`
@@ -273,6 +285,52 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 - **The kind chip on Explore's cards and rows** (ADR-021 decision 2.4): the course's kind before *New* in slot 2, on
   the cards' cover and after the name on the list; the kinds of the first `get_inventory` answer are kept for the
   section's life and index every page and search hit; a row whose `kd` names no held kind draws nothing.
+
+## v5.2-r5 (2026042042) - 2026-11-15
+
+Fifth release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It carries every change of
+v5.3-r5 (2026042026 to 2026042042 on this branch; 2026100529 to 2026100546 there): the fleet's course card, the
+*Hidden* group and the kinds in *All courses*, the ghost's way into *All courses*, the fleet Design System and the
+fixes of the audit of 2026-11-13. No schema change, no new setting and no upgrade step of the block's own; the same
+event observers, cache definitions and strings change as on 5.3. No 5.3-only API was needed. It needs
+`local_unlistedcourses` 2026042003 or later from that plugin's `MOODLE_502_STABLE` branch, as v5.2-r4 did.
+
+### Added
+
+- **The additions of v5.3-r5**, whose full descriptions are in that section: the *Hidden* group and the course's
+  kind on the rows and cards of *All courses*; the ghost's line naming the *Hidden* and *Archived* groups, and its
+  way into *All courses* when it counts nothing else; Boost Union's course overview settings deciding the cards.
+
+### Changed
+
+- **The changes of v5.3-r5**: the fleet's course card; the colours on the Design System's tokens; the compact
+  filter bar; the menus, the filter panel, the containers and the feedback; the status labels, the action buttons
+  and the calendar's segmented control; Organise's *Group by* and *Sort by* and the bar's tooltips; the category
+  index listing *Archived*; batched cache deletes, a lighter revalidation and cheaper role joins; a smaller package.
+- **What differs from v5.3-r5.**
+  - The `surface` token reads `--dimensions-surface`, then `--bs-body-bg`: Boost's page is white on 5.2, where
+    5.3's chain puts `--bs-card-bg` first on a grey page. The dark accent keeps 5.2's 35 % mix.
+  - The package leaves out the source maps only: 5.2's build writes no `.dev.js` twin. There is no
+    `js/esm/src/swizzle.json` on 5.2.
+  - 5.2 has no asynchronous course deletion, so the *Hidden* group and the ghost's counts carry no clause for a
+    course core is deleting; the cards keep no dark title override, as core 5.2 draws no dark underline under the
+    page's links.
+  - Eight of the README's screenshots are this branch's own, taken on 5.2: they predate the calendar's segmented
+    control and the status labels' new form.
+
+### Fixed
+
+- **The fixes of v5.3-r5**: no contradicting empty messages under the special groups; a hidden course no longer
+  comes back in the shared course layer; a course in a hidden category leaves *All courses*; a completed course is
+  never new; a teacher in no group is shown no grading work in separate groups; the start page option and the
+  read-only sessions check; the cards' cover, button and pills; a hover or a resize renders only what it
+  changes; icons, right-to-left and read retries.
+
+### Security
+
+- **The fixes of v5.3-r5**: the cache observers run after the commit; the three JSON preferences have a size cap;
+  the block's page follows the block type; a listener's course kind cannot break the open-courses line; no raw
+  HTML in a day's items; grading work completed later is asked again.
 
 ## v5.3-r4 (2026100528) - 2026-11-05
 
