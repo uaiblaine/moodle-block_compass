@@ -266,10 +266,10 @@ final class filter_line_rules_test extends basic_testcase {
     }
 
     /**
-     * The floating layers hang under the line's measured bottom, and the panel is a sheet at step 4.
+     * The floating layers hang under the line's measured bottom, and the panel is a sheet at the narrow step.
      *
      * Contract section 4. Changes that must make it fail: a layer's top no longer read from the line's
-     * drawn controls, or the panel no longer a sheet at the two-line step.
+     * drawn controls, or the panel no longer a sheet at the narrow step.
      *
      * @return void
      */
@@ -289,9 +289,9 @@ final class filter_line_rules_test extends basic_testcase {
      * The sheet yields to a popover where an ancestor would clip a viewport-fixed child.
      *
      * Moodle 5.3's open block drawer carries clip-path: inset(0), which cuts a position: fixed
-     * descendant to the drawer's box, so the sheet's chips sat outside it and could not be pressed
+     * descendant to the drawer's box, so the sheet's options sat outside it and could not be pressed
      * (the Dashboard's right drawer, which the Behat scenario uses). The line reads the computed style of its
-     * ancestors when the panel opens at the two-line step and keeps the popover when one traps it.
+     * ancestors when the panel opens at the narrow step and keeps the popover when one traps it.
      * Changes that must make it fail: the clip-path no longer read, the sheet no longer conditional on the
      * read, or the line no longer raised only when the panel really is a sheet.
      *
@@ -415,8 +415,8 @@ final class filter_line_rules_test extends basic_testcase {
      *
      * Contract sections 1 and 8: a menu is role="menu", a choice is menuitemradio with aria-checked, every item an
      * icon before its word and a tick after the chosen one's; opening it moves the keyboard to the chosen item and
-     * the arrow keys walk the items; Escape, Tab and a choice give the keyboard back to the button. View is never a
-     * pair of switches on the bar again, and Organise's sorts are the same kind of item under their heading.
+     * the arrow keys walk the items; Escape, Tab and a choice give the keyboard back to the button. Organise's
+     * choices are the same kind of item under their headings.
      *
      * Changes that must make it fail: the menu losing its role, an item its role or aria-checked, the keyboard left
      * on the button when the menu opens, a choice or Escape no longer returning it, Tab no longer closing a menu,

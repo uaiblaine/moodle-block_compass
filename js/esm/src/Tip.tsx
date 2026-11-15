@@ -64,8 +64,9 @@ export const tipHost = (classes: string, off: boolean): string => (off
 /**
  * Whether Escape has put a group's tooltips off, and the call that puts them back.
  *
- * Escape anywhere puts them off, whatever else the key does: the listener is passive, so the key still closes a
- * menu, the search or the panel. The caller puts them back when the reader comes to the group again.
+ * Escape anywhere puts them off, whatever else the key does: the listener only observes it and never
+ * prevents the default, so the key still closes a menu, the search or the panel. The caller puts them back when the reader
+ * comes to the group again.
  *
  * @returns {Array} Whether they are off, and the call that puts them back on.
  */

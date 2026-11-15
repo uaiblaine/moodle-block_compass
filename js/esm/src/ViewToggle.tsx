@@ -21,6 +21,7 @@
  * end, as View can end the bar), and says what it opens with aria-expanded and aria-controls. The menu is the
  * bar's LineMenu, named "Show courses as", one section of one menuitemradio per view; its keys, its focus and
  * its look are LineMenu's, the Organise menu's too (ADR-024).
+ *
  * The glyphs are core's own list, grid and chevron, server-rendered and shipped as props.
  *
  * @module     block_compass/ViewToggle

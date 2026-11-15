@@ -14,7 +14,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tier 3: the inventory, grouped by category, filtered and reordered in place.
+ * Tier 3: the inventory, grouped by category or flat, filtered and reordered in place.
  *
  * Two modes, decided by the server. In full mode one request brings every row but those of
  * the archived and the invisible groups (see pagedgroup()) and the toolbar only re-renders
@@ -171,8 +171,8 @@ const keptBy = (scope: string, star: boolean, row: InventoryRow): boolean => {
 };
 
 /**
- * The order of a list of rows by the sort Organise chose (ADR-025): the flat list's, and the rows' inside
- * each group in full mode, one comparator for both so the two cannot drift.
+ * The order of a list of rows by the sort Organise chose (ADR-025): the flat list's, and by recency the rows'
+ * inside each group in full mode, one comparator for both so the two cannot drift.
  *
  * By name, a run of digits comparing by its value, so "Unit 2" comes before "Unit 10" and "Unit 01" ties
  * with "Unit 1", as in the server's order (explore::order()). Three things differ from that order: case
@@ -1657,11 +1657,11 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
      * Every group's visible rows and the count its summary shows, by group id.
      *
      * In full mode both follow the filter, and by recency (ADR-025) each group's rows follow the flat list's
-     * order; by name they keep the server's, which is the same order. In paged mode the count is the server's
-     * total until the group's own rows arrive, and then it is what the group holds of them that the
-     * scope and the star keep; with the star and Awaiting or Scheduled nothing is kept and no group
-     * is drawn. Memoised, so a group's rows stay the same array until what decides them changes: the
-     * group is memoised on it.
+     * order; by name they keep the server's order, which rowOrder() matches except in the three ways it
+     * lists. In paged mode the count is the server's total until the group's own rows arrive, and then it
+     * is what the group holds of them that the scope and the star keep; with the star and
+     * Awaiting or Scheduled nothing is kept and no group is drawn. Memoised, so a group's rows
+     * stay the same array until what decides them changes: the group is memoised on it.
      */
     const slices = useMemo((): Map<number, Slice> => {
         const map = new Map<number, Slice>();

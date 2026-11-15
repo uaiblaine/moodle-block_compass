@@ -37,7 +37,7 @@ final class explore_preference_test extends advanced_testcase {
      * Nothing stored, an empty string, and something that is not JSON all read as the defaults.
      *
      * The defaults are the closed panel of ADR-015 decision 5, the All scope, the star released, and the list
-     * grouped by category and sorted by name (ADR-025), the list a viewer saw before the two were split.
+     * grouped by category and sorted by name (ADR-025).
      *
      * @return void
      */
