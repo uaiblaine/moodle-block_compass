@@ -105,8 +105,9 @@ final class course_card_rules_test extends \basic_testcase {
     /**
      * Boost Union's flags reach every surface: the progress row, the cover and the list's thumbnail.
      *
-     * Changes that must make it fail: a surface drawing the progress row or its slot with the setting off; a card
-     * drawing its cover, or a row its thumbnail, with the view unchecked; the coverless card losing its top row.
+     * Changes that must make it fail: a surface drawing the progress row, its skeleton or its place with the setting
+     * off; a card drawing its cover, or a row its thumbnail, with the view unchecked; the coverless card losing its top
+     * row.
      *
      * @return void
      */
@@ -126,7 +127,8 @@ final class course_card_rules_test extends \basic_testcase {
         $row = $this->source('Row.tsx');
         $this->assertStringContainsString('const nothumb = !config.card.thumb;', $row);
         $this->assertStringContainsString('{!nothumb && <span className="compass-row-thumb" aria-hidden="true">', $row);
-        $this->assertStringContainsString('{enrolled && row.comp && config.card.progress && (', $row);
+        $this->assertStringContainsString('{enrolled && row.comp && config.card.progress && waiting && (', $row);
+        $this->assertStringContainsString('{enrolled && row.comp && config.card.progress && answered && !complete', $row);
     }
 
     /**
@@ -268,7 +270,8 @@ final class course_card_rules_test extends \basic_testcase {
 
     /**
      * Slot 2 holds the course's kind before New on both views of tier 3 (ADR-021 decision 2.4, answer 8), each the
-     * light chip of the contract; the list view's New is that chip too, no longer a Bootstrap badge.
+     * light chip of the contract; the list view's New is that chip too, no longer a Bootstrap badge. On the list the
+     * chips lead the row's second line (ADR-026), each with its word in a title, since a narrow line cuts it.
      *
      * Changes that must make it fail: New drawn before the kind on the cards or on the list; the list view's chips
      * drawn as a badge again; the cards' two chips outside their row.
@@ -284,8 +287,11 @@ final class course_card_rules_test extends \basic_testcase {
             'the cards do not draw the kind, then New, in one row'
         );
         $row = $this->source('Row.tsx');
-        $kind = strpos($row, '{kind !== undefined && <span className="compass-card-kind">{kind.name}</span>}');
-        $new = strpos($row, '{row.new && <span className="compass-card-kind">{labels.badge_new}</span>}');
+        $kind = strpos($row, '<span className="compass-card-kind compass-row-chip" title={kind.name}>{kind.name}</span>');
+        $new = strpos(
+            $row,
+            '{row.new && <span className="compass-card-kind compass-row-chip" title={labels.badge_new}>{labels.badge_new}</span>}'
+        );
         $this->assertNotFalse($kind, 'the list view draws no kind chip');
         $this->assertNotFalse($new, 'the list view does not draw New as the chip');
         $this->assertLessThan($new, $kind, 'the list view draws New before the kind');
@@ -324,5 +330,106 @@ final class course_card_rules_test extends \basic_testcase {
         $this->assertStringContainsString('compass-card-kind', $tier1, 'vacuity: tier 1\'s card draws its New chip');
         $this->assertStringNotContainsString('kinds', $tier1);
         $this->assertStringNotContainsString('.kd', $tier1);
+    }
+
+    /**
+     * A list row's markup in the order the reader meets it (ADR-026): the name's link holding the name alone, then the
+     * second line, then the controls; nothing on the second line can take the focus, so the focus goes name, star,
+     * archive, as the eye does along the first line, where the grid puts them.
+     *
+     * Changes that must make it fail: the chips or anything else put back inside the name's link; the controls drawn
+     * before the second line, or a control or a link drawn on it; the star or the archive control drawn outside the
+     * controls' cell.
+     *
+     * @return void
+     */
+    public function test_a_list_row_reads_name_then_line_then_controls(): void {
+        $row = $this->source('Row.tsx');
+        $this->assertMatchesRegularExpression(
+            '#<a href=\{url\} className="compass-row-link text-reset text-decoration-none">\s*'
+                . '<span className="compass-row-name" title=\{row\.name\}>\{row\.name\}</span>\s*</a>#',
+            $row,
+            'the name\'s link holds more than the name'
+        );
+        $link = strpos($row, 'className="compass-row-link');
+        $line = strpos($row, '<div className="compass-row-line">');
+        $controls = strpos($row, '<span className="compass-row-controls">');
+        $this->assertNotFalse($line, 'the row draws no second line');
+        $this->assertNotFalse($controls, 'the row draws no controls\' cell');
+        $this->assertLessThan($line, $link, 'the second line comes before the name');
+        $this->assertLessThan($controls, $line, 'the controls come before the second line');
+        $second = substr($row, $line, $controls - $line);
+        foreach (['<a ', '<button', '<Star', '<Archive', 'tabIndex', 'href='] as $focusable) {
+            $this->assertStringNotContainsString($focusable, $second, "the second line draws a focusable {$focusable}");
+        }
+        $after = substr($row, $controls);
+        $this->assertStringContainsString('<Star', $after, 'the star is not in the controls\' cell');
+        $this->assertStringContainsString('<Archive', $after, 'the archive control is not in the controls\' cell');
+        $this->assertSame(1, substr_count($row, '<Star'), 'the row draws a second star');
+        $this->assertSame(1, substr_count($row, '<Archive'), 'the row draws a second archive control');
+        $this->assertStringNotContainsString('compass-clamp', $row, 'a row\'s text clamps to two lines again');
+    }
+
+    /**
+     * The bar's place on a list row holds something or is not drawn (ADR-026): the skeleton while the batch is out,
+     * then the bar for a known percentage below 100; a completed row draws its label and keeps no room for a bar.
+     *
+     * Changes that must make it fail: the bar's place drawn whatever the batch says (the slot the row reserved before),
+     * or drawn for a completed course.
+     *
+     * @return void
+     */
+    public function test_a_list_row_reserves_no_place_for_a_bar_it_will_not_draw(): void {
+        $row = $this->source('Row.tsx');
+        $this->assertSame(
+            2,
+            substr_count($row, '<div className="compass-row-progress">'),
+            'the bar\'s place is drawn other than for the skeleton and the bar'
+        );
+        $this->assertMatchesRegularExpression(
+            '#\{enrolled && row\.comp && config\.card\.progress && waiting && \(\s*<div className="compass-row-progress">\s*'
+                . '<span className="compass-skeleton compass-skeleton-progress" aria-hidden="true"></span>\s*</div>\s*\)\}#',
+            $row,
+            'the skeleton\'s place is not drawn only while the batch is out'
+        );
+        $this->assertMatchesRegularExpression(
+            '#\{enrolled && row\.comp && config\.card\.progress && answered && !complete && detail\.hascompletion\s*'
+                . '&& detail\.progress !== null && \(\s*<div className="compass-row-progress">\s*<Progress #',
+            $row,
+            'the bar\'s place is drawn without a bar, or for a completed course'
+        );
+    }
+
+    /**
+     * A list row draws one crest, the first the theme answered, with no "+N", named by its own alternative text and
+     * not by the list's name; the cards keep the whole list (ADR-026).
+     *
+     * Changes that must make it fail: the row's crests drawn as the whole list again, or as a list of one named
+     * "Crests"; a "+N" for the others; the row no longer asking for the inline crest.
+     *
+     * @return void
+     */
+    public function test_a_list_row_draws_one_crest(): void {
+        $crests = $this->source('Crests.tsx');
+        $this->assertMatchesRegularExpression(
+            '#if \(inline\) \{\s*const \[first\] = badges;\s*return \(\s*<span className="compass-crests compass-crests-inline">\s*'
+                . '<img src=\{first\.url\} alt=\{first\.alt\} loading="lazy" />\s*</span>\s*\);\s*\}#',
+            $crests,
+            'the inline crest is not the first crest alone'
+        );
+        $this->assertSame(1, substr_count($crests, 'badges.map('), 'the crests are listed in more than one place');
+        $this->assertStringNotContainsString('compass-crests-inline" role=', $crests, 'the row\'s crest is a list again');
+        $this->assertSame(2, substr_count($crests, '<img '), 'the crests are drawn in a third place, a "+N" or another');
+        $this->assertStringContainsString(
+            '<Crests badges={detail?.badges} label={labels.crests} inline />',
+            $this->source('Row.tsx')
+        );
+        foreach (['Card.tsx', 'RowCard.tsx'] as $file) {
+            $this->assertMatchesRegularExpression(
+                '#<Crests badges=\{[^}]+\} label=\{labels\.crests\} />#',
+                $this->source($file),
+                "{$file} no longer draws the whole list"
+            );
+        }
     }
 }

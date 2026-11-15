@@ -39,7 +39,13 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
   gone quiet gather in a *Dormant* group, courses hidden from students in a *Hidden* group shown
   only to those who may see them (a course's own teacher, as in the Course overview block), and
   archived ones in an *Archived* group shared with the Course overview block. Where a theme or
-  plugin tells kinds of course apart (an event, a trail), each card and row says its kind.
+  plugin tells kinds of course apart (an event, a trail), each card and row says its kind. In the
+  list view every row is two lines of one height: the course's name on one line (the whole name
+  on hover) with the star and the archive control at its end, then one line of what qualifies it,
+  in this order: the kind and *New*, the status label, *Hidden from students*, the course's first
+  institutional crest (the cards show them all), when it was last opened, and the progress bar.
+  That line never wraps: on a narrow block the date gives way first, then the bar narrows, then
+  the chips, and the rest is cut at the line's end.
 
 Compass owns no database tables: favourites are core's course star, archiving is the Course
 overview block's "Removed from view", caches go through MUC and per-user state through user
@@ -139,7 +145,7 @@ the cards always paint first.
 All courses and the Compass page
 --------------------------------
 
-![All courses on the Compass page: the filter bar on one row (the scope with its counts, the result count, the star, Filters, Organise and the list/cards menu, and the search icon), the category index with the open group's link tinted and Archived last, and the first group open as a list](docs/screenshots/explore.png)
+![All courses on the Compass page: the filter bar on one row (the scope with its counts, the result count, the star, Filters, Organise and the list/cards menu, and the search icon), the category index with the open group's link tinted and Archived last, and the first group open as a list of two-line rows (the name, with the star and the archive, then the chips, the state, the date and the progress bar)](docs/screenshots/explore.png)
 
 *All courses* opens from the ghost card or from a strip's "+N" link. The ghost is there whenever
 *All courses* has something tier 1 does not show, its *Hidden* and *Archived* groups included: a
@@ -188,13 +194,13 @@ scope on a line of its own under the controls, its choices sharing the width (a 
 drawer, a narrow column). There, while the search is open, its field takes the first line. The chips
 wrap to further lines rather than scrolling.
 
-![All courses on the Dashboard, a search and a filter in force: only All with its count of 3, the result count, the star, Filters with a badge of 1, Organise, View and the search icon; under it the chips instruction and Hybrid with Clear all, and the three courses left](docs/screenshots/explore-filtered.png)
+![All courses on the Dashboard, a search and a filter in force: only All with its count of 3, the result count, the star, Filters with a badge of 1, Organise, View and the search icon; under it the chips instruction and Hybrid with Clear all, and the three courses left as two-line rows](docs/screenshots/explore-filtered.png)
 
-![All courses on the Dashboard at 500 px, the narrow step: the result count, the star, Filters, Organise, View and the search icon on the first line, the scope on a line of its own after them](docs/screenshots/explore-narrow.png)
+![All courses on the Dashboard at 500 px, the narrow step: the result count, the star, Filters, Organise, View and the search icon on the first line, the scope on a line of its own after them, the group's rows two lines each](docs/screenshots/explore-narrow.png)
 
 At the narrow step the Filters panel opens as a bottom sheet:
 
-![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality and Level values, Clear filters and Show 38](docs/screenshots/explore-phone.png)
+![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality and Level values, Clear filters and Show 38, the list rows above it two lines each](docs/screenshots/explore-phone.png)
 
 **Pointing at a filter previews it.** A mouse or a pen on a scope, the star, a panel value or a
 suggestion, or the keyboard's focus on one, rings the courses on screen that it would keep,
