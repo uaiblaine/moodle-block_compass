@@ -210,8 +210,7 @@ final class design_tokens_test extends basic_testcase {
     /**
      * The scale tokens are declared on the block's root, each the family's name with tokens.md's fallback.
      *
-     * The control line's Bootstrap link is gray-500 since the filter bar's step (D45), and the motion
-     * tokens came with it: the bar's transitions read them.
+     * The control line's Bootstrap link is gray-500 (D45); the bar's transitions read the motion tokens.
      *
      * Changes that must make it fail: a scale token dropped or renamed; a fallback other than the
      * scale's step; the control line back on gray-600.

@@ -16,8 +16,9 @@ import{useCallback as Ze,useEffect as Me,useId as In,useLayoutEffect as oe,useRe
  * which no control is drawn past its edge: full, one line; narrow, the scope on a line of its own after
  * the controls, its cells sharing the width. It measures with every scope cell drawn, with the search
  * field open at its narrowest and with the line unwrapped, so the step follows the width and the
- * language, never the counts, and opening the search never pushes the full line past its edge. A ResizeObserver on the bar,
- * not a container query (Moodle's stylelint forbids @container), and a late webfont refit it.
+ * language, never the counts, and opening the search never pushes the full line past its edge. A
+ * ResizeObserver on the bar, not a container query (Moodle's stylelint forbids @container), and a late
+ * webfont refit it.
  *
  * The search is an icon at every width. Pressing it, or the slash key, opens the field in place, in its
  * capsule, and moves the keyboard into it; at the narrow step the cluster gives the field its line.

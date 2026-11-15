@@ -1706,8 +1706,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
 }
 
 /* The Organise and View menus (LineMenu.tsx, ADR-024): the Design System's menu (components/menu.md) at the
-   line's end, its items an icon, a word and the chosen one's tick, the Organise menu's sorts under their
-   heading. */
+   line's end, its items an icon, a word and the chosen one's tick, the Organise menu's two
+   sections (Group by, Sort by) each under its heading. */
 .block_compass .compass-line-menu:not([hidden]) {
     right: 0;
     display: flex;

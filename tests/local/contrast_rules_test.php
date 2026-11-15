@@ -91,8 +91,8 @@ final class contrast_rules_test extends basic_testcase {
      *     panel's gradient, the icon's tile (a tint of the primary), a group, "+N", the popover, its rows at rest and
      *     hovered, and a tile of tier 1's empty state; with ADR-019, a group's tooltip and the crests' tiles (the pill's
      *     box, a tile in dark mode only, the popover's and the tiles' slot, the tooltip's tile), light in both modes.
-     *     The close and "See" are core's buttons and the count is a quiet counter since the Design System's status and
-     *     button step: none of the three fills anything of the block's.
+     *     The close and "See" are core's buttons and the count is a quiet counter:
+     *     none of the three fills anything of the block's.
      */
     private const NEWS_FILLS = [
         '.block_compass .compass-news', '.block_compass .compass-news-icon',
@@ -169,8 +169,7 @@ final class contrast_rules_test extends basic_testcase {
      * :442, _variables-dark.scss:46, the design system's primitives). Gray-500, the control line's link
      * (D45), is Boost's #8f959e, which Boost 5.3's dark mode lifts halfway to gray-400 (#afb5bc,
      * theme/boost/scss/moodle/dark.scss:25). The neutral tone's subtle ground and emphasis, which the full empty
-     * state's disc reads (ADR-024), were measured the same way on m503b, 2026-11-15. Two brands: Boost's blue and an
-     * institution's navy (#070093).
+     * state's disc reads (ADR-024). Two brands: Boost's blue and an institution's navy (#070093).
      * A --bs-* token not listed here takes the literal fallback the stylesheet writes beside it.
      *
      * @return array Mode name => token name => CSS value.

@@ -2,7 +2,7 @@ import{fillCount as f}from"./str";import c,{tipHost as m}from"./Tip";import{mark
 /**
  * Filters: the button that opens and closes the filter panel, with the count of field values in force.
  *
- * aria-expanded says which way it will go and aria-controls names the panel, so a screen
+ * aria-expanded says whether the panel is open and aria-controls names it, so a screen
  * reader hears "Filters, 2 active filters, collapsed" and knows where the panel is. An icon button
  * of the bar's capsule at every width, with no word (ADR-023): the loud counter on its corner shows
  * the bare count, hidden from assistive technology and absent at zero; the accessible name says it

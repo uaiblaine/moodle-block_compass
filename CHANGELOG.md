@@ -15,6 +15,9 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **Comments and the README follow the audit of 2026-11-15** (2026042041). No behaviour change: comments, the README's
+  captions and wording, and the rebuilt `js/esm/build` that carries the source comments.
+
 - **Organise groups and sorts as two choices, and the bar's icon buttons name themselves quickly** (ADR-025;
   2026042040). The Organise menu has two sections, *Group by* (Category, No grouping) and, after a
   separator, *Sort by* (Name, Most recent), each a radio group with an icon and a tick on the chosen item; choosing
@@ -72,7 +75,7 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   width and carries the loud counter. Paged mode shows no result count, as it shows no other count. New tokens:
   `brand-fill`, `on-brand-fill`, `brand-edge`, `motion-fast`, `motion-ease`; the control line's Bootstrap link is
   gray-500 (D45). One new string, `line_view`.
-- **The block's colours read the fleet Design System's tokens.** Every colour token of `styles.css` is now the
+- **The block's colours read the fleet Design System's tokens** (2026042035). Every colour token of `styles.css` is now the
   chain `var(--dimensions-X, var(--bs-Y, literal))`: a theme of the family (theme_dimensions) answers first,
   Bootstrap's property second, so the block is painted as before under Boost. The duplicate names are one
   token each (`ink`, `ink-dim`, `surface-alt`, `surface-inset`, `brand-ink`), no rule reads a `--bs-*`
