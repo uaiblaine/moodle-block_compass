@@ -15,6 +15,17 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **Status labels, action buttons, the calendar's segmented control and the counters follow the fleet Design
+  System** (2026042037). The enrolment state labels (Access from, Application under review, On the waiting list,
+  Completed, Hidden from students) are rounded rectangles at radius 6 px with a 1 px edge from their own tone, no
+  longer pills. Filters' Clear filters and Show, the calendar's Today and the open-courses panel's close and See are
+  core's buttons with no pill (Today at the default size, the others small); the panel keeps the body colour on its
+  outline buttons, whose gray text does not read on its tinted end. The calendar's views and filter switch take the
+  filter bar scope's measures: a 40 px inset platter, 32 px cells (36 px under a coarse pointer), the chosen one
+  raised in the body text. A group's count in the open-courses panel and a filter option's count are quiet text,
+  no longer boxes. Every focus ring outside the filter bar is the Design System's token ring, the course card's
+  own on a card surface (a list row's link and every star included). New tokens: `scheduled-edge`,
+  `awaiting-edge`, `success-edge`. No string, service or behaviour changes.
 - **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023, proposed; 2026042036). One
   40 px bar (44 px under a coarse pointer): the scope as a segmented control, then the number of courses the list
   shows and a capsule of the star, Filters, Organise and View, then the search in a capsule of its own; the chips

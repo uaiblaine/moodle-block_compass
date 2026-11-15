@@ -85,31 +85,40 @@ final class contrast_rules_test extends basic_testcase {
 
     /**
      * @var string[] The open-courses panel's filled rules (ADR-017 decision 7, round 2), each declaring its paired text: the
-     *     panel's gradient, the icon's tile and the count chip (a tint of the primary), a group, "+N", the close
-     *     and the close hovered, "See", the popover, its rows at rest and hovered, and a tile of tier 1's empty state;
-     *     with ADR-019, a group's tooltip and the crests' tiles (the pill's box, a tile in dark mode only, the
-     *     popover's and the tiles' slot, the tooltip's tile), light in both modes.
+     *     panel's gradient, the icon's tile (a tint of the primary), a group, "+N", the popover, its rows at rest and
+     *     hovered, and a tile of tier 1's empty state; with ADR-019, a group's tooltip and the crests' tiles (the pill's
+     *     box, a tile in dark mode only, the popover's and the tiles' slot, the tooltip's tile), light in both modes.
+     *     The close and "See" are core's buttons and the count is a quiet counter since the Design System's status and
+     *     button step: none of the three fills anything of the block's.
      */
     private const NEWS_FILLS = [
-        '.block_compass .compass-news', '.block_compass .compass-news-icon', '.block_compass .compass-news-count',
-        '.block_compass .compass-news-group', '.block_compass .compass-news-more', '.block_compass .compass-news-hide',
-        '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-see', '.block_compass .compass-news-pop',
+        '.block_compass .compass-news', '.block_compass .compass-news-icon',
+        '.block_compass .compass-news-group', '.block_compass .compass-news-more', '.block_compass .compass-news-pop',
         '.block_compass .compass-news-poprow', '.block_compass .compass-news-poprow:hover', '.block_compass .compass-news-tile',
         '.block_compass .compass-news-pophide', '.block_compass .compass-news-pophide:hover',
         '.block_compass .compass-news-tip', '.block_compass .compass-news-crestbox', '.block_compass .compass-news-slot',
         '.block_compass .compass-news-tipcrest',
     ];
 
-    /** @var string[] The course card's fills (the course card contract): the card, its slot, chip, stars, seal and hidden pill. */
+    /**
+     * @var string[] The course card's fills (the course card contract): the card, its slot, chip, stars, and the status
+     *     labels of its state slot - the two enrolment states, the seal and the hidden-from-students label.
+     */
     private const CARD_FILLS = [
         '.block_compass .compass-card',
         '.block_compass .compass-card .compass-card-extra',
         '.block_compass .compass-card-kind',
         '.block_compass .compass-card .compass-star',
         '.block_compass .compass-card-nocover .compass-star',
+        '.block_compass .compass-state-scheduled',
+        '.block_compass .compass-state-pending',
+        '.block_compass .compass-state-waitlisted',
         '.block_compass .compass-state-done',
         '.block_compass .compass-state-invisible',
     ];
+
+    /** @var string Today, disabled at home: core's button, receding by its border and keeping core's text (styles.css). */
+    private const TODAY_OFF = '.block_compass .compass-cal-todaybtn[aria-disabled="true"]';
 
     /** @var string The scope of a dimmed column of the open row. */
     private const COL_DIM = '.block_compass .compass-cal-col.compass-cal-col-dim';
@@ -404,7 +413,6 @@ final class contrast_rules_test extends basic_testcase {
             ['.block_compass .compass-cal-pill-accent', '.block_compass .compass-cal-pill'],
             ['.block_compass .compass-cal-pill-soft', '.block_compass .compass-cal-pill'],
             ['.block_compass .compass-cal-pill-late', '.block_compass .compass-cal-pill'],
-            ['.block_compass .compass-cal-todaybtn[aria-disabled="true"]', '.block_compass .compass-cal-todaybtn:hover'],
             ['.block_compass .compass-cal-edge[aria-disabled="true"]', '.block_compass .compass-cal-edge:hover'],
             // The amber pill is a countdown too: its pair wins over the plain countdown's muted text.
             ['.block_compass .compass-soon-pill', '.block_compass .compass-soon-rel'],
@@ -473,8 +481,7 @@ final class contrast_rules_test extends basic_testcase {
             '.block_compass .compass-cal-rel', '.block_compass .compass-cal-rel-today', '.block_compass .compass-cal-tip',
             '.block_compass .compass-cal-segbtn[aria-pressed="true"]', '.block_compass .compass-cal-chip',
             '.block_compass .compass-cal-pill', '.block_compass .compass-cal-pill-accent', '.block_compass .compass-cal-pill-soft',
-            '.block_compass .compass-cal-pill-late', '.block_compass .compass-cal-todaybtn',
-            '.block_compass .compass-cal-todaybtn:hover',
+            '.block_compass .compass-cal-pill-late',
             '.block_compass .compass-cal-edge', '.block_compass .compass-cal-edge:hover', '.block_compass .compass-cal-link',
             '.block_compass .compass-cal-link:hover', '.block_compass .compass-cal-toggle:hover',
             '.block_compass .compass-cal-period:hover',
@@ -501,7 +508,7 @@ final class contrast_rules_test extends basic_testcase {
      *
      * Changes that must make it fail: opacity back on a dimmed column or period, or on a day, a disc, a
      * number, a weekday, a chip or a period label; a dim scope that no longer swaps a fill or the text;
-     * a disabled control faded with opacity again.
+     * a disabled control faded with opacity again; a disabled Today that no longer recedes by its border.
      *
      * @return void
      */
@@ -552,13 +559,18 @@ final class contrast_rules_test extends basic_testcase {
             );
         }
 
-        [, $disabled] = $this->rule($selectors, '.block_compass .compass-cal-todaybtn[aria-disabled="true"]');
+        [, $disabled] = $this->rule($selectors, '.block_compass .compass-cal-edge[aria-disabled="true"]');
         $this->assertArrayNotHasKey('opacity', $disabled, 'a disabled control fades its text with opacity');
         $this->assertSame(
             'var(--block_compass-cal-muted-on-surface)',
             $disabled['color'] ?? null,
             'a disabled control keeps its text'
         );
+        // Today is core's button: disabled, it keeps core's text and recedes by its border, never by opacity.
+        [, $today] = $this->rule($selectors, self::TODAY_OFF);
+        $this->assertArrayNotHasKey('opacity', $today, 'a disabled Today fades its text with opacity');
+        $this->assertArrayNotHasKey('color', $today, 'a disabled Today takes a text darker than its enabled one');
+        $this->assertSame('var(--block_compass-line)', $today['border-color'] ?? null, 'a disabled Today does not recede');
     }
 
     /**
@@ -655,10 +667,7 @@ final class contrast_rules_test extends basic_testcase {
             ['an accent pill', '.block_compass .compass-cal-pill-accent', '.block_compass .compass-cal-pill-accent', ['root']],
             ['a soft pill', '.block_compass .compass-cal-pill-soft', '.block_compass .compass-cal-pill-soft', ['root']],
             ['a late pill', '.block_compass .compass-cal-pill-late', '.block_compass .compass-cal-pill-late', ['root']],
-            ['Today', '.block_compass .compass-cal-todaybtn', '.block_compass .compass-cal-todaybtn', ['root']],
-            ['Today hovered', '.block_compass .compass-cal-todaybtn:hover', '.block_compass .compass-cal-todaybtn:hover', ['root']],
-            ['Today disabled', '.block_compass .compass-cal-todaybtn[aria-disabled="true"]', '.block_compass .compass-cal-todaybtn',
-                ['root']],
+            // Today is core's button, its text core's at rest and disabled alike: no pair of the block's.
             ['an arrow disabled', '.block_compass .compass-cal-edge[aria-disabled="true"]',
                 '.block_compass .compass-cal-edge[aria-disabled="true"]', ['root']],
             ['the calendar link hovered', '.block_compass .compass-cal-link:hover', '.block_compass .compass-cal-link:hover',
@@ -739,11 +748,10 @@ final class contrast_rules_test extends basic_testcase {
             ['the line\'s icon', '.block_compass .compass-news-icon', '.block_compass .compass-news-icon', ['root']],
             ['a group', $group, $group, ['root']],
             ['a group of one\'s course', '.block_compass .compass-news-gsub', $group, ['root']],
-            ['a count', '.block_compass .compass-news-count', '.block_compass .compass-news-count', ['root']],
+            ['a group\'s count', '.block_compass .compass-news-count', $group, ['root']],
+            ['a tile\'s count', '.block_compass .compass-news-count', $tile, ['root']],
+            ['a popover row\'s count', '.block_compass .compass-news-count', $row, ['root']],
             ['+N', '.block_compass .compass-news-more', '.block_compass .compass-news-more', ['root']],
-            ['the close', '.block_compass .compass-news-hide', '.block_compass .compass-news-hide', ['root']],
-            ['the close hovered', '.block_compass .compass-news-hide:hover', '.block_compass .compass-news-hide:hover', ['root']],
-            ['See', '.block_compass .compass-news-see', '.block_compass .compass-news-see', ['root']],
             ['the popover\'s eyebrow on a row', '.block_compass .compass-news-popeyebrow', $row, ['root']],
             ['the popover\'s summary on a row', '.block_compass .compass-news-popsum', $row, ['root']],
             ['the popover\'s hide', $pophide, $pophide, ['root']],
@@ -789,6 +797,9 @@ final class contrast_rules_test extends basic_testcase {
             ['a coverless card\'s star', '.block_compass .compass-card-nocover .compass-star',
                 '.block_compass .compass-card-nocover .compass-star', ['root']],
             ['the completed seal', '.block_compass .compass-state-done', '.block_compass .compass-state-done', ['root']],
+            // The two enrolment states' labels, each its family's fill and ink.
+            ['the scheduled label', '.block_compass .compass-state-scheduled', '.block_compass .compass-state-scheduled', ['root']],
+            ['the pending label', '.block_compass .compass-state-pending', '.block_compass .compass-state-pending', ['root']],
             // A course hidden from students (ADR-021 decision 1.8): the plugin slot's quiet ground and the card's ink.
             ['the hidden-from-students pill', '.block_compass .compass-state-invisible',
                 '.block_compass .compass-state-invisible', ['root']],
@@ -890,15 +901,15 @@ final class contrast_rules_test extends basic_testcase {
      *
      * The panel paints a gradient from a warm stop through the surface to the primary's subtle tint
      * (round 2), which the pair matrix cannot read (a gradient is not a colour). Each text is computed on
-     * each of the three stops, the close's translucent tint composited over the stop it sits on:
-     * the eyebrow (sentence case, the accent's text), the summary, the close at rest and hovered, and the
-     * foot link of the empty state. The chips' text on their surface, the count on the subtle tint and
-     * the tile are pairs of the matrix. Vacuity guards: the gradient is the three stops in this order, the
-     * warm and sand tokens have a dark value, and the pairs computed are counted.
+     * each of the three stops, a translucent fill composited over the stop it sits on: the eyebrow (sentence
+     * case, the accent's text), the summary, the resting text of the panel's outline buttons (the close and
+     * "See", core's buttons), the quiet counts, and the foot link of the empty state. The chips' text on
+     * their surface and the tile are pairs of the matrix. Vacuity guards: the gradient is the three stops in
+     * this order, the warm and sand tokens have a dark value, and the pairs computed are counted.
      *
      * Changes that must make it fail: a stop's token changed to a colour the eyebrow does not read on,
      * the dark warm stop dropped (the light cream behind light text), the accent's text token changed to
-     * the plain brand.
+     * the plain brand, the panel's outline buttons left on Boost's gray-600 text (3.64:1 on the subtle stop).
      *
      * @return void
      */
@@ -922,8 +933,7 @@ final class contrast_rules_test extends basic_testcase {
             'the surface stop' => 'var(--block_compass-surface)',
             'the subtle stop' => 'var(--block_compass-news-subtle)',
         ];
-        $hide = '.block_compass .compass-news-hide';
-        $hover = '.block_compass .compass-news-hide:hover';
+        $outline = '.block_compass .compass-news .btn-outline-secondary:not(:hover):not(:active)';
         $pophide = '.block_compass .compass-news-pophide';
         $pophover = '.block_compass .compass-news-pophide:hover';
         $row = '.block_compass .compass-news-poprow';
@@ -935,14 +945,15 @@ final class contrast_rules_test extends basic_testcase {
         $pairs = [
             ['the eyebrow', '.block_compass .compass-news-title', null],
             ['the summary', '.block_compass .compass-news-sum', null],
-            ['the close', $hide, $hide],
-            ['the close hovered', $hover, $hover],
+            // The close and "See" are core's outline buttons, whose resting text the panel sets (hovered, Bootstrap's
+            // own fill and text, which the panel's ground does not reach).
+            ['the outline buttons\' text', $outline, null],
             ['the foot link', '.block_compass .compass-news-foot .compass-news-all', null],
             ['the popover\'s eyebrow', '.block_compass .compass-news-popeyebrow', null],
             ['the popover\'s summary', '.block_compass .compass-news-popsum', null],
             ['a popover row\'s text', $row, null],
             ['a popover row\'s course', '.block_compass .compass-news-popsub', null],
-            ['a popover row\'s count', $count, $count],
+            ['a popover row\'s count', $count, null],
             ['the popover\'s foot link', '.block_compass .compass-news-popfoot .compass-news-all', null],
             ['the popover\'s hide', $pophide, $pophide],
             ['the popover\'s hide hovered', $pophover, $pophover],

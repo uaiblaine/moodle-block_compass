@@ -2758,7 +2758,7 @@ final class accessibility_rules_test extends basic_testcase {
         $this->assertStringContainsString('aria-label={strings.news_hide}', $hide[0], 'named by the whole sentence');
         $this->assertStringContainsString('title={strings.news_hide}', $hide[0]);
         $this->assertStringNotContainsString('news_hide_short', $hide[0], 'the short label is the text, never the name');
-        $this->assertStringContainsString("'compass-news-hide compass-news-hide-icon'", $hide[0]);
+        $this->assertStringContainsString("'btn btn-sm btn-outline-secondary compass-news-hide compass-news-hide-icon'", $hide[0]);
 
         $sparks = array_values(array_filter(
             $this->tags($source, 'span'),

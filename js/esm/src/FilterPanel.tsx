@@ -150,12 +150,13 @@ const FilterPanel = ({
                     the focused button in the render it causes, dropping the keyboard to the body (see
                     RetryNotice.tsx). aria-disabled says it, and the handler refuses the press. Bootstrap's
                     disabled class is kept for its look: its pointer-events: none passes a click to the
-                    panel beneath, which has no handler and no stretched link (see Star.tsx). */}
+                    panel beneath, which has no handler and no stretched link (see Star.tsx). Both buttons are
+                    core's, at the panel foot's small size and with no pill (the Design System's action-button.md). */}
                 <button
                     type="button"
                     className={pressed === 0
-                        ? 'btn btn-sm btn-outline-secondary rounded-pill compass-clear disabled'
-                        : 'btn btn-sm btn-outline-secondary rounded-pill compass-clear'}
+                        ? 'btn btn-sm btn-outline-secondary compass-clear disabled'
+                        : 'btn btn-sm btn-outline-secondary compass-clear'}
                     aria-disabled={pressed === 0 || undefined}
                     onClick={() => {
                         if (pressed > 0) {
@@ -166,7 +167,7 @@ const FilterPanel = ({
                     {labels.clearfilters}
                 </button>
                 {/* Closes the panel on the list it describes, back to the Filters button. */}
-                <button type="button" className="btn btn-sm btn-primary rounded-pill compass-show" onClick={onShow}>
+                <button type="button" className="btn btn-sm btn-primary compass-show" onClick={onShow}>
                     {shown === null ? labels.line_showcourses : fill(labels.line_show, String(shown))}
                 </button>
             </div>
