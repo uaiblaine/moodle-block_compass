@@ -15,6 +15,17 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **Tier 3's filter line is the fleet Design System's compact filter bar** (ADR-023, proposed; 2026100540). One
+  40 px bar (44 px under a coarse pointer): the scope as a segmented control, then the number of courses the list
+  shows and a capsule of the star, Filters, Organise and View, then the search in a capsule of its own; the chips
+  of the filters in force on a row under it, which wraps instead of scrolling. View is one button with a chevron
+  opening a menu of Cards and List. The search is an icon at every width that opens the field in place; Escape,
+  or leaving it empty, closes it and gives the keyboard back to the search button, and its eraser clears the text
+  and keeps it open. The line folds in two steps instead of four: full, then the scope on a line of its own with
+  its cells sharing the width, the field taking the line while the search is open. Filters has no word at any
+  width and carries the loud counter. Paged mode shows no result count, as it shows no other count. New tokens:
+  `brand-fill`, `on-brand-fill`, `brand-edge`, `motion-fast`, `motion-ease`; the control line's Bootstrap link is
+  gray-500 (D45). One new string, `line_view`.
 - **The block's colours read the fleet Design System's tokens.** Every colour token of `styles.css` is now the
   chain `var(--dimensions-X, var(--bs-Y, literal))`: a theme of the family (theme_dimensions) answers first,
   Bootstrap's property second, so the block is painted as before under Boost. The duplicate names are one

@@ -23,7 +23,7 @@ const StarToggle = /* @__PURE__ */ __name(({ pressed, count, config, onToggle, o
     "button",
     {
       type: "button",
-      className: "compass-line-iconbtn compass-line-star compass-line-slides",
+      className: "compass-line-iconbtn compass-line-star",
       "aria-pressed": pressed,
       "aria-label": name,
       title: name,

@@ -17,14 +17,16 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * patterns would hide which one a screen reader hears.
  *
  * The count is part of each cell's accessible name (contract section 8): a space between the label
- * and its number, which flex layout ignores and the accessible name keeps.
+ * and its number, which flex layout ignores and the accessible name keeps. At the bar's narrow step the
+ * cells share the line's width (ADR-023) and a label that runs long is cut with an ellipsis, its whole
+ * text in its title; the count is never cut.
  *
  * @module     block_compass/ScopeGroup
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 const hovers = /* @__PURE__ */ __name((event) => event.pointerType === "mouse" || event.pointerType === "pen", "hovers");
-const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview, onScroll }) => {
+const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview }) => {
   const drawn = cells.filter((cell) => cell.drawn);
   const stop = (drawn.find((cell) => cell.checked) ?? drawn[0])?.key ?? null;
   const keydown = /* @__PURE__ */ __name((event) => {
@@ -61,7 +63,6 @@ const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview, o
       role: "radiogroup",
       "aria-label": label,
       onKeyDown: keydown,
-      onScroll: (event) => onScroll?.(event.currentTarget),
       children: cells.map((cell) => /* @__PURE__ */ jsxDEV(
         "button",
         {
@@ -85,7 +86,7 @@ const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview, o
           onFocus: () => onPreview(cell.key),
           onBlur: () => onPreview(null),
           children: [
-            /* @__PURE__ */ jsxDEV("span", { className: "compass-scope-label", children: cell.label }, void 0, false, {
+            /* @__PURE__ */ jsxDEV("span", { className: "compass-scope-label", title: cell.label, children: cell.label }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
               lineNumber: 143,
               columnNumber: 21
@@ -117,7 +118,7 @@ const ScopeGroup = /* @__PURE__ */ __name(({ cells, label, onCheck, onPreview, o
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/ScopeGroup.tsx",
-      lineNumber: 113,
+      lineNumber: 114,
       columnNumber: 9
     }
   );

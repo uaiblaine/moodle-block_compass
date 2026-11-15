@@ -138,13 +138,13 @@ final class block_compass_test extends advanced_testcase {
         // The icons are server-rendered markup because there is no pix helper for ESM.
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
-        // The filter line's icon-only controls: list, grid, the sliders, the magnifier, the eraser,
-        // the close cross and Organise's sort glyph (ADR-015); the archive boxes and the accordion's
-        // chevrons. No reload glyph: a way back appears only with a failure, as RetryNotice's two
-        // text buttons (ADR-014 amendment 11).
+        // The filter bar's icon-only controls: list, grid, the sliders, the magnifier, the eraser,
+        // a chip's cross, Organise's sort glyph (ADR-015) and a menu's tick (ADR-023); the archive boxes
+        // and the accordion's chevrons. No reload glyph: a way back appears only with a failure, as
+        // RetryNotice's two text buttons (ADR-014 amendment 11).
         $icons = [
-            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'archive', 'unarchive', 'expanded', 'collapsed',
-            'collapsedrtl',
+            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'check', 'archive', 'unarchive', 'expanded',
+            'collapsed', 'collapsedrtl',
         ];
         foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");

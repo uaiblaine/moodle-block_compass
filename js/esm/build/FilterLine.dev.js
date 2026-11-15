@@ -2,25 +2,30 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { jsxDEV } from "react/jsx-dev-runtime";
 /**
- * The filter line of tier 3: its slots, its folding, the search that grows over it and its
- * suggestions, the panel and the Organise menu under it, and the row of chips (ADR-015).
+ * The filter bar of tier 3: its slots, its folding, the search that opens in place and its
+ * suggestions, the panel and the two menus under it, and the row of chips (ADR-015, ADR-023).
  *
- * The rules are the fleet's filter line contract (moodle-dev/docs/filter-line/CONTRACT.md), written
- * for this client after block_dimensions' filter_line.js and theme_dimensions' categoryline.js: the
- * same behaviour, read as a specification, never imported (ADR-006: a component cannot load AMD).
- * The criteria are Explore's; this draws them, folds, places the floating layers and owns the
- * keyboard of the line, and every filter it applies it applies through a callback.
+ * The rules are the fleet's filter line contract (moodle-dev/docs/filter-line/CONTRACT.md) and the
+ * Design System's compact bar (moodle-dev/docs/design-system/components/filter-bar.md), written for this
+ * client: the same behaviour, read as a specification, never imported (ADR-006: a component cannot load
+ * AMD). The criteria are Explore's; this draws them, folds, places the floating layers and owns the
+ * keyboard of the bar, and every filter it applies it applies through a callback.
  *
- * Folding (fit): the line measures its OWN width, never the viewport's, and takes the first step at
- * which no control is drawn past its edge - full; Filters without its word; the search as an icon;
- * two lines, the scope on the second and the view inside Organise. It measures with every scope cell
- * drawn, with no transition running and with the line unwrapped, so the step follows the width and
- * the language and never the counts. A ResizeObserver on the line, not a container query (Moodle's
- * stylelint forbids @container), and a late webfont refit it.
+ * Anatomy, in order: the scope, a spacer, the cluster (the result count, then a capsule of the star,
+ * Filters, Organise and View) and the search's own capsule; the chips on a row under the bar.
  *
- * The search grows over the line from the third step: the other controls slide out, a close button
- * takes the last place; Escape or that button closes it and gives the keyboard back to the control
- * that opened it. A text left in force while the field is folded away shows as a chip.
+ * Folding (fit): the bar measures its OWN width, never the viewport's, and takes the first step at
+ * which no control is drawn past its edge: full, one line; narrow, the scope on a line of its own after
+ * the controls, its cells sharing the width. It measures with every scope cell drawn, with the search
+ * field open at its narrowest and with the line unwrapped, so the step follows the width and the
+ * language, never the counts, and opening the search never pushes the full line past its edge. A ResizeObserver on the bar,
+ * not a container query (Moodle's stylelint forbids @container), and a late webfont refit it.
+ *
+ * The search is an icon at every width. Pressing it, or the slash key, opens the field in place, in its
+ * capsule, and moves the keyboard into it; at the narrow step the cluster gives the field its line.
+ * Escape closes it and gives the keyboard back to the search button, and so does leaving it empty; the
+ * eraser clears the text and keeps it open. A text left in force once the field has closed shows as a
+ * chip.
  *
  * The suggestions are one listbox under the line's real bottom, the field its combobox with the
  * active option named by aria-activedescendant, so the focus never leaves the field. Filters first,
@@ -29,7 +34,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * empties the field closes it.
  *
  * Every floating layer is placed under the line's measured bottom (place), never at a fixed offset;
- * at the two-line step the panel is a bottom sheet instead, unless an ancestor would clip or capture a
+ * at the narrow step the panel is a bottom sheet instead, unless an ancestor would clip or capture a
  * viewport-fixed child - Moodle 5.3's block drawer clips itself with clip-path - and then it stays a
  * popover under the line (fixedTrapped).
  *
@@ -45,17 +50,14 @@ import StarToggle from "./StarToggle";
 import ViewToggle from "./ViewToggle";
 import { markParts, matchOf, normalise } from "./filter";
 import { hold } from "./pending";
-import { fill } from "./str";
+import { fill, fillCount } from "./str";
 import { markup } from "./markup";
 const STEP_CLASSES = {
-  s1: "compass-line-s1",
-  s2: "compass-line-s2",
-  s3: "compass-line-s3",
-  s4: "compass-line-s4"
+  full: "compass-line-full",
+  narrow: "compass-line-narrow"
 };
-const TRIES = [["s1", false], ["s2", false], ["s3", true], ["s4", false], ["s4", true]];
+const TRIES = ["full", "narrow"];
 const GAP = 6;
-const REVEAL_PAD = 16;
 const MIN_TERM = 2;
 const START_COUNT = 5;
 const MATCH_COUNT = 8;
@@ -96,45 +98,16 @@ const suggest = /* @__PURE__ */ __name((filters, term) => {
 }, "suggest");
 const rankCourses = /* @__PURE__ */ __name((courses, term) => courses.map((course, order) => ({ course, order, rank: matchOf(normalise(course.name), term) })).filter((entry) => entry.rank >= 0).sort((a, b) => a.rank - b.rank || a.order - b.order).slice(0, COURSE_COUNT).map((entry) => entry.course), "rankCourses");
 const shown = /* @__PURE__ */ __name((element) => !!element && element.getClientRects().length > 0, "shown");
-const still = /* @__PURE__ */ __name(() => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches, "still");
-const lineClass = /* @__PURE__ */ __name((step, folded, searching, measuring) => [
+const lineClass = /* @__PURE__ */ __name((step, searching, measuring) => [
   "compass-line",
   STEP_CLASSES[step],
-  folded ? "compass-line-folded" : "",
   searching ? "compass-line-searching" : "",
   measuring ? "compass-line-measuring" : ""
 ].filter(Boolean).join(" "), "lineClass");
-const fades = /* @__PURE__ */ __name((scroller) => {
-  if (!scroller) {
-    return;
-  }
-  const max = scroller.scrollWidth - scroller.clientWidth;
-  const x = scroller.scrollLeft;
-  const rtl = window.getComputedStyle(scroller).direction === "rtl";
-  const start = rtl ? -x : x;
-  const end = rtl ? max + x : max - x;
-  scroller.classList.toggle("compass-scroll-fade-start", max > 1 && start > 2);
-  scroller.classList.toggle("compass-scroll-fade-end", max > 1 && end > 2);
-}, "fades");
-const reveal = /* @__PURE__ */ __name((scroller, item) => {
-  if (!scroller || !item || !scroller.contains(item) || scroller.scrollWidth <= scroller.clientWidth) {
-    return;
-  }
-  const box = scroller.getBoundingClientRect();
-  const rect = item.getBoundingClientRect();
-  let dx = 0;
-  if (rect.left < box.left + REVEAL_PAD) {
-    dx = rect.left - box.left - REVEAL_PAD;
-  } else if (rect.right > box.right - REVEAL_PAD) {
-    dx = rect.right - box.right + REVEAL_PAD;
-  }
-  if (dx !== 0) {
-    scroller.scrollBy({ left: dx, behavior: still() ? "auto" : "smooth" });
-  }
-}, "reveal");
 const FilterLine = /* @__PURE__ */ __name((props) => {
   const {
     config,
+    total,
     scopecells,
     onScope,
     star,
@@ -176,22 +149,22 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
   const panelel = useRef(null);
   const organise = useRef(null);
   const menu = useRef(null);
+  const viewbtn = useRef(null);
+  const viewmenu = useRef(null);
   const chiprow = useRef(null);
-  const [fold, setFold] = useState({ step: "s1", folded: false });
+  const [step, setStep] = useState("full");
   const [searching, setSearching] = useState(false);
   const [listopen, setListopen] = useState(false);
   const [active, setActive] = useState(-1);
   const [menuopen, setMenuopen] = useState(false);
+  const [viewopen, setViewopen] = useState(false);
   const [trapped, setTrapped] = useState(false);
   const [place, setPlace] = useState(
     { list: NOWHERE, panel: null, menu: null }
   );
-  const morphs = hassearch && (fold.step === "s3" || fold.step === "s4");
-  const growing = searching && morphs;
-  const folded = fold.folded && hassearch;
-  const live = useRef({ listopen, growing, panelopen, menuopen, folded });
-  live.current = { listopen, growing, panelopen, menuopen, folded };
-  const from = useRef(null);
+  const open = searching && hassearch;
+  const live = useRef({ listopen, open, panelopen, menuopen, viewopen });
+  live.current = { listopen, open, panelopen, menuopen, viewopen };
   const intent = useRef(false);
   const tabat = useRef(0);
   const quiet = useRef(false);
@@ -199,8 +172,8 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
   const refocus = useRef(null);
   const width = useRef(-1);
   const previewed = useRef(false);
-  const drawnfold = useRef(fold);
-  drawnfold.current = fold;
+  const drawnstep = useRef(step);
+  drawnstep.current = step;
   const quietly = /* @__PURE__ */ __name((element) => {
     if (!element) {
       return;
@@ -231,14 +204,15 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       return;
     }
     const drawn = element.className;
-    const absent = Array.from(element.querySelectorAll(".compass-scope-cell[hidden]"));
+    const absent = Array.from(
+      element.querySelectorAll(".compass-scope-cell[hidden], .compass-search-eraser[hidden]")
+    );
     absent.forEach((cell) => {
       cell.hidden = false;
     });
     let chosen = TRIES[TRIES.length - 1];
     for (let index = 0; index < TRIES.length; index++) {
-      const [step, foldfield] = TRIES[index];
-      element.className = lineClass(step, foldfield && hassearch, false, true);
+      element.className = lineClass(TRIES[index], false, true);
       if (index === TRIES.length - 1 || !overflows(element)) {
         chosen = TRIES[index];
         break;
@@ -248,14 +222,15 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       cell.hidden = true;
     });
     element.className = drawn;
-    if (drawnfold.current.step === chosen[0] && drawnfold.current.folded === chosen[1]) {
+    if (drawnstep.current === chosen) {
       return;
     }
     refocus.current = element.contains(document.activeElement) ? document.activeElement : null;
-    setFold({ step: chosen[0], folded: chosen[1] });
-  }, [hassearch]);
+    setStep(chosen);
+  }, []);
   const signature = JSON.stringify([
     scopecells.map((cell) => [cell.label, cell.count]),
+    total,
     starcount,
     badge,
     hasfilters,
@@ -265,15 +240,6 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
   useLayoutEffect(() => {
     fit();
   }, [fit, signature]);
-  const fadeRows = useCallback((step) => {
-    fades(chiprow.current);
-    const scope2 = line.current?.querySelector(".compass-scope") ?? null;
-    if (step === "s4") {
-      fades(scope2);
-    } else {
-      scope2?.classList.remove("compass-scroll-fade-start", "compass-scroll-fade-end");
-    }
-  }, []);
   useEffect(() => {
     const element = line.current;
     if (!element || typeof ResizeObserver === "undefined") {
@@ -296,7 +262,6 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       release = hold("block_compass/FilterLine:fit");
       frame = window.requestAnimationFrame(() => {
         fit();
-        fadeRows(drawnfold.current.step);
         settle();
       });
     });
@@ -306,17 +271,14 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       observer.disconnect();
       settle();
     };
-  }, [fit, fadeRows]);
+  }, [fit]);
   useLayoutEffect(() => {
-    if (!morphs && searching) {
-      setSearching(false);
-    }
     const element = refocus.current;
     refocus.current = null;
     if (element instanceof HTMLElement && document.activeElement !== element && document.contains(element)) {
       quietly(element);
     }
-  }, [fold.step, morphs, searching]);
+  }, [step]);
   useLayoutEffect(() => {
     const target = focusnext.current;
     if (target === null) {
@@ -332,7 +294,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     }
     let bottom = 0;
     Array.from(element.children).forEach((child) => {
-      if (fold.step === "s4" && child.classList.contains("compass-scope")) {
+      if (step === "narrow" && child.classList.contains("compass-scope")) {
         return;
       }
       const rect = child.getBoundingClientRect();
@@ -341,7 +303,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       }
     });
     return bottom || element.getBoundingClientRect().bottom;
-  }, [fold.step]);
+  }, [step]);
   const term = normalise(query);
   const typed = term.length >= MIN_TERM;
   const offered = hassearch ? suggest(filters, term) : [];
@@ -353,36 +315,28 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
   const listshown = listopen && options.length > 0;
   const current = active >= 0 && active < options.length ? active : -1;
   useLayoutEffect(() => {
-    if (fold.step === "s4" && panelopen) {
+    if (step === "narrow" && panelopen) {
       const next = fixedTrapped(wrapper.current);
       setTrapped((before) => before === next ? before : next);
     }
-  }, [fold.step, panelopen]);
-  const sheet = fold.step === "s4" && !trapped;
+  }, [step, panelopen]);
+  const sheet = step === "narrow" && !trapped;
   useLayoutEffect(() => {
     const box = wrapper.current;
-    if (!box || !listshown && !panelopen && !menuopen) {
+    if (!box || !listshown && !panelopen && !menuopen && !viewopen) {
       return;
     }
     const origin = box.getBoundingClientRect();
     const top = Math.round(lineBottom() - origin.top + GAP);
     let list = { top, left: null, width: null };
     const search2 = field.current?.parentElement ?? null;
-    if (listshown && (fold.step === "s1" || fold.step === "s2") && shown(search2)) {
+    if (listshown && step === "full" && shown(search2)) {
       const rect = search2.getBoundingClientRect();
       const wide = Math.min(origin.width, Math.max(rect.width, MIN_LIST_WIDTH));
       list = { top, left: Math.round(Math.min(rect.left - origin.left, origin.width - wide)), width: Math.round(wide) };
     }
     setPlace((before) => before.panel === top && before.menu === top && before.list.top === list.top && before.list.left === list.left && before.list.width === list.width ? before : { list, panel: top, menu: top });
-  }, [listshown, panelopen, menuopen, fold, growing, lineBottom, chips.length]);
-  const fadeskey = JSON.stringify([
-    chips.map((chip) => [chip.key, chip.label]),
-    folded && !growing ? query.trim() : "",
-    signature
-  ]);
-  useLayoutEffect(() => {
-    fadeRows(fold.step);
-  }, [fold.step, fadeskey, fadeRows]);
+  }, [listshown, panelopen, menuopen, viewopen, step, open, lineBottom, chips.length]);
   const activeoption = listshown && current >= 0 ? options[current] : null;
   let activekey = null;
   let candidate = null;
@@ -410,15 +364,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     setListopen(false);
     setActive(-1);
   }, "closeList");
-  const openSearch = /* @__PURE__ */ __name((origin) => {
+  const openSearch = /* @__PURE__ */ __name(() => {
     if (!hassearch) {
       return;
     }
-    if (morphs && !searching) {
-      setSearching(true);
-      from.current = origin ?? field.current;
-    }
+    setSearching(true);
     setMenuopen(false);
+    setViewopen(false);
     if (panelopen) {
       onPanel(false);
     }
@@ -434,10 +386,8 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       return;
     }
     setSearching(false);
-    const origin = from.current;
-    from.current = null;
     if (back) {
-      focusLater(() => [origin, field.current, opener.current].find((control) => shown(control)) ?? null);
+      focusLater(() => opener.current);
     }
   }, "closeSearch");
   const choose = /* @__PURE__ */ __name((index) => {
@@ -459,7 +409,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
       if (!listopen) {
-        openSearch(from.current ?? field.current);
+        openSearch();
         return;
       }
       setActive(count ? (current + 1) % count : -1);
@@ -469,12 +419,16 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     } else if ((event.key === "Enter" || event.key === " ") && current >= 0 && listshown) {
       event.preventDefault();
       choose(current);
-    } else if (event.key === "Escape" && (listopen || searching)) {
+    } else if (event.key === "Escape") {
       event.preventDefault();
       closeSearch(true);
     }
   }, "fieldKey");
   const lineKey = /* @__PURE__ */ __name((event) => {
+    if (event.key === "Tab" && viewopen) {
+      setViewopen(false);
+      return;
+    }
     if (event.key !== "Escape" || event.defaultPrevented) {
       return;
     }
@@ -486,6 +440,10 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       event.preventDefault();
       setMenuopen(false);
       focusLater(() => organise.current);
+    } else if (viewopen) {
+      event.preventDefault();
+      setViewopen(false);
+      focusLater(() => viewbtn.current);
     } else if (searching && event.target !== field.current) {
       event.preventDefault();
       closeSearch(true);
@@ -508,17 +466,19 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         return;
       }
       const state = live.current;
-      if ((state.listopen || state.growing) && !box.contains(target)) {
+      if ((state.listopen || state.open) && !box.contains(target)) {
         setListopen(false);
         setActive(-1);
         setSearching(false);
-        from.current = null;
       }
       if (state.panelopen && !panelel.current?.contains(target) && !toggle.current?.contains(target)) {
         onPanel(false);
       }
       if (state.menuopen && !menu.current?.contains(target) && !organise.current?.contains(target)) {
         setMenuopen(false);
+      }
+      if (state.viewopen && !viewmenu.current?.contains(target) && !viewbtn.current?.contains(target)) {
+        setViewopen(false);
       }
     }, "pointerdown");
     const keydown = /* @__PURE__ */ __name((event) => {
@@ -538,8 +498,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         return;
       }
       event.preventDefault();
-      const state = live.current;
-      if (state.folded && !state.growing) {
+      if (!live.current.open) {
         opener.current?.click();
       } else {
         intent.current = true;
@@ -553,22 +512,32 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       document.removeEventListener("keydown", keydown);
     };
   }, [hassearch, onPanel]);
-  const focusout = /* @__PURE__ */ __name((event) => {
-    const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+  const closeMenusLeft = /* @__PURE__ */ __name((next) => {
     if (menuopen && !(next && (menu.current?.contains(next) || organise.current?.contains(next)))) {
       setMenuopen(false);
     }
-    if (next === field.current || next && listbox.current?.contains(next)) {
+    if (viewopen && !(next && (viewmenu.current?.contains(next) || viewbtn.current?.contains(next)))) {
+      setViewopen(false);
+    }
+  }, "closeMenusLeft");
+  const focusout = /* @__PURE__ */ __name((event) => {
+    const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    closeMenusLeft(next);
+    if (next && (field.current?.parentElement?.contains(next) || listbox.current?.contains(next))) {
       return;
     }
     if (next && wrapper.current?.contains(next)) {
       closeList();
+      if (searching && event.target === field.current && query === "") {
+        setSearching(false);
+      }
       return;
     }
     if (listopen || searching) {
       closeList();
-      setSearching(false);
-      from.current = null;
+      if (next || query === "") {
+        setSearching(false);
+      }
     }
   }, "focusout");
   const pressChip = /* @__PURE__ */ __name((index, all) => {
@@ -588,7 +557,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     focusLater(() => toggle.current);
   }, "showList");
   const allchips = [...chips];
-  if (hassearch && folded && !growing && term !== "") {
+  if (hassearch && !open && term !== "") {
     allchips.unshift({ key: "search", label: query.trim(), title: fill(labels.line_searchchip, query.trim()), field: null });
   }
   const scope = /* @__PURE__ */ jsxDEV(
@@ -597,150 +566,21 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       cells: scopecells,
       label: labels.status,
       onCheck: onScope,
-      onPreview: (key) => onPreview(key === null ? null : { scope: key }),
-      onScroll: (element) => {
-        if (fold.step === "s4") {
-          fades(element);
-        }
-      }
+      onPreview: (key) => onPreview(key === null ? null : { scope: key })
     },
     "scope",
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 985,
+      lineNumber: 923,
       columnNumber: 9
     }
   );
-  const search = hassearch ? /* @__PURE__ */ jsxDEV("div", { className: "compass-search", children: [
-    /* @__PURE__ */ jsxDEV("label", { className: "visually-hidden", htmlFor: fieldid, children: labels.searchcourses }, void 0, false, {
-      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1e3,
-      columnNumber: 13
-    }),
-    /* @__PURE__ */ jsxDEV(
-      "span",
-      {
-        className: "compass-search-icon icon-no-margin",
-        "aria-hidden": "true",
-        dangerouslySetInnerHTML: markup(icons.search)
-      },
-      void 0,
-      false,
-      {
-        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1001,
-        columnNumber: 13
-      }
-    ),
-    /* @__PURE__ */ jsxDEV(
-      "input",
-      {
-        type: "search",
-        ref: field,
-        className: "compass-search-input",
-        id: fieldid,
-        placeholder: labels.searchplaceholder,
-        autoComplete: "off",
-        role: "combobox",
-        "aria-autocomplete": "list",
-        "aria-expanded": listshown,
-        "aria-controls": listid,
-        "aria-activedescendant": current >= 0 && listshown ? `${listid}-${current}` : void 0,
-        value: query,
-        onPointerDown: () => {
-          intent.current = true;
-        },
-        onFocus: () => {
-          const reader = intent.current || Date.now() - tabat.current < TAB_INTENT;
-          intent.current = false;
-          if (!quiet.current && reader) {
-            openSearch(field.current);
-          }
-        },
-        onClick: () => {
-          if (!listopen) {
-            openSearch(from.current ?? field.current);
-          }
-        },
-        onChange: (event) => {
-          const value = event.target.value;
-          onQuery(value);
-          setActive(-1);
-          if (normalise(value) === "") {
-            setListopen(false);
-          } else if (!listopen && document.activeElement === field.current) {
-            openSearch(field.current);
-          }
-        },
-        onKeyDown: fieldKey
-      },
-      void 0,
-      false,
-      {
-        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1006,
-        columnNumber: 13
-      }
-    ),
-    /* @__PURE__ */ jsxDEV(
-      "button",
-      {
-        type: "button",
-        className: "compass-search-eraser",
-        "aria-label": labels.line_cleartext,
-        title: labels.line_cleartext,
-        hidden: query === "",
-        onClick: () => {
-          onErase();
-          setListopen(true);
-          setActive(-1);
-          focusLater(() => field.current);
-        },
-        children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.eraser) }, void 0, false, {
-          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-          lineNumber: 1060,
-          columnNumber: 17
-        })
-      },
-      void 0,
-      false,
-      {
-        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1047,
-        columnNumber: 13
-      }
-    )
-  ] }, "search", true, {
+  const spacer = /* @__PURE__ */ jsxDEV("span", { className: "compass-line-spacer", "aria-hidden": "true" }, "spacer", false, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 999,
-    columnNumber: 9
-  }) : null;
-  const openerbtn = hassearch ? /* @__PURE__ */ jsxDEV(
-    "button",
-    {
-      type: "button",
-      ref: opener,
-      className: "compass-line-iconbtn compass-line-searchopen compass-line-slides",
-      "aria-controls": fieldid,
-      "aria-expanded": growing,
-      "aria-label": labels.searchcourses,
-      title: labels.searchcourses,
-      onClick: () => openSearch(opener.current),
-      children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.search) }, void 0, false, {
-        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1076,
-        columnNumber: 13
-      })
-    },
-    "opener",
-    false,
-    {
-      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1065,
-      columnNumber: 9
-    }
-  ) : null;
+    lineNumber: 931,
+    columnNumber: 20
+  });
   const starbtn = hasstar ? /* @__PURE__ */ jsxDEV(
     StarToggle,
     {
@@ -754,11 +594,11 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1080,
+      lineNumber: 933,
       columnNumber: 9
     }
   ) : null;
-  const filtersbtn = hasfilters ? /* @__PURE__ */ jsxDEV("div", { className: "compass-line-filters compass-line-slides", children: [
+  const filtersbtn = hasfilters ? /* @__PURE__ */ jsxDEV("div", { className: "compass-line-filters", children: [
     /* @__PURE__ */ jsxDEV(
       FilterToggle,
       {
@@ -771,6 +611,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
           if (!panelopen) {
             closeSearch(false);
             setMenuopen(false);
+            setViewopen(false);
           }
           onPanel(!panelopen);
         }
@@ -779,7 +620,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1091,
+        lineNumber: 944,
         columnNumber: 13
       }
     ),
@@ -787,13 +628,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       id: panelid,
       top: place.panel,
       sheet,
-      stacked: fold.step === "s3" || fold.step === "s4",
+      stacked: step === "narrow",
       element: panelel,
       onShow: showList
     })
   ] }, "filters", true, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 1090,
+    lineNumber: 943,
     columnNumber: 9
   }) : null;
   const organisebtn = /* @__PURE__ */ jsxDEV(
@@ -803,13 +644,12 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       top: place.menu,
       config,
       sort,
-      view,
-      withview: fold.step === "s4",
       button: organise,
       menu,
       onToggle: () => {
         if (!menuopen) {
           closeSearch(false);
+          setViewopen(false);
           if (panelopen) {
             onPanel(false);
           }
@@ -820,82 +660,229 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         setMenuopen(false);
         focusLater(() => organise.current);
         onSort(value);
-      },
-      onView: (value) => {
-        setMenuopen(false);
-        focusLater(() => organise.current);
-        onView(value);
       }
     },
     "organise",
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1116,
+      lineNumber: 970,
       columnNumber: 9
     }
   );
-  const viewslot = /* @__PURE__ */ jsxDEV("div", { className: "compass-line-view compass-line-slides", children: /* @__PURE__ */ jsxDEV(ViewToggle, { view, config, onChoose: onView }, void 0, false, {
-    fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 1152,
-    columnNumber: 13
-  }) }, "view", false, {
-    fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 1151,
-    columnNumber: 9
-  });
-  const closer = hassearch ? /* @__PURE__ */ jsxDEV(
-    "button",
+  const viewslot = /* @__PURE__ */ jsxDEV(
+    ViewToggle,
     {
-      type: "button",
-      className: "compass-line-iconbtn compass-line-searchclose",
-      "aria-label": labels.line_closesearch,
-      title: labels.line_closesearch,
-      onClick: () => closeSearch(true),
-      children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.close) }, void 0, false, {
-        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1164,
-        columnNumber: 13
-      })
+      view,
+      open: viewopen,
+      top: place.menu,
+      config,
+      button: viewbtn,
+      menu: viewmenu,
+      onToggle: () => {
+        if (!viewopen) {
+          closeSearch(false);
+          setMenuopen(false);
+          if (panelopen) {
+            onPanel(false);
+          }
+        }
+        setViewopen(!viewopen);
+      },
+      onChoose: (value) => {
+        setViewopen(false);
+        focusLater(() => viewbtn.current);
+        onView(value);
+      }
     },
-    "closer",
+    "view",
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1156,
+      lineNumber: 996,
       columnNumber: 9
     }
-  ) : null;
-  const controls = [search, openerbtn, starbtn, filtersbtn, organisebtn, viewslot, closer];
-  const children = fold.step === "s4" ? [...controls, scope] : [scope, ...controls];
-  const wrapperclasses = ["compass-filterline"];
-  if (sheet && panelopen) {
-    wrapperclasses.push("compass-filterline-sheet");
-  }
-  const anchored = fold.step === "s1" || fold.step === "s2";
-  return /* @__PURE__ */ jsxDEV("div", { className: wrapperclasses.join(" "), ref: wrapper, onKeyDown: lineKey, onBlur: focusout, children: [
+  );
+  const cluster = /* @__PURE__ */ jsxDEV("div", { className: "compass-line-cluster", children: [
+    total !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-line-count", "data-region": "compass-total", children: [
+      /* @__PURE__ */ jsxDEV("span", { "aria-hidden": "true", children: total }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+        lineNumber: 1027,
+        columnNumber: 21
+      }),
+      /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: fillCount(labels, "resultsshown", total) }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+        lineNumber: 1028,
+        columnNumber: 21
+      })
+    ] }, void 0, true, {
+      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+      lineNumber: 1026,
+      columnNumber: 17
+    }),
+    /* @__PURE__ */ jsxDEV("div", { className: "compass-line-capsule", children: [
+      starbtn,
+      filtersbtn,
+      organisebtn,
+      viewslot
+    ] }, void 0, true, {
+      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+      lineNumber: 1031,
+      columnNumber: 13
+    })
+  ] }, "cluster", true, {
+    fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+    lineNumber: 1024,
+    columnNumber: 9
+  });
+  const search = hassearch ? /* @__PURE__ */ jsxDEV("div", { className: "compass-line-capsule compass-line-searchcap", children: [
     /* @__PURE__ */ jsxDEV(
-      "div",
+      "button",
       {
-        className: lineClass(fold.step, folded, growing, false),
-        ref: line,
-        "data-step": fold.step,
-        onFocus: (event) => {
-          const scroller = event.target instanceof Element ? event.target.closest(".compass-scope") : null;
-          if (fold.step === "s4" && scroller instanceof HTMLElement) {
-            reveal(scroller, event.target);
-          }
-        },
-        children
+        type: "button",
+        ref: opener,
+        className: "compass-line-iconbtn compass-line-searchopen",
+        "aria-controls": fieldid,
+        "aria-expanded": open,
+        "aria-label": labels.searchcourses,
+        title: labels.searchcourses,
+        onClick: () => openSearch(),
+        children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.search) }, void 0, false, {
+          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+          lineNumber: 1052,
+          columnNumber: 17
+        })
       },
       void 0,
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1180,
+        lineNumber: 1042,
         columnNumber: 13
       }
     ),
+    /* @__PURE__ */ jsxDEV("div", { className: "compass-search", children: [
+      /* @__PURE__ */ jsxDEV("label", { className: "visually-hidden", htmlFor: fieldid, children: labels.searchcourses }, void 0, false, {
+        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+        lineNumber: 1055,
+        columnNumber: 17
+      }),
+      /* @__PURE__ */ jsxDEV(
+        "span",
+        {
+          className: "compass-search-icon icon-no-margin",
+          "aria-hidden": "true",
+          dangerouslySetInnerHTML: markup(icons.search)
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+          lineNumber: 1056,
+          columnNumber: 17
+        }
+      ),
+      /* @__PURE__ */ jsxDEV(
+        "input",
+        {
+          type: "search",
+          ref: field,
+          className: "compass-search-input",
+          id: fieldid,
+          placeholder: labels.searchplaceholder,
+          autoComplete: "off",
+          role: "combobox",
+          "aria-autocomplete": "list",
+          "aria-expanded": listshown,
+          "aria-controls": listid,
+          "aria-activedescendant": current >= 0 && listshown ? `${listid}-${current}` : void 0,
+          value: query,
+          onPointerDown: () => {
+            intent.current = true;
+          },
+          onFocus: () => {
+            const reader = intent.current || Date.now() - tabat.current < TAB_INTENT;
+            intent.current = false;
+            if (!quiet.current && reader) {
+              openSearch();
+            }
+          },
+          onClick: () => {
+            if (!listopen) {
+              openSearch();
+            }
+          },
+          onChange: (event) => {
+            const value = event.target.value;
+            onQuery(value);
+            setActive(-1);
+            if (normalise(value) === "") {
+              setListopen(false);
+            } else if (!listopen && document.activeElement === field.current) {
+              openSearch();
+            }
+          },
+          onKeyDown: fieldKey
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+          lineNumber: 1061,
+          columnNumber: 17
+        }
+      ),
+      /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          type: "button",
+          className: "compass-search-eraser",
+          "aria-label": labels.line_cleartext,
+          title: labels.line_cleartext,
+          hidden: query === "",
+          onMouseDown: (press) => press.preventDefault(),
+          onClick: () => {
+            onErase();
+            setListopen(true);
+            setActive(-1);
+            focusLater(() => field.current);
+          },
+          children: /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.eraser) }, void 0, false, {
+            fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+            lineNumber: 1117,
+            columnNumber: 21
+          })
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+          lineNumber: 1103,
+          columnNumber: 17
+        }
+      )
+    ] }, void 0, true, {
+      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+      lineNumber: 1054,
+      columnNumber: 13
+    })
+  ] }, "search", true, {
+    fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+    lineNumber: 1041,
+    columnNumber: 9
+  }) : null;
+  const children = step === "narrow" ? [cluster, search, spacer, scope] : [scope, spacer, cluster, search];
+  const wrapperclasses = ["compass-filterline"];
+  if (sheet && panelopen) {
+    wrapperclasses.push("compass-filterline-sheet");
+  }
+  const anchored = step === "full";
+  return /* @__PURE__ */ jsxDEV("div", { className: wrapperclasses.join(" "), ref: wrapper, onKeyDown: lineKey, onBlur: focusout, children: [
+    /* @__PURE__ */ jsxDEV("div", { className: lineClass(step, open, false), ref: line, "data-step": step, children }, void 0, false, {
+      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+      lineNumber: 1134,
+      columnNumber: 13
+    }),
     hassearch && /* @__PURE__ */ jsxDEV(
       "div",
       {
@@ -915,7 +902,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
           offered.length > 0 && /* @__PURE__ */ jsxDEV("div", { role: "group", "aria-labelledby": `${listid}-filters`, children: [
             /* @__PURE__ */ jsxDEV("div", { className: "compass-line-suggesthead", id: `${listid}-filters`, role: "presentation", children: typed ? labels.line_suggestfilters : labels.line_suggeststart }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1210,
+              lineNumber: 1154,
               columnNumber: 29
             }),
             offered.map((filter, index) => {
@@ -939,13 +926,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                       before,
                       mark !== "" && /* @__PURE__ */ jsxDEV("mark", { className: "compass-line-mark", children: mark }, void 0, false, {
                         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                        lineNumber: 1233,
+                        lineNumber: 1177,
                         columnNumber: 61
                       }),
                       after
                     ] }, void 0, true, {
                       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                      lineNumber: 1231,
+                      lineNumber: 1175,
                       columnNumber: 41
                     }),
                     filter.group !== "" && /* @__PURE__ */ jsxDEV("span", { className: "compass-line-optiongroup", children: [
@@ -953,7 +940,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                       filter.group
                     ] }, void 0, true, {
                       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                      lineNumber: 1236,
+                      lineNumber: 1180,
                       columnNumber: 65
                     }),
                     filter.count !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-line-optioncount", children: [
@@ -961,7 +948,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                       filter.count
                     ] }, void 0, true, {
                       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                      lineNumber: 1237,
+                      lineNumber: 1181,
                       columnNumber: 67
                     })
                   ]
@@ -970,20 +957,20 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                 true,
                 {
                   fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1217,
+                  lineNumber: 1161,
                   columnNumber: 37
                 }
               );
             })
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-            lineNumber: 1209,
+            lineNumber: 1153,
             columnNumber: 25
           }),
           matched.length > 0 && /* @__PURE__ */ jsxDEV("div", { role: "group", "aria-labelledby": `${listid}-courses`, children: [
             /* @__PURE__ */ jsxDEV("div", { className: "compass-line-suggesthead", id: `${listid}-courses`, role: "presentation", children: labels.line_suggestcourses }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1245,
+              lineNumber: 1189,
               columnNumber: 29
             }),
             matched.map((course, at) => {
@@ -1007,13 +994,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                     before,
                     mark !== "" && /* @__PURE__ */ jsxDEV("mark", { className: "compass-line-mark", children: mark }, void 0, false, {
                       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                      lineNumber: 1269,
+                      lineNumber: 1213,
                       columnNumber: 61
                     }),
                     after
                   ] }, void 0, true, {
                     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                    lineNumber: 1267,
+                    lineNumber: 1211,
                     columnNumber: 41
                   })
                 },
@@ -1021,14 +1008,14 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                 false,
                 {
                   fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1253,
+                  lineNumber: 1197,
                   columnNumber: 37
                 }
               );
             })
           ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-            lineNumber: 1244,
+            lineNumber: 1188,
             columnNumber: 25
           })
         ]
@@ -1037,80 +1024,67 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       true,
       {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1194,
+        lineNumber: 1138,
         columnNumber: 17
       }
     ),
-    /* @__PURE__ */ jsxDEV(
-      "div",
-      {
-        className: "compass-line-chips",
-        ref: chiprow,
-        hidden: allchips.length === 0,
-        onScroll: () => fades(chiprow.current),
-        onFocus: (event) => reveal(chiprow.current, event.target),
-        children: [
-          allchips.map((chip, index) => /* @__PURE__ */ jsxDEV(
-            "button",
-            {
-              type: "button",
-              className: "compass-line-chip",
-              "aria-label": fill(labels.line_removechip, chip.title),
-              onClick: () => pressChip(index, allchips),
-              children: [
-                /* @__PURE__ */ jsxDEV("span", { className: "compass-line-chiptext", title: chip.title, children: chip.label }, void 0, false, {
-                  fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1294,
-                  columnNumber: 25
-                }),
-                /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.close) }, void 0, false, {
-                  fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1295,
-                  columnNumber: 25
-                })
-              ]
-            },
-            chip.key,
-            true,
-            {
+    /* @__PURE__ */ jsxDEV("div", { className: "compass-line-chips", ref: chiprow, hidden: allchips.length === 0, children: [
+      allchips.map((chip, index) => /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          type: "button",
+          className: "compass-line-chip",
+          "aria-label": fill(labels.line_removechip, chip.title),
+          onClick: () => pressChip(index, allchips),
+          children: [
+            /* @__PURE__ */ jsxDEV("span", { className: "compass-line-chiptext", title: chip.title, children: chip.label }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1287,
-              columnNumber: 21
-            }
-          )),
-          allchips.length >= 2 && /* @__PURE__ */ jsxDEV(
-            "button",
-            {
-              type: "button",
-              className: "compass-line-clearall",
-              "aria-label": labels.line_clearall,
-              onClick: () => {
-                onClearAll();
-                focusLater(searchTarget);
-              },
-              children: labels.line_clearall
-            },
-            void 0,
-            false,
-            {
+              lineNumber: 1232,
+              columnNumber: 25
+            }),
+            /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.close) }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1299,
-              columnNumber: 21
-            }
-          )
-        ]
-      },
-      void 0,
-      true,
-      {
-        fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1279,
-        columnNumber: 13
-      }
-    )
+              lineNumber: 1233,
+              columnNumber: 25
+            })
+          ]
+        },
+        chip.key,
+        true,
+        {
+          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+          lineNumber: 1225,
+          columnNumber: 21
+        }
+      )),
+      allchips.length >= 2 && /* @__PURE__ */ jsxDEV(
+        "button",
+        {
+          type: "button",
+          className: "compass-line-clearall",
+          "aria-label": labels.line_clearall,
+          onClick: () => {
+            onClearAll();
+            focusLater(searchTarget);
+          },
+          children: labels.line_clearall
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+          lineNumber: 1237,
+          columnNumber: 21
+        }
+      )
+    ] }, void 0, true, {
+      fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
+      lineNumber: 1223,
+      columnNumber: 13
+    })
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 1179,
+    lineNumber: 1133,
     columnNumber: 9
   });
 }, "FilterLine");

@@ -174,7 +174,7 @@ pre-Phase-0 decisions; ADR-001 cache, 002 stamp, 003 pre-warming, 004 paged mode
 details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009 favourites and
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
 page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip, 015 the filter
-line in tier 3 (table with dates in the long form).
+line in tier 3, 023 the compact filter bar (proposed) (table with dates in the long form).
 
 ## Code layout
 
@@ -335,18 +335,23 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   plugin or theme is ever named here, the dispatch catches `\Throwable` (a listener's failure
   costs the crests, never the first paint), and the listener, not the block, decides which
   courses the current user may see a crest for.
-- **The filter line** (ADR-015; `moodle-dev/docs/filter-line/CONTRACT.md`): `FilterLine.tsx`
-  draws the slots in the contract's order (scope, search, star, Filters, Organise, view), folds on
-  the line's own width (a ResizeObserver, every scope cell drawn while measuring, no `@container`),
-  grows the search over the line from step 3, owns the combobox and its one listbox, and hangs the
-  panel and the Organise menu under the line's measured bottom (a bottom sheet at step 4). The
-  scope is a `radiogroup` (`ScopeGroup.tsx`), the star an `aria-pressed` toggle ANDed with it
-  (`filter.ts` `passesStar()`, the favourites chip's rule). Paged mode tells the server one chip
-  (`star ? 'favourites' : scope`), narrows what it holds in the browser, asks nothing for the star
-  with Awaiting or Scheduled, and shows no counts. The preview writes `compass-preview-lit/-dim`
-  on the drawn rows outside React's render, mouse, pen and keyboard only; dim is a token, never
-  opacity. Every new guard is a gate under "Phase 12" in `mutations/gates.conf`;
-  `filter_line_rules_test` reads the sources.
+- **The filter line** (ADR-015, ADR-023 proposed; `moodle-dev/docs/filter-line/CONTRACT.md` and the Design
+  System's `components/filter-bar.md`): `FilterLine.tsx` draws the compact bar in the contract's order - the
+  scope, a spacer, the cluster (the result count, then a capsule of the star, Filters, Organise and View), the
+  search in a capsule of its own - with the chips on a row under it that wraps (no sideways scroll, no fades).
+  It folds on its own width in two steps (a ResizeObserver, every scope cell drawn and the search measured
+  open at its narrowest, no `@container`): full, or narrow with the scope on a line of its own after the
+  controls. The search is an icon at every width that opens the field in place (Escape or leaving it empty
+  closes it back to its button, the eraser keeps it open, a text left in force is a chip); the combobox and
+  its one listbox are FilterLine's. View (`ViewToggle.tsx`) is one button opening a `role="menu"` of two
+  `menuitemradio` items. The panel, the suggestions and the two menus hang under the bar's measured bottom (a
+  bottom sheet at the narrow step). The scope is a `radiogroup` (`ScopeGroup.tsx`), the star an `aria-pressed`
+  toggle ANDed with it (`filter.ts` `passesStar()`, the favourites chip's rule). Paged mode tells the server
+  one chip (`star ? 'favourites' : scope`), narrows what it holds in the browser, asks nothing for the star
+  with Awaiting or Scheduled, and shows no counts, the bar's result count included. The preview writes
+  `compass-preview-lit/-dim` on the drawn rows outside React's render, mouse, pen and keyboard only; dim is a
+  token, never opacity. Every new guard is a gate under "Phase 12" or "The compact filter bar" in
+  `mutations/gates.conf`; `filter_line_rules_test` reads the sources.
 - **Text that runs long has one system** (a Portuguese label is often twice its English one): a
   name or line that can run long is clamped to two lines (`.compass-clamp`) or cut to one with an
   ellipsis, and the element carries its whole text in `title` (`accessibility_rules_test` reads

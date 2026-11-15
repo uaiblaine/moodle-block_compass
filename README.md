@@ -149,24 +149,29 @@ All courses and the Compass page
 *All courses* opens from the ghost card or from a strip's "+N" link. The ghost is there whenever
 *All courses* has something tier 1 does not show, its *Hidden* and *Archived* groups included: a
 teacher whose every course is hidden, or a learner whose other courses are all archived, gets it
-with no count, as *Explore all* over the line naming the two groups. Above it sits one filter
-line, the one the plugin shares with the other Dimensions surfaces, in this order:
+with no count, as *Explore all* over the line naming the two groups. Above it sits one compact
+filter bar, 40 px tall, the one the plugin shares with the other Dimensions surfaces (the fleet
+Design System's), in this order:
 
 - **The scope**: All, New, Awaiting approval (with `enable_pending`) and Scheduled, each with its
   count. One is checked; the arrow keys move between them. A scope that would keep no course is
   left out unless it is the one checked; All always stays.
-- **The search**, with an eraser for its text. `/` jumps to it while the line is on screen.
+- **The number of courses the list shows** (not in the degraded paged mode, which shows no counts).
 - **The star** (with `enable_favourites`): only the favourites, combined with the scope, so
   New and the star together are the new favourites.
 - **Filters** (with `filter_fields`): a panel of the course custom fields the administrator
   chose, at most three, one value per field, the fields combined. Its badge counts the values in
   force; at its foot, *Clear filters* releases everything and *Show N* closes it on the list.
 - **Organise**: the sort, *By category*, *A–Z* or *Recent*.
-- **The list/cards switch.**
+- **View**: a menu of *Cards* and *List*.
+- **The search**: an icon that opens the field in place, with an eraser for its text. `/` opens
+  it while the bar is on screen; Escape, or leaving it empty, closes it.
 
-The panel and the menu open as popovers under the line. The values in force show as chips on a
-row under the line, each with a cross to remove it, and *Clear all* from two chips up; the scope
-and the star stay on the line and need no chip.
+The star, Filters, Organise and View are icons in one capsule beside the count. The panel and the
+menus open as popovers under the bar. The values in force show as chips on a row under the bar,
+each with a cross to remove it, and *Clear all* from two chips up; a search left in force once
+its field has closed shows as a chip too. The scope and the star stay on the bar and need no
+chip.
 
 ![The Filters popover open under the line: the Modality field with Online, In-person and Hybrid and their counts, Clear filters and Show 14](docs/screenshots/explore-filters.png)
 
@@ -181,19 +186,17 @@ fewer than two characters typed, the list offers up to five filters, the largest
 
 ![The search grown over the Dashboard's line with "on" typed: under Filters, Online (9) and In-person (2) of the Modality field; under Courses, Nutrition and Metabolism, Introduction to Philosophy and Data Analysis with Python, the matched letters marked](docs/screenshots/explore-search.png)
 
-**The line folds to the width of the block, not of the screen**, in four steps measured on the
-line itself: everything on one row (the Compass page on a desktop); then Filters keeps its icon
-and badge and drops its word; then the search becomes an icon that, when pressed, grows over the
-line, slides the other controls aside and offers a close button (the Dashboard's main column);
-at the narrowest, two lines: the search, the star, Filters and Organise on the first, the scope on
-the second, scrolling sideways, and the list/cards switch moves into Organise (a tablet, a phone,
-the block drawer). A search left in force while its field is folded away shows as a chip.
+**The bar folds to the width of the block, not of the screen**, in two steps measured on the bar
+itself: everything on one row (the Compass page on a desktop); or, where that does not fit, the
+scope on a line of its own under the controls, its choices sharing the width (a tablet, a phone,
+the block drawer). There, while the search is open, its field takes the first line. The chips
+wrap to further lines rather than scrolling.
 
 ![All courses on the Dashboard, the line folded to icons: only All with its count of one, the search icon, the star, Filters with a badge of 1, Organise and the switch; under it the chips health and Hybrid with Clear all, and the one course left](docs/screenshots/explore-filtered.png)
 
 ![All courses on the Dashboard at a tablet's width: the search field, the star, Filters and Organise on the first line, the scope on the second](docs/screenshots/explore-narrow.png)
 
-At that last step the Filters panel opens as a bottom sheet:
+At the narrow step the Filters panel opens as a bottom sheet:
 
 ![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality values, Clear filters and Show 38](docs/screenshots/explore-phone.png)
 

@@ -1,11 +1,11 @@
-import{useId as w}from"react";import N from"./Platter";import M from"./ViewToggle";import{markup as O}from"./markup";import{jsx as n,jsxs as s}from"react/jsx-runtime";/**
+import{useId as f}from"react";import y from"./Platter";import{markup as v}from"./markup";import{jsx as n,jsxs as r}from"react/jsx-runtime";/**
  * Organise: one icon button and the menu it opens (ADR-015 decision 2).
  *
  * The menu holds the existing three-way sort - By category, A-Z, Recent, "By category" being the
- * grouping - on the sort platter it always had, and at the line's fourth step "Show as" (List,
- * Cards), the view leaving the line for it. The vocabulary and the services' sort parameter are
+ * grouping - on the sort platter it always had. The vocabulary and the services' sort parameter are
  * unchanged. The contract's separate Group and Sort sections are not drawn: Compass's grouping is
- * one of its three sorts, and a fourth combination would be one no service serves.
+ * one of its three sorts, and a fourth combination would be one no service serves. The view is the
+ * bar's own View menu at every width (ViewToggle.tsx, ADR-023), never a section here.
  *
  * A disclosure, not an ARIA menu: aria-expanded and aria-controls on the button, the sections
  * named groups of aria-pressed buttons inside, the hidden property toggling it with its layout under
@@ -15,4 +15,4 @@ import{useId as w}from"react";import N from"./Platter";import M from"./ViewToggl
  * @module     block_compass/OrganiseMenu
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const h=({open:i,top:a,config:t,sort:m,view:c,withview:p,button:d,menu:u,onToggle:g,onSort:b,onView:f})=>{const{labels:e,icons:v}=t,o=w(),r=`${o}-sort`;return s("div",{className:"compass-line-organise compass-line-slides",children:[n("button",{type:"button",ref:d,className:"compass-line-iconbtn compass-line-organisebtn","aria-expanded":i,"aria-controls":o,"aria-label":e.line_organise,title:e.line_organise,onClick:g,children:n("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:O(v.organise)})}),s("div",{id:o,ref:u,className:"compass-line-menu compass-line-layer",hidden:!i,style:a===null?void 0:{top:`${a}px`},children:[s("div",{className:"compass-line-menusection",children:[n("span",{className:"compass-line-menulabel",id:r,children:e.sortby}),n(N,{labelledby:r,items:[["category",e.sort_category],["name",e.sort_name],["recent",e.sort_recent]].map(([l,y])=>({key:l,label:y,pressed:m===l})),onPress:b})]}),p&&s("div",{className:"compass-line-menusection",children:[n("span",{className:"compass-line-menulabel","aria-hidden":"true",children:e.viewas}),n(M,{view:c,config:t,onChoose:f})]})]})]})};var P=h;export{P as default};
+ */const M=({open:s,top:t,config:l,sort:m,button:c,menu:p,onToggle:d,onSort:u})=>{const{labels:e,icons:g}=l,o=f(),a=`${o}-sort`;return r("div",{className:"compass-line-organise",children:[n("button",{type:"button",ref:c,className:"compass-line-iconbtn compass-line-organisebtn","aria-expanded":s,"aria-controls":o,"aria-label":e.line_organise,title:e.line_organise,onClick:d,children:n("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:v(g.organise)})}),n("div",{id:o,ref:p,className:"compass-line-menu compass-line-layer",hidden:!s,style:t===null?void 0:{top:`${t}px`},children:r("div",{className:"compass-line-menusection",children:[n("span",{className:"compass-line-menulabel",id:a,children:e.sortby}),n(y,{labelledby:a,items:[["category",e.sort_category],["name",e.sort_name],["recent",e.sort_recent]].map(([i,b])=>({key:i,label:b,pressed:m===i})),onPress:u})]})})]})};var _=M;export{_ as default};
