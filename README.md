@@ -7,7 +7,7 @@ Compass (block_compass)
 My courses by relevance, in three tiers, with a calendar strip above them. Built for very
 large sites.
 
-![The Compass block on a Dashboard: strips of course cards and the ghost card counting the remaining courses](docs/screenshots/dashboard.png)
+![The Compass block on a Dashboard: the open calendar strip and Up next above strips of course cards, the open-for-enrolment line between them, and the ghost card counting the remaining courses and the one archived](docs/screenshots/dashboard.png)
 
 The standard Course overview block sorts courses by time: start and end dates. On sites where
 most courses have no end date and no completion rule, that turns into one long "in progress"
@@ -24,7 +24,7 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
   the user a way to enrol now, and never one where the user already holds an enrolment of any
   status or a role.
 
-  ![The open-for-enrolment line: a title, how many courses start by a date, the categories as links with their counts and a button that hides the line](docs/screenshots/open-courses.png)
+  ![The open-for-enrolment line on a busy day, one sentence (8 courses start by 15 December) with See and a hide button, and the list See opens: the categories as links with their counts, a category of one naming its course, a link to every open course and Hide](docs/screenshots/open-courses.png)
 - **Tier 1, attention.** Full cards (image, progress, button) in four strips: *Continue where
   you left off*, *New enrolments*, *Starts soon* and *My favourites*. A strip that overflows
   says so in its heading ("+4 new").
@@ -51,7 +51,7 @@ the page does not jump when they load. Every web service has a query budget enfo
 The calendar strip
 ------------------
 
-![The open calendar strip: a scrolling row of days coloured by load with five past days, today marked, floating arrows over the row's ends, a map under it and one mark per kind of item below each day](docs/screenshots/calendar-strip.png)
+![The open calendar strip: a scrolling row of days coloured by load with five past days, today marked, floating arrows over the row's ends, a map under it, one mark per kind of item below each day, then the legend and the relevance switch](docs/screenshots/calendar-strip.png)
 
 The strip is off by default (`calendar_enabled`). When on, it sits above the first tier on the
 Dashboard, on the Compass page, or on both (`calendar_where`), and loads after the first tier so
@@ -104,7 +104,7 @@ the cards always paint first.
   events, and grading shows once it is open. The switch is two icons (Studying, Teaching) where
   the header is narrow.
 
-  ![The Teaching view of the strip, open: days carrying grading work, and a day card with the submissions waiting to be graded and the Grade button](docs/screenshots/calendar-teaching.png)
+  ![The Teaching view of the strip, open: the Studying and Teaching switch, days carrying grading work, and today's card pinned with six submissions waiting to be graded and the Grade button](docs/screenshots/calendar-teaching.png)
 
   ![The teaching line, closed, on a site without block_feedback_tracker: the icon switch, then Today, Tomorrow, This week and Later, and a note that grading work shows when the strip is open](docs/screenshots/calendar-line-teaching.png)
 
@@ -144,7 +144,7 @@ the cards always paint first.
 All courses and the Compass page
 --------------------------------
 
-![All courses on the Compass page: the filter line on one row (the scope with its counts, the result count, the star, Filters, Organise and the list/cards menu, and the search icon), the category index and the first group open as cards](docs/screenshots/explore.png)
+![All courses on the Compass page: the filter bar on one row (the scope with its counts, the result count, the star, Filters, Organise and the list/cards menu, and the search icon), the category index with the open group's link tinted and Archived last, and the first group open as a list](docs/screenshots/explore.png)
 
 *All courses* opens from the ghost card or from a strip's "+N" link. The ghost is there whenever
 *All courses* has something tier 1 does not show, its *Hidden* and *Archived* groups included: a
@@ -174,9 +174,9 @@ each with a cross to remove it, and *Clear all* from two chips up; a search left
 its field has closed shows as a chip too. The scope and the star stay on the bar and need no
 chip.
 
-![The Filters popover open under the line: the Modality field with Online, In-person and Hybrid and their counts, Clear filters and Show 14](docs/screenshots/explore-filters.png)
+![The Filters panel open under the bar with Hybrid chosen: each field's label above its values with their counts (Modality: Online, In-person, Hybrid; Level: Intermediate, Advanced), Clear filters and Show 4; Filters carries a badge of 1 and the Hybrid chip sits under the bar](docs/screenshots/explore-filters.png)
 
-![The Organise menu open under the line: Group by, with Category and No grouping, then Sort by, with Name and Most recent](docs/screenshots/explore-organise.png)
+![The Organise menu open under the bar: Group by, with Category and No grouping, then Sort by, with Name and Most recent, the chosen one of each ticked](docs/screenshots/explore-organise.png)
 
 The search suggests as you type, in one list under the line: first the **filters** (a scope,
 the star, a field's value) whose name or field matches the text, each with the number of courses
@@ -185,21 +185,21 @@ a filter applies it and empties the field for the next one; choosing a course op
 fewer than two characters typed, the list offers up to five filters, the largest first, under
 *Start with a filter*. The arrow keys walk the list, Enter chooses and Escape closes it.
 
-![The search grown over the Dashboard's line with "on" typed: under Filters, Online (9) and In-person (2) of the Modality field; under Courses, Nutrition and Metabolism, Introduction to Philosophy and Data Analysis with Python, the matched letters marked](docs/screenshots/explore-search.png)
+![The search opened in place at the bar's end with "on" typed, the scope's counts following it: under Filters, Online (12) and In-person (1) of the Modality field; under Courses, Facilitating Online Discussions, Creating Digital Content, Differentiated Instruction in Practice, Instructional Coaching Cycles and Instructional Leadership Foundations, the matched letters marked](docs/screenshots/explore-search.png)
 
 **The bar folds to the width of the block, not of the screen**, in two steps measured on the bar
 itself: everything on one row (the Compass page on a desktop); or, where that does not fit, the
-scope on a line of its own under the controls, its choices sharing the width (a tablet, a phone,
-the block drawer). There, while the search is open, its field takes the first line. The chips
+scope on a line of its own under the controls, its choices sharing the width (a phone, the block
+drawer, a narrow column). There, while the search is open, its field takes the first line. The chips
 wrap to further lines rather than scrolling.
 
-![All courses on the Dashboard, the line with one filter in force: only All with its count of one, the star, Filters with a badge of 1, Organise, View and the search icon; under it the chips health and Hybrid with Clear all, and the one course left](docs/screenshots/explore-filtered.png)
+![All courses on the Dashboard, a search and a filter in force: only All with its count of 3, the result count, the star, Filters with a badge of 1, Organise, View and the search icon; under it the chips instruction and Hybrid with Clear all, and the three courses left](docs/screenshots/explore-filtered.png)
 
-![All courses on the Dashboard at a tablet's width, the narrow step: the star, Filters, Organise, View and the search icon on the first line, the scope on a line of its own after them](docs/screenshots/explore-narrow.png)
+![All courses on the Dashboard at 500 px, the narrow step: the result count, the star, Filters, Organise, View and the search icon on the first line, the scope on a line of its own after them](docs/screenshots/explore-narrow.png)
 
 At the narrow step the Filters panel opens as a bottom sheet:
 
-![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality values, Clear filters and Show 38](docs/screenshots/explore-phone.png)
+![All courses on a phone with Filters pressed: the panel as a bottom sheet with the Modality and Level values, Clear filters and Show 38](docs/screenshots/explore-phone.png)
 
 **Pointing at a filter previews it.** A mouse or a pen on a scope, the star, a panel value or a
 suggestion, or the keyboard's focus on one, rings the courses on screen that it would keep,
@@ -230,7 +230,7 @@ counted before a group's rows arrive. The server is asked for one scope at a tim
 while the star is pressed) and the browser narrows the rows it holds by the rest; the course
 suggestions are the server's search hits. Nothing is configured per learner.
 
-![The Compass page: the block's content alone under the theme's navigation bar](docs/screenshots/page.png)
+![The Compass page: the block's content alone, from the calendar strip and Up next through the strips of course cards to the ghost card](docs/screenshots/page.png)
 
 With `enable_page` on, `/blocks/compass/index.php` shows the block's content alone, on the
 theme's page without block regions. While it is on, "Compass" is offered under *Site
@@ -303,7 +303,7 @@ administration > Appearance > Default Dashboard page*.
 Settings
 --------
 
-![The Compass settings page, with the calendar strip section](docs/screenshots/settings.png)
+![The calendar strip section of the Compass settings page, from Show the calendar strip to Up next: how far ahead](docs/screenshots/settings.png)
 
 *Site administration > Plugins > Blocks > Compass* (each setting is stored as `block_compass/<name>`):
 
