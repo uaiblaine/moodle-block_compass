@@ -310,7 +310,7 @@ Settings
 | `group_depth` | 1 | Category depth that forms the groups of *All courses*. |
 | `inventory_max` | 250 | Above this many courses, *All courses* switches to paged mode. |
 | `enable_search` | on | The search of the filter line in *All courses*, with its suggestions. |
-| `show_index` | on | The side index of categories, on wide blocks. |
+| `show_index` | on | The side index of categories, on wide blocks; it ends with the Archived group when the viewer has archived courses. |
 | `dormant_months` | 12 | Months without a visit before a course moves to *Dormant*. |
 | `default_view` | list | The view of *All courses* for a user who never chose (list or cards). |
 | `hide_block_title` | off | Render the block without its title; the headings move one level up. |
