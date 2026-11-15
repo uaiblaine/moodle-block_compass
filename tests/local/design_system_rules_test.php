@@ -63,6 +63,12 @@ final class design_system_rules_test extends basic_testcase {
     /** @var string The open-courses close at rest, the one rule that grounds a core button on the block's surface. */
     private const NEWS_HIDE_REST = '.block_compass .compass-news .compass-news-hide:not(:hover):not(:active)';
 
+    /** @var string[] The two selectors of the one rule that shows the icon tooltip (Tip.tsx). */
+    private const TIP_SHOWN = [
+        '.block_compass .compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):hover > .compass-tip',
+        '.block_compass .compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):focus-visible > .compass-tip',
+    ];
+
     /** @var array The classes of the buttons that are core's now: their look is the theme's. */
     private const CORE_BUTTONS = ['compass-cal-todaybtn', 'compass-news-hide', 'compass-news-see', 'compass-clear', 'compass-show'];
 
@@ -651,14 +657,15 @@ final class design_system_rules_test extends basic_testcase {
     /**
      * The block's two tooltips have one look, the Design System's (tooltip.md).
      *
-     * The calendar's (its view switch and Up next's hide) and the open-courses group's: the body text as the ground
-     * and the surface as the text, radius sm, 0.75rem with a 1.35 line, at most 260 px wide, a 5 px arrow in the
-     * ground, opacity over the fast motion. The CSS-only tooltip waits 100 ms before it shows, shorter than tooltip.md's
-     * 250 ms so an icon's name keeps up with the pointer; the group's waits in its client (ADR-019 decision 3). Padding,
-     * shadow and layer stay each one's own: the file leaves the three open.
+     * The icon tooltip (Tip.tsx: the calendar's view switch, Up next's hide and the filter bar's icon buttons) and the
+     * open-courses group's: the body text as the ground and the surface as the text, radius sm, 0.75rem with a 1.35
+     * line, at most 260 px wide, a 5 px arrow in the ground, opacity over the fast motion. The CSS-only tooltip waits
+     * 100 ms before it shows, shorter than tooltip.md's 250 ms so an icon's name keeps up with the pointer (D51); the
+     * group's waits in its client (ADR-019 decision 3). Padding, shadow and layer stay each one's own: the file leaves
+     * the three open.
      *
      * Changes that must make it fail: either tooltip back on its own ground or radius, the group's back on 0.875rem
-     * text, its old 120 ms or its rise, the calendar's delay dropped or back on 250 ms, an arrow off the ground.
+     * text, its old 120 ms or its rise, the icon tooltip's delay dropped or back on 250 ms, an arrow off the ground.
      *
      * @return void
      */
@@ -668,28 +675,20 @@ final class design_system_rules_test extends basic_testcase {
             'color: var(--block_compass-surface);', 'font-size: 0.75rem;', 'font-weight: 400;', 'line-height: 1.35;',
             'transition: opacity var(--block_compass-motion-fast) ease;',
         ];
-        foreach (['.block_compass .compass-cal-tip', '.block_compass .compass-news-tip'] as $selector) {
+        foreach (['.block_compass .compass-tip', '.block_compass .compass-news-tip'] as $selector) {
             $this->holds($this->rule($selector), $look, $selector);
             $this->assertStringNotContainsString('transform 120ms', $this->rule($selector), $selector);
         }
         $this->assertStringNotContainsString('font-size', $this->rule('.block_compass .compass-news-tipname'));
-        // One rule shows the icon tooltips, the switch's and Up next's hide's, on hover and on keyboard focus alike.
-        foreach (
-            [
-                '.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip',
-                '.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible'
-                    . ' .compass-cal-tip',
-                '.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):hover .compass-cal-tip',
-                '.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):focus-visible .compass-cal-tip',
-            ] as $shown
-        ) {
+        // One rule shows every icon tooltip, on hover and on keyboard focus alike.
+        foreach (self::TIP_SHOWN as $shown) {
             $delay = $this->named($shown);
             $this->assertStringContainsString('transition-delay: 100ms;', $delay, $shown);
             $this->assertSame(1, preg_match_all('/transition-delay\s*:/', $delay), "{$shown}: one delay");
         }
         $this->assertStringContainsString(
             'border-top-color: var(--block_compass-ink);',
-            $this->rule('.block_compass .compass-cal-tip::after')
+            $this->rule('.block_compass .compass-tip::after')
         );
         $this->holds($this->rule('.block_compass .compass-news-tiparrow'), [
             'border: 5px solid transparent;', 'border-top-color: var(--block_compass-ink);',
@@ -698,6 +697,71 @@ final class design_system_rules_test extends basic_testcase {
             'color: var(--block_compass-surface);',
             $this->rule('.block_compass .compass-news-tipmeta'),
             'the group tooltip\'s line is muted on its ground'
+        );
+    }
+
+    /**
+     * The filter bar's icon buttons name themselves with the block's icon tooltip (D51), never with a title.
+     *
+     * icon-button.md and tooltip.md: the star, Filters, Organise, View, the search and the eraser are each a host of
+     * Tip.tsx's tooltip, whose text is the name part of the button's aria-label ("Filters", never "Filters, 2 active
+     * filters"), and none carries a title, whose delay is the browser's and which would draw a second tooltip. The
+     * tooltip is the stylesheet's one icon tooltip: it stays down while its host's own menu or panel is open
+     * (aria-expanded), where the pointer cannot hover (a tap leaves :hover behind on a touch screen), and while Escape
+     * has put the tooltips off; it opens above the bar, where the bar's floating layers never are, lined up with the
+     * host's end for the buttons that can end the bar. Vacuity guard: six hosts and their texts are found.
+     *
+     * Changes that must make it fail: a title back on any of the six, a tooltip dropped or saying the count, the
+     * show rule no longer sparing an open host or a put-off one, the touch override dropped, the tooltip opened below.
+     *
+     * @return void
+     */
+    public function test_the_bar_icon_buttons_carry_the_blocks_tooltip(): void {
+        $hosts = [
+            'StarToggle.tsx' => ["tipHost('compass-line-iconbtn compass-line-star', tipsoff)",
+                '<Tip text={labels.chip_favourites} align="start" />'],
+            'FilterToggle.tsx' => ["tipHost('compass-line-iconbtn compass-filterbtn', tipsoff)", '<Tip text={labels.filter} />'],
+            'OrganiseMenu.tsx' => ["tipHost('compass-line-iconbtn compass-line-organisebtn', tipsoff)",
+                '<Tip text={labels.line_organise} />'],
+            'ViewToggle.tsx' => ["tipHost('compass-line-iconbtn compass-line-viewbtn', tipsoff)",
+                '<Tip text={labels.line_view} align="end" />'],
+            'FilterLine.tsx' => ["tipHost('compass-line-iconbtn compass-line-searchopen', tipsoff)",
+                '<Tip text={labels.searchcourses} align="end" />'],
+        ];
+        foreach ($hosts as $file => [$host, $tip]) {
+            $source = $this->source($file);
+            $button = $this->slice($source, $host, '</button>');
+            $this->assertStringContainsString($tip, $button, "{$file}: the button's tooltip");
+            $this->assertDoesNotMatchRegularExpression('/\stitle=/', $button, "{$file}: a title draws a second tooltip");
+        }
+        $eraser = $this->slice($this->source('FilterLine.tsx'), "tipHost('compass-search-eraser', tipsoff)", '</button>');
+        $this->assertStringContainsString('<Tip text={labels.line_cleartext} align="end" />', $eraser);
+        $this->assertDoesNotMatchRegularExpression('/\stitle=/', $eraser, 'the eraser: a title draws a second tooltip');
+        foreach (['StarToggle.tsx', 'FilterToggle.tsx', 'OrganiseMenu.tsx', 'ViewToggle.tsx', 'FilterLine.tsx'] as $file) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/className="compass-line-iconbtn[^"]*"/',
+                $this->source($file),
+                "{$file}: an icon button of the bar without the tooltip's host"
+            );
+        }
+
+        foreach (self::TIP_SHOWN as $shown) {
+            $this->assertStringContainsString(':not(.compass-tipsoff):not([aria-expanded="true"])', $shown);
+            $this->assertStringContainsString('opacity: 1;', $this->named($shown), $shown);
+        }
+        $touch = '.block_compass .compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):not(:focus-visible):hover'
+            . ' > .compass-tip';
+        $this->assertMatchesRegularExpression(
+            '/@media \(hover: none\) \{\s*' . preg_quote($touch, '/') . ' \{\s*opacity: 0;/',
+            (string) file_get_contents(dirname(__DIR__, 2) . '/styles.css'),
+            'a tap would leave the tooltip up on a touch screen'
+        );
+        $this->holds($this->rule('.block_compass .compass-tip'), ['bottom: calc(100% + 9px);', 'z-index: 5;'], 'above the bar');
+        $this->holds($this->rule('.block_compass .compass-tip-end'), ['inset-inline-end: 0;', 'transform: none;'], 'at the end');
+        $this->holds(
+            $this->rule('.block_compass .compass-tip-start'),
+            ['inset-inline-start: 0;', 'transform: none;'],
+            'at the start'
         );
     }
 

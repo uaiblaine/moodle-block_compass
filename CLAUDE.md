@@ -175,7 +175,8 @@ details, 006 React, 007 dormancy and archiving, 008 accessibility as a gate, 009
 filters, 010 the maintainer's twelve, 011 one bundle and preload hints, 012 the block's own
 page, 013 enrolment state from `local_unlistedcourses`, 014 the calendar strip, 015 the filter
 line in tier 3, 023 the compact filter bar, 024 the menus, the panel and the containers in the Design
-System's form (table with dates in the long form).
+System's form, 025 Organise's Group by and Sort by and the bar's icon tooltips (table with dates in the
+long form).
 
 ## Code layout
 
@@ -211,7 +212,7 @@ classes/hook/course_kinds.php the block's own hook, dispatched by local/course_k
                            and each value's kind and nouns out (ADR-019 decision 4)
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
-                           StarToggle, OrganiseMenu, FilterPanel, FilterToggle, LineMenu, ViewToggle, RowList, Row,
+                           StarToggle, OrganiseMenu, FilterPanel, FilterToggle, LineMenu, ViewToggle, Tip, RowList, Row,
                            RowCard, Archive, RetryNotice, StatePill, CalendarStrip, CalendarLine, CalendarCard, UpNext,
                            OpenCourses (ADR-017's line), Tier1Skeleton (the shell's skeleton, drawn alike; ADR-018),
                            calendar, calendarpref (every member of block_compass_calendar, for every writer), tier1shape
@@ -319,8 +320,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   on a counter, index hidden below 640 px of the section, focus moved deliberately after
   "Show more" and after an archive, rows filled once if seen (`rowdetails.ts`), dormant,
   archived and invisible (Hidden) groups `-1`/`-2`/`-3`, the last two fetched on open in both modes
-  (`ondemand()`), the filter line remembered through `explore_preference` (`{sort,
-  scope, star, cf, panel}`, an old `chip` migrated on read; shape validated server-side,
+  (`ondemand()`), the filter line remembered through `explore_preference` (`{group, sort,
+  scope, star, cf, panel}`, an old `chip` and a sort stored before ADR-025 migrated on read; shape validated server-side,
   membership client-side), resilience in `repository.ts` (bounded retry:
   every failed read twice, 2 s ± 500 ms apart, no jitter under Behat), then `RetryNotice` (Try again, Reload page): **no
   permanent reload control**, a way back appears only once a load has failed, and every failed
@@ -345,8 +346,12 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   controls. The search is an icon at every width that opens the field in place (Escape or leaving it empty
   closes it back to its button, the eraser keeps it open, a text left in force is a chip); the combobox and
   its one listbox are FilterLine's. View (`ViewToggle.tsx`) and Organise (`OrganiseMenu.tsx`) are one button each
-  opening the same `LineMenu.tsx`: a `role="menu"` of `menuitemradio` items, an icon before each word and a tick
-  after the chosen one's (ADR-024); Escape, Tab, a choice and a press outside close it. The panel (`FilterPanel.tsx`)
+  opening the same `LineMenu.tsx`: a `role="menu"` of sections of `menuitemradio` items, an icon before each word and
+  a tick after the chosen one's (ADR-024); Organise is two sections, Group by and Sort by, independent (ADR-025), and
+  paged mode, always grouped, draws No grouping `aria-disabled` with its reason and keeps the stored grouping; Escape,
+  Tab, a choice and a press outside close it. Every icon button of the bar carries the block's icon tooltip
+  (`Tip.tsx`, never a `title`): above the bar, never while its own menu or panel is open, never on touch, put off by
+  Escape. The panel (`FilterPanel.tsx`)
   is one labelled `radiogroup` per field (one tab stop, arrows that choose, a press on the chosen option releases
   it); no platter of pills is left. The panel, the suggestions and the two menus hang under the bar's measured
   bottom (a bottom sheet at the narrow step). The scope is a `radiogroup` (`ScopeGroup.tsx`), the star an `aria-pressed`
@@ -359,7 +364,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
 - **Containers and feedback follow the Design System** (ADR-024; `moodle-dev/docs/design-system/components/`): every
   radius, elevation and layer of a menu, panel, popover or sheet is a scale token (the two absolute popovers, the day
   card and the open-courses one, on the anchored rung, z 20, under core's navbar and drawers; sheets 1050); one
-  tooltip look for the calendar's and the open-courses group's; tier 3's empty result is the full empty state, other
+  tooltip look for the icon tooltip (`Tip.tsx`: the calendar's switch, Up next's hide, the bar) and the open-courses
+  group's; tier 3's empty result is the full empty state, other
   empties the compact line; skeletons pulse only under `prefers-reduced-motion: no-preference`; no control is a pill
   but the loud counter, the card's kind chip and Up next's countdown. `design_system_rules_test` pins them, the
   skeleton's pulse `tier1_skeleton_rules_test`; a guard's gate goes under "The Design System's containers and
@@ -379,8 +385,8 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
 - **The closed line** (ADR-014 amendment 13): the teaching view's grading cell exists only with the
   ledger (`counts.grading`), outside the periods' list, named by a sentence that starts with its label,
   lighting `waitingcourseids` (recorded per day by `strip::add()`, never the days' `courseids`); the
-  view switch is icons beside the title with an own `aria-hidden` tooltip (`:hover`, `:focus-visible`,
-  Escape), never core's Bootstrap tooltip and never a `title`, and keeps its words on a narrow block and
+  view switch is icons beside the title with the block's own `aria-hidden` tooltip (`Tip.tsx`; `:hover`,
+  `:focus-visible`, Escape), never core's Bootstrap tooltip and never a `title`, and keeps its words on a narrow block and
   in the open strip. One row or the cells on a row of their own is measured in a layout effect (the
   head's children summed while nothing wraps; a ResizeObserver; no `@container`), and the same flag
   (`compact`) shows a period's `_short` twin, which is part of the whole name.

@@ -107,6 +107,10 @@
     "eject": "prohibited",
     "wrap": "prohibited"
   },
+  "Tip": {
+    "eject": "prohibited",
+    "wrap": "prohibited"
+  },
   "UpNext": {
     "eject": "prohibited",
     "wrap": "prohibited"

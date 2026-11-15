@@ -27,15 +27,17 @@ namespace block_compass\local;
 /**
  * Reader of the block_compass_explore preference.
  *
- * One JSON object holds the sort, the scope, whether the favourites star is pressed, the pressed
- * value of each custom-field group and whether the filter panel is open (ADR-015). The client
+ * One JSON object holds the grouping, the sort, the scope, whether the favourites star is pressed, the
+ * pressed value of each custom-field group and whether the filter panel is open (ADR-015, ADR-025). The client
  * writes it through core's own preference route, which cleans a PARAM_RAW value not at all; so the
- * reading is where the validation is, and it is a validation of shape at zero cost: a sort or a
- * scope outside the vocabulary, the pending scope while the feature is off, a star that is not a
+ * reading is where the validation is, and it is a validation of shape at zero cost: a grouping, a sort
+ * or a scope outside the vocabulary, the pending scope while the feature is off, a star that is not a
  * boolean, a field key that is not a shortname or a value that is not an integer are dropped, and
  * what survives ships as the client's initial state. A state stored before ADR-015 carries a chip
  * instead of a scope and a star, and is migrated here, on read: the favourites chip becomes the
- * star on the All scope, any other chip of the old vocabulary becomes that scope. Whether a field
+ * star on the All scope, any other chip of the old vocabulary becomes that scope. A state stored before
+ * ADR-025 carries no group and one sort of three, of which "category" was the grouping; it is read as
+ * what that viewer saw (legacy_organise()), with no upgrade step. Whether a field
  * is still configured, and whether its value is still one of the field's keys, is decided when the
  * inventory arrives with its fields array (js/esm/src/Explore.tsx): the shell renders the block
  * without a database or cache read, and the eligible fields live in a cache that may be cold. The
@@ -50,8 +52,14 @@ final class explore_preference {
     /** @var string The preference name, declared in lib.php. */
     public const NAME = 'block_compass_explore';
 
-    /** @var string[] The sorts the toolbar offers. */
-    public const SORTS = ['category', 'name', 'recent'];
+    /** @var string[] The groupings Organise offers; paged mode serves only the first (ADR-025). */
+    public const GROUPS = ['category', 'none'];
+
+    /** @var string[] The sorts Organise offers, inside a group or over the flat list (ADR-025). */
+    public const SORTS = ['name', 'recent'];
+
+    /** @var string[] The one sort of three a state stored before ADR-025 carries, "category" being the grouping. */
+    public const LEGACY_SORTS = ['category', 'name', 'recent'];
 
     /** @var string[] The scope cells, the pending one only while the feature is on; explore::CHIPS without favourites. */
     public const SCOPES = ['all', 'new', 'pending', 'scheduled'];
@@ -62,12 +70,13 @@ final class explore_preference {
     /**
      * The longest value this reader reads, in bytes; a longer one is refused on write and ignored on read.
      *
-     * The client writes {sort, scope, star, cf, panel} with JSON.stringify, no whitespace: 74 bytes
-     * with the longest sort and scope and an empty cf. Each cf entry is "<shortname>":<value>, at
-     * most 114 bytes (customfield_field.shortname is char(100), PARAM_ALPHANUMEXT needs no escape,
-     * a value key of 10 digits, a comma), and the client keeps only the configured fields, at most
-     * config::FILTER_FIELDS_MAX (3): 74 + 3 * 114 = 416. The cap is the smallest power of two at
-     * least twice that, the rule of the three readers, so a member added later fits.
+     * The client writes {group, sort, scope, star, cf, panel} with JSON.stringify, no whitespace: 91
+     * bytes with the longest grouping, sort and scope and an empty cf. Each cf entry is
+     * "<shortname>":<value>, at most 114 bytes (customfield_field.shortname is char(100),
+     * PARAM_ALPHANUMEXT needs no escape, a value key of 10 digits, a comma), and the client keeps only
+     * the configured fields, at most config::FILTER_FIELDS_MAX (3): 91 + 3 * 114 = 433. The cap is the
+     * smallest power of two at least twice that, the rule of the three readers, so a member added later
+     * fits.
      *
      * @var int
      */
@@ -76,13 +85,27 @@ final class explore_preference {
     /**
      * The state the toolbar starts in for a viewer who never changed it.
      *
-     * The filter panel starts closed (ADR-015 decision 5): its field groups are a popover over the
-     * list, and the line's chips show what it holds in force.
+     * Grouped by category and sorted by name, the list a viewer saw before ADR-025 split the two. The
+     * filter panel starts closed (ADR-015 decision 5): its field groups are a popover over the list, and
+     * the line's chips show what it holds in force.
      *
-     * @return array sort, scope, star, cf (shortname => value key) and panel.
+     * @return array group, sort, scope, star, cf (shortname => value key) and panel.
      */
     public static function defaults(): array {
-        return ['sort' => 'category', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false];
+        return ['group' => 'category', 'sort' => 'name', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false];
+    }
+
+    /**
+     * The grouping and the sort a state stored before ADR-025 meant, from its one sort of three.
+     *
+     * "category" was the grouping, its groups' rows by name; "name" and "recent" were the flat list in that
+     * order. What the viewer saw is what they get back.
+     *
+     * @param string $sort One of LEGACY_SORTS.
+     * @return array group and sort.
+     */
+    public static function legacy_organise(string $sort): array {
+        return $sort === 'category' ? ['group' => 'category', 'sort' => 'name'] : ['group' => 'none', 'sort' => $sort];
     }
 
     /**
@@ -91,7 +114,7 @@ final class explore_preference {
      * A preference read is allowed in the shell ({@see \block_compass\output\block::view()}).
      *
      * @param bool|null $pendingenabled Whether the pending scope may be kept; null for the setting.
-     * @return array sort, scope, star, cf and panel, each within its vocabulary.
+     * @return array group, sort, scope, star, cf and panel, each within its vocabulary.
      */
     public static function read(?bool $pendingenabled = null): array {
         $stored = get_user_preferences(self::NAME, null);
@@ -104,7 +127,7 @@ final class explore_preference {
      *
      * @param string|null $json The stored JSON, or null when nothing is stored.
      * @param bool $pendingenabled Whether the pending scope may be kept.
-     * @return array sort, scope, star, cf and panel, each within its vocabulary.
+     * @return array group, sort, scope, star, cf and panel, each within its vocabulary.
      */
     public static function validate(?string $json, bool $pendingenabled): array {
         $state = self::defaults();
@@ -112,8 +135,18 @@ final class explore_preference {
         if ($decoded === null) {
             return $state;
         }
-        if (isset($decoded['sort']) && in_array($decoded['sort'], self::SORTS, true)) {
-            $state['sort'] = $decoded['sort'];
+        if (!array_key_exists('group', $decoded)) {
+            // Stored before ADR-025: no group, and one sort of three that held the grouping.
+            if (isset($decoded['sort']) && in_array($decoded['sort'], self::LEGACY_SORTS, true)) {
+                $state = array_merge($state, self::legacy_organise($decoded['sort']));
+            }
+        } else {
+            if (in_array($decoded['group'], self::GROUPS, true)) {
+                $state['group'] = $decoded['group'];
+            }
+            if (isset($decoded['sort']) && in_array($decoded['sort'], self::SORTS, true)) {
+                $state['sort'] = $decoded['sort'];
+            }
         }
         // A chip stored before ADR-015 is read first, so a scope or a star stored beside it wins.
         if (isset($decoded['chip']) && in_array($decoded['chip'], self::CHIPS, true)) {

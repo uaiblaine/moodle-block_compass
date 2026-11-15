@@ -1620,6 +1620,10 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     color: var(--block_compass-muted);
 }
 
+.block_compass .compass-search-eraser > .compass-tip-end::after {
+    inset-inline-end: 7px;
+}
+
 .block_compass .compass-search-eraser:hover {
     background: var(--block_compass-surface-alt);
     color: var(--block_compass-ink);
@@ -3031,15 +3035,23 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     padding: 0;
 }
 
-/* The icon switch's tooltip, the button's own aria-hidden child (the button's aria-label is the name),
-   in the Design System's tooltip look (components/tooltip.md, ADR-024), the group tooltip's too: the body
-   text as its ground and the surface as its text, so dark mode turns it light, radius sm, 0.75rem. Shown on
-   hover and on keyboard focus after a 100 ms rest, shorter than tooltip.md's 250 ms so an icon's name keeps
-   up with the pointer (off the motion scale on purpose: scale_ratchet_test counts it), never while Escape has
-   put the switch's tooltips off; once shown it takes the pointer, and its ::before bridges the gap to the
-   button, so the pointer can move onto it (WCAG 1.4.13). Up next's hide button (UpNext.tsx) shows the same
-   tooltip, opened below it. Its padding and layer are the plugin's own (tooltip.md leaves both open). */
-.block_compass .compass-cal-tip {
+/* The block's icon tooltip (Tip.tsx, D51): the host's own aria-hidden child (the host's aria-label is the
+   name), in the Design System's tooltip look (components/tooltip.md, ADR-024), the group tooltip's too: the
+   body text as its ground and the surface as its text, so dark mode turns it light, radius sm, 0.75rem.
+   Above its host and centred by default; -start and -end line it up with the host's edge for a host near a
+   clipping edge, the bar's first and last buttons. Shown after a 100 ms rest, shorter than tooltip.md's
+   250 ms so an icon's name keeps up with the pointer (off the motion scale on purpose: scale_ratchet_test
+   counts it): on hover, except where the pointer cannot hover, so a tap leaves no tooltip stuck on a touch
+   screen, and on keyboard focus; never while the host's own menu or panel is open (aria-expanded), and never while
+   Escape has put the tooltips off (compass-tipsoff). Once shown it takes the pointer, and its ::before
+   bridges the gap to the host, so the pointer can move onto it (WCAG 1.4.13). Its padding and layer are the
+   plugin's own (tooltip.md leaves both open); z 5 keeps it over the bar's neighbours and under the floating
+   layers (20), which open below the bar while the tooltip opens above it. */
+.block_compass .compass-tiphost {
+    position: relative;
+}
+
+.block_compass .compass-tip {
     position: absolute;
     bottom: calc(100% + 9px);
     left: 50%;
@@ -3059,7 +3071,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     transition: opacity var(--block_compass-motion-fast) ease;
 }
 
-.block_compass .compass-cal-tip::before {
+.block_compass .compass-tip::before {
     content: "";
     position: absolute;
     top: 100%;
@@ -3068,7 +3080,7 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     height: 10px;
 }
 
-.block_compass .compass-cal-tip::after {
+.block_compass .compass-tip::after {
     content: "";
     position: absolute;
     top: 100%;
@@ -3078,13 +3090,44 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     border-top-color: var(--block_compass-ink);
 }
 
-.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:hover .compass-cal-tip,
-.block_compass .compass-cal-seg-icons:not(.compass-cal-tipsoff) .compass-cal-segbtn:focus-visible .compass-cal-tip,
-.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):hover .compass-cal-tip,
-.block_compass .compass-soon-hide:not(.compass-cal-tipsoff):focus-visible .compass-cal-tip {
+/* Lined up with the host's start or end edge, the arrow under the middle of a 32 px button. */
+.block_compass .compass-tip-start {
+    left: auto;
+    inset-inline-start: 0;
+    transform: none;
+}
+
+.block_compass .compass-tip-end {
+    left: auto;
+    inset-inline-end: 0;
+    transform: none;
+}
+
+.block_compass .compass-tip-start::after {
+    left: auto;
+    margin-left: 0;
+    inset-inline-start: 11px;
+}
+
+.block_compass .compass-tip-end::after {
+    left: auto;
+    margin-left: 0;
+    inset-inline-end: 11px;
+}
+
+.block_compass .compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):hover > .compass-tip,
+.block_compass .compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):focus-visible > .compass-tip {
     opacity: 1;
     pointer-events: auto;
     transition-delay: 100ms;
+}
+
+/* A touch screen keeps :hover on what was tapped: there the hover shows nothing, the keyboard's focus still does. */
+@media (hover: none) {
+    .block_compass .compass-tiphost:not(.compass-tipsoff):not([aria-expanded="true"]):not(:focus-visible):hover > .compass-tip {
+        opacity: 0;
+        pointer-events: none;
+    }
 }
 
 /* The notes follow the header (CalendarLine.tsx LineNotes), so a sentence never widens the line. */
@@ -3872,7 +3915,8 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     font-size: 0.8125rem;
 }
 
-/* The hide button: a 36 px icon button at the head's end, with the strip's own tooltip. */
+/* The hide button: a 36 px icon button at the head's end, with the block's icon tooltip opened below it, at its
+   end (Tip.tsx), its arrow under the middle of the 36 px button. */
 .block_compass .compass-soon-hide {
     position: relative;
     display: grid;
@@ -3892,24 +3936,20 @@ body.jsenabled .block_compass .compass-preload + .compass-noscript {
     color: var(--block_compass-ink);
 }
 
-.block_compass .compass-soon-hide .compass-cal-tip {
+.block_compass .compass-soon-hide .compass-tip {
     top: calc(100% + 9px);
-    right: 0;
     bottom: auto;
-    left: auto;
-    transform: none;
 }
 
-.block_compass .compass-soon-hide .compass-cal-tip::before {
+.block_compass .compass-soon-hide .compass-tip::before {
     top: auto;
     bottom: 100%;
 }
 
-.block_compass .compass-soon-hide .compass-cal-tip::after {
+.block_compass .compass-soon-hide .compass-tip::after {
     top: auto;
-    right: 13px;
     bottom: 100%;
-    left: auto;
+    inset-inline-end: 13px;
     border-top-color: transparent;
     border-bottom-color: var(--block_compass-ink);
 }
