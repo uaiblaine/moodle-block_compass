@@ -15,6 +15,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Changed
 
+- **The Organise menu, the filter panel, the containers and the feedback follow the fleet Design System** (ADR-024,
+  proposed; 2026042038). Organise opens a menu like View's: its sorts are menu items with an icon and a tick on the
+  chosen one, under the "Sort courses" heading, and Tab closes either menu. Each group of the filter panel is a
+  labelled radio group of 28 px options at radius 6 px, with one tab stop and the arrow keys choosing, the chosen
+  option in the brand tone; a press on the chosen option still releases it. The pill platter is gone. The calendar's
+  day card, the open-courses popover, panel and their bottom sheets take the Design System's radii, elevations and
+  layers; the open-courses groups and "+N" are rounded rectangles. The calendar's and the open-courses tooltips share
+  one look. "No course matches." is the full empty state, with Clear filters while a filter is in force. The
+  skeletons pulse slowly unless reduced motion is asked for; the calendar's shimmer is gone. Eyebrow labels are
+  0.75rem in the muted ink. New tokens: `neutral-tint`, `neutral-ink`. No string, service or preference changes.
 - **Status labels, action buttons, the calendar's segmented control and the counters follow the fleet Design
   System** (2026042037). The enrolment state labels (Access from, Application under review, On the waiting list,
   Completed, Hidden from students) are rounded rectangles at radius 6 px with a 1 px edge from their own tone, no

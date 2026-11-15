@@ -1,17 +1,18 @@
-import{useId as f}from"react";import y from"./Platter";import{markup as v}from"./markup";import{jsx as n,jsxs as r}from"react/jsx-runtime";var M=({open:s,top:t,config:l,sort:m,button:c,menu:p,onToggle:d,onSort:u})=>{let{labels:e,icons:g}=l,o=f(),a=`${o}-sort`;return r("div",{className:"compass-line-organise",children:[n("button",{type:"button",ref:c,className:"compass-line-iconbtn compass-line-organisebtn","aria-expanded":s,"aria-controls":o,"aria-label":e.line_organise,title:e.line_organise,onClick:d,children:n("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:v(g.organise)})}),n("div",{id:o,ref:p,className:"compass-line-menu compass-line-layer",hidden:!s,style:t===null?void 0:{top:`${t}px`},children:r("div",{className:"compass-line-menusection",children:[n("span",{className:"compass-line-menulabel",id:a,children:e.sortby}),n(y,{labelledby:a,items:[["category",e.sort_category],["name",e.sort_name],["recent",e.sort_recent]].map(([i,b])=>({key:i,label:b,pressed:m===i})),onPress:u})]})})]})},_=M;export{_ as default};
+import{useId as p}from"react";import g from"./LineMenu";import{markup as b}from"./markup";import{jsx as n,jsxs as f}from"react/jsx-runtime";var d=({open:t,top:a,config:i,sort:s,button:l,menu:c,onToggle:m,onSort:u})=>{let{labels:e,icons:o}=i,r=p();return f("div",{className:"compass-line-organise",children:[n("button",{type:"button",ref:l,className:"compass-line-iconbtn compass-line-organisebtn","aria-haspopup":"menu","aria-expanded":t,"aria-controls":r,"aria-label":e.line_organise,title:e.line_organise,onClick:m,children:n("span",{className:"icon-no-margin","aria-hidden":"true",dangerouslySetInnerHTML:b(o.organise)})}),n(g,{id:r,menu:c,open:t,top:a,label:e.line_organise,heading:e.sortby,choices:[{value:"category",label:e.sort_category,icon:o.sortcategory},{value:"name",label:e.sort_name,icon:o.sortname},{value:"recent",label:e.sort_recent,icon:o.sortrecent}],chosen:s,tick:o.check,onChoose:u})]})},M=d;export{M as default};
 /**
- * Organise: one icon button and the menu it opens (ADR-015 decision 2).
+ * Organise: one icon button and the menu it opens (ADR-015 decision 2, ADR-024).
  *
  * The menu holds the existing three-way sort - By category, A-Z, Recent, "By category" being the
- * grouping - on the sort platter it always had. The vocabulary and the services' sort parameter are
+ * grouping - under its heading "Sort courses". The vocabulary and the services' sort parameter are
  * unchanged. The contract's separate Group and Sort sections are not drawn: Compass's grouping is
  * one of its three sorts, and a fourth combination would be one no service serves. The view is the
  * bar's own View menu at every width (ViewToggle.tsx, ADR-023), never a section here.
  *
- * A disclosure, not an ARIA menu: aria-expanded and aria-controls on the button, the sections
- * named groups of aria-pressed buttons inside, the hidden property toggling it with its layout under
- * :not([hidden]). A choice closes it and puts the keyboard back on the button, which FilterLine
- * does, with Escape and a press outside. FilterLine places it under the line's real bottom.
+ * The menu is the bar's LineMenu, as View's is (the contract's section 8, ADR-024): role="menu" named
+ * "Organise", the sorts a group named by the heading, each a menuitemradio with aria-checked, an icon
+ * before its word and a tick after the chosen one's. The button says what it opens with aria-expanded and
+ * aria-controls. A choice closes it and puts the keyboard back on the button, which FilterLine does, with
+ * Escape, Tab and a press outside. FilterLine places it under the line's real bottom.
  *
  * @module     block_compass/OrganiseMenu
  * @copyright  2026 Anderson Blaine

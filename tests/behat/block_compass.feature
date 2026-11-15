@@ -75,7 +75,8 @@ Feature: The Compass block puts the courses that need attention first
     When I click on "Show the other 1 enrolment that starts later in the full course list" "button" in the "Compass" "block"
     # Tier 3 opens on the Scheduled scope with its first category group open, which here holds no
     # later start; the flat A-Z list shows every row the scope keeps, whatever group it is in. The
-    # sort is inside the filter line's Organise menu (ADR-015), and a choice closes the menu.
+    # sort is inside the filter line's Organise menu (ADR-015, a menu of radio items since ADR-024), and a
+    # choice closes the menu.
     And I click on "Organise" "button" in the "Compass" "block"
     And I click on "A–Z" "button" in the "Compass" "block"
     Then I should see "Course 7" in the "Compass" "block"
@@ -89,7 +90,7 @@ Feature: The Compass block puts the courses that need attention first
     Given the following config values are set as admin:
       | attention_max | 1        | block_compass |
       | filter_fields | delivery | block_compass |
-    # A select course custom field, visible to everyone, is what the filter panel draws a chip
+    # A select course custom field, visible to everyone, is what the filter panel draws a radio
     # group for; seeded with core's own generators, and the value with the course, the way
     # create_course() saves custom fields.
     And the following "custom field categories" exist:
@@ -128,9 +129,9 @@ Feature: The Compass block puts the courses that need attention first
     And I should see "Cat B" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
     # The filter panel starts closed (ADR-015 decision 5) and Filters opens it - in the Dashboard's
-    # drawer, at the bar's narrow step, as a bottom sheet. Its platters and chips are then on
-    # screen - all but the chip nobody's course carries: a chip that would show nothing is not drawn.
-    # Hybrid is the third option of the field and no course has it.
+    # drawer, at the bar's narrow step, as a bottom sheet. Its radio groups and their options are then
+    # on screen - all but the option nobody's course carries: an option that would show nothing is not
+    # drawn (ADR-024). Hybrid is the third option of the field and no course has it.
     When I click on "Filters" "button" in the "Compass" "block"
     Then I should see "Delivery" in the "Compass" "block"
     And I should see "On campus" in the "Compass" "block"
@@ -139,7 +140,7 @@ Feature: The Compass block puts the courses that need attention first
     # here, which is the most this scenario ever shows (a settled search narrows the list to its
     # hits).
     And the "Compass" "block" should meet accessibility standards with "best-practice" extra tests
-    # A field chip narrows the list to the one course carrying the option, in the browser: the
+    # A field option narrows the list to the one course carrying it, in the browser: the
     # live region announces the count, which is what settles the re-render before the negative
     # assertion runs (Course 5 is not in tier 1, so its absence is tier 3's).
     When I click on "Online" "button" in the "Compass" "block"

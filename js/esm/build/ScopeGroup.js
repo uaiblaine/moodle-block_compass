@@ -10,9 +10,8 @@ import{Fragment as b,jsx as a,jsxs as u}from"react/jsx-runtime";var k=t=>t.point
  * hidden attribute, so the line can draw it while it measures and the step follows the width and
  * the language, never the counts; the keys skip it.
  *
- * Platter.tsx is not reused: its pills are aria-pressed toggles, and the same component draws the
- * panel's field groups and the sort, where a press releases a group. One component with two ARIA
- * patterns would hide which one a screen reader hears.
+ * The filter panel's field groups are radio groups too (FilterPanel.tsx, ADR-024), drawn there: their options
+ * are never hidden in place, and a press on the chosen one releases its group, which a scope never does.
  *
  * The count is part of each cell's accessible name (contract section 8): a space between the label
  * and its number, which flex layout ignores and the accessible name keeps. At the bar's narrow step the

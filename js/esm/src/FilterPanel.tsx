@@ -14,38 +14,52 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The filter panel of tier 3: chip groups on platters, one value per group (ADR-009 decision 4, as
- * ADR-015 decision 3 reshapes it).
+ * The filter panel of tier 3: labelled groups of options, one value per group (ADR-009 decision 4, as
+ * ADR-015 decision 3 and ADR-024 reshape it).
  *
  * One group per course custom field the administrator chose, then at its foot Clear filters and
- * Show N. The scope and the star are on the filter line now and not here. A press replaces the
- * group's selection; a field group has no neutral chip, and pressing its pressed chip releases it.
- * Groups combine with AND. Every group is named by a visible label through aria-labelledby, and the
- * label is not a heading: the panel is a control, not a section. The label sits beside its chips at
- * the line's first two steps and above them from the third (stacked).
+ * Show N. The scope and the star are on the filter line and not here. Every group holds one value, so
+ * every group is a radio group (the contract's section 4; the Design System's components/filter-panel.md):
+ * role="radiogroup" named by its visible label through aria-labelledby, its options role="radio" with
+ * aria-checked, the chosen one, or the first drawn one when none is, its one tab stop; the arrow keys,
+ * Home and End move the focus to another option and choose it, as the scope does. A field group has no
+ * neutral option, so a press on the chosen option releases the group: that is its "any". Groups combine
+ * with AND. The label is not a heading: the panel is a control, not a section. It sits beside its
+ * options at the line's full step and above them at the narrow one (stacked).
  *
- * A popover under the line's real bottom (top, measured by FilterLine) at steps 1 to 3, and a bottom
- * sheet at step 4 (sheet). It is a plain block toggled with the hidden property, never a Bootstrap
- * collapse, and it carries no display utility: those are !important and would defeat [hidden]
- * (bootstrap_compat_test enforces that).
+ * An option counts the rows it would keep, and its count is part of its name ("Online 2"); an option that
+ * would show nothing is not drawn. Pointing at one with a mouse or a pen, or the keyboard on it, previews
+ * what it would keep (ADR-015 decision 6; never a finger).
+ *
+ * A popover under the line's real bottom (top, measured by FilterLine), and a bottom sheet at the narrow
+ * step (sheet). It is a plain block toggled with the hidden property, never a Bootstrap collapse, and it
+ * carries no display utility: those are !important and would defeat [hidden] (bootstrap_compat_test
+ * enforces that).
  *
  * @module     block_compass/FilterPanel
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useId} from 'react';
-import type {RefObject} from 'react';
-import Platter from './Platter';
-import type {PlatterItem} from './Platter';
+import {useId, useLayoutEffect, useRef} from 'react';
+import type {KeyboardEvent, RefObject} from 'react';
+import {hovers} from './ScopeGroup';
 import {fill} from './str';
 import type {BlockConfig, FilterField} from './types';
 
-/** Counts per chip, when the browser holds the rows to count; null means no number is true yet. */
+/** Counts per option, when the browser holds the rows to count; null means no number is true yet. */
 export type Facets = {
     status: Record<string, number> | null,
     star: number | null,
     fields: Map<string, Map<number, number>> | null,
+};
+
+/** One option of a group: its value, its label, its count (null where none is true yet), whether it is chosen. */
+type Option = {
+    value: number,
+    label: string,
+    count: number | null,
+    checked: boolean,
 };
 
 type FilterPanelProps = {
@@ -68,6 +82,98 @@ type FilterPanelProps = {
     onShow: () => void,
 };
 
+type FieldGroupProps = {
+    labelid: string,
+    field: FilterField,
+    options: Option[],
+    onSelect: (field: string, value: number | null) => void,
+    onPreview: (field: string, value: number | null) => void,
+};
+
+/**
+ * One field's group: its label and its options, a radio group.
+ *
+ * @param {object} props The label's id, the field, the options to draw and the callbacks; see FieldGroupProps.
+ * @returns {object} The rendered group.
+ */
+const FieldGroup = ({labelid, field, options, onSelect, onPreview}: FieldGroupProps) => {
+    // The one tab stop: the chosen option, or the first one when none is.
+    const stop = (options.find((option) => option.checked) ?? options[0]).value;
+
+    /**
+     * The arrow keys, Home and End: move the focus to another option and choose it.
+     *
+     * @param {object} event The keyboard event.
+     * @returns {void}
+     */
+    const keydown = (event: KeyboardEvent<HTMLDivElement>): void => {
+        const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'];
+        if (!keys.includes(event.key)) {
+            return;
+        }
+        const radios = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+        const at = radios.indexOf(document.activeElement as HTMLButtonElement);
+        if (at === -1) {
+            return;
+        }
+        event.preventDefault();
+        let next = at;
+        if (event.key === 'Home') {
+            next = 0;
+        } else if (event.key === 'End') {
+            next = radios.length - 1;
+        } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+            next = (at + 1) % radios.length;
+        } else {
+            next = (at - 1 + radios.length) % radios.length;
+        }
+        radios[next].focus({preventScroll: true});
+        onPreview(field.key, null);
+        onSelect(field.key, Number(radios[next].dataset.value));
+    };
+
+    return (
+        <div className="compass-fpanel-group">
+            <span className="compass-fpanel-head" id={labelid}>{field.label}</span>
+            <div className="compass-fpanel-opts" role="radiogroup" aria-labelledby={labelid} onKeyDown={keydown}>
+                {options.map((option) => (
+                    <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        className="compass-fpanel-opt"
+                        aria-checked={option.checked}
+                        tabIndex={option.value === stop ? 0 : -1}
+                        data-value={option.value}
+                        onClick={() => {
+                            onPreview(field.key, null);
+                            // Pressing the chosen option releases the group: that is its "any".
+                            onSelect(field.key, option.checked ? null : option.value);
+                        }}
+                        onPointerEnter={(event) => {
+                            if (hovers(event)) {
+                                onPreview(field.key, option.value);
+                            }
+                        }}
+                        onPointerLeave={() => onPreview(field.key, null)}
+                        onFocus={() => onPreview(field.key, option.value)}
+                        onBlur={() => onPreview(field.key, null)}
+                    >
+                        {option.label}
+                        {/* The space is the accessible name's ("Online 2"); flex layout ignores it. */}
+                        {option.count !== null && (
+                            <>
+                                {' '}
+                                <span className="compass-fpanel-count">{option.count}</span>
+                            </>
+                        )}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 /**
  * The panel.
  *
@@ -81,18 +187,48 @@ const FilterPanel = ({
 }: FilterPanelProps) => {
     const {labels} = config;
     const base = useId();
+    // Set by a press that releases a group: the pressed option may not be drawn in the render that follows.
+    const released = useRef(false);
+
     /**
-     * A chip that would show nothing is not drawn.
+     * A choice made in a group, noting a release.
      *
-     * With two exceptions: the pressed one, because releasing it is the only way back, and any chip
-     * without a number - every chip in paged mode, where no count is true yet and hiding on a guess
+     * @param {string} field The field's key.
+     * @param {number|null} value The value chosen, null to release the group.
+     * @returns {void}
+     */
+    const select = (field: string, value: number | null): void => {
+        released.current = value === null;
+        onSelect(field, value);
+    };
+
+    // A released option that would show nothing is no longer drawn (it was kept only while chosen), and
+    // the keyboard was on it: give it to the first group's tab stop, or to Clear filters when no group is
+    // left, never to the body.
+    useLayoutEffect(() => {
+        if (!released.current) {
+            return;
+        }
+        released.current = false;
+        const panel = element.current;
+        if (panel === null || hidden || panel.contains(document.activeElement)) {
+            return;
+        }
+        const next = panel.querySelector<HTMLElement>('[role="radio"][tabindex="0"]')
+            ?? panel.querySelector<HTMLElement>('.compass-clear');
+        next?.focus({preventScroll: true});
+    });
+    /**
+     * An option that would show nothing is not drawn.
+     *
+     * With two exceptions: the chosen one, because releasing it is the only way back, and any option
+     * without a number - every option in paged mode, where no count is true yet and hiding on a guess
      * would hide a value the server would match.
      *
-     * @param {object} item The chip.
+     * @param {object} option The option.
      * @returns {boolean} Whether it is drawn.
      */
-    const drawn = (item: PlatterItem): boolean => item.pressed || item.count === null || item.count === undefined
-        || item.count > 0;
+    const drawn = (option: Option): boolean => option.checked || option.count === null || option.count > 0;
 
     // The search text, the scope and the star count here only for the Clear control, which releases them too.
     const pressed = (filtered ? 1 : 0) + Object.keys(selection).length + (searching ? 1 : 0);
@@ -115,34 +251,24 @@ const FilterPanel = ({
             style={top === null || sheet ? undefined : {top: `${top}px`}}
         >
             {fields.map((field, index) => {
-                const labelid = `${base}-field-${index}`;
                 const counts = facets.fields?.get(field.key) ?? null;
-                const items: PlatterItem[] = field.values.map((value) => ({
-                    key: String(value.key),
+                const options: Option[] = field.values.map((value) => ({
+                    value: value.key,
                     label: value.label,
                     count: counts === null ? null : counts.get(value.key) ?? 0,
-                    pressed: selection[field.key] === value.key,
+                    checked: selection[field.key] === value.key,
                 })).filter(drawn);
-                // A group whose every chip would show nothing is not drawn either, label included.
-                if (items.length === 0) {
-                    return null;
-                }
 
-                return (
-                    <div className="compass-chipgroup" key={field.key}>
-                        <span className="compass-chiplabel" id={labelid}>{field.label}</span>
-                        <Platter
-                            items={items}
-                            labelledby={labelid}
-                            onPress={(key) => {
-                                const value = Number(key);
-                                onPreview(field.key, null);
-                                // Pressing the pressed chip releases the group: that is its "any".
-                                onSelect(field.key, selection[field.key] === value ? null : value);
-                            }}
-                            onPreview={(key) => onPreview(field.key, key === null ? null : Number(key))}
-                        />
-                    </div>
+                // A group whose every option would show nothing is not drawn either, label included.
+                return options.length === 0 ? null : (
+                    <FieldGroup
+                        key={field.key}
+                        labelid={`${base}-field-${index}`}
+                        field={field}
+                        options={options}
+                        onSelect={select}
+                        onPreview={onPreview}
+                    />
                 );
             })}
             <div className="compass-fpanel-foot">

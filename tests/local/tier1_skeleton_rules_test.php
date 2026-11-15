@@ -367,7 +367,8 @@ final class tier1_skeleton_rules_test extends advanced_testcase {
      *
      * ADR-018, the owner's answer to Q1. Changes that must make it fail: the skeleton shown without
      * JavaScript, the step lost or not delayed, the sentence shown from the start, reduced motion cancelling
-     * the step (it is not motion), the sentence no longer right after the skeleton, a shimmer on the skeleton.
+     * the step (it is not motion), the sentence no longer right after the skeleton, an animation on the skeleton's own
+     * rule (it would move under reduced motion), its pulse turned into a shimmer.
      *
      * @return void
      */
@@ -390,14 +391,32 @@ final class tier1_skeleton_rules_test extends advanced_testcase {
             '/@keyframes block_compass-preload-in \{\s*from,\s*to \{\s*position: static;\s*visibility: visible;\s*\}\s*\}/',
             $css
         );
-        // The skeleton is grey blocks with no shimmer (the course card contract, section 5): nothing moves, so
-        // reduced motion has nothing of the skeleton to stop, and keeps the step.
+        // The skeleton is grey blocks with no shimmer (the course card contract, section 5) and one slow pulse of
+        // opacity (the Design System's skeleton.md, ADR-024), only where motion is welcome: the skeleton's own rule
+        // animates nothing, so reduced motion has nothing of it to stop, and keeps the step.
         $this->assertDoesNotMatchRegularExpression('/animation/', $this->rule('.block_compass .compass-skeleton'));
         $this->assertMatchesRegularExpression(
             '/\bbackground: var\(--block_compass-line\);/',
             $this->rule('.block_compass .compass-skeleton'),
             'the skeleton is no longer a grey block'
         );
+        $this->assertMatchesRegularExpression(
+            '/@media \(prefers-reduced-motion: no-preference\) \{\s*\.block_compass \.compass-skeleton,\s*'
+                . '\.block_compass \.compass-cal-sk \{\s*animation: block_compass-sk-pulse 1300ms ease-in-out infinite;/',
+            $css,
+            'the pulse is not the skeletons\' one, or not guarded by the reader\'s motion preference'
+        );
+        $this->assertMatchesRegularExpression(
+            '/@keyframes block_compass-sk-pulse \{\s*50% \{\s*opacity: 0\.55;\s*\}\s*\}/',
+            $css,
+            'the pulse no longer varies the blocks\' opacity alone'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/gradient|background-size|animation/',
+            $this->rule('.block_compass .compass-cal-sk'),
+            'the calendar\'s skeleton shimmers again'
+        );
+        $this->assertStringNotContainsString('block_compass-cal-shimmer', $css, 'the calendar\'s shimmer is back');
         $this->assertStringNotContainsString('@keyframes block_compass-skeleton', $css, 'the shimmer is back');
         $offset = 0;
         while (($at = strpos($css, '@media (prefers-reduced-motion: reduce)', $offset)) !== false) {

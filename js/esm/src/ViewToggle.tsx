@@ -18,27 +18,20 @@
  *
  * The filter bar's View slot (moodle-dev/docs/filter-line/CONTRACT.md, sections 1 and 8): the button shows
  * the current view's glyph and a chevron, names itself "View" with a tooltip, and says what it opens with
- * aria-expanded and aria-controls. The menu is role="menu" with one menuitemradio per view, aria-checked on
- * the chosen one, every item an icon before its word and a tick after the chosen one's. Opening it moves the
- * keyboard to the chosen item; the arrow keys, Home and End walk the items; a choice closes it and gives the
- * keyboard back to the button, which FilterLine does, with Escape, Tab and a press outside.
- *
- * Each item is a button whose name is its visible word, so a Behat step that clicks the "Cards" button
- * resolves to it. The glyphs are core's own list, grid, chevron and tick, server-rendered and shipped as
- * props because there is no pix helper for ESM. FilterLine places the menu under the bar's real bottom.
+ * aria-expanded and aria-controls. The menu is the bar's LineMenu, named "Show courses as", one
+ * menuitemradio per view; its keys, its focus and its look are LineMenu's, the Organise menu's too (ADR-024).
+ * The glyphs are core's own list, grid and chevron, server-rendered and shipped as props.
  *
  * @module     block_compass/ViewToggle
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useId, useLayoutEffect} from 'react';
-import type {KeyboardEvent, RefObject} from 'react';
+import {useId} from 'react';
+import type {RefObject} from 'react';
+import LineMenu from './LineMenu';
 import type {BlockConfig} from './types';
 import {markup} from './markup';
-
-/** The two views, in the menu's order. */
-const VIEWS = ['cards', 'list'];
 
 type ViewToggleProps = {
     view: string,
@@ -61,40 +54,6 @@ type ViewToggleProps = {
 const ViewToggle = ({view, open, top, config, button, menu, onToggle, onChoose}: ViewToggleProps) => {
     const {labels, icons} = config;
     const menuid = useId();
-
-    // Opening the menu moves the keyboard to the chosen item, as a menu button does.
-    useLayoutEffect(() => {
-        if (open) {
-            menu.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus({preventScroll: true});
-        }
-    }, [open, menu]);
-
-    /**
-     * The menu's keys: the arrows walk the items, wrapping, Home and End go to the ends.
-     *
-     * @param {object} event The keyboard event.
-     * @returns {void}
-     */
-    const keydown = (event: KeyboardEvent<HTMLDivElement>): void => {
-        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-            return;
-        }
-        const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitemradio"]'));
-        const at = items.indexOf(document.activeElement as HTMLElement);
-        if (items.length === 0) {
-            return;
-        }
-        event.preventDefault();
-        let next = 0;
-        if (event.key === 'End') {
-            next = items.length - 1;
-        } else if (event.key === 'ArrowDown') {
-            next = (at + 1) % items.length;
-        } else if (event.key === 'ArrowUp') {
-            next = (at - 1 + items.length) % items.length;
-        }
-        items[next].focus({preventScroll: true});
-    };
 
     return (
         <div className="compass-line-view">
@@ -120,40 +79,21 @@ const ViewToggle = ({view, open, top, config, button, menu, onToggle, onChoose}:
                     dangerouslySetInnerHTML={markup(icons.expanded)}
                 />
             </button>
-            <div
+            <LineMenu
                 id={menuid}
-                ref={menu}
-                className="compass-line-viewmenu compass-line-layer"
-                role="menu"
-                aria-label={labels.viewas}
-                hidden={!open}
-                style={top === null ? undefined : {top: `${top}px`}}
-                onKeyDown={keydown}
-            >
-                {VIEWS.map((value) => (
-                    <button
-                        key={value}
-                        type="button"
-                        className="compass-line-menuitem"
-                        role="menuitemradio"
-                        aria-checked={view === value}
-                        tabIndex={-1}
-                        onClick={() => onChoose(value)}
-                    >
-                        <span
-                            className="compass-line-menuicon icon-no-margin"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={markup(value === 'list' ? icons.list : icons.grid)}
-                        />
-                        <span>{value === 'list' ? labels.view_list : labels.view_cards}</span>
-                        <span
-                            className="compass-line-tick icon-no-margin"
-                            aria-hidden="true"
-                            dangerouslySetInnerHTML={markup(icons.check)}
-                        />
-                    </button>
-                ))}
-            </div>
+                menu={menu}
+                open={open}
+                top={top}
+                label={labels.viewas}
+                heading={null}
+                choices={[
+                    {value: 'cards', label: labels.view_cards, icon: icons.grid},
+                    {value: 'list', label: labels.view_list, icon: icons.list},
+                ]}
+                chosen={view}
+                tick={icons.check}
+                onChoose={onChoose}
+            />
         </div>
     );
 };
