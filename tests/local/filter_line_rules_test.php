@@ -291,7 +291,7 @@ final class filter_line_rules_test extends basic_testcase {
                 trim($selector) . ' fades with opacity'
             );
             if (str_contains($selector, 'compass-preview-dim')) {
-                $this->assertMatchesRegularExpression('/(?<![-\w])color:\s*var\(--block_compass-x3-fg-dim\)/', $body);
+                $this->assertMatchesRegularExpression('/(?<![-\w])color:\s*var\(--block_compass-ink-dim\)/', $body);
             }
         }
         $this->assertSame(2, $read, 'the lit and the dim rules were not both read');

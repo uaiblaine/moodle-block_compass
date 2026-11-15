@@ -1,1 +1,1 @@
-s/\n\s*--block_compass-cal-text: var\(--block_compass-cal-fg-dim\);//;
+s/\n\s*--block_compass-ink: var\(--block_compass-ink-dim\);//;

@@ -30,7 +30,7 @@ allowlist (`import_map::get_preload_specifiers()`), each resolved through the th
 page mounts the bundle. The release package leaves every `X.dev.js` and `.js.map` out (`.gitattributes`, ADR-011
 amendment 8; `bundle_test` reads the rules); a second bundle for tier 3 was built, measured and not kept. `coursemeta` carries `deletioninprogress`: the `before_course_deleted` hook drops
 the entry (now and at shutdown; never a write that claims the deletion) and every reader excludes a course being deleted, for everyone. The surface token is
-`--bs-card-bg` falling back to `--bs-body-bg` (5.3 Boost's page is grey).
+`--bs-card-bg` falling back to the family's `--dimensions-surface`, then `--bs-body-bg` (5.3 Boost's page is grey).
 
 ## Agent orchestration budget (fleet rule, repeated here on purpose)
 
@@ -309,9 +309,9 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   `js/esm/src` restores jsdoc and relaxes `no-unused-vars`;
   `tsc --noEmit` is a gate; a badge names its classes in a string literal; a heading tag is
   never written literally (`heading.ts` picks from `headinglevel` 4/3/2); brand text is painted
-  with `--block_compass-brand-text`, whose dark override is scoped to html-or-body in two
+  with `--block_compass-accent-text`, whose dark override is scoped to html-or-body in two
   selectors, never `:root` alone and never `.theme-dark`; brand marks (dots, rings, the needle, a checked
-  switch, an outline button) use `--block_compass-brand-ink`, which that override lightens; there is no React eslint plugin, so
+  switch, an outline button) use `--block_compass-accent`, which that override lightens; there is no React eslint plugin, so
   write code that needs no hook rule; server-rendered markup reaches React only as core's own
   output. Tier 3: two modes in one component, sequence numbers not cancellation, debounce 150
   full / 300 paged, one name order on both sides (`localeCompare` numeric), live region keyed
@@ -375,8 +375,10 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   a guess; a receding state (the lighting's dim, a disabled control) remaps fill and text tokens in
   its scope and never uses opacity. `contrast_rules_test` holds the guard pairs and computes every
   declared pair, light and dark, two brands: add a new fill there.
-- Root class `.block_compass`; custom properties `--block_compass-*` with the `--bs-*`
-  fallback chain; inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
+- Root class `.block_compass`; custom properties `--block_compass-*`, every colour through the
+  fleet Design System's chain `var(--dimensions-X, var(--bs-Y, literal))` and no rule reading
+  `--bs-*` itself (`design_tokens_test` holds the chain, the block's own tokens and the scale
+  tokens); inner classes `compass-*`; never `--mds-*`; the stylesheet styles no class
   nothing renders (`accessibility_rules_test`).
 
 ## Moodle 5.2-only departures from the fleet default

@@ -13,6 +13,15 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Changed
+
+- **The block's colours read the fleet Design System's tokens.** Every colour token of `styles.css` is now the
+  chain `var(--dimensions-X, var(--bs-Y, literal))`: a theme of the family (theme_dimensions) answers first,
+  Bootstrap's property second, so the block is painted as before under Boost. The duplicate names are one
+  token each (`ink`, `ink-dim`, `surface-alt`, `surface-inset`, `brand-ink`), no rule reads a `--bs-*`
+  property itself any more, and the scale tokens of the Design System (radius, elevation, the focus ring and
+  its width) are declared for the component steps that follow. `design_tokens_test` holds the contract.
+
 ### Fixed
 
 - **No contradicting empty messages under the special groups.** Tier 1 no longer says "Nothing to show here right now" under a ghost that is drawn for the Hidden or Archived groups alone, and tier 3 no longer says "No course matches." under a Hidden, Archived or Dormant group that holds rows while nothing is typed, starred or filtered.
