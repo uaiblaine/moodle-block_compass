@@ -18,8 +18,9 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * which no control is drawn past its edge: full, one line; narrow, the scope on a line of its own after
  * the controls, its cells sharing the width. It measures with every scope cell drawn, with the search
  * field open at its narrowest and with the line unwrapped, so the step follows the width and the
- * language, never the counts, and opening the search never pushes the full line past its edge. A ResizeObserver on the bar,
- * not a container query (Moodle's stylelint forbids @container), and a late webfont refit it.
+ * language, never the counts, and opening the search never pushes the full line past its edge. A
+ * ResizeObserver on the bar, not a container query (Moodle's stylelint forbids @container), and a late
+ * webfont refit it.
  *
  * The search is an icon at every width. Pressing it, or the slash key, opens the field in place, in its
  * capsule, and moves the keyboard into it; at the narrow step the cluster gives the field its line.
@@ -590,13 +591,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 950,
+      lineNumber: 951,
       columnNumber: 9
     }
   );
   const spacer = /* @__PURE__ */ jsxDEV("span", { className: "compass-line-spacer", "aria-hidden": "true" }, "spacer", false, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 958,
+    lineNumber: 959,
     columnNumber: 20
   });
   const starbtn = hasstar ? /* @__PURE__ */ jsxDEV(
@@ -613,7 +614,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 960,
+      lineNumber: 961,
       columnNumber: 9
     }
   ) : null;
@@ -640,7 +641,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 972,
+        lineNumber: 973,
         columnNumber: 13
       }
     ),
@@ -653,7 +654,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     })
   ] }, "filters", true, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 971,
+    lineNumber: 972,
     columnNumber: 9
   }) : null;
   const organisebtn = /* @__PURE__ */ jsxDEV(
@@ -693,7 +694,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 998,
+      lineNumber: 999,
       columnNumber: 9
     }
   );
@@ -727,7 +728,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     false,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1032,
+      lineNumber: 1033,
       columnNumber: 9
     }
   );
@@ -735,17 +736,17 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     total !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-line-count", "data-region": "compass-total", children: [
       /* @__PURE__ */ jsxDEV("span", { "aria-hidden": "true", children: total }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1064,
+        lineNumber: 1065,
         columnNumber: 21
       }),
       /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: fillCount(labels, "resultsshown", total) }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1065,
+        lineNumber: 1066,
         columnNumber: 21
       })
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1063,
+      lineNumber: 1064,
       columnNumber: 17
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-line-capsule", children: [
@@ -755,12 +756,12 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       viewslot
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1068,
+      lineNumber: 1069,
       columnNumber: 13
     })
   ] }, "cluster", true, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 1061,
+    lineNumber: 1062,
     columnNumber: 9
   });
   const search = hassearch ? /* @__PURE__ */ jsxDEV("div", { className: "compass-line-capsule compass-line-searchcap", children: [
@@ -777,12 +778,12 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         children: [
           /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.search) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-            lineNumber: 1088,
+            lineNumber: 1089,
             columnNumber: 17
           }),
           /* @__PURE__ */ jsxDEV(Tip, { text: labels.searchcourses, align: "end" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-            lineNumber: 1089,
+            lineNumber: 1090,
             columnNumber: 17
           })
         ]
@@ -791,14 +792,14 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       true,
       {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1079,
+        lineNumber: 1080,
         columnNumber: 13
       }
     ),
     /* @__PURE__ */ jsxDEV("div", { className: "compass-search", children: [
       /* @__PURE__ */ jsxDEV("label", { className: "visually-hidden", htmlFor: fieldid, children: labels.searchcourses }, void 0, false, {
         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-        lineNumber: 1092,
+        lineNumber: 1093,
         columnNumber: 17
       }),
       /* @__PURE__ */ jsxDEV(
@@ -812,7 +813,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-          lineNumber: 1093,
+          lineNumber: 1094,
           columnNumber: 17
         }
       ),
@@ -862,7 +863,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         false,
         {
           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-          lineNumber: 1098,
+          lineNumber: 1099,
           columnNumber: 17
         }
       ),
@@ -883,12 +884,12 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
           children: [
             /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.eraser) }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1153,
+              lineNumber: 1154,
               columnNumber: 21
             }),
             /* @__PURE__ */ jsxDEV(Tip, { text: labels.line_cleartext, align: "end" }, void 0, false, {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1154,
+              lineNumber: 1155,
               columnNumber: 21
             })
           ]
@@ -897,18 +898,18 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
         true,
         {
           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-          lineNumber: 1140,
+          lineNumber: 1141,
           columnNumber: 17
         }
       )
     ] }, void 0, true, {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1091,
+      lineNumber: 1092,
       columnNumber: 13
     })
   ] }, "search", true, {
     fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-    lineNumber: 1078,
+    lineNumber: 1079,
     columnNumber: 9
   }) : null;
   const children = step === "narrow" ? [cluster, search, spacer, scope] : [scope, spacer, cluster, search];
@@ -933,7 +934,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
       children: [
         /* @__PURE__ */ jsxDEV("div", { className: lineClass(step, open, false), ref: line, "data-step": step, children }, void 0, false, {
           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-          lineNumber: 1183,
+          lineNumber: 1184,
           columnNumber: 13
         }),
         hassearch && /* @__PURE__ */ jsxDEV(
@@ -955,7 +956,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
               offered.length > 0 && /* @__PURE__ */ jsxDEV("div", { role: "group", "aria-labelledby": `${listid}-filters`, children: [
                 /* @__PURE__ */ jsxDEV("div", { className: "compass-line-suggesthead", id: `${listid}-filters`, role: "presentation", children: typed ? labels.line_suggestfilters : labels.line_suggeststart }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1203,
+                  lineNumber: 1204,
                   columnNumber: 29
                 }),
                 offered.map((filter, index) => {
@@ -979,13 +980,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                           before,
                           mark !== "" && /* @__PURE__ */ jsxDEV("mark", { className: "compass-line-mark", children: mark }, void 0, false, {
                             fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                            lineNumber: 1226,
+                            lineNumber: 1227,
                             columnNumber: 61
                           }),
                           after
                         ] }, void 0, true, {
                           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                          lineNumber: 1224,
+                          lineNumber: 1225,
                           columnNumber: 41
                         }),
                         filter.group !== "" && /* @__PURE__ */ jsxDEV("span", { className: "compass-line-optiongroup", children: [
@@ -993,7 +994,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                           filter.group
                         ] }, void 0, true, {
                           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                          lineNumber: 1229,
+                          lineNumber: 1230,
                           columnNumber: 65
                         }),
                         filter.count !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-line-optioncount", children: [
@@ -1001,7 +1002,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                           filter.count
                         ] }, void 0, true, {
                           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                          lineNumber: 1230,
+                          lineNumber: 1231,
                           columnNumber: 67
                         })
                       ]
@@ -1010,20 +1011,20 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                     true,
                     {
                       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                      lineNumber: 1210,
+                      lineNumber: 1211,
                       columnNumber: 37
                     }
                   );
                 })
               ] }, void 0, true, {
                 fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                lineNumber: 1202,
+                lineNumber: 1203,
                 columnNumber: 25
               }),
               matched.length > 0 && /* @__PURE__ */ jsxDEV("div", { role: "group", "aria-labelledby": `${listid}-courses`, children: [
                 /* @__PURE__ */ jsxDEV("div", { className: "compass-line-suggesthead", id: `${listid}-courses`, role: "presentation", children: labels.line_suggestcourses }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1238,
+                  lineNumber: 1239,
                   columnNumber: 29
                 }),
                 matched.map((course, at) => {
@@ -1047,13 +1048,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                         before,
                         mark !== "" && /* @__PURE__ */ jsxDEV("mark", { className: "compass-line-mark", children: mark }, void 0, false, {
                           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                          lineNumber: 1262,
+                          lineNumber: 1263,
                           columnNumber: 61
                         }),
                         after
                       ] }, void 0, true, {
                         fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                        lineNumber: 1260,
+                        lineNumber: 1261,
                         columnNumber: 41
                       })
                     },
@@ -1061,14 +1062,14 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
                     false,
                     {
                       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                      lineNumber: 1246,
+                      lineNumber: 1247,
                       columnNumber: 37
                     }
                   );
                 })
               ] }, void 0, true, {
                 fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                lineNumber: 1237,
+                lineNumber: 1238,
                 columnNumber: 25
               })
             ]
@@ -1077,7 +1078,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
           true,
           {
             fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-            lineNumber: 1187,
+            lineNumber: 1188,
             columnNumber: 17
           }
         ),
@@ -1092,12 +1093,12 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
               children: [
                 /* @__PURE__ */ jsxDEV("span", { className: "compass-line-chiptext", title: chip.title, children: chip.label }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1281,
+                  lineNumber: 1282,
                   columnNumber: 25
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: "icon-no-margin", "aria-hidden": "true", dangerouslySetInnerHTML: markup(icons.close) }, void 0, false, {
                   fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-                  lineNumber: 1282,
+                  lineNumber: 1283,
                   columnNumber: 25
                 })
               ]
@@ -1106,7 +1107,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
             true,
             {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1274,
+              lineNumber: 1275,
               columnNumber: 21
             }
           )),
@@ -1126,13 +1127,13 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-              lineNumber: 1286,
+              lineNumber: 1287,
               columnNumber: 21
             }
           )
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-          lineNumber: 1272,
+          lineNumber: 1273,
           columnNumber: 13
         })
       ]
@@ -1141,7 +1142,7 @@ const FilterLine = /* @__PURE__ */ __name((props) => {
     true,
     {
       fileName: "public/blocks/compass/js/esm/src/FilterLine.tsx",
-      lineNumber: 1170,
+      lineNumber: 1171,
       columnNumber: 9
     }
   );

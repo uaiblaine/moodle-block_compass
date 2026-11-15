@@ -34,7 +34,7 @@ what I was doing, what just arrived, what I marked as mine, and what is due.
   fits the strips the card is drawn for that line alone, as *Explore all*, so those groups are
   never out of reach.
 - **Tier 3, exploration.** *All courses*, grouped by category, with a side index and one filter
-  line: a scope, a search that suggests as you type, a favourites star, filters, a sort and a
+  line: a scope, a search that suggests as you type, a favourites star, filters, Organise (a grouping and a sort) and a
   list or cards view. Rows fetch their progress and image only once they are on screen. Courses
   gone quiet gather in a *Dormant* group, courses hidden from students in a *Hidden* group shown
   only to those who may see them (a course's own teacher, as in the Course overview block), and
@@ -144,7 +144,7 @@ the cards always paint first.
 All courses and the Compass page
 --------------------------------
 
-![All courses on the Compass page: the filter line on one row (the scope with its counts, the search field, the star, Filters, Organise and the list/cards switch), the category index and the first group open as cards](docs/screenshots/explore.png)
+![All courses on the Compass page: the filter line on one row (the scope with its counts, the result count, the star, Filters, Organise and the list/cards menu, and the search icon), the category index and the first group open as cards](docs/screenshots/explore.png)
 
 *All courses* opens from the ghost card or from a strip's "+N" link. The ghost is there whenever
 *All courses* has something tier 1 does not show, its *Hidden* and *Archived* groups included: a
@@ -193,9 +193,9 @@ scope on a line of its own under the controls, its choices sharing the width (a 
 the block drawer). There, while the search is open, its field takes the first line. The chips
 wrap to further lines rather than scrolling.
 
-![All courses on the Dashboard, the line folded to icons: only All with its count of one, the search icon, the star, Filters with a badge of 1, Organise and the switch; under it the chips health and Hybrid with Clear all, and the one course left](docs/screenshots/explore-filtered.png)
+![All courses on the Dashboard, the line with one filter in force: only All with its count of one, the star, Filters with a badge of 1, Organise, View and the search icon; under it the chips health and Hybrid with Clear all, and the one course left](docs/screenshots/explore-filtered.png)
 
-![All courses on the Dashboard at a tablet's width: the search field, the star, Filters and Organise on the first line, the scope on the second](docs/screenshots/explore-narrow.png)
+![All courses on the Dashboard at a tablet's width, the narrow step: the star, Filters, Organise, View and the search icon on the first line, the scope on a line of its own after them](docs/screenshots/explore-narrow.png)
 
 At the narrow step the Filters panel opens as a bottom sheet:
 
@@ -209,17 +209,17 @@ and previews nothing, and a control that would only widen the list previews noth
 
 ![The mouse on the New scope: Financial Accounting, the new course of the open group, ringed; Leadership and Team Dynamics and Project Management Fundamentals dimmed](docs/screenshots/explore-preview.png)
 
-An enrolment that starts later is a row with an *Access from {date}* pill; an application through
+An enrolment that starts later is a row with an *Access from {date}* status label; an application through
 *Enrolment on application* (`enrol_apply`) is a row with an *Application under review* or *On the
-waiting list* pill. Every row and card carries the star and an archive control; *Dormant* has an
+waiting list* status label. Every row and card carries the star and an archive control; *Dormant* has an
 **Archive all** control. A course hidden from students (`visible = 0`) is listed only to a viewer
 holding `moodle/course:viewhiddencourses` in that course, as core lists it, and then only in the
 *Hidden* group, never in its category: the group shows its count with the others and loads its
 rows when opened, like *Archived*; a search opens neither, the server's search of a long list
-covers neither, and the A to Z and Recent sorts list neither. An archived hidden course
+covers neither, and the Name and Most recent sorts list neither. An archived hidden course
 stays in *Archived*, marked *Hidden from students*; inside *Hidden* no row is marked, the heading
 says it. When a `course_kinds` listener names the course's kind, the cards and the list rows draw
-it before *New*, both as light chips ("Event", "New"); the default kind, *course*, is never drawn. The line is remembered per user (scope, star, filters, sort and whether
+it before *New*, both as light chips ("Event", "New"); the default kind, *course*, is never drawn. The line is remembered per user (grouping, sort, scope, star, filters and whether
 the panel is open, which starts closed), the search text excepted. In the full list, no filter,
 suggestion or preview asks the server anything.
 
@@ -551,7 +551,7 @@ Data stored
 | What | Where | What it holds | How long | What removes it |
 |---|---|---|---|---|
 | `block_compass_view` | User preference | The view of *All courses* the user chose: list or cards. | Until changed | Uninstalling the plugin; deleting the account |
-| `block_compass_explore` | User preference | The filter line of *All courses* as the user left it: scope, star, filters, sort and whether the panel is open (never the search text). | Until changed | Uninstalling the plugin; deleting the account |
+| `block_compass_explore` | User preference | The filter line of *All courses* as the user left it: grouping, sort, scope, star, filters and whether the panel is open (never the search text). | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_calendar` | User preference | The strip as the user left it: studying or teaching view, filter, relevance switch, open or closed, the level at which the user hid Up next and whether the user hid the open-for-enrolment line, each for that sign-in: the hidden states keep the session's login time (`$USER->currentlogin`) and lapse at the next sign-in. | Until changed | Uninstalling the plugin; deleting the account |
 | `block_compass_tier1` | User preference | The shape the first strips last settled to on the Dashboard and on the block's own page, so the next page holds their place before they load: which strips showed, how many cards each (at most 24) and whether any showed progress, whether the more-courses card and the applications notice showed. No course, name or date. Written by the browser only when the shape changes. | Until changed | Uninstalling the plugin; deleting the account |
 | `inventory` | MUC cache, per user | The user's enrolment rows as integers (course, dates, status, last access, star, whether the course is completed and, for an application awaiting approval, its enrolment method's id) and the stamp that tells whether they are still current; no course data. | 24 hours | Its TTL; deleting the account; purging caches |

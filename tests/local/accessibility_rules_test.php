@@ -532,8 +532,8 @@ final class accessibility_rules_test extends basic_testcase {
      * The brand is #0f6cbf, which is 3.02:1 on Boost's dark body #1d2125 - under the
      * 4.5:1 floor for text, while clearing the 3:1 one for an outline or a border. So the
      * text token is a name of its own that dark mode overrides, beside the ink of the marks
-     * (--block_compass-accent, held by test_marks_go_through_the_dark_aware_ink). The plain
-     * --block_compass-brand, which was the ink under a second name, is gone and stays gone.
+     * (--block_compass-accent, held by test_marks_go_through_the_dark_aware_ink). --block_compass-brand
+     * is not a token; paint text with --block_compass-accent-text.
      *
      * The rule pins the pairing, not the ratio: no source can compute a contrast, so the ratio
      * is measured in a browser. The dark selector is the one dark mechanism 5.2 has, the
@@ -2791,17 +2791,17 @@ final class accessibility_rules_test extends basic_testcase {
     }
 
     /**
-     * The open-courses popover and its sheet are the panel's family: the gradient, the cards and the pill.
+     * The open-courses popover and its sheet are the panel's family: the gradient, the cards and the close.
      *
-     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4), at the Design System's container radii since
-     * ADR-024. The popover paints the panel's gradient with a soft border, radius lg (the sheet radius xl on its top
-     * corners only), one decorative sparkle and a head of the 34 px tile, the eyebrow and the summary. A group is a
-     * card on the surface (border, radius md, 10px 12px, 6 px between cards, the accent at 55 % on hover). "Hide until the next
-     * sign-in" is the close's pill with the short visible label and keeps the whole sentence as its name
-     * (aria-label and title, WCAG 2.5.3). No rule of the popover changes case. Vacuity guards: the rules
-     * and the tags are found.
+     * Round 2 (docs/mockup-new-courses/Rodada2.dc.html, section 4), at the Design System's container radii.
+     * The popover paints the panel's gradient with a soft border, radius lg (the sheet radius xl on its top
+     * corners only), one decorative sparkle and a head of the 34 px tile, the eyebrow and the summary. A group
+     * is a card on the surface (border, radius md, 10px 12px, 6 px between cards, the accent at 55 % on hover).
+     * "Hide until the next sign-in" is the close, core's button, with the short visible label and keeps the
+     * whole sentence as its name (aria-label and title, WCAG 2.5.3). No rule of the popover changes case.
+     * Vacuity guards: the rules and the tags are found.
      *
-     * Changes that must make it fail: the old plain card back, a flat row, the pill unnamed or named by
+     * Changes that must make it fail: the old plain card back, a flat row, the close unnamed or named by
      * its short label, a text-transform on a popover rule, the sparkle announced.
      *
      * @return void

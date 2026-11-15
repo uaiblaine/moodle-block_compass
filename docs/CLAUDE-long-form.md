@@ -600,9 +600,9 @@ classes/
 js/esm/src/                  React and TypeScript (5.2+), the WHOLE client since R3:
                              Block (the block: tiers 1 and 2, and tier 3 once opened), Strip (with its
                              heading overflow link and, on the last one, the ghost), Card,
-                             Progress, Star, Ghost; Explore (tier 3, both modes), Platter (the pill
-                             platter: masked scroller, sliding indicator, paddles, arrow keys — the
-                             sort and every chip group, Phase 8), ViewToggle and FilterToggle (the
+                             Progress, Star, Ghost; Explore (tier 3, both modes), LineMenu (the
+                             Organise and View menus, ADR-024, which replaced Platter.tsx, the Phase 8
+                             pill platter), ViewToggle and FilterToggle (the
                              icon-only controls, each a file of its own so the static rule reads them),
                              FilterPanel (Status and one group per custom field), Group, RowList
                              (the one place that knows there are two views), Row, RowCard,
@@ -1061,7 +1061,9 @@ Tier 3, whose behaviour is the most intricate thing here:
   prop — a new `StarChange` object per toggle, so a repeat of the previous values still
   applies — which Explore applies through `withRow`, so the row's star, the Favourites
   chip's count and the facets follow.
-- **The toolbar is a platter, a toggle and a panel (ADR-009, Phase 8).** `Platter.tsx` is
+- **The toolbar is a platter, a toggle and a panel (ADR-009, Phase 8).** *Superseded by ADR-024:
+  `Platter.tsx` is gone; the menus are `LineMenu.tsx` and the filter panel's fields are labelled radio
+  groups. What follows is the Phase 8 record.* `Platter.tsx` was
   `local_dimensions`' filter tabs (`amd/src/filter_tabs_nav.js`) rewritten as a component —
   read as a specification, never imported (ADR-006) and not kept in step with it: masked scroller, sliding indicator under the pressed pill, paddles that
   are `aria-hidden` with `tabIndex={-1}`, arrow keys with wrap-around, a `ResizeObserver` that

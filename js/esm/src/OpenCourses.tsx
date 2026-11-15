@@ -462,8 +462,8 @@ type GroupTipProps = {
  *
  * aria-hidden: the pill's accessible name already says all of it, and a tooltip of the block's own is never
  * announced twice. Drawn once unplaced and invisible, measured before paint, then placed and shown, so it
- * fades in (120 ms) where it belongs. It takes the pointer only once shown, and its ::before bridges the
- * gap to the pill (styles.css), so the pointer can move onto it and it stays (WCAG 1.4.13).
+ * fades in (the motion scale's fast step) where it belongs. It takes the pointer only once shown, and its
+ * ::before bridges the gap to the pill (styles.css), so the pointer can move onto it and it stays (WCAG 1.4.13).
  *
  * @param {object} props The group, its pill, the anchor, the line and the two pointer callbacks; see GroupTipProps.
  * @returns {object} The tooltip.

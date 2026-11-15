@@ -9,6 +9,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * end, as View can end the bar), and says what it opens with aria-expanded and aria-controls. The menu is the
  * bar's LineMenu, named "Show courses as", one section of one menuitemradio per view; its keys, its focus and
  * its look are LineMenu's, the Organise menu's too (ADR-024).
+ *
  * The glyphs are core's own list, grid and chevron, server-rendered and shipped as props.
  *
  * @module     block_compass/ViewToggle
@@ -46,7 +47,7 @@ const ViewToggle = /* @__PURE__ */ __name(({ view, open, top, config, tipsoff, b
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/ViewToggle.tsx",
-              lineNumber: 73,
+              lineNumber: 74,
               columnNumber: 17
             }
           ),
@@ -61,13 +62,13 @@ const ViewToggle = /* @__PURE__ */ __name(({ view, open, top, config, tipsoff, b
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/ViewToggle.tsx",
-              lineNumber: 78,
+              lineNumber: 79,
               columnNumber: 17
             }
           ),
           /* @__PURE__ */ jsxDEV(Tip, { text: labels.line_view, align: "end" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/ViewToggle.tsx",
-            lineNumber: 83,
+            lineNumber: 84,
             columnNumber: 17
           })
         ]
@@ -76,7 +77,7 @@ const ViewToggle = /* @__PURE__ */ __name(({ view, open, top, config, tipsoff, b
       true,
       {
         fileName: "public/blocks/compass/js/esm/src/ViewToggle.tsx",
-        lineNumber: 63,
+        lineNumber: 64,
         columnNumber: 13
       }
     ),
@@ -104,13 +105,13 @@ const ViewToggle = /* @__PURE__ */ __name(({ view, open, top, config, tipsoff, b
       false,
       {
         fileName: "public/blocks/compass/js/esm/src/ViewToggle.tsx",
-        lineNumber: 85,
+        lineNumber: 86,
         columnNumber: 13
       }
     )
   ] }, void 0, true, {
     fileName: "public/blocks/compass/js/esm/src/ViewToggle.tsx",
-    lineNumber: 62,
+    lineNumber: 63,
     columnNumber: 9
   });
 }, "ViewToggle");

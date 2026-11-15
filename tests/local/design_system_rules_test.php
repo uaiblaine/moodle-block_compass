@@ -24,7 +24,7 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  *
  * The status label, the action button, the calendar's segmented control, the quiet counter and the focus ring
  * (moodle-dev/docs/design-system/components/status-label.md, action-button.md, segmented-control.md, counter.md
- * and tokens.md); and since ADR-024 the containers and feedback: the menu, the filter panel, the panels,
+ * and tokens.md); and the containers and feedback: the menu, the filter panel, the panels,
  * popovers and sheets, the tooltip, the empty state, the eyebrow and the last pills (menu.md, filter-panel.md,
  * panel-popover-sheet.md, tooltip.md, empty-state.md, eyebrow-label.md; the skeleton's pulse is
  * tier1_skeleton_rules_test's). The filter bar's own measures are filter_line_rules_test's, the colour pairs
@@ -388,8 +388,7 @@ final class design_system_rules_test extends basic_testcase {
      * Every focus ring of the block is the Design System's token ring, or the course card's own on a card surface.
      *
      * tokens.md: outline: var(--{prefix}-focus-width) solid var(--{prefix}-focus-ring), offset 2px, -2px only
-     * inside a container that clips, which no focusable control of the block sits in since the Platter's scrolling
-     * mask went (ADR-024). The course card
+     * inside a container that clips, which no focusable control of the block sits in. The course card
      * contract (section 7) gives a card surface its own pair, card-focus-width and card-focus-ring: a card, its
      * star and a list row. A transparent outline is kept where forced colours must still draw one. No ring is the
      * brand's accent: the calendar's accent outlines are its lighting, never a focus.
@@ -448,7 +447,7 @@ final class design_system_rules_test extends basic_testcase {
      * muted ink; an item a 32 px row at radius xs, 0.875rem, its icon before its word and the chosen one's tick after
      * it. The floating layers share the line, the surface and the elevation; the filter panel's radius is lg, the
      * menus' and the suggestions' md (panel-popover-sheet.md). Both buttons draw LineMenu, so the two menus cannot
-     * drift apart, and the Organise menu holds items, never a platter of pills.
+     * drift apart, and the Organise menu holds items, never a row of pills.
      *
      * Changes that must make it fail: a menu back on radius 0.75rem or its old 0.75rem padding, a layer's shadow back
      * on a literal, the item's measures moved, Organise drawing its own menu again.
@@ -495,7 +494,7 @@ final class design_system_rules_test extends basic_testcase {
      * them (filter-panel.md, "above, the prototype"), never beside them at a wide step. An option is a 28 px rounded
      * rectangle on the control line, 0.8125rem / 500, the chosen one in the brand tone; the panel at least 300 px wide,
      * 12 px of padding; the sheet radius xl on its top corners, at most 80 % of the screen, the large elevation; the
-     * foot under a hairline. No pill and no platter is left.
+     * foot under a hairline. No pill is left.
      *
      * Changes that must make it fail: a group back to a role="group" of aria-pressed toggles, the roving tab stop or
      * the arrow keys' choice dropped, a press on the chosen option no longer releasing it, the keyboard left on the

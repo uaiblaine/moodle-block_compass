@@ -745,7 +745,7 @@ final class explore {
      *
      * By name in core_collator's natural order, as build() orders a group's rows (on the formatted
      * name there). The flat list in Explore.tsx also compares digit runs by value, and differs in
-     * the three ways its byname() comparator lists: case and accents folded, the browser's locale,
+     * the three ways rowOrder() in Explore.tsx lists: case and accents folded, the browser's locale,
      * ties in arrival order. For 'recent' the last access, newest first, is layered on top with a
      * stable usort, so equal timestamps keep the name order and never-opened rows (timeaccess 0)
      * sink to the end, as they do in the client.

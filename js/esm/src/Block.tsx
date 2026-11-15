@@ -224,7 +224,7 @@ const Block = (config: BlockConfig) => {
     // Which attempt the repository's bounded retry is on, while it is; null otherwise.
     const [reconnecting, setReconnecting] = useState<Reconnecting | null>(null);
     // Tier 3's toolbar as it is now, and the JSON last read or written for it: a remount seeded from
-    // the props - parsed once, at page load - would revert a sort, chip, selection or view changed
+    // the props - parsed once, at page load - would revert a grouping, sort, scope, star, selection or view changed
     // since, so a remount reads this instead.
     const kept = useRef<KeptToolbar | null>(null);
     // The counter is what makes a repeat announceable: React writes nothing when the text
