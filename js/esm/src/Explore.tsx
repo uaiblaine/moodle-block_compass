@@ -262,6 +262,27 @@ const NO_KINDS: RowKind[] = [];
  */
 const ondemand = (id: number): boolean => id === GROUP_ARCHIVED || id === GROUP_INVISIBLE;
 
+/**
+ * The id of a group's element, which an index link's fragment names: a reserved group's id is negative, and an
+ * element id takes no minus sign.
+ *
+ * @param {string} titleid The id of tier 3's title, unique to this block instance.
+ * @param {number} id The group's id.
+ * @returns {string} The element's id.
+ */
+const groupAnchor = (titleid: string, id: number): string => `${titleid}-group-${Math.abs(id)}${id < 0 ? 'r' : ''}`;
+
+/**
+ * Whether a group has a link in the category index: every category that is drawn, and the Archived group when
+ * it holds rows.
+ *
+ * @param {number} id The group's id.
+ * @param {object} slice Whether the group is drawn, and how many rows it counts.
+ * @returns {boolean} Whether the index links it.
+ */
+const indexed = (id: number, slice: {show: boolean, count: number}): boolean =>
+    slice.show && (id >= 0 || (id === GROUP_ARCHIVED && slice.count > 0));
+
 /** One link of the category index: the group, its name, and the id of the group's element its fragment names. */
 type IndexEntry = {
     id: number,
@@ -1828,14 +1849,13 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
     // The panel title's level comes from heading.ts. The section title's class keeps the size, and
     // keepFocus() finds the element by its own class, so the level is free to move.
     const Heading = sectionTag(config.headinglevel);
-    // The index is a map of the categories; the three groups that are not categories sit at the end
-    // and are found by scrolling. It names no count: the group's header says it.
+    // The index is a map of the categories, then the Archived group as its last entry when it holds rows: a
+    // viewer who archived courses looks for them by name. Dormant and Hidden sit at the end and are found by
+    // scrolling. It names no count: the group's header says it.
     const indexentries: IndexEntry[] = showindex
-        ? data.groups.filter((group) => group.id >= 0 && (slices.get(group.id) ?? NO_SLICE).show).map((group) => ({
-            id: group.id,
-            name: group.name,
-            anchor: `${titleid}-group-${group.id}`,
-        }))
+        ? data.groups.filter((group) => indexed(group.id, slices.get(group.id) ?? NO_SLICE))
+            .sort((a, b) => Number(a.id === GROUP_ARCHIVED) - Number(b.id === GROUP_ARCHIVED))
+            .map((group) => ({id: group.id, name: group.name, anchor: groupAnchor(titleid, group.id)}))
         : [];
 
     return (
@@ -1940,7 +1960,7 @@ const Explore = ({config, chip: pressedchip, reveal, starred, reconnecting, kept
                                     onShowMore={showMore}
                                     onRetry={retryGroup}
                                     focusfrom={focusmore?.id === group.id ? focusmore.from : null}
-                                    anchor={`${titleid}-group-${Math.abs(group.id)}${group.id < 0 ? 'r' : ''}`}
+                                    anchor={groupAnchor(titleid, group.id)}
                                     kinds={rowkinds}
                                     markhidden={group.id !== GROUP_INVISIBLE}
                                     archived={group.id === GROUP_ARCHIVED}
