@@ -13,19 +13,33 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
-## v5.3-r5 (2026100546) - 2026-11-15
+## v5.3-r5 (2026100547) - 2026-11-15
 
 Fifth release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings the fleet's course card to the strips and to
 *All courses* (ADR-020), a *Hidden* group and the course's kind in *All courses* (ADR-021), a way into *All courses*
 from a ghost that counts nothing (ADR-022), and the fleet Design System: the colour tokens, the compact filter bar
-(ADR-023), the menus, the filter panel and the containers (ADR-024), and Organise's *Group by* and *Sort by*
-(ADR-025). It also carries the fixes of the audit of 2026-11-13, security among them, and a smaller package. No
+(ADR-023), the menus, the filter panel and the containers (ADR-024), Organise's *Group by* and *Sort by*
+(ADR-025), and a list view whose rows are all two lines high (ADR-026). It also carries the fixes of the audit of 2026-11-13, security among them, and a smaller package. No
 schema change, no new setting and no upgrade step of the block's own: the version moves because every event
 observer now runs after the commit and three shared cache definitions gain a 10-minute TTL, and core's upgrade
 purges the caches. Fifteen new strings, five removed (`allcourses` becomes `allcourses_title`); a toolbar preference
 stored before is read as it showed.
 
 ### Changed
+
+- **Every row of the list view is two lines, of one height** (ADR-026; 2026100547). A row of *All courses* in the
+  List view was a line that wrapped wherever its parts ran out of room, so rows of one list were 58, 72 or 92 px
+  tall and a completed row's controls fell under its image. Every row is now 64 px at every width: the image spans
+  both lines at its start; the first line is the course's name, on one line with an ellipsis and the whole name in
+  its tooltip, and the star and the archive control at its end; the second line holds, in this order, the kind and
+  *New* chips, the state label, *Hidden from students*, one crest, the date, the progress bar and the teacher's "No
+  completion configured", and never wraps: the date gives way first with an ellipsis, then the bar narrows, then the
+  chips, and past that the line is cut at its end. A row shows the first of the course's crests only, with no
+  "+N"; the cards keep all of theirs. A completed row shows *Completed* and keeps no room for a bar; while a row's
+  details are loading, a placeholder stands in the bar's place and nothing on the row moves when they arrive. A row
+  without the image (Boost Union's setting) and a row without controls (an application awaiting approval) keep the
+  same two lines. The chips are no longer part of the name's link, which a screen reader now names by the course
+  alone. No string, service or preference changes.
 
 - **The category index lists the Archived group** (2026100546). Grouped by category, the index beside the groups
   ends with a link to *Archived* when the viewer has archived courses; the link opens the group and is marked as
@@ -286,10 +300,10 @@ stored before is read as it showed.
   the cards' cover and after the name on the list; the kinds of the first `get_inventory` answer are kept for the
   section's life and index every page and search hit; a row whose `kd` names no held kind draws nothing.
 
-## v5.2-r5 (2026042042) - 2026-11-15
+## v5.2-r5 (2026042043) - 2026-11-15
 
 Fifth release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It carries every change of
-v5.3-r5 (2026042026 to 2026042042 on this branch; 2026100529 to 2026100546 there): the fleet's course card, the
+v5.3-r5 (2026042026 to 2026042043 on this branch; 2026100529 to 2026100547 there): the fleet's course card, the
 *Hidden* group and the kinds in *All courses*, the ghost's way into *All courses*, the fleet Design System and the
 fixes of the audit of 2026-11-13. No schema change, no new setting and no upgrade step of the block's own; the same
 event observers, cache definitions and strings change as on 5.3. No 5.3-only API was needed. It needs

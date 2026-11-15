@@ -677,12 +677,12 @@ final class accessibility_rules_test extends basic_testcase {
     /**
      * A course name is at most two lines, and the whole name rides in a title attribute.
      *
-     * So is every other text that can run long in a narrow column: a day's item name in the
-     * calendar card and a tier 3 row's date ("Aberto semana passada" stood in three lines).
-     * A name of several lines breaks the layout. The clamp is Boost's own .clamp-2 pattern under
-     * this plugin's .compass-clamp, and every element carrying that class also carries a title,
-     * so hovering a clamped name shows it in full. axe reads neither: nothing in a scenario
-     * renders a name long enough to clamp.
+     * So is a day's item name in the calendar card. A name of several lines breaks the layout. The
+     * clamp is Boost's own .clamp-2 pattern under this plugin's .compass-clamp, and every element
+     * carrying that class also carries a title, so hovering a clamped name shows it in full. axe
+     * reads neither: nothing in a scenario renders a name long enough to clamp. A tier 3 list row's
+     * name and date are one line each (ADR-026), cut with an ellipsis: the ellipsis rule below holds
+     * their titles, and this test that no clamp is left on the row.
      *
      * @return void
      */
@@ -722,40 +722,153 @@ final class accessibility_rules_test extends basic_testcase {
                 );
             }
         }
-        // Vacuity guard: the three places a course name is drawn - the tier 1 card title, the tier 3
-        // row name and the tier 3 card title - and the day card's item name and the row's date.
-        $this->assertGreaterThanOrEqual(5, $clamped, 'fewer than five clamped texts: has a component stopped clamping?');
+        // Vacuity guard: the two cards' course names - the tier 1 card title and the tier 3 card title - and the day
+        // card's item name.
+        $this->assertGreaterThanOrEqual(3, $clamped, 'fewer than three clamped texts: has a component stopped clamping?');
         $this->assertContains('CalendarCard.tsx', $where, 'the day card\'s item name is not clamped');
-        $this->assertSame(2, count(array_keys($where, 'Row.tsx')), 'the row\'s name and its date are clamped');
+        $this->assertNotContains('Row.tsx', $where, 'a list row\'s line clamps to two lines and grows the row');
     }
 
     /**
-     * A list row wraps rather than overflowing the block.
+     * The one rule block of a selector, as written.
      *
-     * The row is a flex line of a name, a date, a progress bar and two controls. Unwrapped, it
-     * overflows the block by about 19 px at a 375 CSS px viewport already, and WCAG 1.4.10
-     * forbids horizontal scrolling at 320 px. axe does not measure reflow, and no scenario runs
-     * at that width, so the source is the only reader.
+     * @param string $selector The whole selector list, as the stylesheet writes it on one line.
+     * @return string The declarations.
+     */
+    private function rule_of(string $selector): string {
+        $found = [];
+        foreach ($this->rules() as [$list, $body]) {
+            if (preg_replace('/\s+/', ' ', trim($list)) === $selector) {
+                $found[] = $body;
+            }
+        }
+        $this->assertCount(1, $found, "{$selector}: not exactly one rule block in styles.css");
+
+        return $found[0];
+    }
+
+    /**
+     * A list row is two lines of fixed height at every width, the thumbnail spanning both, the controls on the
+     * first, and it never overflows the block (ADR-026; WCAG 1.4.10 Reflow).
+     *
+     * Every row of a list is as tall as the next: the grid's two tracks are lengths, 2rem and 1.875rem (64 px with the
+     * border), so no part a row holds or receives from its batch can make it taller, and no min-height or wrap is left
+     * to make it so. The name's track is minmax(0, 1fr): with 1fr alone its minimum is the name's whole width and a
+     * long name scrolls the block sideways at 320 CSS px. axe does not measure reflow, and no scenario runs at that
+     * width, so the source is the only reader. The no-thumbnail variant keeps the two lines without the image's column.
+     *
+     * Changes that must make it fail: a track sized by its content, or a min-height or a wrap back on the row; the
+     * name's track without its zero minimum; the thumbnail on one line only; the controls on the second line; the
+     * no-thumbnail row falling back to the image's areas.
      *
      * @return void
      */
-    public function test_a_list_row_wraps_instead_of_overflowing(): void {
-        $body = null;
-        foreach ($this->rules() as $rule) {
-            [$selector, $rulebody] = $rule;
-            // The base rule only: the selector ends at .compass-row (not a descendant such as
-            // .compass-row .compass-row-meta, not -link, -meta or -progress, not a :last-child variant).
-            if (!preg_match('/\.compass-row$/', trim($selector))) {
-                continue;
-            }
-            $body = $rulebody;
-        }
-        // Vacuity guard: without the rule block there is nothing to read the wrapping out of.
-        $this->assertNotNull($body, 'no .compass-row rule found in styles.css');
+    public function test_a_list_row_is_two_fixed_lines_that_never_overflow(): void {
+        $row = $this->rule_of('.block_compass .compass-row');
+        $this->assertMatchesRegularExpression('/(?<![\w-])display\s*:\s*grid\s*;/', $row, 'the row is not a grid');
         $this->assertMatchesRegularExpression(
-            '/\bflex-wrap\s*:\s*wrap\b/',
-            $body,
-            '.compass-row does not wrap: at 320 px its parts overflow the block sideways'
+            '/grid-template-rows\s*:\s*2rem\s+1\.875rem\s*;/',
+            $row,
+            'the row\'s two lines are not 32 and 30 px'
+        );
+        $this->assertMatchesRegularExpression(
+            '/grid-template-columns\s*:\s*auto\s+minmax\(0,\s*1fr\)\s+auto\s*;/',
+            $row,
+            'the name\'s track can widen the row past the block'
+        );
+        $this->assertMatchesRegularExpression(
+            '/grid-template-areas\s*:\s*"thumb name controls"\s*"thumb line line"\s*;/',
+            $row,
+            'the thumbnail does not span both lines, or the controls are not on the first'
+        );
+        foreach (['min-height', 'flex-wrap', 'height'] as $property) {
+            $this->assertDoesNotMatchRegularExpression("/(?<![\\w-]){$property}\\s*:/", $row, "the row declares a {$property}");
+        }
+        $this->assertDoesNotMatchRegularExpression('/(?<![\w-])overflow\s*:/', $row, 'the row clips its controls\' rings');
+
+        $nothumb = $this->rule_of('.block_compass .compass-row.compass-row-nothumb');
+        $this->assertMatchesRegularExpression(
+            '/grid-template-columns\s*:\s*minmax\(0,\s*1fr\)\s+auto\s*;/',
+            $nothumb,
+            'the no-thumbnail row\'s name can widen it past the block'
+        );
+        $this->assertMatchesRegularExpression(
+            '/grid-template-areas\s*:\s*"name controls"\s*"line line"\s*;/',
+            $nothumb,
+            'the no-thumbnail row does not keep its two lines'
+        );
+
+        $this->assertMatchesRegularExpression('/grid-area\s*:\s*thumb\s*;/', $this->rule_of('.block_compass .compass-row-thumb'));
+        $this->assertMatchesRegularExpression(
+            '/grid-area\s*:\s*name\s*;/',
+            $this->rule_of('.block_compass .compass-row .compass-row-link')
+        );
+        $this->assertMatchesRegularExpression(
+            '/grid-area\s*:\s*controls\s*;/',
+            $this->rule_of('.block_compass .compass-row-controls')
+        );
+        $this->assertMatchesRegularExpression('/grid-area\s*:\s*line\s*;/', $this->rule_of('.block_compass .compass-row-line'));
+        // The image fills the row's height; no floor of its own may make the row taller.
+        $this->assertDoesNotMatchRegularExpression('/min-height\s*:/', $this->rule_of('.block_compass .compass-row-thumb-fill'));
+    }
+
+    /**
+     * A list row's name is one line, cut with an ellipsis; its whole text is in its title (the ellipsis rule).
+     *
+     * Changes that must make it fail: the name allowed to wrap, or shown whole past its cell, or its link without the
+     * zero minimum that lets the cell narrow.
+     *
+     * @return void
+     */
+    public function test_a_list_rows_name_is_one_line(): void {
+        $name = $this->rule_of('.block_compass .compass-row-name');
+        $this->assertMatchesRegularExpression('/white-space\s*:\s*nowrap\s*;/', $name, 'the name wraps to a second line');
+        $this->assertMatchesRegularExpression('/(?<![\w-])overflow\s*:\s*hidden\s*;/', $name, 'the name shows past its cell');
+        $this->assertMatchesRegularExpression('/text-overflow\s*:\s*ellipsis\s*;/', $name, 'the cut name has no ellipsis');
+        $this->assertMatchesRegularExpression(
+            '/min-width\s*:\s*0\s*;/',
+            $this->rule_of('.block_compass .compass-row .compass-row-link'),
+            'the name\'s link cannot narrow below the name'
+        );
+    }
+
+    /**
+     * A list row's second line is one line that never wraps and never grows the row, and it gives way in a stated
+     * order (ADR-026): the date first, with an ellipsis (as the teacher's note), then the progress bar down to a stub,
+     * then the chips down to a stub that still starts their word; the state label, Hidden from students and the crest
+     * keep their size; past that the line clips at its end. Each step's shrink weight is ten times the next one's.
+     *
+     * Changes that must make it fail: the line allowed to wrap, or to show past its end; the date giving way after the
+     * bar or the chips; the bar or the chips giving way to nothing; the state label made to shrink.
+     *
+     * @return void
+     */
+    public function test_a_list_rows_second_line_never_wraps_and_gives_way_in_order(): void {
+        $line = $this->rule_of('.block_compass .compass-row-line');
+        $this->assertMatchesRegularExpression('/flex-wrap\s*:\s*nowrap\s*;/', $line, 'the second line wraps');
+        $this->assertMatchesRegularExpression('/white-space\s*:\s*nowrap\s*;/', $line, 'a text on the second line wraps');
+        $this->assertMatchesRegularExpression('/(?<![\w-])overflow\s*:\s*hidden\s*;/', $line, 'the second line shows past its end');
+        $this->assertMatchesRegularExpression('/min-width\s*:\s*0\s*;/', $line, 'the second line cannot narrow below its parts');
+
+        $shrink = static function (string $body): int {
+            return preg_match('/(?<![\w-])flex\s*:\s*0\s+(\d+)\s+/', $body, $matches) ? (int) $matches[1] : 0;
+        };
+        $date = $this->rule_of(
+            '.block_compass .compass-row-line .compass-row-meta, .block_compass .compass-row-line .compass-row-nocompletion'
+        );
+        $bar = $this->rule_of('.block_compass .compass-row-line .compass-row-progress');
+        $chip = $this->rule_of('.block_compass .compass-row-line .compass-row-chip');
+        $this->assertMatchesRegularExpression('/text-overflow\s*:\s*ellipsis\s*;/', $date, 'the date is cut without an ellipsis');
+        $this->assertMatchesRegularExpression('/min-width\s*:\s*0\s*;/', $date, 'the date cannot give way to nothing');
+        $this->assertGreaterThan(0, $shrink($chip), 'the chips never give way');
+        $this->assertSame($shrink($bar) * 10, $shrink($date), 'the date does not give way before the bar');
+        $this->assertSame($shrink($chip) * 10, $shrink($bar), 'the bar does not give way before the chips');
+        $this->assertMatchesRegularExpression('/min-width\s*:\s*2rem\s*;/', $bar, 'the bar gives way to nothing');
+        $this->assertMatchesRegularExpression('/min-width\s*:\s*2\.5rem\s*;/', $chip, 'a chip gives way to an empty edge');
+        $this->assertDoesNotMatchRegularExpression(
+            '/flex(?:-shrink)?\s*:/',
+            $this->rule_of('.block_compass .compass-row .compass-state'),
+            'the state label is made to give way'
         );
     }
 
