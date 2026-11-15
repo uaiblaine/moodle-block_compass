@@ -1,10 +1,9 @@
 # ADR-023: Tier 3's filter line becomes the fleet Design System's compact filter bar
 
-**Status:** Proposed (2026-11-15). Written with the implementation on branch `design-system-filter-bar`, version
-`2026100540`; the maintainer reviews it with the pull request, and it flips to `Accepted` in the commit that lands
-it. The sub-decisions the implementation took where the contract and today's behaviour disagreed are listed under
-"Decided in implementation". Ported to `MOODLE_502_STABLE` as 2026042036 (see "Implementation notes (the 5.2
-port)").
+**Status:** Accepted (2026-11-15). Written with the implementation, version `2026100540`, and accepted by the
+maintainer with its pull request. The sub-decisions the implementation took where the contract and today's
+behaviour disagreed are listed under "Decided in implementation".
+Ported to `MOODLE_502_STABLE` as 2026042036 (see "Implementation notes (the 5.2 port)").
 **Date:** 2026-11-15
 **Phase:** the Design System's bar step (D25's order: tokens, then the bar), 5.3 only (`main` = `MOODLE_503_STABLE`)
 **Supersedes** (ADR-015, which otherwise stands):
