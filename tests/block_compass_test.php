@@ -139,12 +139,13 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
         // The filter bar's icon-only controls: list, grid, the sliders, the magnifier, the eraser,
-        // a chip's cross, Organise's sort glyph (ADR-015), a menu's tick (ADR-023) and the Organise menu's three
-        // item icons (ADR-024); the archive boxes and the accordion's chevrons. No reload glyph: a way back appears
-        // only with a failure, as RetryNotice's two text buttons (ADR-014 amendment 11).
+        // a chip's cross, Organise's sort glyph (ADR-015), a menu's tick (ADR-023) and the Organise menu's four
+        // item icons, two groupings and two sorts (ADR-025); the archive boxes and the accordion's chevrons. No
+        // reload glyph: a way back appears only with a failure, as RetryNotice's two text buttons (ADR-014
+        // amendment 11).
         $icons = [
-            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'sortcategory', 'sortname', 'sortrecent', 'check',
-            'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl',
+            'list', 'grid', 'filter', 'search', 'eraser', 'close', 'organise', 'groupcategory', 'groupnone', 'sortname',
+            'sortrecent', 'check', 'archive', 'unarchive', 'expanded', 'collapsed', 'collapsedrtl',
         ];
         foreach ($icons as $icon) {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
@@ -152,7 +153,9 @@ final class block_compass_test extends advanced_testcase {
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
         $this->assertStringContainsString('fa-sliders', $props['icons']['filter'], 'Filters is drawn with the sliders');
         $this->assertStringContainsString('fa-eraser', $props['icons']['eraser'], 'the search clears with an eraser');
-        $this->assertStringContainsString('fa-folder', $props['icons']['sortcategory'], 'By category is drawn with a folder');
+        $this->assertStringContainsString('fa-folder', $props['icons']['groupcategory'], 'Category is drawn with a folder');
+        $this->assertStringContainsString('fa-list-ul', $props['icons']['groupnone'], 'No grouping is drawn with a bare list');
+        $this->assertArrayNotHasKey('sortcategory', $props['icons'], 'the grouping is no sort any more (ADR-025)');
         $this->assertArrayNotHasKey('reload', $props['icons'], 'no permanent reload control');
         $this->assertArrayNotHasKey('reload', $props['labels'], 'no permanent reload control');
         $this->assertArrayNotHasKey('hide', $props['icons'], 'the archive control is drawn with the archive boxes, not the eye');
@@ -161,7 +164,7 @@ final class block_compass_test extends advanced_testcase {
         // Where the block is, as a heading level: under core's block title, an h3, so 4.
         $this->assertSame(4, $props['headinglevel']);
         $this->assertSame(
-            ['sort' => 'category', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false],
+            ['group' => 'category', 'sort' => 'name', 'scope' => 'all', 'star' => false, 'cf' => [], 'panel' => false],
             $props['explore']
         );
         // Both surfaces of an application awaiting approval hang off this flag; off by default.
@@ -293,7 +296,8 @@ final class block_compass_test extends advanced_testcase {
         ]), $user);
         $props = $this->props();
 
-        $this->assertSame('category', $props['explore']['sort']);
+        $this->assertSame('category', $props['explore']['group']);
+        $this->assertSame('name', $props['explore']['sort']);
         $this->assertSame('all', $props['explore']['scope'], 'pending is not a scope while the feature is off');
         $this->assertFalse($props['explore']['star']);
         $this->assertSame(['modality' => 2], $props['explore']['cf']);

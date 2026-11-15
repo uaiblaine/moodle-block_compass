@@ -459,13 +459,6 @@ final class filter_line_rules_test extends basic_testcase {
         $organise = $this->source('OrganiseMenu.tsx');
         $this->assertSame(1, substr_count($organise, '<button'), 'Organise is one button; its items are the menu\'s');
         $this->assertStringContainsString('<LineMenu', $organise);
-        $this->assertStringContainsString('heading={labels.sortby}', $organise);
-        foreach (['category', 'name', 'recent'] as $sort) {
-            $this->assertStringContainsString(
-                "{value: '{$sort}', label: labels.sort_{$sort}, icon: icons.sort{$sort}},",
-                $organise
-            );
-        }
 
         $line = $this->source('FilterLine.tsx');
         $this->assertMatchesRegularExpression(
@@ -477,6 +470,11 @@ final class filter_line_rules_test extends basic_testcase {
             '/onSort=\{\(value\) => \{\s*setMenuopen\(false\);\s*focusLater\(\(\) => organise\.current\);/',
             $line,
             'a choice does not give the keyboard back to Organise'
+        );
+        $this->assertMatchesRegularExpression(
+            '/onGroup=\{\(value\) => \{\s*setMenuopen\(false\);\s*focusLater\(\(\) => organise\.current\);/',
+            $line,
+            'a grouping does not give the keyboard back to Organise'
         );
         $this->assertMatchesRegularExpression(
             '/\} else if \(viewopen\) \{\s*event\.preventDefault\(\);\s*setViewopen\(false\);\s*'
@@ -549,7 +547,7 @@ final class filter_line_rules_test extends basic_testcase {
      */
     public function test_the_eraser_clears_the_text_and_keeps_the_field_open(): void {
         $line = $this->source('FilterLine.tsx');
-        $eraser = $this->slice($line, 'className="compass-search-eraser"', '</button>');
+        $eraser = $this->slice($line, "className={tipHost('compass-search-eraser'", '</button>');
         $this->assertStringContainsString('aria-label={labels.line_cleartext}', $eraser);
         $this->assertStringContainsString('onMouseDown={(press) => press.preventDefault()}', $eraser);
         $this->assertMatchesRegularExpression(
@@ -734,6 +732,160 @@ final class filter_line_rules_test extends basic_testcase {
     }
 
     /**
+     * Organise is two independent choices, Group by and Sort by, each a radio group under its heading (ADR-025, D49).
+     *
+     * The menu is LineMenu with two sections and a separator between them: Group by (Category, No grouping) and Sort
+     * by (Name, Most recent), each choice its own callback, so choosing in one never changes the other. Paged mode is
+     * always grouped: No grouping is drawn disabled with its reason (aria-disabled, aria-describedby, a press that
+     * chooses nothing), Category is the checked item, and the stored grouping is kept, never written while paged.
+     *
+     * Changes that must make it fail: the two sections merged or their separator dropped, a section's heading or a
+     * choice changed, No grouping enabled while paged or its press honoured, the stored grouping written or drawn
+     * while paged.
+     *
+     * @return void
+     */
+    public function test_organise_groups_and_sorts_in_two_sections(): void {
+        $organise = $this->source('OrganiseMenu.tsx');
+        $group = $this->slice($organise, "key: 'group',", 'onChoose: onGroup,');
+        $this->assertStringContainsString('heading: labels.organise_groupby,', $group);
+        $this->assertStringContainsString(
+            "{value: 'category', label: labels.organise_group_category, icon: icons.groupcategory},",
+            $group
+        );
+        $this->assertStringContainsString('nogrouping,', $group);
+        $this->assertStringContainsString('chosen: group,', $group);
+        $sort = $this->slice($organise, "key: 'sort',", 'onChoose: onSort,');
+        $this->assertStringContainsString('heading: labels.organise_sortby,', $sort);
+        $this->assertStringContainsString("{value: 'name', label: labels.organise_sort_name, icon: icons.sortname},", $sort);
+        $this->assertStringContainsString(
+            "{value: 'recent', label: labels.organise_sort_recent, icon: icons.sortrecent},",
+            $sort
+        );
+        $this->assertStringContainsString('chosen: sort,', $sort);
+        $this->assertMatchesRegularExpression(
+            '/const nogrouping = paged\s*\? \{value: \'none\', label: labels\.organise_group_none, icon: icons\.groupnone, '
+                . 'note: labels\.organise_group_none_paged\}\s*: \{value: \'none\', label: labels\.organise_group_none, '
+                . 'icon: icons\.groupnone\};/',
+            $organise,
+            'No grouping is offered while paged'
+        );
+
+        $menu = $this->source('LineMenu.tsx');
+        $this->assertStringContainsString('{at > 0 && <div className="compass-line-menusep" role="separator" />}', $menu);
+        $item = $this->slice($menu, 'className="compass-line-menuitem"', '>');
+        $this->assertStringContainsString('aria-disabled={noteid === undefined ? undefined : true}', $item);
+        $this->assertStringContainsString('aria-describedby={noteid}', $item);
+        $this->assertMatchesRegularExpression(
+            '/if \(noteid === undefined\) \{\s*section\.onChoose\(choice\.value\);/',
+            $menu,
+            'a disabled item chooses'
+        );
+        $this->assertStringContainsString(
+            '{noteid !== undefined && <div className="compass-line-menunote" id={noteid}>{choice.note}</div>}',
+            $menu
+        );
+
+        $line = $this->source('FilterLine.tsx');
+        $this->assertStringContainsString("group={paged ? 'category' : group}", $line, 'paged mode draws the stored grouping');
+        $explore = $this->source('Explore.tsx');
+        $this->assertMatchesRegularExpression(
+            '/const chooseGroup = \(value: string\): void => \{\s*if \(paged\) \{\s*return;\s*\}\s*setGroup\(value\);/',
+            $explore,
+            'paged mode writes the grouping'
+        );
+        $this->assertStringContainsString("const grouped = paged ? hits === null : group === 'category';", $explore);
+        $this->assertStringContainsString(
+            'const state: ExploreState = {group, sort, scope, star, cf: selection, panel: panelopen};',
+            $explore,
+            'the grouping is not remembered'
+        );
+        $this->assertStringContainsString('explore: {group, sort, scope, star, cf: selection, panel: panelopen},', $explore);
+        $this->assertStringContainsString('group: config.explore.group,', $explore, 'the remembered copy has no grouping');
+    }
+
+    /**
+     * Sort by orders every list the browser holds, inside each group as over the flat list (ADR-025).
+     *
+     * One comparator (rowOrder()) for the flat list and for each group's rows in full mode: by name, or by the last
+     * access, newest first, a course never opened last and a tie by name. The archive and the Hidden group, held once
+     * fetched, follow it too. By name a group keeps the server's order, which is the same. Paged mode sends the sort
+     * with every page, and a change asks for the open groups again.
+     *
+     * Changes that must make it fail: a group's rows left in the server's order by recency, the tie by name dropped,
+     * the flat list sorted by another comparator, the sort no longer sent with a page or a change not refetching.
+     *
+     * @return void
+     */
+    public function test_the_sort_orders_inside_each_group_as_over_the_flat_list(): void {
+        $explore = $this->source('Explore.tsx');
+        $order = $this->slice($explore, 'const rowOrder = ', "\n};\n");
+        $this->assertMatchesRegularExpression(
+            "/return sort === 'recent'\\s*\\? \\(a, b\\) => \\(\\(b\\.opened \\|\\| 0\\) - \\(a\\.opened \\|\\| 0\\)\\) "
+                . '\\|\\| byname\\(a, b\\)\\s*: byname;/',
+            $order,
+            'recency: newest first, never opened last, a tie by name'
+        );
+        $this->assertStringContainsString('const order = useMemo(() => rowOrder(sort, normalised), [sort, normalised]);', $explore);
+        $this->assertStringContainsString('Array.from(visible.values()).flat().sort(order)', $explore, 'the flat list\'s order');
+        $this->assertStringContainsString(
+            "const ordered = sort === 'recent' ? [...rows].sort(order) : rows;",
+            $explore,
+            'a group\'s rows by recency'
+        );
+        $this->assertStringContainsString(
+            "rows: sort === 'recent' ? [...fetched].sort(order) : fetched,",
+            $explore,
+            'the archive\'s and the Hidden group\'s rows by recency'
+        );
+        $this->assertStringContainsString("paged ? sort : 'name',", $explore, 'a page in the server\'s order for the sort');
+        $this->assertMatchesRegularExpression(
+            '/if \(paged && value !== sort\) \{\s*resetGroups\(\);/',
+            $explore,
+            'a sort change leaves the open groups in the old order'
+        );
+    }
+
+    /**
+     * Escape puts the bar's tooltips off, and only the reader coming back to a button puts them on again (D51, WCAG
+     * 1.4.13).
+     *
+     * The bar draws Tip.tsx's tooltip on every icon button, all four of the capsule's told whether Escape has put
+     * them off; the pointer coming onto a button from outside it, or a Tab onto one, puts them back, never the focus
+     * a closing menu hands back to its button, so the Escape that closed a menu does not raise its tooltip. The key
+     * itself is not taken: useTipsOff() only listens, and the bar's own Escape still closes what is open.
+     *
+     * Changes that must make it fail: a button not told, any focus putting the tooltips back, the pointer's move
+     * inside a button putting them back, Escape no longer putting them off, the host no longer marked off.
+     *
+     * @return void
+     */
+    public function test_escape_puts_the_bar_tooltips_off_until_the_reader_comes_back(): void {
+        $line = $this->source('FilterLine.tsx');
+        $this->assertStringContainsString('const [tipsoff, tipsOn] = useTipsOff();', $line);
+        $this->assertSame(4, substr_count($line, 'tipsoff={tipsoff}'), 'the star, Filters, Organise and View are told');
+        $this->assertMatchesRegularExpression(
+            '/onFocus=\{\(\) => \{\s*\/\/[^\n]*\n\s*if \(Date\.now\(\) - tabat\.current < TAB_INTENT\) \{\s*tipsOn\(\);/',
+            $line,
+            'a focus that is no Tab puts the tooltips back'
+        );
+        $back = $this->slice($line, 'const tipsBack = ', "\n    };\n");
+        $this->assertStringContainsString('if (host && hovers(event) && !(from && host.contains(from))) {', $back);
+        $this->assertStringContainsString('onPointerOver={tipsBack}', $line);
+
+        $tip = $this->source('Tip.tsx');
+        $this->assertMatchesRegularExpression("/if \\(event\\.key === 'Escape'\\) \\{\\s*setOff\\(true\\);/", $tip);
+        $this->assertStringNotContainsString('preventDefault', $tip, 'the tooltips take the key');
+        $this->assertStringNotContainsString('stopPropagation', $tip, 'the tooltips take the key');
+        $this->assertMatchesRegularExpression(
+            '/\? \x60\$\{classes\} compass-tiphost compass-tipsoff\x60/',
+            $tip,
+            'the host is never marked off'
+        );
+        $this->assertStringContainsString('aria-hidden="true"', $tip);
+    }
+
+    /**
      * A suggestion's count is the count without the typed text, because choosing it empties the field.
      *
      * Contract section 3. Changes that must make it fail: the suggestions counted under the applied
@@ -781,6 +933,9 @@ final class filter_line_rules_test extends basic_testcase {
             'line_suggestfilters' => ['Filters', 'Filtros'],
             'line_suggestcourses' => ['Courses', 'Cursos'],
             'line_suggeststart' => ['Start with a filter', 'Comece por um filtro'],
+            'organise_groupby' => ['Group by', 'Agrupar por'],
+            'organise_sortby' => ['Sort by', 'Ordenar por'],
+            'organise_group_none' => ['No grouping', 'Sem agrupamento'],
         ];
         foreach ($words as $key => [$en, $ptbr]) {
             $this->assertSame($en, $strings['en'][$key] ?? null, "en {$key}");
