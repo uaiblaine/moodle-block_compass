@@ -264,6 +264,27 @@ client is React, which core builds and serves from 5.2 on.
   what each enrolment means (enrolled, starting later, awaiting approval, on the waiting list),
   and Compass asks it rather than keeping a rule of its own. Install it first.
 - PHP's `intl` extension, which Moodle itself requires.
+- **Moodle's Composer dependencies, installed for the running core version.** Compass saves every
+  choice a viewer makes (the calendar strip open or closed, the view, the filter line, the first
+  tier's settled shape, archiving a course) through core's user preference route on Moodle's
+  router, `POST /r.php/api/rest/v2/core_user/current/preferences`. The router's libraries live in
+  the `vendor/` folder at the root of the Moodle checkout, one level above `public/`. The package
+  downloaded from moodle.org already carries that folder; a site installed or updated from Git
+  runs, at the root of the checkout and after every core update:
+
+  ```sh
+  composer install --no-dev --classmap-authoritative
+  ```
+
+  Moodle 5.3 added a library the router needs (`league/oauth2-server`). A site moved from 5.2 to
+  5.3 without this step keeps showing its pages, but every call to the route answers an empty
+  error 500: no preference is saved, core's own included, and Compass puts the choice back with a
+  notice (see *Troubleshooting*).
+- Configuring the router on the web server is **not** required. With `$CFG->routerconfigured`
+  false, Moodle's default, core calls the route through `r.php`, which needs only that the web
+  server pass the path after `r.php` to PHP (`PATH_INFO`; on nginx, `fastcgi_split_path_info`).
+  Set `$CFG->routerconfigured = true` only once the web server rewrites `/api/...` to `r.php`;
+  set without that rewrite, every call answers 404.
 - Recommended: a shared in-memory cache store, Redis by preference (see *Cache stores*).
 - Optional: *Enrolment on application* (`enrol_apply`) for the applications awaiting approval;
   `block_feedback_tracker` for the academic calendar of the strip; a theme or plugin that answers
@@ -684,6 +705,13 @@ Troubleshooting
   capability at the system context.
 - **No calendar strip.** Check `calendar_enabled` and `calendar_where`; the strip shows only
   where it is configured, and only after the first tier has loaded.
+- **"Your choice could not be saved, so the calendar is back as it was."** (or *Your choice of view
+  could not be saved.*) Core's preference route refused the write. In the browser's developer
+  tools, find the `POST` to `.../api/rest/v2/core_user/current/preferences`: an empty 500 means
+  the `vendor/` folder at the root of the checkout is missing or older than the core, so run
+  `composer install --no-dev --classmap-authoritative` there (on 5.3, check that
+  `vendor/league/oauth2-server` exists); a 404 means the web server does not pass `PATH_INFO` to
+  `r.php`, or `$CFG->routerconfigured` is true without the rewrite (see *Requirements*).
 
 
 Development
