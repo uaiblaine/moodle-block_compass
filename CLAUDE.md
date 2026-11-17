@@ -273,7 +273,7 @@ docs/adr/, docs/perf/, mutations/gates.conf, tests/ (budget test beside each ext
   drops the per-user layers (`observer::user_deleted()` reads the cached entry first); every
   cache test purges first.
 - **SQL in `classes/local/`**: named placeholders used once; index comment and bound on every
-  statement; visibility in SQL with `viewhiddencourses` evaluated once per request in tier 1, per hidden
+  statement; visibility in SQL, tier 1 visible courses only for every viewer (ADR-028), `viewhiddencourses` per hidden
   course at its course context in tier 3 and the details (`course_meta::visible_to()`, ADR-021); `SITEID`
   excluded explicitly; `get_records_sql()` keys on the first selected column; search in PHP.
 - **`SITEID` is a string** (`$SITE->id` as the database returned it, `lib/setup.php`): compare it

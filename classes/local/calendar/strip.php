@@ -985,8 +985,8 @@ final class strip {
             // observers just deleted, which a store of this statement's rows would resurrect.
             $absent = array_fill_keys(course_meta::absent(array_keys($courses)), true);
             // Hidden courses and courses the user has completed do not count (the maintainer,
-            // 2026-10-13). Unlike tier 1 there is no moodle/course:viewhiddencourses exception:
-            // {@see \block_compass\local\attention::visible_sql()} is tier 1's rule. A course
+            // 2026-10-13), for every viewer, as in tier 1's strips
+            // ({@see \block_compass\local\attention::visible_sql()}, ADR-028). A course
             // core is deleting is hidden by core when it is marked (visible 0, Moodle 5.3), so
             // c.visible = 1 leaves it out too.
             // Index: course primary key; context (contextlevel, instanceid) unique; course_categories
@@ -1284,6 +1284,7 @@ final class strip {
     private static function branch_head(string $p, string $sortcolumn, string $facts): array {
         $course = 'CASE WHEN e.courseid <> 0 THEN e.courseid ELSE COALESCE(cm.course, 0) END';
         $sql = "SELECT e.id, {$course} AS courseid, e.groupid, e.type, e.eventtype, e.modulename, e.instance,
+                       e.categoryid AS eventcategoryid, e.userid AS eventuserid,
                        e.{$sortcolumn} AS sorttime, e.timeduration, cm.id AS cmid, cm.visible AS cmvisible,
                        CASE WHEN cm.availability IS NULL AND cs.availability IS NULL AND cs.component IS NULL THEN 0
                             ELSE 1 END AS restricted,

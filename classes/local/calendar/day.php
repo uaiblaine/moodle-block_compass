@@ -669,8 +669,7 @@ final class day {
         // one read fills the filter cache for both and for every ancestor.
         $contexts = [];
         foreach ($kept as $item) {
-            $itemcourse = $courses[(int) $item['courseid']] ?? null;
-            $contexts[] = $itemcourse !== null ? course_meta::context_of($itemcourse) : \core\context\system::instance();
+            $contexts[] = self::event_context($item['row'], $courses[(int) $item['courseid']] ?? null);
             if ($item['row']->cmid !== null) {
                 $contexts[] = \core\context\module::instance((int) $item['row']->cmid);
             }
@@ -684,6 +683,40 @@ final class day {
         }
 
         return $exported;
+    }
+
+    /**
+     * The context a teaching item's name and course are formatted in, when it has no activity.
+     *
+     * Mirrors {@see \calendar_event::calculate_context()}, the context core's event exporter formats an
+     * event in on the learning side: a category event in its category's context, an event of a course
+     * in that course's, a personal event in its owner's user context, and the system context only when
+     * none of these applies. A filter enabled at a category or a user context is then applied here as
+     * core applies it.
+     *
+     * @param \stdClass $row A row from strip::future().
+     * @param array|null $course The item's course entry from course_meta::get_many(), null for none.
+     * @return \core\context
+     */
+    private static function event_context(\stdClass $row, ?array $course): \core\context {
+        $categoryid = (int) ($row->eventcategoryid ?? 0);
+        if ($categoryid > 0) {
+            $category = \core\context\coursecat::instance($categoryid, IGNORE_MISSING);
+            if ($category) {
+                return $category;
+            }
+        }
+        if ($course !== null) {
+            return course_meta::context_of($course);
+        }
+        $userid = (int) ($row->eventuserid ?? 0);
+        if ($userid > 0) {
+            $context = \core\context\user::instance($userid, IGNORE_MISSING);
+            if ($context) {
+                return $context;
+            }
+        }
+        return \core\context\system::instance();
     }
 
     /**
@@ -728,8 +761,8 @@ final class day {
         $row = $item['row'];
         $courseid = (int) $item['courseid'];
         $course = $courses[$courseid] ?? null;
-        $coursecontext = $course !== null ? course_meta::context_of($course) : \core\context\system::instance();
-        $context = $row->cmid !== null ? \core\context\module::instance((int) $row->cmid) : $coursecontext;
+        $coursecontext = $course !== null ? course_meta::context_of($course) : null;
+        $context = $row->cmid !== null ? \core\context\module::instance((int) $row->cmid) : self::event_context($row, $course);
         $modname = (string) $row->modulename;
         $timestart = $event !== null ? (int) $event->timestart : (int) $row->sorttime;
         $duration = $event !== null ? (int) $event->timeduration : 0;

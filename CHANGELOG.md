@@ -13,6 +13,19 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Fixed
+
+- **Tier 1 lists visible courses only, for every viewer** (ADR-028; 2026100549). A holder of
+  `moodle/course:viewhiddencourses` at the system context saw their hidden courses in the strips and the counts, even
+  where a prohibit at the course or its category removed them from *All courses*, and a hidden course was counted
+  twice on the ghost, in "+N" and in *N hidden*. A hidden course is now in *Hidden* alone and counted once, as tier 3
+  and the cards' details already decided it per course. From an MDL Shield review of the 5.2 branch (BAIXA-01).
+- **A teaching day names an event without an activity in that event's own context** (2026100549). A category, site
+  or personal event was formatted in the system context on the calendar's teaching side, so a filter enabled at the
+  category or the user context was not applied, where core's event exporter on the learning side applies it. It now
+  follows core's rule: the category's context, the course's (the site course for a site event), the owner's user
+  context. From the same review (BAIXA-02).
+
 ### Changed
 
 - **Progress is judged for the one learner, by core's rule** (ADR-027; 2026100548). A card's progress, computed when
