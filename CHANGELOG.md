@@ -26,6 +26,24 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   follows core's rule: the category's context, the course's (the site course for a site event), the owner's user
   context. From the same review (BAIXA-02).
 
+### Changed
+
+- **Progress is judged for the one learner, by core's rule** (ADR-027; 2026100548 on 5.3, 2026042045 on 5.2). A card's progress, computed when
+  it is not cached, no longer goes through core's list filter of restrictions, which listed every member of each
+  group and every holder of the exemption capabilities once per restricted activity: on a course of 100,000 learners
+  a computation cost 470 to 850 queries, half a second and 50 MB. The percentage is the same: core's
+  `get_course_progress_percentage()` is the oracle of a test that compares the two for every learner of a course
+  holding every case of core's rule, on every CI leg.
+
+### Added
+
+- **`block_compass/progress_source`** (*Progress calculation*): *Compass, for each learner* (the default) or *Moodle
+  core*, the way back to core's own function, with no deploy, if Compass's result ever differs from core's after a
+  Moodle upgrade. Four strings.
+- **A fingerprint of the core code the rule mirrors** (`tests/fixtures/core_parity.json`, 23 functions audited
+  against 5.3.1 on 5.3 and 5.2.5 on 5.2) and its test, which names what core changed; `cli/core_parity.php` compares any core tree with it.
+  The audit that follows a change is `docs/core-parity.md`.
+
 ## v5.3-r5 (2026100547) - 2026-11-15
 
 Fifth release for Moodle 5.3, from `main`, `MATURITY_BETA`. It brings the fleet's course card to the strips and to

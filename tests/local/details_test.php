@@ -197,6 +197,8 @@ final class details_test extends advanced_testcase {
         $courseid = (int) $course->id;
         set_config('enablecompletion', 0);
         $this->purge_details_cache();
+        // As get_card_details asks it: the learner is the current user (learner_progress refuses anyone else).
+        $this->setUser($userid);
 
         $this->assertNull(details::compute($course, $userid));
 
@@ -231,6 +233,7 @@ final class details_test extends advanced_testcase {
         $userid = (int) $user->id;
         $courseid = (int) $course->id;
         $this->purge_details_cache();
+        $this->setUser($userid);
 
         $this->assertSame(0, details::compute($course, $userid));
         $this->assertSame(0, details::get_many($userid, [$courseid])[$courseid]);
@@ -276,6 +279,7 @@ final class details_test extends advanced_testcase {
             $completion->update_state($modinfo->get_cm($cmid), COMPLETION_COMPLETE, $userid);
         }
 
+        $this->setUser($userid);
         $this->assertEqualsWithDelta(41.67, \core_completion\progress::get_course_progress_percentage($course, $userid), 0.01);
         $this->assertSame(41, details::compute($course, $userid));
         $this->assertSame(41, details::get_many($userid, [$courseid])[$courseid]);

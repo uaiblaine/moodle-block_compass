@@ -349,6 +349,7 @@ Settings
 | `hide_page_title` | off | Hide the Compass page's heading from sight, keeping it for screen readers. |
 | `filter_fields` | none | Course custom fields offered in the *Filters* panel of *All courses*: *Dropdown menu* and *Checkbox* fields visible to everyone, at most 3. None, and the line has no Filters. |
 | `enable_pending` | off | List the learner's applications through `enrol_apply`. Does nothing without that plugin. |
+| `progress_source` | Compass, for each learner | How a card's progress is computed when it is not cached: by core's rule, with the group and profile restrictions checked for the one learner, or by Moodle core's own function, which lists every group member per restricted activity. Both give the same percentage; choose Moodle core only if a Moodle upgrade ever makes them differ (see *Progress and Moodle core* below). |
 
 **Calendar strip**
 
@@ -371,6 +372,17 @@ Settings
 | `block_compass/news_depth` | 1 | The category level, counted from the top, that courses group under (1 to 4). A course in a shallower category groups under its own. |
 | `block_compass/news_past` | 7 days | How many days after its start date a course still counts (none: from today, 7, 14 or 30), in the site timezone. |
 | `block_compass/news_ahead` | 30 days | How many days after today a start date still counts (14, 30, 60 or 90), in the site timezone. |
+
+**Progress and Moodle core.** A card's progress is core's course progress: the activities with
+completion the learner sees on the course page, less those reserved for groups, groupings or
+profiles the learner is not in. Moodle core decides the last part by listing every member of each
+group, and every holder of the exemption capabilities, once per restricted activity; Compass asks
+the same question for the one learner, from the learner's own groups. A test compares the two for
+every learner of a course built to hold every case of core's rule, and a second test fails when
+Moodle changes the core code the rule follows. After upgrading Moodle,
+`php blocks/compass/cli/core_parity.php` says whether the site's core is the one the rule was
+checked against; if it is not and progress ever differs from the course's own, set
+`progress_source` to *Moodle core* until a Compass release that follows it.
 
 **`block_feedback_tracker` integration.** When that plugin is installed, the strip reads its
 academic calendar for weekends, holidays, recesses and school days on a weekend; without it,
