@@ -559,4 +559,24 @@ final class config {
 
         return in_array($value, array_map('strval', $choices), true) ? (int) $value : $default;
     }
+
+    /** @var string Progress judged for the one learner (ADR-027). */
+    public const PROGRESS_COMPASS = 'compass';
+
+    /** @var string Progress through core's own function, the switch back of ADR-027 decision 6. */
+    public const PROGRESS_CORE = 'core';
+
+    /**
+     * Where a missing progress entry is computed. An unset or unrecognised value means Compass's own.
+     *
+     * Both give core's percentage (tests/local/progress/core_parity_test.php); the core value is the
+     * way back, with no deploy, if an audit finds a difference on a site that already upgraded core.
+     *
+     * @return string compass or core.
+     */
+    public static function progress_source(): string {
+        $value = (string) get_config('block_compass', 'progress_source');
+
+        return $value === self::PROGRESS_CORE ? self::PROGRESS_CORE : self::PROGRESS_COMPASS;
+    }
 }

@@ -2193,7 +2193,9 @@ final class explore_test extends advanced_testcase {
      * @return void
      */
     private function assert_comp_agrees_with_details(array $ids, array $rows): void {
-        // Applications listed, as every tier 3 answer of the caller lists them (build_with(true)).
+        // Applications listed, as every tier 3 answer of the caller lists them (build_with(true)), and asked as
+        // get_card_details asks: the learner is the current user.
+        $this->setUser($this->userid);
         $hascompletion = array_column(cards::details($this->userid, $ids, self::NOW, null, true), 'hascompletion', 'id');
         foreach ($rows as $courseid => $row) {
             $this->assertArrayHasKey($courseid, $hascompletion, "details() answers course {$courseid}");
