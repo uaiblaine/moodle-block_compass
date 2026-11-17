@@ -221,8 +221,9 @@ final class course_meta {
      * counts. The context is rebuilt from the entry (context_of()), and for the current user
      * has_capability() answers from the session's access data and the role definitions' cache: no
      * database read once core is warm, CPU per hidden course only. Asked only for a hidden course. Tier
-     * 3 and the details batch decide by this (ADR-021); tier 1 keeps its one system-context read in SQL
-     * ({@see attention}). A course core is deleting is the caller's to drop first (is_being_deleted()).
+     * 3, the details batch and tier 1's count of hidden courses decide by this (ADR-021); tier 1's strips
+     * and counts list visible courses only ({@see attention}, ADR-028). A course core is deleting is
+     * the caller's to drop first (is_being_deleted()).
      *
      * @param array $entry An entry from get_many() or set_from_rows().
      * @param int $userid The viewer.

@@ -878,50 +878,79 @@ final class attention_test extends advanced_testcase {
     }
 
     /**
-     * A course with visible = 0 needs moodle/course:viewhiddencourses at the system context.
+     * A course with visible = 0 never enters a strip or the total, for any viewer (ADR-028).
      *
-     * The capability is given to a role rather than to the admin account, so the test
-     * is about the capability and not about being an administrator.
+     * Three hidden courses, one per path into tier 1: last opened (Continue), new and starred (New,
+     * Favourites) and starting later (Starts soon, decided in PHP). The holder of
+     * moodle/course:viewhiddencourses at the system context meets each one once, on the ghost's line
+     * (special.invisible), as tier 3 lists it in Hidden alone; a prohibit at their category takes even
+     * that away. The capability is given to a role rather than to the admin
+     * account, so the test is about the capability and not about being an administrator; the visible
+     * course is the control that the strip and the count do list.
      *
      * @return void
      */
-    public function test_invisible_courses_need_the_viewhiddencourses_capability(): void {
-        $hidden = $this->course('Invisible course', ['visible' => 0]);
+    public function test_invisible_courses_never_enter_tier_1_for_any_viewer(): void {
+        $category = $this->getDataGenerator()->create_category();
+        $hidden = $this->course('Invisible course', ['visible' => 0, 'category' => $category->id]);
+        $hiddennew = $this->course('Invisible new starred course', ['visible' => 0, 'category' => $category->id]);
+        $hiddenlater = $this->course('Invisible later course', ['visible' => 0, 'category' => $category->id]);
         $visible = $this->course('Visible course');
         $viewer = (int) $this->getDataGenerator()->create_user()->id;
-        foreach ([$this->userid, $viewer] as $userid) {
+        $prohibited = (int) $this->getDataGenerator()->create_user()->id;
+        foreach ([$this->userid, $viewer, $prohibited] as $userid) {
             foreach ([$hidden, $visible] as $course) {
                 $this->plugingen->enrol_at($userid, (int) $course->id, self::NOW - 200 * DAYSECS);
             }
             $this->plugingen->access_at($userid, (int) $hidden->id, self::NOW - HOURSECS);
             $this->plugingen->access_at($userid, (int) $visible->id, self::NOW - 2 * HOURSECS);
+            // New (enrolled two days ago, never opened) and starred: the New and Favourites strips' path.
+            $this->plugingen->enrol_at($userid, (int) $hiddennew->id, self::NOW - 2 * DAYSECS);
+            $this->plugingen->favourite($userid, (int) $hiddennew->id);
+            // A later start: the Starts-soon strip's path, decided in PHP.
+            $later = self::NOW + 3 * DAYSECS;
+            $this->plugingen->enrol_at($userid, (int) $hiddenlater->id, self::NOW - DAYSECS, 'manual', ENROL_USER_ACTIVE, $later);
         }
         $syscontext = context_system::instance();
+        $categorycontext = \core\context\coursecat::instance((int) $category->id);
         $roleid = create_role('Compass hidden course viewer', 'compasshiddenviewer', 'Sees hidden courses');
         assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $roleid, $syscontext->id, true);
         role_assign($roleid, $viewer, $syscontext->id);
+        role_assign($roleid, $prohibited, $syscontext->id);
+        $prohibitrole = create_role('Compass hidden course refused', 'compasshiddenrefused', 'Refused here');
+        assign_capability('moodle/course:viewhiddencourses', CAP_PROHIBIT, $prohibitrole, $categorycontext->id, true);
+        role_assign($prohibitrole, $prohibited, $categorycontext->id);
         accesslib_clear_all_caches_for_unit_testing();
 
-        // Precondition: the two users really do differ on the capability under test.
+        // Precondition: the three users differ on the capability under test, at the two contexts.
+        $hiddencontext = \core\context\course::instance((int) $hidden->id);
         $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $syscontext, $this->userid));
         $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $syscontext, $viewer));
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $hiddencontext, $viewer));
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $syscontext, $prohibited));
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $hiddencontext, $prohibited));
 
-        $plain = $this->build(5);
-        $privileged = (new attention($viewer, self::NOW, 5, 30))->build();
-
-        $this->assertSame([(int) $visible->id], $this->ids($plain['continue']));
-        $this->assertSame(1, $plain['counts']['total']);
-        $this->assertSame([(int) $hidden->id, (int) $visible->id], $this->ids($privileged['continue']));
-        $this->assertSame(2, $privileged['counts']['total']);
+        foreach (['plain' => $this->userid, 'holder' => $viewer, 'prohibited' => $prohibited] as $who => $userid) {
+            $tier = (new attention($userid, self::NOW, 5, 30))->build();
+            $this->assertSame([(int) $visible->id], $this->ids($tier['continue']), $who);
+            $this->assertSame([], $this->ids($tier['new']), $who);
+            $this->assertSame([], $this->ids($tier['favourites']), $who);
+            $this->assertSame([], $this->ids($tier['scheduled']), $who);
+            $counts = ['total' => 1, 'new' => 0, 'favourites' => 0, 'pending' => 0, 'scheduled' => 0];
+            $this->assertSame($counts, $tier['counts'], $who);
+            // The holder meets each hidden course once, on the line; the prohibit at the category takes that away.
+            $this->assertSame($who === 'holder' ? 3 : 0, $tier['special']['invisible'], $who);
+        }
     }
 
     /**
      * A course queued for asynchronous deletion leaves tier 1 for a viewer of hidden courses too.
      *
      * Moodle 5.3 marks the course (deletioninprogress 1) and hides it, and deletes it on the cron;
-     * require_login() refuses it meanwhile. The viewer holds moodle/course:viewhiddencourses, so
-     * only the deletion clause keeps the course out of Continue and the count; the precondition
-     * shows it listed before, and the second course is the control.
+     * require_login() refuses it meanwhile. The queued course is shown again in the database, so
+     * only the deletion clause keeps it out of Continue and the count (ADR-028 keeps every hidden
+     * course out on visibility alone); the precondition shows it listed before, and the second course
+     * is the control.
      *
      * @return void
      */
@@ -949,6 +978,9 @@ final class attention_test extends advanced_testcase {
             'Precondition: the deletion is queued, not done.'
         );
 
+        // Core hides the course it queues; shown again, only the deletion clause keeps it out (ADR-028
+        // left visibility alone in charge of every other hidden course).
+        $DB->set_field('course', 'visible', 1, ['id' => $doomed->id]);
         $tier = $this->build(5);
         $this->assertSame([(int) $kept->id], $this->ids($tier['continue']));
         $this->assertSame(1, $tier['counts']['total']);
