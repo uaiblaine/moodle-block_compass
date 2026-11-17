@@ -1,1 +1,1 @@
-s/return \$this->seehidden \? '' : " AND \{\$alias\}\.visible = 1";/return '';/;
+s/return " AND \{\$alias\}\.visible = 1";/return '';/;

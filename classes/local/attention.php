@@ -24,7 +24,6 @@
 
 namespace block_compass\local;
 
-use core\context\system as context_system;
 use local_unlistedcourses\access;
 use stdClass;
 
@@ -75,9 +74,6 @@ final class attention {
     /** @var bool Whether the hidden set is small enough to bind in SQL. */
     private bool $hiddeninsql;
 
-    /** @var bool Whether the user may see courses with visible = 0 (system-context capability, evaluated once). */
-    private bool $seehidden;
-
     /** @var bool Whether enrolment applications awaiting approval are counted. */
     private bool $pending;
 
@@ -116,7 +112,6 @@ final class attention {
         $this->situationslimit = max(1, $situationslimit ?? self::SITUATIONS_LIMIT);
         $this->hidden = hidden_courses::ids($userid);
         $this->hiddeninsql = count($this->hidden) <= hidden_courses::SQL_LIMIT;
-        $this->seehidden = has_capability('moodle/course:viewhiddencourses', context_system::instance(), $userid);
     }
 
     /**
@@ -393,8 +388,8 @@ final class attention {
      * the archived ones (used to count the archived subset when it is too long to bind at once).
      *
      * The visibility and the archive are columns of the derived table rather than filters of it, so
-     * one statement yields both what the ghost counts (not archived, and visible unless the viewer
-     * holds moodle/course:viewhiddencourses at the system context, the rule of visible_sql()) and the
+     * one statement yields both what the ghost counts (not archived, and visible: the rule of
+     * visible_sql(), ADR-028) and the
      * visible archived courses, tier 3's Archived header minus its hidden courses, which the
      * situations statement brings (ADR-022). A chunk is archived by definition: its total, new and
      * favourites are what the unrestricted statement counted of it, to be subtracted.
@@ -426,10 +421,8 @@ final class attention {
         if ($chunk === null) {
             $rule[] = 'x.arch = 0';
         }
-        if (!$this->seehidden) {
-            $rule[] = 'x.vis = 1';
-        }
-        $counted = empty($rule) ? '1 = 1' : implode(' AND ', $rule);
+        $rule[] = 'x.vis = 1';
+        $counted = implode(' AND ', $rule);
         $columns = "MIN(uex.timecreated) AS timecreated, MAX(c.visible) AS vis, {$archived} AS arch";
         $sql = "SELECT SUM(CASE WHEN {$counted} THEN 1 ELSE 0 END) AS total,
                        SUM(CASE WHEN {$counted} AND x.timecreated > :since AND la.id IS NULL AND cc.id IS NULL
@@ -485,10 +478,9 @@ final class attention {
      *
      * The same statement carries the special groups' hidden courses (ADR-022), at no read of its
      * own: the visibility rule is decided in PHP rather than in the WHERE clause, so a hidden course
-     * starting later or applied to reaches PHP and leaves the strip and the counts there unless the
-     * viewer holds moodle/course:viewhiddencourses at the system context, as visible_sql() decided
-     * before; and a second branch reads the active rows of hidden courses, archived ones included,
-     * which no other statement of tier 1 can see for a viewer without that capability. Both kinds
+     * starting later or applied to reaches PHP and leaves the strip and the counts there, as
+     * visible_sql() decides for every viewer (ADR-028); and a second branch reads the active rows of
+     * hidden courses, archived ones included, which no other statement of tier 1 can see. Both kinds
      * are ordered after every other row, so they never take the bound's room from the strip and the
      * notice; past the bound their counts are a floor too.
      *
@@ -561,9 +553,7 @@ final class attention {
                 if ($listed) {
                     $invisible[$courseid] = $first[$courseid];
                 }
-                if (!$this->seehidden) {
-                    continue;
-                }
+                continue;
             }
             if ($type === access::RELATIONSHIP_SCHEDULED) {
                 $counts['scheduled']++;
@@ -708,14 +698,17 @@ final class attention {
     }
 
     /**
-     * Visibility rule: hidden courses only for a holder of moodle/course:viewhiddencourses
-     * in the system context, evaluated once in the constructor; and never a course core is
-     * deleting, for anyone.
+     * Visibility rule: visible courses only, for every viewer (ADR-028), and never a course core is
+     * deleting.
      *
-     * Moodle 5.3 marks a course it deletes asynchronously (deletioninprogress 1, visible 0) and
-     * deletes it on the cron; until then require_login() refuses it, so even the capability's
-     * holder must not be offered it. The column is nullable (lib/db/install.xml), hence the
-     * COALESCE. It filters rows already reached through the statement's own indexes.
+     * A hidden course lives in tier 3's Hidden group alone, where moodle/course:viewhiddencourses is
+     * asked at that course's own context (course_meta::visible_to()); tier 1 counts it on the ghost's
+     * line through special(), never in a strip or in total, so no viewer meets it twice and a prohibit
+     * at a course or a category is obeyed. Moodle 5.3 marks a course it deletes asynchronously
+     * (deletioninprogress 1, visible 0) and deletes it on the cron; until then require_login() refuses
+     * it, so the deletion clause stands on its own, whatever the course's visibility. The column is
+     * nullable (lib/db/install.xml), hence the COALESCE. It filters rows already reached through the
+     * statement's own indexes.
      *
      * @param string $alias Alias of {course} in the statement.
      * @return string An AND clause.
@@ -728,10 +721,10 @@ final class attention {
      * The hidden-course half of visible_sql().
      *
      * @param string $alias Alias of {course} in the statement.
-     * @return string Empty, or an AND clause.
+     * @return string An AND clause.
      */
     private function visible_only_sql(string $alias): string {
-        return $this->seehidden ? '' : " AND {$alias}.visible = 1";
+        return " AND {$alias}.visible = 1";
     }
 
     /**
