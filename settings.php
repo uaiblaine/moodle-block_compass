@@ -185,6 +185,19 @@ if ($ADMIN->fulltree) {
         0
     ));
 
+    // Where a missing progress entry is computed (ADR-027): Compass's check for the one learner, or core's own
+    // function, the way back if an audit ever finds the two apart.
+    $settings->add(new admin_setting_configselect(
+        'block_compass/progress_source',
+        get_string('progress_source', 'block_compass'),
+        get_string('progress_source_desc', 'block_compass'),
+        \block_compass\local\config::PROGRESS_COMPASS,
+        [
+            \block_compass\local\config::PROGRESS_COMPASS => get_string('progress_source_compass', 'block_compass'),
+            \block_compass\local\config::PROGRESS_CORE => get_string('progress_source_core', 'block_compass'),
+        ]
+    ));
+
     // The calendar strip above the first tier (ADR-014): off by default, and free while off.
     $settings->add(new admin_setting_heading(
         'block_compass/calendar',

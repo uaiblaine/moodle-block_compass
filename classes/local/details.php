@@ -25,6 +25,7 @@
 namespace block_compass\local;
 
 use core_cache\cache;
+use block_compass\local\progress\learner_progress;
 use core_completion\progress;
 use stdClass;
 
@@ -146,17 +147,20 @@ final class details {
     }
 
     /**
-     * Compute the progress from core and store it.
+     * Compute the progress by core's rule and store it.
      *
-     * This is the expensive path (completion_info loads course_modinfo); only
-     * get_card_details calls it, never the first paint.
+     * The path that loads course_modinfo; only get_card_details calls it, as the user, never the
+     * first paint. The rule is core's, judged for this learner alone ({@see learner_progress}), or
+     * core's own function when the site chose it (config::progress_source(), ADR-027 decision 6).
      *
      * @param stdClass $course Full course record.
-     * @param int $userid The user.
+     * @param int $userid The user, who is the current user.
      * @return int|null Percentage 0-100, or null when completion is not available.
      */
     public static function compute(stdClass $course, int $userid): ?int {
-        $percentage = progress::get_course_progress_percentage($course, $userid);
+        $percentage = config::progress_source() === config::PROGRESS_CORE
+            ? progress::get_course_progress_percentage($course, $userid)
+            : learner_progress::percentage($course, $userid);
         // Truncated, as core's Course overview does (course_summary_exporter floors it): rounding
         // would show 42 % where that block shows 41 % for 41.67. Floor, never PHP round(), whose
         // handling of a float just under .5 differs between 8.3 and 8.4.
