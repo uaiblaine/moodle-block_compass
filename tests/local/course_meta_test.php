@@ -92,14 +92,21 @@ final class course_meta_test extends advanced_testcase {
      */
     public function test_an_entry_carries_the_course_columns_and_the_context_preload_columns(): void {
         $this->resetAfterTest();
-        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course = $this->getDataGenerator()->create_course([
+            'enablecompletion' => 1,
+            'startdate' => 1795000000,
+            'enddate' => 1795600000,
+        ]);
         $courseid = (int) $course->id;
         $context = context_course::instance($courseid);
         $this->purge_course_meta_cache();
 
         $entry = course_meta::get_many([$courseid])[$courseid];
 
-        $expectedkeys = ['id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion', 'deletioninprogress', 'ctx'];
+        $expectedkeys = [
+            'id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion', 'deletioninprogress', 'startdate',
+            'enddate', 'ctx',
+        ];
         $this->assertSame($expectedkeys, array_keys($entry));
         $this->assertSame($courseid, $entry['id']);
         $this->assertSame($course->fullname, $entry['fullname']);
@@ -109,6 +116,9 @@ final class course_meta_test extends advanced_testcase {
         $this->assertSame(1, $entry['enablecompletion']);
         // The column is nullable and a new course leaves it null: an int either way.
         $this->assertSame(0, $entry['deletioninprogress']);
+        // A dated kind's facts line (ADR-029), as integers.
+        $this->assertSame(1795000000, $entry['startdate']);
+        $this->assertSame(1795600000, $entry['enddate']);
 
         $expectedctx = ['ctxid', 'ctxpath', 'ctxdepth', 'ctxlevel', 'ctxinstance', 'ctxlocked'];
         $this->assertSame($expectedctx, array_keys($entry['ctx']));

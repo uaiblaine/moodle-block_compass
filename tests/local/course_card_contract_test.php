@@ -34,8 +34,9 @@ use PHPUnit\Framework\Attributes\CoversNothing;
  * stylesheet, and none depends on another to draw one. The contract keeps the cards alike: each plugin
  * declares the card tokens under its own prefix and reads the family token (--dimensions-card-*) first, so
  * the theme can restyle every card at once; only the theme declares the family tokens; a card rule paints
- * through tokens, sets no label in capitals and moves nothing on hover; and the plugin reads Boost Union's
- * course overview settings and its README names them.
+ * through tokens, sets no label in capitals and moves nothing on hover; the kind pill carries its icon and the
+ * cover its watermark, each painted by its token; and the plugin reads Boost Union's course overview settings and
+ * its README names them.
  *
  * The class is copied between plugins: only the namespace, the package and copyright tags and the
  * constants above the first method change. It reads files only, so it runs wherever the PHPUnit suite
@@ -64,12 +65,27 @@ final class course_card_contract_test extends \basic_testcase {
     /** @var bool True in theme_dimensions only: the one plugin that declares --dimensions-card-* names. */
     private const PROVIDER = false;
 
+    /**
+     * @var string The class of the kind pill (slot 2) as written in the markup, for example 'compass-card-kind';
+     *     '' while the plugin draws no kind, and then KIND_SOURCES is empty too.
+     */
+    private const KIND_CLASS = 'compass-card-kind';
+
+    /** @var array The markup sources that draw the card's cover and kind pill, relative to the plugin root. */
+    private const KIND_SOURCES = ['js/esm/src/RowCard.tsx', 'js/esm/src/Row.tsx'];
+
+    /**
+     * @var string The class of the cover's watermark (slot 1), for example 'compass-card-watermark'; '' while the
+     *     plugin draws none, a gap the contract records and this constant keeps in sight.
+     */
+    private const WATERMARK_CLASS = 'compass-card-watermark';
+
     /** @var array Every token suffix of the card contract. */
     private const SUFFIXES = [
         'radius', 'border-width', 'border', 'surface', 'ink', 'ink-muted', 'title-hover', 'cover-height',
         'cover-fallback', 'cover-overlay', 'chip-bg', 'chip-ink', 'extra-bg', 'extra-icon', 'track', 'fill',
         'track-height', 'done', 'done-bg', 'done-ink', 'done-edge', 'shadow', 'shadow-hover', 'focus-ring',
-        'focus-width', 'locked-opacity', 'close-bg', 'close-bg-hover', 'close-edge', 'transition',
+        'focus-width', 'locked-opacity', 'close-bg', 'close-bg-hover', 'close-edge', 'transition', 'watermark',
     ];
 
     /** @var array Boost Union's settings the card contract reads. */
@@ -212,6 +228,61 @@ final class course_card_contract_test extends \basic_testcase {
             $plain = (string) preg_replace('~--[a-zA-Z0-9_-]+\s*:[^;]*;?~', '', $body);
             $this->assertDoesNotMatchRegularExpression('~#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\(~', $plain, $selector);
         }
+    }
+
+    /**
+     * The kind pill (slot 2) carries an icon before its word: in every source that draws the pill, an opening tag
+     * carrying the kind class is followed by an element whose class names Font Awesome (`fa`), whatever guards it.
+     *
+     * One such pill per source is asked, not every one: a plugin may draw another label in the pill's look (the
+     * compass's *New*), which is no kind and has no icon. A plugin that draws no kind says so with an empty
+     * KIND_CLASS and KIND_SOURCES.
+     *
+     * @return void
+     */
+    public function test_the_kind_pill_draws_an_icon_before_its_word(): void {
+        if (self::KIND_CLASS === '') {
+            $this->assertSame([], self::KIND_SOURCES, 'A plugin that draws no kind names no source for it.');
+            return;
+        }
+        $this->assertNotEmpty(self::KIND_SOURCES, 'Name the sources that draw the kind pill.');
+        $pill = '~<[a-z]+\s[^>]*class(Name)?="[^"]*\b' . preg_quote(self::KIND_CLASS, '~') . '\b[^"]*"[^>]*>\s*'
+            . '(\{[^<]*)?<i\s[^>]*class(Name)?=[^>]*\bfa\b~';
+        $drawn = 0;
+        foreach (self::KIND_SOURCES as $path) {
+            $source = $this->read($path);
+            if (!str_contains($source, self::KIND_CLASS)) {
+                continue;
+            }
+            $drawn++;
+            $this->assertMatchesRegularExpression($pill, $source, $path . ' draws the kind pill without its icon.');
+        }
+        $this->assertGreaterThan(0, $drawn, 'No source draws ' . self::KIND_CLASS . ': check the constants.');
+    }
+
+    /**
+     * The cover's watermark (slot 1): a source of the card draws it, and a card rule paints it with the watermark
+     * token. A plugin that draws none says so with an empty WATERMARK_CLASS.
+     *
+     * @return void
+     */
+    public function test_the_cover_draws_its_watermark_through_its_token(): void {
+        if (self::WATERMARK_CLASS === '') {
+            $this->assertSame('', self::WATERMARK_CLASS, 'This plugin draws no watermark yet (contract slot 1).');
+            return;
+        }
+        $drawn = false;
+        foreach (self::KIND_SOURCES as $path) {
+            $drawn = $drawn || str_contains($this->read($path), self::WATERMARK_CLASS);
+        }
+        $this->assertTrue($drawn, 'No source draws ' . self::WATERMARK_CLASS . '.');
+        $painted = false;
+        foreach ($this->card_rules() as [$selector, $body]) {
+            if (str_contains($selector, '.' . self::WATERMARK_CLASS)) {
+                $painted = $painted || str_contains($body, 'var(' . self::TOKEN_PREFIX . 'watermark)');
+            }
+        }
+        $this->assertTrue($painted, 'No card rule paints .' . self::WATERMARK_CLASS . ' with the watermark token.');
     }
 
     /**

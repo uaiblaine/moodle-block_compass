@@ -73,9 +73,52 @@ final class course_kinds_test extends \advanced_testcase {
         $hook->add_kind(1, 'course', 'curso', 'cursos');
         $hook->add_kind(2, 'track', 'trilha', 'trilhas');
         $this->assertSame([
-            2 => ['key' => 'event', 'one' => 'evento', 'many' => 'eventos'],
-            1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos'],
+            2 => ['key' => 'event', 'one' => 'evento', 'many' => 'eventos', 'icon' => null, 'dated' => false],
+            1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos', 'icon' => null, 'dated' => false],
         ], $hook->get_kinds(), 'cleaned to plain text, in the order given, the first per value kept');
+    }
+
+    /**
+     * An icon is kept only as one Font Awesome class name of at most 40 characters; a bad one costs the icon,
+     * never the kind. The dated flag is kept as given.
+     *
+     * Control: the same kinds with a valid icon keep it, so the drops below are the validation's doing.
+     *
+     * @return void
+     */
+    public function test_an_icon_is_one_font_awesome_class_or_none(): void {
+        $hook = new course_kinds();
+        $hook->add_kind(1, 'course', 'curso', 'cursos', 'fa-graduation-cap');
+        $hook->add_kind(2, 'event', 'evento', 'eventos', 'fa-calendar-day', true);
+        $hook->add_kind(3, 'trail', 'trilha', 'trilhas', 'fa-route', false);
+        $hook->add_kind(4, 'live', 'ao vivo', 'ao vivo', 'fa-' . str_repeat('a', 37));
+        $kinds = $hook->get_kinds();
+        $this->assertSame('fa-graduation-cap', $kinds[1]['icon']);
+        $this->assertSame('fa-calendar-day', $kinds[2]['icon']);
+        $this->assertTrue($kinds[2]['dated'], 'an event is dated');
+        $this->assertFalse($kinds[3]['dated'], 'a trail is not');
+        $this->assertSame(40, strlen($kinds[4]['icon']), 'forty characters are kept');
+
+        $bad = [
+            'fa fa-calendar' => 'two classes',
+            'calendar' => 'no fa- prefix',
+            'fa-Calendar' => 'an upper-case letter',
+            'fa-calendar"><script>' => 'markup',
+            'fa-calendar-' => 'a trailing hyphen',
+            "fa-calendar\n" => 'a trailing newline',
+            'fa--calendar' => 'an empty part',
+            'fa-' . str_repeat('a', 38) => 'forty-one characters',
+            '' => 'empty',
+        ];
+        $value = 10;
+        foreach ($bad as $icon => $why) {
+            $hook->add_kind($value, 'other', 'outro', 'outros', (string) $icon, true);
+            $kind = $hook->get_kinds()[$value];
+            $this->assertNull($kind['icon'], $why);
+            $this->assertSame('other', $kind['key'], "{$why}: the kind is kept");
+            $this->assertTrue($kind['dated'], "{$why}: the flag is kept");
+            $value++;
+        }
     }
 
     /**

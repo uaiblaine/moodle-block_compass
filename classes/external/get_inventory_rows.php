@@ -243,6 +243,11 @@ class get_inventory_rows extends external_api {
                 'Index of the course\'s kind in get_inventory\'s top-level kinds; absent for the default kind',
                 VALUE_OPTIONAL
             ),
+            'ev' => new external_value(
+                PARAM_TEXT,
+                'Present only on a course of a dated kind with a start date: its start, or start and end, formatted',
+                VALUE_OPTIONAL
+            ),
         ];
     }
 

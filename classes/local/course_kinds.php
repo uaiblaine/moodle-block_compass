@@ -110,16 +110,22 @@ final class course_kinds {
      * them. The name is the listener's noun for one with its first letter upper-cased (label()): the
      * hook's nouns are made for sentences, and the pill starts one.
      *
+     * The entry also carries the first value's icon, only when the listener gave one, and the positions
+     * of the dated kinds travel apart in 'dated' (ADR-029): a row of a dated kind states its dates
+     * (date_line()), and the browser never needs the flag itself.
+     *
      * @param callable|null $source Stands in for the hook in tests; see ask().
      * @return array 'fieldid' (0 when no kind can be drawn, and then nothing else is set), 'kinds'
-     *     (list of ['key' => string, 'name' => string], the payload's kinds) and 'index' (stored value
-     *     => position in 'kinds', for the values whose kind is drawn).
+     *     (list of ['key' => string, 'name' => string] plus 'icon' => string when given, the payload's
+     *     kinds), 'index' (stored value => position in 'kinds', for the values whose kind is drawn) and
+     *     'dated' (position in 'kinds' => true, for the dated kinds).
      */
     public static function pills(?callable $source = null): array {
         $answer = self::answer($source);
         $kinds = [];
         $positions = [];
         $index = [];
+        $dated = [];
         foreach ($answer['kinds'] as $value => $kind) {
             $key = (string) $kind['key'];
             if ($key === self::DEFAULT) {
@@ -127,15 +133,49 @@ final class course_kinds {
             }
             if (!isset($positions[$key])) {
                 $positions[$key] = count($kinds);
-                $kinds[] = ['key' => $key, 'name' => self::label((string) $kind['one'])];
+                $pill = ['key' => $key, 'name' => self::label((string) $kind['one'])];
+                if (is_string($kind['icon'] ?? null) && $kind['icon'] !== '') {
+                    $pill['icon'] = $kind['icon'];
+                }
+                $kinds[] = $pill;
+                if (!empty($kind['dated'])) {
+                    $dated[$positions[$key]] = true;
+                }
             }
             $index[(int) $value] = $positions[$key];
         }
         if (empty($kinds)) {
-            return ['fieldid' => 0, 'kinds' => [], 'index' => []];
+            return ['fieldid' => 0, 'kinds' => [], 'index' => [], 'dated' => []];
         }
 
-        return ['fieldid' => $answer['fieldid'], 'kinds' => $kinds, 'index' => $index];
+        return ['fieldid' => $answer['fieldid'], 'kinds' => $kinds, 'index' => $index, 'dated' => $dated];
+    }
+
+    /**
+     * A dated course's facts line: its start date, or its start and end when they fall on different days.
+     *
+     * Mirrors theme_dimensions' `dialogue::dateline()`, the rule its course cards state an event's date by, so
+     * the same course reads the same in both plugins (course card contract, slot 7). The days are compared at
+     * the reader's midnight, in the reader's timezone, and formatted in the reader's language at response
+     * time (strftimedatefullshort, as the rows' sched): nothing language-dependent enters a cache.
+     *
+     * @param int $start The course's startdate; 0 for none.
+     * @param int $end The course's enddate; 0 for none.
+     * @return string|null The line, null for a course with no start date.
+     */
+    public static function date_line(int $start, int $end): ?string {
+        if ($start <= 0) {
+            return null;
+        }
+        $format = get_string('strftimedatefullshort', 'langconfig');
+        if ($end > 0 && usergetmidnight($start) !== usergetmidnight($end)) {
+            return get_string('kind_daterange', 'block_compass', (object) [
+                'start' => userdate($start, $format),
+                'end' => userdate($end, $format),
+            ]);
+        }
+
+        return userdate($start, $format);
     }
 
     /**

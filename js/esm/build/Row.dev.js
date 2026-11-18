@@ -126,57 +126,69 @@ const Row = /* @__PURE__ */ __name(({
           columnNumber: 13
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "compass-row-line", children: [
-          kind !== void 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-card-kind compass-row-chip", title: kind.name, children: kind.name }, void 0, false, {
+          kind !== void 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-card-kind compass-row-chip", title: kind.name, children: [
+            kind.icon !== void 0 && /* @__PURE__ */ jsxDEV("i", { className: `fa ${kind.icon}`, "aria-hidden": "true" }, void 0, false, {
+              fileName: "public/blocks/compass/js/esm/src/Row.tsx",
+              lineNumber: 158,
+              columnNumber: 53
+            }),
+            kind.name
+          ] }, void 0, true, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
             lineNumber: 157,
             columnNumber: 21
           }),
           row.new && /* @__PURE__ */ jsxDEV("span", { className: "compass-card-kind compass-row-chip", title: labels.badge_new, children: labels.badge_new }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 159,
+            lineNumber: 162,
             columnNumber: 29
+          }),
+          row.ev !== void 0 && /* @__PURE__ */ jsxDEV("span", { className: "compass-row-ev small text-muted", title: row.ev, children: row.ev }, void 0, false, {
+            fileName: "public/blocks/compass/js/esm/src/Row.tsx",
+            lineNumber: 166,
+            columnNumber: 21
           }),
           /* @__PURE__ */ jsxDEV(StatePill, { row, labels, complete }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 160,
+            lineNumber: 168,
             columnNumber: 17
           }),
           markhidden && row.invis && /* @__PURE__ */ jsxDEV(InvisiblePill, { label: labels.hiddenfromstudents }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 161,
+            lineNumber: 169,
             columnNumber: 45
           }),
           /* @__PURE__ */ jsxDEV(Crests, { badges: detail?.badges, label: labels.crests, inline: true }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 162,
+            lineNumber: 170,
             columnNumber: 17
           }),
           meta !== null && /* @__PURE__ */ jsxDEV("span", { className: "compass-row-meta small text-muted", title: meta, children: meta }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 163,
+            lineNumber: 171,
             columnNumber: 35
           }),
           enrolled && row.comp && config.card.progress && waiting && /* @__PURE__ */ jsxDEV("div", { className: "compass-row-progress", children: /* @__PURE__ */ jsxDEV("span", { className: "compass-skeleton compass-skeleton-progress", "aria-hidden": "true" }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 170,
+            lineNumber: 178,
             columnNumber: 25
           }) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 169,
+            lineNumber: 177,
             columnNumber: 21
           }),
           enrolled && row.comp && config.card.progress && answered && !complete && detail.hascompletion && detail.progress !== null && /* @__PURE__ */ jsxDEV("div", { className: "compass-row-progress", children: /* @__PURE__ */ jsxDEV(Progress, { progress: detail.progress, labels, compact: true }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 176,
+            lineNumber: 184,
             columnNumber: 25
           }) }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 175,
+            lineNumber: 183,
             columnNumber: 21
           }),
           answered && !detail.hascompletion && detail.teacher && /* @__PURE__ */ jsxDEV("span", { className: "compass-row-nocompletion small text-muted", title: labels.nocompletion, children: labels.nocompletion }, void 0, false, {
             fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-            lineNumber: 180,
+            lineNumber: 188,
             columnNumber: 21
           })
         ] }, void 0, true, {
@@ -198,7 +210,7 @@ const Row = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-              lineNumber: 190,
+              lineNumber: 198,
               columnNumber: 25
             }
           ),
@@ -216,13 +228,13 @@ const Row = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-              lineNumber: 198,
+              lineNumber: 206,
               columnNumber: 21
             }
           )
         ] }, void 0, true, {
           fileName: "public/blocks/compass/js/esm/src/Row.tsx",
-          lineNumber: 188,
+          lineNumber: 196,
           columnNumber: 17
         })
       ]

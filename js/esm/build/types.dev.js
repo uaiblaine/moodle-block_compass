@@ -12,7 +12,9 @@
 const GROUP_DORMANT = -1;
 const GROUP_ARCHIVED = -2;
 const GROUP_INVISIBLE = -3;
+const DEFAULT_KIND_ICON = "fa-graduation-cap";
 export {
+  DEFAULT_KIND_ICON,
   GROUP_ARCHIVED,
   GROUP_DORMANT,
   GROUP_INVISIBLE
