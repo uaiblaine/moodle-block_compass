@@ -494,8 +494,9 @@ Capabilities
   so there is no `addinstance` capability.
 
 The block also reads one core capability, `moodle/course:viewhiddencourses`: in *All courses* and
-for the cards' details, per hidden course at that course's context, as core's own course lists do;
-in the first strips and their counts, once, at the system context.
+for the cards' details, per hidden course at that course's context, as core's own course lists do.
+The first strips and their counts list visible courses only, for every viewer: a hidden course is
+in *Hidden* alone, and the ghost's line counts it there.
 
 
 Web services
@@ -703,8 +704,8 @@ Troubleshooting
 - **A course vanished from All courses.** Look in the *Dormant*, *Hidden* and *Archived* groups
   at the end of the list; a course removed from view in the Course overview block is under
   *Archived*, and a course hidden from students is under *Hidden* for its teachers and absent for
-  its students. The first strips keep leaving hidden courses out for anyone without the
-  capability at the system context.
+  its students. The first strips never list a hidden course, for anyone: the ghost's line counts
+  it under *Hidden*.
 - **No calendar strip.** Check `calendar_enabled` and `calendar_where`; the strip shows only
   where it is configured, and only after the first tier has loaded.
 - **"Your choice could not be saved, so the calendar is back as it was."** (or *Your choice of view

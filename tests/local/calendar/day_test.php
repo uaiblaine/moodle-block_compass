@@ -134,6 +134,63 @@ final class day_test extends advanced_testcase {
     }
 
     /**
+     * An event without an activity is named in its own context on the teaching day, as core names it.
+     *
+     * The multilang filter is on at one category and at the site course only, with filters applied to
+     * every string: the category's event and the site event show one language's name, as core's event
+     * exporter shows them on the learning side ({@see \calendar_event::calculate_context()}). The
+     * teacher's personal event carrying the same name is the control: the filter is not on in its
+     * context, so both spans' text stays, which is also what the other two showed while they were
+     * formatted in the system context.
+     *
+     * @return void
+     */
+    public function test_a_teaching_day_names_an_event_without_an_activity_in_its_own_context(): void {
+        global $PAGE;
+
+        $gen = $this->getDataGenerator();
+        $now = time();
+        $category = $gen->create_category();
+        $teach = $gen->create_course(['category' => $category->id]);
+        $teacher = $gen->create_user();
+        $gen->enrol_user($teacher->id, $teach->id, 'editingteacher');
+        set_config('calendar_sources', 'deadlines,course,group,site,user,category', 'block_compass');
+        set_config('filterall', 1);
+        filter_set_global_state('multilang', TEXTFILTER_OFF);
+        filter_set_applies_to_strings('multilang', true);
+        filter_set_local_state('multilang', \core\context\coursecat::instance($category->id)->id, TEXTFILTER_ON);
+        filter_set_local_state('multilang', \core\context\course::instance(SITEID)->id, TEXTFILTER_ON);
+        $name = '<span lang="en" class="multilang">Kick-off</span><span lang="pt_br" class="multilang">Abertura</span>';
+        $at = $this->noon_in_three_days();
+        $this->setAdminUser();
+        $owners = [
+            'category' => ['categoryid' => $category->id, 'userid' => get_admin()->id],
+            'site' => ['courseid' => SITEID, 'userid' => get_admin()->id],
+            'user' => ['userid' => $teacher->id],
+        ];
+        $offset = 0;
+        foreach ($owners as $type => $owner) {
+            \calendar_event::create((object) ($owner + [
+                'name' => $name,
+                'eventtype' => $type,
+                'timestart' => $at + HOURSECS * $offset++,
+                'timeduration' => 0,
+            ]), false);
+        }
+
+        $this->setUser($teacher);
+        $PAGE->set_context(\core\context\system::instance());
+        $tz = \core_date::get_user_timezone_object();
+        $output = $PAGE->get_renderer('core');
+        $date = strip::local_day($at, $tz);
+        $teaching = day::get((int) $teacher->id, $date, 'teaching', $now, 1700000000, $tz, $output);
+
+        $names = array_column($teaching['items'], 'name');
+        sort($names);
+        $this->assertSame(['Kick-off', 'Kick-off', 'Kick-offAbertura'], $names);
+    }
+
+    /**
      * The teaching day does not name a class deadline of an activity the user may not view.
      *
      * mod/assign:view prohibited for the teacher in one activity's context; the sibling due the
