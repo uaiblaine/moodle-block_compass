@@ -1,11 +1,7 @@
 # ADR-029: The kind's icon, the cover's watermark and an event's date on the course card
 
-**Status:** Proposed (2026-11-17). The owner answered all ten questions the same day (see "Questions for the owner"),
-with a condition on 4 and a broader scope on 1 and 2. The status flips to Accepted in the implementation commit, as
-this repository's ADR rule says. The owner noticed on
-2026-11-17 that the *Evento* and *Trilha* pills have no icon and that the event card does not look like
-theme_dimensions'. A check against the fleet course card contract found three gaps, none of them recorded as an
-exception. This record proposes how to close them. The questions are at the end.
+**Status:** Accepted (2026-11-17). The owner answered all ten questions the same day (see "Questions for the owner"),
+with a condition on 4 and a broader scope on 1 and 2; stages 1 and 2 are written with it, version `2026100550` (5.3) and `2026042046` (`MOODLE_502_STABLE`).
 **Date:** 2026-11-17
 **Phase:** the course card, after ADR-020 and ADR-021. 5.3 first (`main` = `MOODLE_503_STABLE`), then
 `MOODLE_502_STABLE`.
@@ -327,6 +323,30 @@ Course 1 completion and adds a "0%" step. Stage 2's Behat scenario must leave th
 3. **The theme's listener** (theme_dimensions, its own pull request): icons and `dated`, with its own test.
 4. **The parity template** (moodle-dev), then each plugin's copy.
 5. **`MOODLE_502_STABLE`.**
+
+## Implementation notes (stages 1 and 2, 2026100550)
+
+- **The hook.** `add_kind()` takes `?string $icon = null, bool $dated = false`; the icon is kept only when it
+  matches `^fa-[a-z0-9]+(-[a-z0-9]+)*$` (anchored at the string's very end, so a trailing newline fails too: the
+  security read's finding) in at most 40 characters, and a bad one costs the icon, never the kind.
+  `get_kinds()` holds `icon` and `dated` for every value. The README's *Course kinds: icons and dates from any theme
+  or plugin* shows a listener of three kinds and states the rules (answers 1 and 2).
+- **The data.** `course_kinds::pills()` gives each payload kind its first value's icon, only when given, and lists
+  the dated kinds by position in a member of its own (`dated`) that never ships. `course_kinds::date_line()` mirrors
+  the theme's `dialogue::dateline()` with the string `kind_daterange` ("{start} – {end}") in place of a literal.
+  `course_meta::COURSE_FIELDS` gains `startdate` and `enddate`; `explore::row()` adds `ev` to a row whose kind is
+  dated and whose course has a start date. `get_inventory`'s `kinds` items gain `icon`, the row structure gains `ev`,
+  both `VALUE_OPTIONAL`. No statement and no read is added: the budget tests are unchanged and pass.
+- **The client.** `RowCard.tsx` draws the icon before the kind's word, the watermark on a cover answered with no
+  image (`DEFAULT_KIND_ICON` for an ordinary course), and the dates as `compass-card-meta` after the title;
+  `Row.tsx` draws the icon in the chip and the dates (`compass-row-ev`) after the chips (the kind, then *New*, kept a
+  pair), with a shrink weight
+  between the last access's (raised from 1,000 to 10,000) and the bar's (100). The watermark's colour is the new
+  token `--block_compass-card-watermark`, read through `--dimensions-card-watermark`.
+- **Not done here.** No Behat scenario: the Behat site has no listener of the hook, and a fixture listener cannot be
+  registered there the way PHPUnit's hook manager takes one, so the drawing is held by `course_card_rules_test` (the
+  sources) and the data by PHPUnit. Stages 3 (the theme's listener), 4 (the parity template) and 5 (the 5.2 branch)
+  follow in their own pull requests.
 
 ## Follow-ups (not in this record)
 

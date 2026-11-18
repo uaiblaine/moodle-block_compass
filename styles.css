@@ -112,6 +112,8 @@
     --block_compass-card-cover-overlay: var(--dimensions-card-cover-overlay, linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(0, 0, 0, 0.34)));
     --block_compass-card-chip-bg: var(--dimensions-card-chip-bg, rgba(255, 255, 255, 0.92));
     --block_compass-card-chip-ink: var(--dimensions-card-chip-ink, #1f1f1f);
+    /* The kind's watermark on a cover with no image (ADR-029): light on the fallback colour in both modes. */
+    --block_compass-card-watermark: var(--dimensions-card-watermark, rgba(255, 255, 255, 0.16));
     --block_compass-card-extra-bg: var(--dimensions-card-extra-bg, var(--bs-tertiary-bg, #f8f9fa));
     --block_compass-card-extra-icon: var(--dimensions-card-extra-icon, var(--bs-primary-text-emphasis, #062b4c));
     --block_compass-card-track: var(--dimensions-card-track, var(--bs-secondary-bg, #e9ecef));
@@ -605,6 +607,13 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     white-space: nowrap;
 }
 
+/* Slot 7, the course's facts: a dated kind's dates (ADR-029), one line in the secondary ink, cut with an ellipsis
+   (compass-card-oneline), its whole text in its title. */
+.block_compass .compass-card .compass-card-meta {
+    color: var(--block_compass-card-ink-muted);
+    font-size: 0.8125rem;
+}
+
 /* The plugin slot (slot 8): one line after a clock on the quiet ground, cut with an ellipsis, its whole text in
    its title. */
 .block_compass .compass-card .compass-card-extra {
@@ -735,6 +744,28 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     font-size: 0.75rem;
     font-weight: 600;
     line-height: 1.4;
+}
+
+/* The kind's icon before its word (ADR-029; the Design System's status label, D59): the word's size, 4 px before it,
+   in the chip's ink. A margin rather than a gap, since the list row's chip is a block (below). */
+.block_compass .compass-card-kind .fa {
+    margin-inline-end: 4px;
+    font-size: 1em;
+    line-height: 1;
+}
+
+/* Slot 1's watermark (ADR-029; the contract's mockup): the kind's icon, 64 px, at the bottom left of a cover the
+   batch answered with no image (RowCard.tsx draws it then only), under the chips and clear of the crests at the
+   bottom right. Decorative: it lets a click through to the card's stretched link. */
+.block_compass .compass-card .compass-card-watermark {
+    position: absolute;
+    top: calc(var(--block_compass-card-cover-height) - 64px - 6px);
+    left: 14px;
+    z-index: 1;
+    color: var(--block_compass-card-watermark);
+    font-size: 64px;
+    line-height: 1;
+    pointer-events: none;
 }
 
 /* Slot 2 holding the kind and New (ADR-021 decision 2.4): one row of chips in the chip's corner, the kind first,
@@ -1105,13 +1136,13 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
     gap: 0.25rem;
 }
 
-/* The second line: one line that never wraps and never grows the row. Its parts keep their size but three:
-   the date gives way first, down to nothing, with an ellipsis (as the teacher's note does), then the progress
-   bar narrows to a stub, and the chips last of the three, each one's shrink weight ten times the next one's;
-   past that the line clips at its end. The state label, Hidden from students and the crest never shrink: with
-   nowrap, a flex item's automatic minimum is its whole text or image. The line fills its track but the last
-   4 px, so its centre line is the same on every row whatever it holds, and its tallest part (the crest, 26 px)
-   sits under the name at about the name's own distance from the row's top. */
+/* The second line: one line that never wraps and never grows the row. Its parts keep their size but four:
+   the date gives way first, down to nothing, with an ellipsis (as the teacher's note does), then a dated kind's
+   dates the same way, then the progress bar narrows to a stub, and the chips last, each one's shrink weight ten
+   times the next one's; past that the line clips at its end. The state label, Hidden from students and the
+   crest never shrink: with nowrap, a flex item's automatic minimum is its whole text or image. The line fills
+   its track but the last 4 px, so its centre line is the same on every row whatever it holds, and its tallest
+   part (the crest, 26 px) sits under the name at about the name's own distance from the row's top. */
 .block_compass .compass-row-line {
     display: flex;
     grid-area: line;
@@ -1184,9 +1215,16 @@ body[data-bs-theme="dark"] #region-main .block_compass .compass-card.card a.comp
 }
 
 /* The date, and the teacher's note where it applies: the first to give way on the second line, cut with an
-   ellipsis, the whole text in the title (Row.tsx). */
+   ellipsis, the whole text in the title (Row.tsx). A dated kind's dates (ADR-029) give way next, before the bar. */
 .block_compass .compass-row-line .compass-row-meta,
 .block_compass .compass-row-line .compass-row-nocompletion {
+    flex: 0 10000 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.block_compass .compass-row-line .compass-row-ev {
     flex: 0 1000 auto;
     min-width: 0;
     overflow: hidden;

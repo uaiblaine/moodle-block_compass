@@ -59,6 +59,7 @@ import StatePill, {InvisiblePill} from './StatePill';
 import {titleTag} from './heading';
 import {isEnrolled, relativeTime} from './filter';
 import {fill} from './str';
+import {DEFAULT_KIND_ICON} from './types';
 import type {BlockConfig, InventoryRow, RowDetail, RowKind} from './types';
 
 type RowCardProps = {
@@ -139,15 +140,29 @@ const RowCard = ({
     let kind = isnew ? <span className="compass-card-kind">{labels.badge_new}</span> : null;
     // Slot 2 with the course's kind (ADR-021 decision 2): the kind first, then New, one row of chips that wraps.
     // Without a kind to draw - no listener, the default kind, an index the held list does not have - the slot is
-    // New's alone, the same element as before kinds existed.
+    // New's alone, the same element as before kinds existed. The kind's icon, when its listener gave one, comes
+    // before its word (ADR-029; the Design System's status label, D59); New has none, being no kind.
     const named: RowKind | undefined = row.kd === undefined ? undefined : kinds[row.kd];
     if (named !== undefined) {
         kind = (
             <span className="compass-card-kinds">
-                <span className="compass-card-kind">{named.name}</span>
+                <span className="compass-card-kind">
+                    {named.icon !== undefined && <i className={`fa ${named.icon}`} aria-hidden="true"></i>}
+                    {named.name}
+                </span>
                 {isnew && <span className="compass-card-kind">{labels.badge_new}</span>}
             </span>
         );
+    }
+    /*
+     * Slot 1's watermark (ADR-029): the kind's icon on a cover the batch answered with no image, so the fallback
+     * colour shows; never on an image, never while the batch is out (an image may still come) and never without
+     * a cover. An ordinary course takes the block's own icon; a kind its listener gave no icon, or an index the
+     * held list does not have, takes none rather than a wrong one.
+     */
+    let watermark: string | undefined;
+    if (!nocover && !waiting && detail !== undefined && !detail.hasimage) {
+        watermark = row.kd === undefined ? DEFAULT_KIND_ICON : named?.icon;
     }
 
     return (
@@ -159,6 +174,7 @@ const RowCard = ({
             ref={element}
         >
             {!nocover && image}
+            {watermark !== undefined && <i className={`fa ${watermark} compass-card-watermark`} aria-hidden="true"></i>}
             {!nocover && kind}
             {/* The star follows the cover in the DOM as it does on screen: a screen reader meets it
                 before the title, where the kind chip already is. */}
@@ -181,6 +197,10 @@ const RowCard = ({
                         {row.name}
                     </a>
                 </Title>
+                {/* Slot 7, the course's facts: a dated kind's dates alone (ADR-029), the one fact the block knows. */}
+                {row.ev !== undefined && (
+                    <p className="compass-card-meta compass-card-oneline mb-2" title={row.ev}>{row.ev}</p>
+                )}
                 {meta !== null && (
                     <p className="compass-card-extra mb-2">
                         <i className="fa-regular fa-clock" aria-hidden="true"></i>

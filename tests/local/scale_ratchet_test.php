@@ -65,6 +65,14 @@ final class scale_ratchet_test extends basic_testcase {
     private const DURATIONS = ['150ms', '250ms'];
 
     /**
+     * @var array Glyphs drawn as an illustration, not as text, selector => font-size: off the type scale by design and
+     *     outside its ratchet. Only the cover's watermark (ADR-029), 64 px as the course card contract's slot 1 sets it.
+     */
+    private const ILLUSTRATION_FONT_SIZE = [
+        '.block_compass .compass-card .compass-card-watermark' => '64px',
+    ];
+
+    /**
      * @var array Off-scale font sizes today, value => uses.
      *
      * Lower a count when a use is brought onto the scale; never raise it.
@@ -316,7 +324,12 @@ final class scale_ratchet_test extends basic_testcase {
         $declarations = $this->declarations('font-size');
         $this->assertGreaterThanOrEqual(60, count($declarations), 'fewer than 60 font-size declarations read');
         $off = [];
+        $illustrations = 0;
         foreach ($declarations as [$selector, $property, $value]) {
+            if ((self::ILLUSTRATION_FONT_SIZE[$selector] ?? null) === $value) {
+                $illustrations++;
+                continue;
+            }
             $token = strtolower($value);
             $on = $this->is_computed($token) || in_array($token, self::FONT_SIZE_WORDS, true);
             if (!$on && preg_match('/^(\d*\.?\d+)rem$/', $token, $m)) {
@@ -326,6 +339,7 @@ final class scale_ratchet_test extends basic_testcase {
                 $off[] = [$value, "{$selector} { {$property}: {$value} }"];
             }
         }
+        $this->assertSame(count(self::ILLUSTRATION_FONT_SIZE), $illustrations, 'an illustration\'s rule moved or went');
         $this->assert_ratchet($off, self::OFF_SCALE_FONT_SIZE, 'OFF_SCALE_FONT_SIZE');
     }
 

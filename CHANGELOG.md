@@ -13,6 +13,16 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased
 
+### Added
+
+- **The course card shows a kind's icon, a watermark and an event's date** (ADR-029; 2026100550). The
+  `course_kinds` hook's `add_kind()` takes two optional arguments, the kind's Font Awesome icon and whether the kind
+  is dated, so any theme or plugin that answers it decides how its kinds look; the block names none. Explore's cards
+  and list rows draw the icon before the kind's word; a cover with no image draws the kind's icon as a watermark (the
+  block's own graduation cap for an ordinary course); and a course of a dated kind states its start date, or its
+  start and end, as the card's facts line. The dates come with the course data the block already caches, so no
+  request reads more. The README's *Course kinds: icons and dates from any theme or plugin* explains the hook.
+
 ### Fixed
 
 - **A card's progress loads again**. The progress computed for one learner (ADR-027, 2026100548)
