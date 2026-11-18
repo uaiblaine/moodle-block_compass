@@ -346,6 +346,7 @@ $string['inventory_max'] = 'Máximo de cursos listados por completo';
 $string['inventory_max_desc'] = 'Acima desta quantidade de cursos a lista completa carrega primeiro os cabeçalhos dos grupos e as linhas de cada grupo conforme ele é aberto, com uma busca no servidor sobre todos os cursos. Até ela a lista inteira é enviada de uma vez e filtrada no navegador. Padrão 250.';
 $string['invisible'] = 'Ocultos';
 $string['javascriptrequired'] = 'É necessário JavaScript para exibir seus cursos.';
+$string['kind_daterange'] = '{$a->start} – {$a->end}';
 $string['lastaccessago'] = 'Último acesso há {$a}';
 $string['lastaccessjustnow'] = 'Acessado agora mesmo';
 $string['lastopened'] = 'Aberto {$a}';

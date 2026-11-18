@@ -48,8 +48,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 final class course_kinds_test extends advanced_testcase {
     /** @var array The two kinds the theme gives its model field: course and event. */
     private const KINDS = [
-        1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos'],
-        2 => ['key' => 'event', 'one' => 'evento', 'many' => 'eventos'],
+        1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos', 'icon' => null, 'dated' => false],
+        2 => ['key' => 'event', 'one' => 'evento', 'many' => 'eventos', 'icon' => null, 'dated' => false],
     ];
 
     /**
@@ -234,11 +234,72 @@ final class course_kinds_test extends advanced_testcase {
         $this->assertSame([['key' => 'trail', 'name' => 'Trilha'], ['key' => 'event', 'name' => 'Évènement']], $pills['kinds']);
         $this->assertSame([3 => 0, 2 => 1, 4 => 1], $pills['index'], 'no index for the default kind');
         $this->assertSame(
-            ['fieldid' => 0, 'kinds' => [], 'index' => []],
+            ['fieldid' => 0, 'kinds' => [], 'index' => [], 'dated' => []],
             course_kinds::pills(self::source('model', [1 => self::KINDS[1]])),
             'the default kind alone draws nothing'
         );
-        $this->assertSame(['fieldid' => 0, 'kinds' => [], 'index' => []], course_kinds::pills(self::source(null)));
+        $this->assertSame(
+            ['fieldid' => 0, 'kinds' => [], 'index' => [], 'dated' => []],
+            course_kinds::pills(self::source(null))
+        );
+    }
+
+    /**
+     * A pill carries its kind's icon only when the listener gave one, the first value's per key, and the dated
+     * kinds are listed apart by position, never in the payload's entries (ADR-029).
+     *
+     * Control: the trail, given no icon and not dated, carries neither.
+     *
+     * @return void
+     */
+    public function test_the_pills_carry_the_icon_given_and_list_the_dated_kinds_apart(): void {
+        $this->resetAfterTest();
+        $gen = $this->getDataGenerator()->get_plugin_generator('block_compass');
+        $gen->course_field('select', 'model', ['options' => "Course\nEvent\nTrail\nMeeting", 'visibility' => 2]);
+        $kinds = [
+            1 => ['key' => 'course', 'one' => 'curso', 'many' => 'cursos', 'icon' => 'fa-graduation-cap', 'dated' => true],
+            2 => ['key' => 'event', 'one' => 'evento', 'many' => 'eventos', 'icon' => 'fa-calendar-day', 'dated' => true],
+            3 => ['key' => 'trail', 'one' => 'trilha', 'many' => 'trilhas', 'icon' => null, 'dated' => false],
+            4 => ['key' => 'event', 'one' => 'encontro', 'many' => 'encontros', 'icon' => 'fa-users', 'dated' => false],
+        ];
+
+        $pills = course_kinds::pills(self::source('model', $kinds));
+
+        $this->assertSame([
+            ['key' => 'event', 'name' => 'Evento', 'icon' => 'fa-calendar-day'],
+            ['key' => 'trail', 'name' => 'Trilha'],
+        ], $pills['kinds'], 'the first value names the entry and gives its icon; no icon key without one');
+        $this->assertSame([0 => true], $pills['dated'], 'the event alone; the default kind is never drawn');
+        $this->assertSame([2 => 0, 3 => 1, 4 => 0], $pills['index']);
+    }
+
+    /**
+     * A dated course's line: its start, or its start and end when they fall on different days, in the
+     * reader's timezone; nothing for a course with no start.
+     *
+     * Control: an end later on the same day gives the start alone, so the range below is the other day's doing.
+     *
+     * @return void
+     */
+    public function test_a_date_line_is_the_start_or_the_range_across_days(): void {
+        $this->resetAfterTest();
+        $this->setTimezone('America/Sao_Paulo');
+        $format = get_string('strftimedatefullshort', 'langconfig');
+        $start = make_timestamp(2026, 11, 18, 9, 0);
+        $sameday = make_timestamp(2026, 11, 18, 17, 0);
+        $nextday = make_timestamp(2026, 11, 19, 9, 0);
+
+        $this->assertNull(course_kinds::date_line(0, $nextday), 'no start, no line');
+        $this->assertSame(userdate($start, $format), course_kinds::date_line($start, 0), 'no end');
+        $this->assertSame(userdate($start, $format), course_kinds::date_line($start, $sameday), 'the same day');
+        $this->assertSame(
+            userdate($start, $format) . ' – ' . userdate($nextday, $format),
+            course_kinds::date_line($start, $nextday),
+            'two days'
+        );
+        // Midnight in São Paulo is not midnight in UTC: an event ending at 23:30 local stays one day.
+        $late = make_timestamp(2026, 11, 18, 23, 30);
+        $this->assertSame(userdate($start, $format), course_kinds::date_line($start, $late), 'the reader\'s day');
     }
 
     /**

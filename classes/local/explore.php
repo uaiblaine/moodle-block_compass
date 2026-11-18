@@ -172,7 +172,8 @@ final class explore {
                         $newwindow,
                         $threshold,
                         self::cf($values[$courseid] ?? [], $fields),
-                        self::kd($values[$courseid] ?? [], $kinds)
+                        self::kd($values[$courseid] ?? [], $kinds),
+                        $kinds
                     );
                 }
                 $dormant['count']++;
@@ -199,7 +200,8 @@ final class explore {
                     $newwindow,
                     $threshold,
                     self::cf($values[$courseid] ?? [], $fields),
-                    self::kd($values[$courseid] ?? [], $kinds)
+                    self::kd($values[$courseid] ?? [], $kinds),
+                    $kinds
                 );
             }
             $groups[$groupid]['count']++;
@@ -728,7 +730,8 @@ final class explore {
                 $newwindow,
                 $threshold,
                 self::cf($values[$courseid] ?? [], $fields),
-                self::kd($values[$courseid] ?? [], $kinds)
+                self::kd($values[$courseid] ?? [], $kinds),
+                $kinds
             );
         }
 
@@ -979,7 +982,8 @@ final class explore {
      * id, name, opened, new, fav, dorm, then pend only on an application (with wait when it is on
      * the waiting list), sched only on an enrolment that starts later, comp only when the course's
      * details will carry completion, cf only when the row holds a field value, invis only on a hidden
-     * course (visible = 0) and kd only on a course whose kind is drawn.
+     * course (visible = 0), kd only on a course whose kind is drawn, and ev only on a course of a dated
+     * kind that has a start date.
      *
      * dorm is the answer and not the inputs: the browser holds opened but not the enrolment
      * date, and the threshold is a site setting it does not have. sched is the start date
@@ -989,7 +993,8 @@ final class explore {
      * progress it will get from the moment it renders, so the answer landing moves nothing.
      * invis is the flag the client draws "Hidden from students" from where a hidden row sits among
      * visible ones (the Archived group); hidden rows travel only in pages of the Hidden and Archived
-     * groups, so the first payload never carries it. pend, wait, sched, comp, cf, invis and kd are
+     * groups, so the first payload never carries it. ev is course_kinds::date_line() of the course's own
+     * dates, formatted here for the same reason as sched. pend, wait, sched, comp, cf, invis, kd and ev are
      * omitted rather than sent false or empty, because a VALUE_OPTIONAL return key the array leaves
      * out never enters the response, so a row without them costs nothing for them.
      *
@@ -1001,6 +1006,7 @@ final class explore {
      * @param int $threshold The instant from dormancy::threshold().
      * @param int[] $cf The row's field values, from cf(); empty for none.
      * @param int|null $kd The row's kind, from kd(); null for none.
+     * @param array $kinds From course_kinds::pills(): whether the row's kind is dated.
      * @return array
      */
     private static function row(
@@ -1011,7 +1017,8 @@ final class explore {
         int $newwindow,
         int $threshold,
         array $cf,
-        ?int $kd
+        ?int $kd,
+        array $kinds
     ): array {
         $row = [
             'id' => $course['courseid'],
@@ -1041,6 +1048,13 @@ final class explore {
         }
         if ($kd !== null) {
             $row['kd'] = $kd;
+            // A dated kind states the course's own dates (ADR-029), never the enrolment's: sched says those.
+            if (isset($kinds['dated'][$kd])) {
+                $ev = course_kinds::date_line((int) ($entrymeta['startdate'] ?? 0), (int) ($entrymeta['enddate'] ?? 0));
+                if ($ev !== null) {
+                    $row['ev'] = $ev;
+                }
+            }
         }
 
         return $row;

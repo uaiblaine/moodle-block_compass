@@ -791,6 +791,68 @@ final class explore_test extends advanced_testcase {
     }
 
     /**
+     * A dated kind's rows state the course's own dates as ev, in full mode, pages and searches alike, and the
+     * payload's kinds carry the icon the listener gave (ADR-029).
+     *
+     * The event is dated and has an icon; the trail is neither, the control that ev and icon follow the
+     * listener's answer and not the kind's position. A second event with no start date carries no ev, and the
+     * default kind never does, dated or not.
+     *
+     * @return void
+     */
+    public function test_a_dated_kind_states_its_dates_and_the_kinds_carry_their_icon(): void {
+        global $DB;
+        // The block's course_updated observer runs after the commit ('internal' => false): under the rollback reset
+        // PostgreSQL's transaction never commits, so the moved date at the end would never reach the entry.
+        $this->preventResetByRollback();
+        [$category, $courses] = $this->kinds_fixture();
+        course_kinds_listener::$kinds = [
+            [1, 'course', 'curso', 'cursos', 'fa-graduation-cap', true],
+            [2, 'event', 'evento', 'eventos', 'fa-calendar-day', true],
+            [3, 'trail', 'trilha', 'trilhas'],
+        ];
+        $model = $DB->get_field('customfield_field', 'id', ['shortname' => 'model']);
+        $undated = (int) $this->course_in($category, 'Undated kind course', ['startdate' => 0])->id;
+        $this->plugingen->field_value(\core_customfield\field_controller::create((int) $model), $undated, 2);
+        $this->plugingen->enrol_at($this->userid, $undated, self::NOW - 100 * DAYSECS);
+        $this->plugingen->access_at($this->userid, $undated, self::NOW - DAYSECS);
+        $start = make_timestamp(2026, 11, 18, 9, 0);
+        $end = make_timestamp(2026, 11, 19, 18, 0);
+        foreach (['course', 'event', 'trail'] as $kind) {
+            $DB->update_record('course', (object) ['id' => $courses[$kind], 'startdate' => $start, 'enddate' => $end]);
+        }
+        $DB->set_field('course', 'startdate', 0, ['id' => $undated]);
+        \cache::make('block_compass', 'coursemeta')->purge();
+        $format = get_string('strftimedatefullshort', 'langconfig');
+        $line = userdate($start, $format) . ' – ' . userdate($end, $format);
+
+        $payload = $this->build(1);
+        $this->assertSame([
+            ['key' => 'event', 'name' => 'Evento', 'icon' => 'fa-calendar-day'],
+            ['key' => 'trail', 'name' => 'Trilha'],
+        ], $payload['kinds']);
+        $rows = $this->rows_by_id($payload);
+        $this->assertSame($line, $rows[$courses['event']]['ev'] ?? null, 'the event states its two days');
+        $this->assertArrayNotHasKey('ev', $rows[$courses['trail']], 'a kind not dated states nothing');
+        $this->assertArrayNotHasKey('ev', $rows[$courses['course']], 'the default kind is never drawn');
+        $this->assertArrayNotHasKey('ev', $rows[$courses['none']]);
+        $this->assertSame(0, $rows[$undated]['kd'], 'the undated course is an event');
+        $this->assertArrayNotHasKey('ev', $rows[$undated], 'with no start date there is nothing to state');
+
+        $page = array_column($this->rows($category)['rows'], null, 'id');
+        $this->assertSame($line, $page[$courses['event']]['ev'] ?? null, 'a page states it too');
+        $hits = array_column($this->search('kind course')['rows'], null, 'id');
+        $this->assertSame($line, $hits[$courses['event']]['ev'] ?? null, 'a search states it too');
+        $this->assertArrayNotHasKey('ev', $hits[$courses['trail']]);
+
+        // A date moved in the course's settings reaches the row through core's event, which drops the shared entry.
+        $moved = make_timestamp(2026, 11, 25, 9, 0);
+        update_course((object) ['id' => $courses['event'], 'startdate' => $moved, 'enddate' => $moved + HOURSECS]);
+        $rows = $this->rows_by_id($this->build(1));
+        $this->assertSame(userdate($moved, $format), $rows[$courses['event']]['ev'] ?? null, 'the moved date is stated');
+    }
+
+    /**
      * No listener, or a listener whose only kind is the default, puts no kinds and no kd anywhere.
      *
      * The control is the same fixture with an event kind, which draws.

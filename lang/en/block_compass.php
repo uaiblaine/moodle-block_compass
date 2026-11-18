@@ -346,6 +346,7 @@ $string['inventory_max'] = 'Maximum courses listed in full';
 $string['inventory_max_desc'] = 'Above this many courses the full course list loads its group headers first and the rows of each group as it is opened, with a server-side search over all the courses. Up to it the whole list is sent at once and filtered in the browser. Default 250.';
 $string['invisible'] = 'Hidden';
 $string['javascriptrequired'] = 'JavaScript is required to display your courses.';
+$string['kind_daterange'] = '{$a->start} – {$a->end}';
 $string['lastaccessago'] = 'Last access {$a} ago';
 $string['lastaccessjustnow'] = 'Accessed just now';
 $string['lastopened'] = 'Opened {$a}';
