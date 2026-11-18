@@ -43,8 +43,21 @@ use stdClass;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class course_meta {
-    /** @var string[] Course columns copied into an entry, in the order the SQL selects them. */
-    private const COURSE_FIELDS = ['id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion'];
+    /**
+     * @var string[] Course columns copied into an entry, in the order the SQL selects them. startdate and enddate
+     *     are a dated kind's facts line (ADR-029, course_kinds::date_line()), carried by every statement that
+     *     already fills an entry, so they cost no read; a changed date fires course_updated, which drops the entry.
+     */
+    private const COURSE_FIELDS = [
+        'id',
+        'fullname',
+        'shortname',
+        'category',
+        'visible',
+        'enablecompletion',
+        'startdate',
+        'enddate',
+    ];
 
     /**
      * The cache instance. cache::make() returns the factory's own memoised object, so

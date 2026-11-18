@@ -40,6 +40,12 @@ namespace block_compass\hook;
  *   the option's 1-based index), a key of lowercase letters, and the kind's noun for one and for many,
  *   in the current language, as plain text. Values that share a key count together. A value given no
  *   kind, and a course with no value, count under the block's own `course`.
+ * - It may give a kind its icon, one Font Awesome class core ships (`fa-calendar-day`), drawn before the
+ *   kind's word on the course cards and as the watermark of a cover with no image; a kind with none is
+ *   drawn as its word alone and no watermark (ADR-029). The block draws the default kind's icon itself.
+ * - It may flag a kind as dated: the cards then state the course's start date, or its start and end
+ *   when they fall on different days, as the course's facts line (ADR-029).
+ * - Any number of kinds, from any theme or plugin: the block knows none of them but its own `course`.
  * - It reads nothing: it answers from code and lang strings, because the block asks on every response.
  * - It guards itself as installed, as any hook callback must.
  *
@@ -56,7 +62,20 @@ final class course_kinds {
     /** @var string|null The classifier's shortname, null until a listener names one. */
     private ?string $field = null;
 
-    /** @var array Stored value => ['key' => string, 'one' => string, 'many' => string], in the order given. */
+    /**
+     * @var string The one form of an icon a listener may give: a single Font Awesome class name, never markup. D makes
+     *     the end anchor the string's end: without it "fa-x\n" passes, and its newline fails the return validation of
+     *     every response that ships the kinds.
+     */
+    private const ICON = '/^fa-[a-z0-9]+(?:-[a-z0-9]+)*$/D';
+
+    /** @var int The longest icon class name kept. */
+    private const ICON_MAX = 40;
+
+    /**
+     * @var array Stored value => ['key' => string, 'one' => string, 'many' => string, 'icon' => string|null,
+     *     'dated' => bool], in the order given.
+     */
     private array $kinds = [];
 
     /**
@@ -78,15 +97,25 @@ final class course_kinds {
      * Gives one stored value its kind, unless an earlier listener gave it one.
      *
      * Ignored for a value that is not positive, a key that is not 1 to 20 lowercase letters, or a noun
-     * that is empty once cleaned to PARAM_TEXT.
+     * that is empty once cleaned to PARAM_TEXT. An icon that is not one Font Awesome class name of at most
+     * 40 characters is dropped and the kind kept without it: the icon decorates, the kind still counts.
      *
      * @param int $value The stored value: a select's 1-based option index.
      * @param string $key The kind's key, such as `course` or `event`.
      * @param string $one The noun for one, as plain text: "event".
      * @param string $many The noun for more than one, as plain text: "events".
+     * @param string|null $icon The kind's Font Awesome class, such as `fa-calendar-day`; null for none.
+     * @param bool $dated Whether a course of this kind is stated by its dates, as an event is.
      * @return void
      */
-    public function add_kind(int $value, string $key, string $one, string $many): void {
+    public function add_kind(
+        int $value,
+        string $key,
+        string $one,
+        string $many,
+        ?string $icon = null,
+        bool $dated = false
+    ): void {
         if ($value <= 0 || isset($this->kinds[$value]) || !preg_match('/^[a-z]{1,20}$/', $key)) {
             return;
         }
@@ -95,7 +124,10 @@ final class course_kinds {
         if ($one === '' || $many === '') {
             return;
         }
-        $this->kinds[$value] = ['key' => $key, 'one' => $one, 'many' => $many];
+        if ($icon !== null && (strlen($icon) > self::ICON_MAX || !preg_match(self::ICON, $icon))) {
+            $icon = null;
+        }
+        $this->kinds[$value] = ['key' => $key, 'one' => $one, 'many' => $many, 'icon' => $icon, 'dated' => $dated];
     }
 
     /**
@@ -131,7 +163,8 @@ final class course_kinds {
     /**
      * The kinds given so far.
      *
-     * @return array Stored value => ['key' => string, 'one' => string, 'many' => string], in the order given.
+     * @return array Stored value => ['key' => string, 'one' => string, 'many' => string, 'icon' => string|null,
+     *     'dated' => bool], in the order given.
      */
     public function get_kinds(): array {
         return $this->kinds;

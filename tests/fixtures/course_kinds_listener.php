@@ -41,7 +41,7 @@ final class course_kinds_listener {
     /** @var string|null The shortname the listener names, null for none. */
     public static ?string $field = null;
 
-    /** @var array Lists of [value, key, one, many] the listener gives, in order. */
+    /** @var array Lists of [value, key, one, many] and optionally icon and dated, the listener gives, in order. */
     public static array $kinds = [];
 
     /** @var bool Whether the listener throws instead of answering. */
@@ -77,8 +77,8 @@ final class course_kinds_listener {
         if (self::$field !== null) {
             $hook->set_field(self::$field);
         }
-        foreach (self::$kinds as [$value, $key, $one, $many]) {
-            $hook->add_kind($value, $key, $one, $many);
+        foreach (self::$kinds as $kind) {
+            $hook->add_kind(...$kind);
         }
     }
 }

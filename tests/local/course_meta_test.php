@@ -92,14 +92,21 @@ final class course_meta_test extends advanced_testcase {
      */
     public function test_an_entry_carries_the_course_columns_and_the_context_preload_columns(): void {
         $this->resetAfterTest();
-        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $course = $this->getDataGenerator()->create_course([
+            'enablecompletion' => 1,
+            'startdate' => 1795000000,
+            'enddate' => 1795600000,
+        ]);
         $courseid = (int) $course->id;
         $context = context_course::instance($courseid);
         $this->purge_course_meta_cache();
 
         $entry = course_meta::get_many([$courseid])[$courseid];
 
-        $expectedkeys = ['id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion', 'ctx'];
+        $expectedkeys = [
+            'id', 'fullname', 'shortname', 'category', 'visible', 'enablecompletion', 'startdate',
+            'enddate', 'ctx',
+        ];
         $this->assertSame($expectedkeys, array_keys($entry));
         $this->assertSame($courseid, $entry['id']);
         $this->assertSame($course->fullname, $entry['fullname']);
@@ -107,6 +114,9 @@ final class course_meta_test extends advanced_testcase {
         $this->assertSame((int) $course->category, $entry['category']);
         $this->assertSame(1, $entry['visible']);
         $this->assertSame(1, $entry['enablecompletion']);
+        // A dated kind's facts line (ADR-029), as integers.
+        $this->assertSame(1795000000, $entry['startdate']);
+        $this->assertSame(1795600000, $entry['enddate']);
 
         $expectedctx = ['ctxid', 'ctxpath', 'ctxdepth', 'ctxlevel', 'ctxinstance', 'ctxlocked'];
         $this->assertSame($expectedctx, array_keys($entry['ctx']));

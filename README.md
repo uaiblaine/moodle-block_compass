@@ -220,7 +220,10 @@ rows when opened, like *Archived*; a search opens neither, the server's search o
 covers neither, and the Name and Most recent sorts list neither. An archived hidden course
 stays in *Archived*, marked *Hidden from students*; inside *Hidden* no row is marked, the heading
 says it. When a `course_kinds` listener names the course's kind, the cards and the list rows draw
-it before *New*, both as light chips ("Event", "New"); the default kind, *course*, is never drawn. The line is remembered per user (grouping, sort, scope, star, filters and whether
+it before *New*, both as light chips ("Event", "New"), the kind's icon before its word when the listener
+gives one; the default kind, *course*, is never drawn. A card whose course has no image draws its kind's
+icon as a watermark on the cover (a graduation cap for an ordinary course), and a course of a kind the
+listener calls dated, such as an event, states its start date (or its first and last day) under its name. The line is remembered per user (grouping, sort, scope, star, filters and whether
 the panel is open, which starts closed), the search text excepted. In the full list, no filter,
 suggestion or preview asks the server anything.
 
@@ -471,6 +474,41 @@ The answering component decides which courses the current user may see a crest f
 keeps at most three a course and ignores an answer for a course it did not ask about. The
 contract is the hook class's docblock and ADR-013 decision 9, amended 2026-10-16.
 
+**Course kinds: icons and dates from any theme or plugin**
+
+Compass names no theme here either. Which course custom field tells courses from events, trails or
+any other offering, and how each kind looks, is answered through `\block_compass\hook\course_kinds`
+by whatever theme or plugin listens, with as many kinds as its field has options:
+
+```php
+// db/hooks.php of the answering component.
+$callbacks = [
+    [
+        'hook' => \block_compass\hook\course_kinds::class,
+        'callback' => \theme_example\hook_callbacks::class . '::course_kinds',
+    ],
+];
+
+// classes/hook_callbacks.php: answer from code and lang strings only; Compass asks on every response.
+public static function course_kinds(\block_compass\hook\course_kinds $hook): void {
+    $hook->set_field('offering'); // A course custom field of the select type, visible to everyone.
+    $hook->add_kind(1, 'course', get_string('course'), get_string('courses'), 'fa-graduation-cap');
+    $hook->add_kind(2, 'event', get_string('kind_event', 'theme_example'), get_string('kind_events', 'theme_example'),
+        'fa-calendar-day', true);
+    $hook->add_kind(3, 'workshop', get_string('kind_workshop', 'theme_example'),
+        get_string('kind_workshops', 'theme_example'), 'fa-screwdriver-wrench', true);
+}
+```
+
+`add_kind($value, $key, $one, $many, $icon = null, $dated = false)`: the select's stored value, a key of
+1 to 20 lowercase letters, the nouns for one and for many in the current language, then optionally
+the kind's icon, one Font Awesome class core ships (`fa-` and lowercase words joined by hyphens, at
+most 40 characters; anything else is dropped and the kind kept without an icon), and whether a course
+of the kind is dated: its cards then state the course's start date, or its first and last day. A kind
+with no icon is drawn as its word alone and draws no watermark. The first listener to name a field
+wins (set the callback's `priority` in `db/hooks.php` to come first), and so does the first kind given
+to a value. The contract is the hook class's docblock, ADR-019 decision 4 and ADR-029.
+
 **Boost Union settings that change the cards**
 
 Compass draws the fleet's course card (its covers, its progress row, its completed seal) under any
@@ -564,8 +602,10 @@ as a course.
   response of the open-for-enrolment line (for the nouns in the current language); it receives
   nothing. The listener names one course custom field of the select type by its shortname with
   `set_field()` (a plain shortname, `PARAM_ALPHANUMEXT`) and describes the stored values it gives a
-  kind to with `add_kind($value, $key, $one, $many)`: the select's 1-based option index, a key of 1
-  to 20 lowercase letters, and the noun for one and for many, cleaned to `PARAM_TEXT` and never empty.
+  kind to with `add_kind($value, $key, $one, $many, $icon = null, $dated = false)`: the select's 1-based
+  option index, a key of 1 to 20 lowercase letters, the noun for one and for many, cleaned to `PARAM_TEXT`
+  and never empty, and optionally the kind's Font Awesome icon and whether it is dated (*Course kinds*,
+  above). Also dispatched once per response of *All courses* that ships rows.
   Values sharing a key count together; a value given no kind, and a course with no value, count as
   `course`. The first listener to name a field wins, and so does the first kind given to a value.
   Compass uses the field only while it is visible to everyone; made teachers-only, retyped or deleted,

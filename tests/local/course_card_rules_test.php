@@ -281,13 +281,15 @@ final class course_card_rules_test extends \basic_testcase {
     public function test_slot_two_draws_the_kind_before_new(): void {
         $card = $this->source('RowCard.tsx');
         $this->assertMatchesRegularExpression(
-            '#<span className="compass-card-kinds">\s*<span className="compass-card-kind">\{named\.name\}</span>\s*'
+            '#<span className="compass-card-kinds">\s*<span className="compass-card-kind">\s*'
+                . '\{named\.icon !== undefined && <i className=\{\x60fa \$\{named\.icon\}\x60\} aria-hidden="true"></i>\}\s*'
+                . '\{named\.name\}\s*</span>\s*'
                 . '\{isnew && <span className="compass-card-kind">\{labels\.badge_new\}</span>\}\s*</span>#',
             $card,
-            'the cards do not draw the kind, then New, in one row'
+            'the cards do not draw the kind, its icon before its word, then New, in one row'
         );
         $row = $this->source('Row.tsx');
-        $kind = strpos($row, '<span className="compass-card-kind compass-row-chip" title={kind.name}>{kind.name}</span>');
+        $kind = strpos($row, '<span className="compass-card-kind compass-row-chip" title={kind.name}>');
         $new = strpos(
             $row,
             '{row.new && <span className="compass-card-kind compass-row-chip" title={labels.badge_new}>{labels.badge_new}</span>}'
@@ -296,6 +298,117 @@ final class course_card_rules_test extends \basic_testcase {
         $this->assertNotFalse($new, 'the list view does not draw New as the chip');
         $this->assertLessThan($new, $kind, 'the list view draws New before the kind');
         $this->assertStringNotContainsString('badge bg-primary', $row);
+    }
+
+    /**
+     * The kind's icon (ADR-029) comes from the listener alone and is drawn before the kind's word on both views,
+     * decorative, as the Design System's status label draws one (D59); New draws none, being no kind.
+     *
+     * Changes that must make it fail: an icon drawn without a listener's, or after the word; the icon read by the
+     * screen reader; the list's chip losing its icon; New given an icon.
+     *
+     * @return void
+     */
+    public function test_the_kind_draws_its_listeners_icon_before_its_word(): void {
+        $icon = '#\{(named|kind)\.icon !== undefined && <i className=\{\x60fa \$\{\1\.icon\}\x60\} aria-hidden="true"></i>\}'
+            . '\s*\{\1\.name\}#';
+        $this->assertMatchesRegularExpression($icon, $this->source('RowCard.tsx'), 'the cards');
+        $row = $this->source('Row.tsx');
+        $this->assertMatchesRegularExpression(
+            '#title=\{kind\.name\}>\s*' . substr($icon, 1),
+            $row,
+            'the list row'
+        );
+        foreach (['RowCard.tsx', 'Row.tsx'] as $file) {
+            $this->assertDoesNotMatchRegularExpression('#<i[^>]*>[^<]*</i>\s*\{labels\.badge_new\}#', $this->source($file), $file);
+        }
+        $css = file_get_contents(dirname(__DIR__, 2) . '/styles.css');
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card-kind \.fa \{\s*margin-inline-end: 4px;\s*font-size: 1em;/',
+            $css,
+            'the icon is the word\'s size, 4 px before it'
+        );
+    }
+
+    /**
+     * Slot 1's watermark (ADR-029): drawn only on a cover the batch answered with no image, the kind's icon, the
+     * block's own for an ordinary course, none for a kind its listener gave none; positioned on the cover, coloured
+     * by its token, never a target.
+     *
+     * Changes that must make it fail: the watermark drawn while the batch is out, on an image or without a cover;
+     * an ordinary course given no icon, or a kind with none given the default's; the watermark taking clicks; its
+     * colour a literal.
+     *
+     * @return void
+     */
+    public function test_the_watermark_marks_only_a_cover_without_an_image(): void {
+        $card = $this->source('RowCard.tsx');
+        $this->assertMatchesRegularExpression(
+            '/if \(!nocover && !waiting && detail !== undefined && !detail\.hasimage\) \{\s*'
+                . 'watermark = row\.kd === undefined \? DEFAULT_KIND_ICON : named\?\.icon;\s*\}/',
+            $card
+        );
+        $this->assertStringContainsString(
+            "{watermark !== undefined && <i className={\x60fa \${watermark} compass-card-watermark\x60} aria-hidden=\"true\"></i>}",
+            $card
+        );
+        $this->assertSame(1, substr_count($card, 'watermark = '), 'the watermark is decided in one place');
+        $this->assertStringContainsString(
+            "export const DEFAULT_KIND_ICON = 'fa-graduation-cap';",
+            $this->source('types.ts')
+        );
+        $this->assertStringNotContainsString('watermark', $this->source('Card.tsx'), 'tier 1 waits (answer 4)');
+        $this->assertStringNotContainsString('watermark', $this->source('Row.tsx'), 'no watermark on a thumbnail (answer 5)');
+        $css = file_get_contents(dirname(__DIR__, 2) . '/styles.css');
+        $this->assertMatchesRegularExpression(
+            '/\.block_compass \.compass-card \.compass-card-watermark \{[^}]*'
+                . 'color: var\(--block_compass-card-watermark\);[^}]*pointer-events: none;[^}]*\}/',
+            $css
+        );
+        $this->assertStringContainsString(
+            '--block_compass-card-watermark: var(--dimensions-card-watermark, rgba(255, 255, 255, 0.16));',
+            $css
+        );
+    }
+
+    /**
+     * A dated kind's dates (ADR-029) are slot 7 on a card, after the title and before slot 8, and come after the chips
+     * on a list row; one line each, cut with an ellipsis and whole in the title; the row's give way after the date of
+     * the last access and before the bar.
+     *
+     * Changes that must make it fail: the line drawn before the title or after slot 8; the title attribute dropped;
+     * the row's dates drawn before the chips; their shrink weight put at or above the last access's, or at or below
+     * the bar's.
+     *
+     * @return void
+     */
+    public function test_a_dated_kind_states_its_dates_as_slot_seven(): void {
+        $card = $this->source('RowCard.tsx');
+        $line = '<p className="compass-card-meta compass-card-oneline mb-2" title={row.ev}>{row.ev}</p>';
+        $this->assertStringContainsString('{row.ev !== undefined && (', $card);
+        $title = strpos($card, '</Title>');
+        $meta = strpos($card, $line);
+        $extra = strpos($card, 'compass-card-extra mb-2');
+        $this->assertNotFalse($meta, 'the cards state no dates');
+        $this->assertLessThan($meta, $title, 'the dates come after the title');
+        $this->assertLessThan($extra, $meta, 'the dates come before slot 8');
+
+        $row = $this->source('Row.tsx');
+        $date = strpos($row, '<span className="compass-row-ev small text-muted" title={row.ev}>{row.ev}</span>');
+        $chip = strpos($row, 'compass-card-kind compass-row-chip" title={kind.name}');
+        $this->assertNotFalse($date, 'the list row states no dates');
+        $this->assertLessThan($date, $chip, 'the dates come after the kind\'s chip');
+
+        $css = file_get_contents(dirname(__DIR__, 2) . '/styles.css');
+        $weight = static function (string $selector) use ($css): int {
+            preg_match('/' . preg_quote($selector, '/') . '[^{]*\{[^}]*flex: 0 (\d+) /', $css, $m);
+
+            return (int) ($m[1] ?? 0);
+        };
+        $ev = $weight('.block_compass .compass-row-line .compass-row-ev');
+        $this->assertGreaterThan(0, $ev, 'the row\'s dates do not give way');
+        $this->assertLessThan($weight('.block_compass .compass-row-line .compass-row-nocompletion'), $ev);
+        $this->assertGreaterThan($weight('.block_compass .compass-row-line .compass-row-progress'), $ev);
     }
 
     /**

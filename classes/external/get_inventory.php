@@ -43,14 +43,15 @@ use core_external\external_value;
  * rows through get_inventory_rows and searches through search_inventory. The
  * Hidden and Archived groups are headers alone in both modes; their rows always
  * come through get_inventory_rows. Rows carry short keys — id, name, opened, new,
- * fav, dorm, and pend, wait, sched, comp, cf and kd only when they apply — because each repeats once per course
+ * fav, dorm, and pend, wait, sched, comp, cf, kd and ev only when they apply — because each repeats once per course
  * in a payload the client holds whole: the worst case, 250 rows each carrying
  * three field values, must stay under 40 000 bytes
  * ({@see \block_compass\local\config::FILTER_FIELDS_MAX}).
  * The top-level fields array names the custom-field chip groups, so they exist
  * in both modes before any group opens; the top-level kinds array, while a
  * course_kinds listener gives a kind other than the default, names what every
- * row's kd points at, in this response and in the pages and searches after it.
+ * row's kd points at, in this response and in the pages and searches after it,
+ * with the icon the listener gave each kind (ADR-029).
  * Read-only, current user
  * only; three database reads per request in either mode with the user's
  * inventory cold and the shared layers warm (fill, preferences, filters), three
@@ -123,6 +124,11 @@ class get_inventory extends external_api {
                 new external_single_structure([
                     'key' => new external_value(PARAM_ALPHA, 'The kind, such as event'),
                     'name' => new external_value(PARAM_TEXT, 'The kind\'s noun for one, current language, capitalised'),
+                    'icon' => new external_value(
+                        PARAM_ALPHANUMEXT,
+                        'The kind\'s Font Awesome class, such as fa-calendar-day; absent when the listener gave none',
+                        VALUE_OPTIONAL
+                    ),
                 ]),
                 'The kinds a row\'s kd refers to, in the listener\'s order, the default kind never among them; present '
                     . 'only while a kind can be drawn',

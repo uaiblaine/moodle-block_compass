@@ -201,7 +201,7 @@ classes/hook/category_link.php the block's own hook, dispatched by local/categor
 classes/hook/category_badges.php the block's own hook, dispatched by local/theme_badges: category ids in, crests out
                            (ADR-019 decision 1)
 classes/hook/course_kinds.php the block's own hook, dispatched by local/course_kinds: the classifier field's shortname
-                           and each value's kind and nouns out (ADR-019 decision 4)
+                           and each value's kind, nouns, icon and dated flag out (ADR-019 decision 4, ADR-029)
 classes/task/warm_active_users.php, classes/output/ (block, page), classes/privacy/provider.php
 js/esm/src/                the WHOLE client (React, TypeScript): Block, Strip, Card, Explore, FilterLine, ScopeGroup,
                            StarToggle, OrganiseMenu, FilterPanel, FilterToggle, LineMenu, ViewToggle, Tip, RowList, Row,
