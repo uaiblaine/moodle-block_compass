@@ -56,7 +56,12 @@ final class learner_progress {
      * @throws \coding_exception When $userid is not the current user.
      */
     public static function percentage(stdClass $course, int $userid): ?float {
+        global $CFG;
+
         self::require_current_user($userid);
+        // Not autoloaded: a web service request reaches here with no other code having loaded it, as
+        // core's own progress class requires it at its top (completion/classes/progress.php).
+        require_once($CFG->libdir . '/completionlib.php');
         $completion = new \completion_info($course);
         if (!$completion->is_enabled()) {
             return null;

@@ -15,6 +15,12 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ### Fixed
 
+- **A card's progress loads again**. The progress computed for one learner (ADR-027, 2026100548)
+  created core's `completion_info` without loading `lib/completionlib.php`, which core does not autoload: in a web
+  service request nothing else had loaded it, so every progress miss of `get_card_details` failed and the block said
+  *Some progress could not be loaded*. Tests, which run with the library already loaded, did not see it; a test now
+  reads the sources for every class of that kind, and the first Behat scenario checks a card's progress.
+
 - **Tier 1 lists visible courses only, for every viewer** (ADR-028; 2026100549). A holder of
   `moodle/course:viewhiddencourses` at the system context saw their hidden courses in the strips and the counts, even
   where a prohibit at the course or its category removed them from *All courses*, and a hidden course was counted
