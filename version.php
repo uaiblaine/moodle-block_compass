@@ -26,7 +26,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'block_compass';
 $plugin->version = 2026042046;
-$plugin->release = 'v5.2-r5';
+$plugin->release = 'v5.2-r6';
 $plugin->requires = 2026042000;
 $plugin->supported = [502, 502];
 $plugin->maturity = MATURITY_BETA;
