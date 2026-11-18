@@ -13,15 +13,18 @@ Feature: The Compass block puts the courses that need attention first
       | Cat A | 0        | CATA     |
       | Cat B | 0        | CATB     |
     And the following "courses" exist:
-      | fullname | shortname | category |
-      | Course 1 | C1        | CATA     |
-      | Course 2 | C2        | CATA     |
-      | Course 3 | C3        | CATA     |
+      | fullname | shortname | category | enablecompletion |
+      | Course 1 | C1        | CATA     | 1                |
+      | Course 2 | C2        | CATA     | 0                |
+      | Course 3 | C3        | CATA     | 0                |
     And the following "course enrolments" exist:
       | user     | course | role    |
       | student1 | C1     | student |
       | student1 | C2     | student |
       | student1 | C3     | student |
+    And the following "activities" exist:
+      | activity | course | name          | completion |
+      | page     | C1     | Tracked page  | 1          |
 
   Scenario: The course I opened leads, and the ones I never opened are new enrolments
     Given I am on the "C1" "Course" page logged in as "student1"
@@ -37,6 +40,10 @@ Feature: The Compass block puts the courses that need attention first
     And "//link[@rel='modulepreload'][8]" "xpath_element" should not exist
     And I should see "Continue where you left off" in the "Compass" "block"
     And I should see "Course 1" in the "Compass" "block"
+    # Course 1 tracks completion, so its card's progress comes from get_card_details: the bar's value is
+    # the proof that the service answered (a class core does not autoload once made it fail on every miss).
+    And I should see "0%" in the "Compass" "block"
+    And I should not see "Some progress could not be loaded." in the "Compass" "block"
     And I should see "New enrolments" in the "Compass" "block"
     And I should see "Course 2" in the "Compass" "block"
     # Core's axe step, scoped to this block, runs in every scenario at the point where the most
