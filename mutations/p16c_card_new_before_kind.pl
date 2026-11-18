@@ -1,1 +1,1 @@
-s/(<span className="compass-card-kind">\{named\.name\}<\/span>)(\s*)(\{isnew && <span className="compass-card-kind">\{labels\.badge_new\}<\/span>\})/$3$2$1/;
+s/(<span className="compass-card-kind">\s*\{named\.icon !== undefined[^\n]*\n\s*\{named\.name\}\s*<\/span>)(\s*)(\{isnew && <span className="compass-card-kind">\{labels\.badge_new\}<\/span>\})/$3$2$1/;

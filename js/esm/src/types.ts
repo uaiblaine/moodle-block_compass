@@ -617,13 +617,21 @@ export const GROUP_ARCHIVED = -2;
 export const GROUP_INVISIBLE = -3;
 
 /**
- * One kind a tier 3 row can name (ADR-021 decision 2): the theme's key and its noun in sentence case.
- * get_inventory ships the list, the default kind never in it; a row's kd is an index into it.
+ * One kind a tier 3 row can name (ADR-021 decision 2): the listener's key, its noun in sentence case and, when the
+ * listener gave one, its Font Awesome class (ADR-029). get_inventory ships the list, the default kind never in it; a
+ * row's kd is an index into it.
  */
 export type RowKind = {
     key: string,
     name: string,
+    icon?: string,
 };
+
+/**
+ * The default kind's icon, the block's own (ADR-029): the watermark of an ordinary course's cover with no image.
+ * The default kind draws no pill (ADR-021 decision 2.5), so this is its only use.
+ */
+export const DEFAULT_KIND_ICON = 'fa-graduation-cap';
 
 /**
  * One tier 3 row, as get_inventory and its two paging services return it.
@@ -637,8 +645,10 @@ export type RowKind = {
  * payload's fields array, then the value key; invis is present, and true, only on a course hidden
  * from students, which travels only in pages of the archived and the invisible groups; kd is
  * present only on a course of a kind other than the default, as its index in the kinds array of the
- * get_inventory answer the client holds, whichever service sent the row. All seven are omitted
- * rather than sent false or empty, because omission costs nothing on the wire.
+ * get_inventory answer the client holds, whichever service sent the row; ev is present only on a
+ * course of a dated kind with a start date, as its start, or first and last day, already formatted
+ * for the reader (ADR-029). All eight are omitted rather than sent false or empty, because omission
+ * costs nothing on the wire.
  */
 export type InventoryRow = {
     id: number,
@@ -654,6 +664,7 @@ export type InventoryRow = {
     cf?: number[],
     invis?: boolean,
     kd?: number,
+    ev?: string,
 };
 
 /** One chip of a custom-field group: the stored value key and its label. */

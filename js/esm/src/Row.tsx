@@ -150,13 +150,21 @@ const Row = ({
             </a>
             {/* The second line, in the owner's order (ADR-026): slot 2 of the course card contract first, the kind and
                 then New, each the light chip with the card's border (styles.css), its word in the title since a narrow
-                line cuts it; then the state label, Hidden from students, one crest, the date, the progress bar and the
-                teacher's note. Nothing here is focusable. */}
+                line cuts it; a dated kind's dates after them (ADR-029); then the state label, Hidden from students, one
+                crest, the date, the progress bar and the teacher's note. Nothing here is focusable. */}
             <div className="compass-row-line">
                 {kind !== undefined && (
-                    <span className="compass-card-kind compass-row-chip" title={kind.name}>{kind.name}</span>
+                    <span className="compass-card-kind compass-row-chip" title={kind.name}>
+                        {kind.icon !== undefined && <i className={`fa ${kind.icon}`} aria-hidden="true"></i>}
+                        {kind.name}
+                    </span>
                 )}
                 {row.new && <span className="compass-card-kind compass-row-chip" title={labels.badge_new}>{labels.badge_new}</span>}
+                {/* A dated kind's dates (ADR-029), after the chips; they give way after the teacher's note
+                    and the date of the last access, before the bar (styles.css). */}
+                {row.ev !== undefined && (
+                    <span className="compass-row-ev small text-muted" title={row.ev}>{row.ev}</span>
+                )}
                 <StatePill row={row} labels={labels} complete={complete} />
                 {markhidden && row.invis && <InvisiblePill label={labels.hiddenfromstudents} />}
                 <Crests badges={detail?.badges} label={labels.crests} inline />

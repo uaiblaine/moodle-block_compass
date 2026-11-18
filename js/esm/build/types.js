@@ -8,4 +8,4 @@
  * @module     block_compass/types
  * @copyright  2026 Anderson Blaine
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */const e=-1,n=-2,r=-3;export{n as GROUP_ARCHIVED,e as GROUP_DORMANT,r as GROUP_INVISIBLE};
+ */const e=-1,n=-2,r=-3,o="fa-graduation-cap";export{o as DEFAULT_KIND_ICON,n as GROUP_ARCHIVED,e as GROUP_DORMANT,r as GROUP_INVISIBLE};

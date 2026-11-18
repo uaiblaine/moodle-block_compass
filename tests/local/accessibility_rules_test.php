@@ -834,12 +834,14 @@ final class accessibility_rules_test extends basic_testcase {
 
     /**
      * A list row's second line is one line that never wraps and never grows the row, and it gives way in a stated
-     * order (ADR-026): the date first, with an ellipsis (as the teacher's note), then the progress bar down to a stub,
-     * then the chips down to a stub that still starts their word; the state label, Hidden from students and the crest
-     * keep their size; past that the line clips at its end. Each step's shrink weight is ten times the next one's.
+     * order (ADR-026): the date first, with an ellipsis (as the teacher's note), then a dated kind's dates the same way
+     * (ADR-029), then the progress bar down to a stub, then the chips down to a stub that still starts their word; the
+     * state label, Hidden from students and the crest keep their size; past that the line clips at its end. Each step's
+     * shrink weight is ten times the next one's.
      *
      * Changes that must make it fail: the line allowed to wrap, or to show past its end; the date giving way after the
-     * bar or the chips; the bar or the chips giving way to nothing; the state label made to shrink.
+     * kind's dates, the bar or the chips; the kind's dates giving way after the bar; the bar or the chips giving way to
+     * nothing; the state label made to shrink.
      *
      * @return void
      */
@@ -856,12 +858,16 @@ final class accessibility_rules_test extends basic_testcase {
         $date = $this->rule_of(
             '.block_compass .compass-row-line .compass-row-meta, .block_compass .compass-row-line .compass-row-nocompletion'
         );
+        $ev = $this->rule_of('.block_compass .compass-row-line .compass-row-ev');
         $bar = $this->rule_of('.block_compass .compass-row-line .compass-row-progress');
         $chip = $this->rule_of('.block_compass .compass-row-line .compass-row-chip');
         $this->assertMatchesRegularExpression('/text-overflow\s*:\s*ellipsis\s*;/', $date, 'the date is cut without an ellipsis');
         $this->assertMatchesRegularExpression('/min-width\s*:\s*0\s*;/', $date, 'the date cannot give way to nothing');
         $this->assertGreaterThan(0, $shrink($chip), 'the chips never give way');
-        $this->assertSame($shrink($bar) * 10, $shrink($date), 'the date does not give way before the bar');
+        $this->assertSame($shrink($ev) * 10, $shrink($date), 'the date does not give way before the kind\'s dates');
+        $this->assertSame($shrink($bar) * 10, $shrink($ev), 'the kind\'s dates do not give way before the bar');
+        $this->assertMatchesRegularExpression('/text-overflow\s*:\s*ellipsis\s*;/', $ev, 'the kind\'s dates are cut bare');
+        $this->assertMatchesRegularExpression('/min-width\s*:\s*0\s*;/', $ev, 'the kind\'s dates cannot give way');
         $this->assertSame($shrink($chip) * 10, $shrink($bar), 'the bar does not give way before the chips');
         $this->assertMatchesRegularExpression('/min-width\s*:\s*2rem\s*;/', $bar, 'the bar gives way to nothing');
         $this->assertMatchesRegularExpression('/min-width\s*:\s*2\.5rem\s*;/', $chip, 'a chip gives way to an empty edge');
