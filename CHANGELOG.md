@@ -11,7 +11,56 @@ namespace of its Moodle version: `main` (identical to `MOODLE_503_STABLE`) is Mo
 design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measurements in
 [`docs/perf/`](docs/perf/).
 
-## Unreleased
+## v5.3-r6 (2026100550) - 2026-11-18
+
+Sixth release for Moodle 5.3, from `main`, `MATURITY_BETA`. Its headline is a card's progress computed for the one
+learner by core's own rule, at a small fraction of its former cost on large courses (ADR-027). It also gives the
+course card a kind's icon, a watermark and an event's date (ADR-029), and fixes the two findings of an MDL Shield
+review. No schema change and no upgrade step of the block's own: one new setting, five new strings.
+
+### Progress, judged for the one learner
+
+When a card's progress is not cached (its one-hour entry expired, or the learner has just completed an activity),
+Compass computed it with core's `get_course_progress_percentage()`. Since Moodle 5.1, that function checks each
+restricted activity through core's filter for lists of users, which reads every member of each group and every
+holder of the exemption capabilities, once per restricted activity, even when the list holds one learner. Compass
+now follows core's rule step by step with core's own calls and answers those restrictions for the one learner
+alone; every other condition, third-party ones included, still goes through its own filter. Measured on a course of
+100,000 learners (medians of five, warm caches):
+
+| | Before | After |
+|---|---:|---:|
+| One progress computation | 442 ms, 467 queries, 50.6 MB | 34 ms, 147 queries, 0.3 MB |
+| The same, every section restricted to "any group" | 3,951 ms, 785 queries | 43 ms, 165 queries |
+| A learner's 12 cards after their entries expired | 991 ms, 1,346 queries | 171 ms, 162 queries |
+
+The percentage is meant to be exactly core's, and three things hold it there:
+
+- **An oracle.** A test builds a course covering every case of core's rule (groups, groupings and profile
+  conditions, AND, OR and NOT trees, restricted sections and subsections, hidden and stealth activities, the
+  exemption capabilities, completion or availability turned off) and checks, for every learner, that Compass gives
+  core's answer. It runs on every PHP version and database the plugin supports.
+- **A fingerprint of core.** The 23 core functions the rule mirrors are recorded as audited against 5.3.1. A test
+  fails the release build as soon as core changes any of them, and `docs/core-parity.md` holds the audit that
+  follows.
+- **A way back.** *Progress calculation* (`block_compass/progress_source`) switches to *Moodle core*'s own
+  function, with no deploy.
+
+**Please compare, and report any difference.** The oracle proves the two answers equal on its own matrix, and a
+site's courses can combine restrictions in ways no matrix foresees. After upgrading, open a few courses whose
+activities are restricted by group, grouping or user profile, and compare a learner's percentage on the Compass
+card with the progress Moodle's *My courses* page shows the same learner. Allow for the card's cache: an entry is
+recomputed within the hour, and at once after the learner's own completion. If the two differ:
+
+1. Set *Progress calculation* to *Moodle core*, then purge the caches so that every card is recomputed.
+2. Open an issue at https://github.com/uaiblaine/moodle-block_compass/issues with the Moodle version (with its
+   point release), the course's completion settings, the restrictions of the activities involved, and both
+   percentages.
+
+### Changed
+
+- **Progress is judged for the one learner, by core's rule** (ADR-027; 2026100548), as described above. The
+  `details` cache keeps its key, its one-hour TTL and its invalidation on the learner's completion.
 
 ### Added
 
@@ -22,43 +71,48 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
   block's own graduation cap for an ordinary course); and a course of a dated kind states its start date, or its
   start and end, as the card's facts line. The dates come with the course data the block already caches, so no
   request reads more. The README's *Course kinds: icons and dates from any theme or plugin* explains the hook.
+- **`block_compass/progress_source`** (*Progress calculation*; 2026100548): *Compass, for each learner* (the default)
+  or *Moodle core*. Four strings.
+- **A fingerprint of the core code the progress rule mirrors** (`tests/fixtures/core_parity.json`, 23 functions
+  audited against 5.3.1) and its test, which names what core changed; `cli/core_parity.php` compares any core tree
+  with it.
 
 ### Fixed
-
-- **A card's progress loads again**. The progress computed for one learner (ADR-027, 2026100548)
-  created core's `completion_info` without loading `lib/completionlib.php`, which core does not autoload: in a web
-  service request nothing else had loaded it, so every progress miss of `get_card_details` failed and the block said
-  *Some progress could not be loaded*. Tests, which run with the library already loaded, did not see it; a test now
-  reads the sources for every class of that kind, and the first Behat scenario checks a card's progress.
 
 - **Tier 1 lists visible courses only, for every viewer** (ADR-028; 2026100549). A holder of
   `moodle/course:viewhiddencourses` at the system context saw their hidden courses in the strips and the counts, even
   where a prohibit at the course or its category removed them from *All courses*, and a hidden course was counted
   twice on the ghost, in "+N" and in *N hidden*. A hidden course is now in *Hidden* alone and counted once, as tier 3
-  and the cards' details already decided it per course. From an MDL Shield review of the 5.2 branch (BAIXA-01).
+  and the cards' details already decided it per course. From an MDL Shield review (BAIXA-01).
 - **A teaching day names an event without an activity in that event's own context** (2026100549). A category, site
   or personal event was formatted in the system context on the calendar's teaching side, so a filter enabled at the
   category or the user context was not applied, where core's event exporter on the learning side applies it. It now
   follows core's rule: the category's context, the course's (the site course for a site event), the owner's user
   context. From the same review (BAIXA-02).
 
+## v5.2-r6 (2026042046) - 2026-11-18
+
+Sixth release for Moodle 5.2, on the `MOODLE_502_STABLE` branch, `MATURITY_BETA`. It carries every change of v5.3-r6
+(2026042044 to 2026042046 on this branch; 2026100548 to 2026100550 there): a card's progress judged for the one
+learner by core's rule, the kind's icon, the cover's watermark and an event's date, and the two fixes of the MDL
+Shield review. No schema change and no upgrade step of the block's own; the same setting and strings as on 5.3. It
+needs `local_unlistedcourses` 2026042003 or later from that plugin's `MOODLE_502_STABLE` branch, as v5.2-r5 did.
+
 ### Changed
 
-- **Progress is judged for the one learner, by core's rule** (ADR-027; 2026100548). A card's progress, computed when
-  it is not cached, no longer goes through core's list filter of restrictions, which listed every member of each
-  group and every holder of the exemption capabilities once per restricted activity: on a course of 100,000 learners
-  a computation cost 470 to 850 queries, half a second and 50 MB. The percentage is the same: core's
-  `get_course_progress_percentage()` is the oracle of a test that compares the two for every learner of a course
-  holding every case of core's rule, on every CI leg.
+- **Progress is judged for the one learner, by core's rule** (ADR-027; 2026042045). The full description, the
+  measurements and the request to compare and report any difference are in v5.3-r6's section; they hold on 5.2 as
+  written, with the same oracle on every leg of this branch.
 
 ### Added
 
-- **`block_compass/progress_source`** (*Progress calculation*): *Compass, for each learner* (the default) or *Moodle
-  core*, the way back to core's own function, with no deploy, if Compass's result ever differs from core's after a
-  Moodle upgrade. Four strings.
-- **A fingerprint of the core code the rule mirrors** (`tests/fixtures/core_parity.json`, 23 functions audited
-  against 5.3.1) and its test, which names what core changed; `cli/core_parity.php` compares any core tree with it.
-  The audit that follows a change is `docs/core-parity.md`.
+- **The additions of v5.3-r6**: the kind's icon, the cover's watermark and an event's date (2026042046); the
+  *Progress calculation* setting; the fingerprint of the core code the rule mirrors, audited here against 5.2.5.
+
+### Fixed
+
+- **The fixes of v5.3-r6** (2026042044): tier 1 lists visible courses only, for every viewer; a teaching day names
+  an event without an activity in that event's own context.
 
 ## v5.3-r5 (2026100547) - 2026-11-15
 
