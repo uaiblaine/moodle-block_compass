@@ -1,6 +1,8 @@
 # ADR-029: The kind's icon, the cover's watermark and an event's date on the course card
 
-**Status:** Proposed (2026-11-17). Waiting for the owner's review: no code until it is accepted. The owner noticed on
+**Status:** Proposed (2026-11-17). The owner answered all ten questions the same day (see "Questions for the owner"),
+with a condition on 4 and a broader scope on 1 and 2. The status flips to Accepted in the implementation commit, as
+this repository's ADR rule says. The owner noticed on
 2026-11-17 that the *Evento* and *Trilha* pills have no icon and that the event card does not look like
 theme_dimensions'. A check against the fleet course card contract found three gaps, none of them recorded as an
 exception. This record proposes how to close them. The questions are at the end.
@@ -92,6 +94,20 @@ measured (2.6, answer 11).
 
 The block owns one icon: its own default kind's, `course`, the graduation cap (`fa-graduation-cap`). It uses it only
 for the watermark (decision 3), because the default kind's pill is not drawn (2.5).
+
+**Open to any theme or plugin** (the owner's answers 1 and 2). The hook already reaches any installed plugin that
+registers a callback for it in its `db/hooks.php`, a theme or not, active or not. Nothing in it limits the kinds to
+three:
+- A listener gives as many values as its field has options, each with a key of its own (1 to 20 lowercase letters).
+- It can pass any Font Awesome glyph core ships, and flag any kind as dated.
+- theme_dimensions is one listener among others. When it is installed its three kinds show their icons. Another
+  theme answers the same way, with its own field and kinds.
+- When two listeners answer, the first to name the field wins, as today, in the order core calls them. A plugin that
+  must come first sets its callback's `priority` in `db/hooks.php`, core's own ordering.
+
+Two things make this usable without reading the code: the hook's class docblock (the contract a listener keeps) and a
+"For theme and plugin developers" section in the README. That section gives a listener's example, the icon rule and
+the `dated` flag. The README section is new in stage 1.
 
 ### 2. The pill draws its icon
 
@@ -264,6 +280,20 @@ What the captures add to the facts:
 - The theme's date tile and its meta line state the same day twice on one card. That is the case for T1 (decision 5).
 
 ## Questions for the owner
+
+Answered on 2026-11-17:
+- **1 and 2: A, and the `dated` flag, open to any listener.** In the owner's words: name no theme, but with Dimensions
+  installed the icons must show, and other themes must be able to give their own icons, beyond today's three kinds.
+  The same holds for the date. Decision 1's "Open to any theme or plugin" answers how.
+- **3: yes.**
+- **4: yes, with a condition.** Tier 1 gets the kind, its icon and the watermark only if that adds no read to
+  `get_attention`'s budget. If it would add one, tier 1 does without them.
+- **5, 7, 8, 9 (T1), 10: yes, as proposed.**
+- **6: yes, as proposed.** The owner first asked what the graduation cap is: Font Awesome's `fa-graduation-cap`, the
+  mortarboard the theme already draws on its *Course* pill. On a site with no listener, every fallback-colour cover in
+  tier 3 gains it as the default kind's watermark.
+
+The questions as they were asked:
 
 1. Does the listener name the icon through the hook (A), rather than the compass mapping known keys (B)?
    (proposed: A)
