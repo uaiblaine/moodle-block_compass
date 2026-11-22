@@ -138,7 +138,7 @@ final class block_compass_test extends advanced_testcase {
         // The icons are server-rendered markup because there is no pix helper for ESM.
         $this->assertStringContainsString('<i', $props['icons']['staron']);
         $this->assertStringContainsString('<i', $props['icons']['staroff']);
-        // The filter bar's icon-only controls: list, grid, the sliders, the magnifier, the eraser,
+        // The filter bar's icon-only controls: list, grid, the funnel, the magnifier, the eraser,
         // a chip's cross, Organise's sort glyph (ADR-015), a menu's tick (ADR-023) and the Organise menu's four
         // item icons, two groupings and two sorts (ADR-025); the archive boxes and the accordion's chevrons. No
         // reload glyph: a way back appears only with a failure, as RetryNotice's two text buttons (ADR-014
@@ -151,7 +151,7 @@ final class block_compass_test extends advanced_testcase {
             $this->assertStringContainsString('<i', $props['icons'][$icon], "the {$icon} icon is server-rendered markup");
         }
         $this->assertStringContainsString('fa-box-archive', $props['icons']['archive']);
-        $this->assertStringContainsString('fa-sliders', $props['icons']['filter'], 'Filters is drawn with the sliders');
+        $this->assertStringContainsString('fa-filter', $props['icons']['filter'], 'Filters is drawn with the funnel');
         $this->assertStringContainsString('fa-eraser', $props['icons']['eraser'], 'the search clears with an eraser');
         $this->assertStringContainsString('fa-folder', $props['icons']['groupcategory'], 'Category is drawn with a folder');
         $this->assertStringContainsString('fa-list-ul', $props['icons']['groupnone'], 'No grouping is drawn with a bare list');
