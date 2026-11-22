@@ -245,15 +245,15 @@ class block implements renderable, templatable {
                 'archive' => $output->render(new pix_icon('archive', '', 'block_compass')),
                 'unarchive' => $output->render(new pix_icon('unarchive', '', 'block_compass')),
                 // The filter bar's icon-only controls (ADR-015, ADR-023): core's own list and grid glyphs, the
-                // ones the file picker's view switch uses, for View and its menu; the sliders of Filters, from
-                // the plugin's own icon map; core's magnifier, its eraser (the search's, never a cross), its
+                // ones the file picker's view switch uses, for View and its menu; the funnel of Filters, core's
+                // filter glyph (D107); core's magnifier, its eraser (the search's, never a cross), its
                 // cross (a chip's), its sort glyph (Organise) and its tick (the chosen item of a menu). View's
                 // chevron is the accordion's expanded one, below. The Organise menu's items (ADR-025) are core's
                 // folder (Category) and its bulleted list (No grouping), its ascending sort (Name) and its history
                 // clock (Most recent).
                 'list' => $output->render(new pix_icon('a/view_list_active', '')),
                 'grid' => $output->render(new pix_icon('a/view_icon_active', '')),
-                'filter' => $output->render(new pix_icon('sliders', '', 'block_compass')),
+                'filter' => $output->render(new pix_icon('i/filter', '')),
                 'search' => $output->render(new pix_icon('i/search', '')),
                 'eraser' => $output->render(new pix_icon('e/clear_formatting', '')),
                 'close' => $output->render(new pix_icon('e/cancel', '')),

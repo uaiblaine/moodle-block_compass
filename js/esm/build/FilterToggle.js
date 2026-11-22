@@ -7,7 +7,7 @@ import{fillCount as f}from"./str";import c,{tipHost as m}from"./Tip";import{mark
  * of the bar's capsule at every width, with no word (ADR-023): the loud counter on its corner shows
  * the bare count, hidden from assistive technology and absent at zero; the accessible name says it
  * in words, because a bare number is not a sentence. Its tooltip says "Filters" alone (Tip.tsx, D51), and
- * not while the panel is open. The glyph is the sliders of the plugin's icon map.
+ * not while the panel is open. The glyph is core's funnel (i/filter).
  *
  * @module     block_compass/FilterToggle
  * @copyright  2026 Anderson Blaine

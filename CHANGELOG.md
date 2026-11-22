@@ -11,6 +11,10 @@ namespace of its Moodle version: `main` (identical to `MOODLE_503_STABLE`) is Mo
 design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measurements in
 [`docs/perf/`](docs/perf/).
 
+## Unreleased (2026042047)
+
+The filter bar's Filters button draws the funnel, core's `i/filter` (Font Awesome `fa-filter`), in place of the sliders (fleet design system D107). The plugin's own `block_compass:sliders` icon is gone from `block_compass_get_fontawesome_icon_map()`. No schema change and no new string.
+
 ## v5.3-r6 (2026100550) - 2026-11-18
 
 Sixth release for Moodle 5.3, from `main`, `MATURITY_BETA`. Its headline is a card's progress computed for the one
