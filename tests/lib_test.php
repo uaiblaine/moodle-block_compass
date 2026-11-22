@@ -149,9 +149,9 @@ final class lib_test extends advanced_testcase {
         $map = block_compass_get_fontawesome_icon_map();
         $this->assertSame('fa-box-archive', $map['block_compass:archive']);
         $this->assertSame('fa-box-open', $map['block_compass:unarchive']);
-        // The filter line's Filters button (ADR-015): core's map has no sliders.
-        $this->assertSame('fa-sliders', $map['block_compass:sliders']);
-        $this->assertStringContainsString('fa-sliders', $output->render(new \core\output\pix_icon('sliders', '', 'block_compass')));
+        // The filter line's Filters button draws core's funnel (D107), so the map carries no filter glyph of its own.
+        $this->assertArrayNotHasKey('block_compass:sliders', $map);
+        $this->assertStringContainsString('fa-filter', $output->render(new \core\output\pix_icon('i/filter', '')));
 
         $archive = $output->render(new \core\output\pix_icon('archive', '', 'block_compass'));
         $unarchive = $output->render(new \core\output\pix_icon('unarchive', '', 'block_compass'));
