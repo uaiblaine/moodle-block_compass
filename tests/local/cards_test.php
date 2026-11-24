@@ -552,6 +552,46 @@ final class cards_test extends advanced_testcase {
     }
 
     /**
+     * details() obeys a prohibit of viewhiddencourses at the hidden course's category over an allow at the system.
+     *
+     * The viewer's role allows the capability at the system context and a second role prohibits it at one
+     * category only: the hidden course in that category is dropped, and the hidden course in a category
+     * without the prohibit is answered to the same viewer, the control that the allow is in force.
+     *
+     * @return void
+     */
+    public function test_details_obeys_a_prohibit_at_the_category_over_a_system_allow(): void {
+        set_config('enablecompletion', 0);
+        $refused = $this->getDataGenerator()->create_category();
+        $open = $this->getDataGenerator()->create_category();
+        $prohibited = (int) $this->course('Hidden course under the prohibit', ['visible' => 0, 'category' => $refused->id])->id;
+        $allowed = (int) $this->course('Hidden course without the prohibit', ['visible' => 0, 'category' => $open->id])->id;
+        $this->plugingen->enrol_at($this->userid, $prohibited, self::NOW - DAYSECS);
+        $this->plugingen->enrol_at($this->userid, $allowed, self::NOW - DAYSECS);
+
+        $syscontext = \core\context\system::instance();
+        $holderrole = create_role('Compass hidden course holder', 'compasshiddenholder', 'Sees hidden courses');
+        assign_capability('moodle/course:viewhiddencourses', CAP_ALLOW, $holderrole, $syscontext->id, true);
+        role_assign($holderrole, $this->userid, $syscontext->id);
+        $refusedrole = create_role('Compass hidden course refused', 'compasshiddenrefused', 'Refused here');
+        $refusedcontext = \core\context\coursecat::instance((int) $refused->id);
+        assign_capability('moodle/course:viewhiddencourses', CAP_PROHIBIT, $refusedrole, $refusedcontext->id, true);
+        role_assign($refusedrole, $this->userid, $refusedcontext->id);
+        accesslib_clear_all_caches_for_unit_testing();
+
+        // Precondition: the allow holds at the system and at the control, the prohibit at its own course.
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $syscontext, $this->userid));
+        $allowedcontext = \core\context\course::instance($allowed);
+        $prohibitedcontext = \core\context\course::instance($prohibited);
+        $this->assertTrue(has_capability('moodle/course:viewhiddencourses', $allowedcontext, $this->userid));
+        $this->assertFalse(has_capability('moodle/course:viewhiddencourses', $prohibitedcontext, $this->userid));
+
+        $details = array_column(cards::details($this->userid, [$prohibited, $allowed], self::NOW), null, 'id');
+
+        $this->assertSame([$allowed], array_keys($details));
+    }
+
+    /**
      * details() drops a course core is deleting, for every viewer, the capability's holder too.
      *
      * Moodle 5.3 marks the course (visible 0, deletioninprogress 1) and deletes it on the cron;
