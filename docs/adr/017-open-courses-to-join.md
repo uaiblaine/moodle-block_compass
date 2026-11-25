@@ -78,8 +78,8 @@ A course counts for the viewer when all of these hold:
    unlisted course to a viewer who could join it. A push surface is not a listing the viewer
    asked for, so it fails closed.
 2. **It starts in the band** (decision 3).
-3. **It offers the viewer a route now.** It has an enabled `self`, `apply`, `fee`, `paypal` or
-   `autoenrol` instance whose window is open (the shared prefilter), and `get_next_actions()`
+3. **It offers the viewer a route now.** It has an enabled `self`, `apply`, `fee`, `paypal`,
+   `autoenrol` or `conditional` instance whose window is open (the shared prefilter), and `get_next_actions()`
    answers `open` for the viewer. Guest access is not enrolment and does not count. The batch can
    answer `open` where the per-course form refuses (the `enrol/self:enrolself` capability,
    autoenrol's rule), so the count is an upper bound. The destination page decides, as it does for
@@ -957,3 +957,25 @@ read the batch did not answer is asked again alone; ADR-017 amendment 1), and wi
 alone; the line is placed once the strip's answer is in (its weight depends on it); no
 timer, no ask on `visibilitychange`, and nothing while the line is hidden for this sign-in, when
 `get_strip_counts` goes alone (the `news` member of `block_compass_calendar`; ADR-017)."
+
+## Amendment 2 (2026-11-24): enrol_conditional is a route method
+
+**Status: Accepted (2026-11-24).** Amends decision 2, condition 3. No new observer, no schema change
+and no version bump.
+
+`local_unlistedcourses\access` now knows enrol_conditional (self enrolment gated by a condition tree,
+evaluated by `local_enrolconditions`): `get_next_actions()` answers `open` with a route of kind
+`conditional` for a viewer the method would enrol now, and the batch evaluates the conditions exactly
+rather than erring towards open. `catalogue::ROUTE_METHODS` lists `conditional`, which feeds both the
+shared prefilter and `news::offers_route()`.
+
+- **The prefilter is unchanged in kind:** an enabled instance whose window is open, the same for every
+  viewer. The conditions are never read there.
+- **The per-viewer decision is local_unlistedcourses' batch**, exact for this method.
+- **Staleness:** the per-user `news` entry (30 minutes) is dropped by the user's role, enrolment, group and
+  cohort events through `observer::access_changed()`. A condition that flips with none of those events (a
+  profile field, a course completion, a date condition, a username list) leaves the entry stale for at
+  most its TTL. That is the class of staleness this ADR already accepts; the landing or enrolment page the
+  course leads to always judges live.
+- The route kind `conditional` is enrol_conditional's; local_unlistedcourses' `conditional` next action
+  stays enrol_coursecompleted's and is no route here.
