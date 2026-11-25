@@ -60,9 +60,12 @@ final class catalogue {
      * @var string[] The enrol methods that offer a route a viewer can take now (decision 2, condition 3).
      *
      * The routes of local_unlistedcourses' next action; guest access is not enrolment and
-     * enrol_coursecompleted offers a condition, not a route.
+     * enrol_coursecompleted offers a condition, not a route. `conditional` is the route kind
+     * enrol_conditional registers, unrelated to that library's `conditional` next action, which stays
+     * enrol_coursecompleted's and is no route here. The prefilter stays viewer-independent (an enabled
+     * instance, its window open): the conditions are judged per viewer by access::get_next_actions().
      */
-    public const ROUTE_METHODS = ['self', 'apply', 'fee', 'paypal', 'autoenrol'];
+    public const ROUTE_METHODS = ['self', 'apply', 'fee', 'paypal', 'autoenrol', 'conditional'];
 
     /**
      * The entry for now: the cached one when it is fresh, otherwise a new build, stored.
