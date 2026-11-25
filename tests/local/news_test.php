@@ -354,6 +354,39 @@ final class news_test extends \advanced_testcase {
     }
 
     /**
+     * An enrol_conditional instance counts for a viewer who meets its conditions and not for one who
+     * does not: same course, same request shape, the batch judging the tree per viewer.
+     *
+     * The tree is one built-in condition, a list of usernames. Skipped where enrol_conditional or its
+     * engine is not installed.
+     *
+     * @return void
+     */
+    public function test_a_conditional_route_counts_only_for_a_viewer_who_meets_it(): void {
+        $plugin = enrol_get_plugin('conditional');
+        if (!$plugin || !method_exists($plugin, 'evaluate_conditions')) {
+            $this->markTestSkipped('enrol_conditional is not installed.');
+        }
+        \core\plugininfo\enrol::enable_plugin('conditional', true);
+        $gen = $this->getDataGenerator();
+        $start = time() + DAYSECS;
+        $category = $gen->create_category();
+        $course = $this->open_course($start, (int) $category->id, 'none');
+        $tree = '{"op":"and","children":[{"type":"userlist","config":{"usernames":["meets"]}}]}';
+        $this->add_route($course, 'conditional', ['customint6' => 1, 'customtext2' => $tree]);
+        $meets = $gen->create_user(['username' => 'meets']);
+        $fails = $gen->create_user(['username' => 'fails']);
+
+        $yes = $this->entry_for($meets);
+        $no = $this->entry_for($fails);
+
+        $this->assertSame(1, $yes['total']);
+        $this->assertSame((int) $course->id, $yes['groups'][0]['courseid']);
+        $this->assertSame(0, $no['total']);
+        $this->assertSame([], $no['groups']);
+    }
+
+    /**
      * The provider's listing filter has the last word: a course the catalogue still holds, its
      * category unlisted since without the event reaching the observer, is dropped; the control counts.
      *
