@@ -13,6 +13,8 @@ design behind each feature is in [`docs/adr/`](docs/adr/README.md) and the measu
 
 ## Unreleased (2026100551)
 
+The open-courses line (ADR-017, amendment 2) counts a course whose only route is an `enrol_conditional` instance for a viewer who meets its conditions: `catalogue::ROUTE_METHODS` gains `conditional`, the shared prefilter stays viewer-independent and `local_unlistedcourses` judges the conditions per viewer. A condition that flips without a role, enrolment, group or cohort event can leave a viewer's 30-minute `news` entry stale until it expires. No schema change, no new string.
+
 The filter bar's Filters button draws the funnel, core's `i/filter` (Font Awesome `fa-filter`), in place of the sliders (fleet design system D107). The plugin's own `block_compass:sliders` icon is gone from `block_compass_get_fontawesome_icon_map()`. No schema change and no new string.
 
 ## v5.3-r6 (2026100550) - 2026-11-18

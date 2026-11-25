@@ -211,6 +211,48 @@ final class catalogue_test extends \advanced_testcase {
     }
 
     /**
+     * An enabled enrol_conditional instance with its window open is a candidate; the same instance with the
+     * window shut, or disabled, is not (the prefilter is viewer-independent, so the conditions are not read).
+     *
+     * The {enrol} rows are written directly: the prefilter reads that table only, so the test needs neither
+     * the plugin nor its engine, and cannot skip.
+     *
+     * @return void
+     */
+    public function test_a_conditional_instance_open_now_is_a_candidate(): void {
+        global $DB;
+
+        $now = $this->now();
+        $start = $now + DAYSECS;
+        $open = $this->open_course($start, 0, 'none');
+        $shut = $this->open_course($start + 1, 0, 'none');
+        $disabled = $this->open_course($start + 2, 0, 'none');
+        $control = $this->open_course($start + 3, 0, 'none');
+        $rows = [
+            [$open, []],
+            [$shut, ['enrolenddate' => $now - HOURSECS]],
+            [$disabled, ['status' => ENROL_INSTANCE_DISABLED]],
+            [$control, ['enrolstartdate' => $now - HOURSECS]],
+        ];
+        foreach ($rows as [$course, $fields]) {
+            $DB->insert_record('enrol', (object) ($fields + [
+                'enrol' => 'conditional',
+                'courseid' => (int) $course->id,
+                'status' => ENROL_INSTANCE_ENABLED,
+                'sortorder' => 0,
+                'enrolstartdate' => 0,
+                'enrolenddate' => 0,
+                'timecreated' => $now,
+                'timemodified' => $now,
+            ]));
+        }
+
+        $entry = $this->uncapped($now);
+
+        $this->assertSame([(int) $open->id, (int) $control->id], $this->ids($entry));
+    }
+
+    /**
      * until is the earliest recorded change ahead: a window closing before midnight ends the entry there;
      * with every window edge beyond the next site midnight, or behind now, the midnight ends it.
      *
